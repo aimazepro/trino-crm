@@ -29,6 +29,8 @@ interface CrmContextType {
 const CrmContext = createContext<CrmContextType | undefined>(undefined);
 
 export function CrmProvider({ children }: { children: ReactNode }) {
+  const [isMounted, setIsMounted] = useState(false);
+  
   const [state, setState] = useState<CrmState>(() => {
     // Try to restore from localStorage if exists, else MOCK
     try {
@@ -44,6 +46,10 @@ export function CrmProvider({ children }: { children: ReactNode }) {
   useEffect(() => {
     localStorage.setItem("@trino:crm-state", JSON.stringify(state));
   }, [state]);
+
+  useEffect(() => {
+    setIsMounted(true);
+  }, []);
 
   const moveDeal = (dealId: string, newStageId: string) => {
     setState((prev) => {
@@ -154,6 +160,15 @@ export function CrmProvider({ children }: { children: ReactNode }) {
   const addCompany = (company: Company) => {
      setState(prev => ({ ...prev, companies: [...prev.companies, company] }));
   };
+
+  if (!isMounted) {
+    return (
+      <div className="flex flex-col items-center justify-center min-h-screen">
+         <div className="w-8 h-8 rounded-full border-4 border-amber-200 border-t-amber-500 animate-spin"></div>
+         <p className="text-sm font-medium text-gray-500 mt-4">Carregando CRM...</p>
+      </div>
+    );
+  }
 
   return (
     <CrmContext.Provider value={{

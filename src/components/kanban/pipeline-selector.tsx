@@ -33,8 +33,6 @@ export function PipelineSelector({ activeId, onChange, onNew }: PipelineSelector
 
   return (
     <div className="flex items-center gap-4">
-      <h1 className="text-2xl font-bold tracking-tight text-gray-900">Negócios</h1>
-      
       <div className="relative" ref={dropdownRef}>
         <button 
           onClick={() => setOpen(!open)}

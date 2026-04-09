@@ -2,10 +2,10 @@ import { Search, Bell, HelpCircle } from "lucide-react";
 
 export function Topbar() {
   return (
-    <header className="h-16 flex items-center justify-between px-6 bg-white/50 backdrop-blur-md border-b border-gray-100 sticky top-0 z-10">
+    <header className="h-16 flex items-center px-6 bg-white border-b border-gray-100 sticky top-0 z-10">
       
       {/* Busca Global */}
-      <div className="flex-1 max-w-xl">
+      <div className="flex-1 max-w-xl mx-auto">
         <div className="relative group">
           <Search size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 group-focus-within:text-amber-500 transition-colors" />
           <input 
@@ -21,7 +21,7 @@ export function Topbar() {
       </div>
 
       {/* Ações da Direita */}
-      <div className="flex items-center gap-4 ml-4">
+      <div className="flex items-center gap-4 absolute right-6">
         <button className="text-gray-400 hover:text-gray-600 transition-colors">
           <HelpCircle size={20} />
         </button>
