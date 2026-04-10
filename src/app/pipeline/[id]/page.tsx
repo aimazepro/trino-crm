@@ -1,16 +1,22 @@
 "use client";
 
-import { use } from "react";
+import { use, useState } from "react";
 import Link from "next/link";
 import { useCrm } from "@/contexts/crm-context";
 import { DealSidebar } from "@/components/deal/deal-sidebar";
 import { DealTabs } from "@/components/deal/deal-tabs";
-import { ArrowLeft, Check, ChevronDown, MoreVertical, Trophy, XCircle } from "lucide-react";
+import { LossReasonModal } from "@/components/deal/loss-reason-modal";
+import { ArrowLeft, Check, ChevronDown, MoreVertical, Trophy, XCircle, Trash2, Play } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { useRouter } from "next/navigation";
 
 export default function DealPage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = use(params);
-  const { state, markDealStatus, moveDeal } = useCrm();
+  const router = useRouter();
+  const { state, markDealStatus, moveDeal, deleteDeal } = useCrm();
+  
+  const [showLossModal, setShowLossModal] = useState(false);
+  const [showDropdown, setShowDropdown] = useState(false);
   
   const deal = state.deals.find(d => d.id === id);
   const pipeline = state.pipelines.find(p => p.id === deal?.pipelineId);
@@ -63,7 +69,7 @@ export default function DealPage({ params }: { params: Promise<{ id: string }> }
            {deal.status === "Ativo" && (
              <>
                <button 
-                 onClick={() => markDealStatus(deal.id, "Perdido")}
+                 onClick={() => setShowLossModal(true)}
                  className="flex items-center gap-1.5 px-3 py-1.5 border border-red-200 text-red-600 font-bold text-xs rounded-lg hover:bg-red-50 hover:border-red-300 transition-colors bg-white shadow-sm"
                >
                  <XCircle size={14} /> Perdido
@@ -78,18 +84,44 @@ export default function DealPage({ params }: { params: Promise<{ id: string }> }
            )}
 
            {deal.status !== "Ativo" && (
-             <div className={cn(
-                "px-3 py-1.5 font-bold text-xs rounded-lg shadow-sm flex items-center gap-1.5 border", 
-                deal.status === "Ganho" ? "bg-green-50 text-green-700 border-green-200" : "bg-red-50 text-red-700 border-red-200"
-             )}>
-                {deal.status === "Ganho" ? <Trophy size={14} /> : <XCircle size={14} />}
-                NEGÓCIO {deal.status.toUpperCase()}
-             </div>
+             <>
+               <div className={cn(
+                  "px-3 py-1.5 font-bold text-xs rounded-lg shadow-sm flex items-center gap-1.5 border", 
+                  deal.status === "Ganho" ? "bg-green-50 text-green-700 border-green-200" : "bg-red-50 text-red-700 border-red-200"
+               )}>
+                  {deal.status === "Ganho" ? <Trophy size={14} /> : <XCircle size={14} />}
+                  NEGÓCIO {deal.status.toUpperCase()}
+               </div>
+               <button 
+                 onClick={() => markDealStatus(deal.id, "Ativo")}
+                 className="flex items-center gap-1.5 px-3 py-1.5 border border-gray-200 text-gray-700 font-bold text-xs rounded-lg hover:bg-gray-50 transition-colors bg-white shadow-sm ml-1"
+               >
+                 <Play size={14} /> Reabrir
+               </button>
+             </>
            )}
 
-           <button className="p-1.5 text-gray-400 hover:text-gray-700 border border-transparent hover:border-gray-200 hover:bg-gray-50 rounded-lg transition-colors ml-1">
-              <MoreVertical size={16} />
-           </button>
+           <div className="relative">
+             <button 
+               onClick={() => setShowDropdown(!showDropdown)} 
+               className="p-1.5 text-gray-400 hover:text-gray-700 border border-transparent hover:border-gray-200 hover:bg-gray-50 rounded-lg transition-colors ml-1"
+             >
+                <MoreVertical size={16} />
+             </button>
+             {showDropdown && (
+               <div className="absolute right-0 top-full mt-2 w-48 bg-white border border-gray-100 rounded-xl shadow-xl z-50 p-1">
+                 <button 
+                   onClick={() => {
+                     deleteDeal(deal.id);
+                     router.push("/negocios");
+                   }} 
+                   className="w-full flex items-center gap-2 px-3 py-2 text-sm text-red-600 hover:bg-red-50 rounded-lg font-bold"
+                 >
+                   <Trash2 size={16} /> Excluir negócio
+                 </button>
+               </div>
+             )}
+           </div>
         </div>
       </div>
 
@@ -119,10 +151,20 @@ export default function DealPage({ params }: { params: Promise<{ id: string }> }
       </div>
 
       {/* Main Split View */}
-      <div className="flex-1 flex overflow-hidden">
+      <div className="flex-1 flex overflow-hidden w-full relative">
          <DealSidebar dealId={deal.id} />
          <DealTabs dealId={deal.id} />
       </div>
+
+      {showLossModal && (
+        <LossReasonModal 
+          onConfirm={(reason) => {
+            markDealStatus(deal.id, "Perdido", reason);
+            setShowLossModal(false);
+          }}
+          onCancel={() => setShowLossModal(false)}
+        />
+      )}
 
     </div>
   );

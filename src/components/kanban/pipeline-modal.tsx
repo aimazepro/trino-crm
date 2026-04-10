@@ -8,17 +8,22 @@ import { Pipeline, PipelineStage } from "@/lib/crm-types";
 interface PipelineModalProps {
   onClose: () => void;
   onSuccess: (newId: string) => void;
+  editPipelineId?: string; // If passed, modal is in EDIT mode
 }
 
-export function PipelineModal({ onClose, onSuccess }: PipelineModalProps) {
-  const { addPipeline } = useCrm();
-  const [name, setName] = useState("");
-  const [stages, setStages] = useState<{ id: string; name: string; days: number }[]>([
-    { id: "1", name: "Prospecção", days: 7 },
-    { id: "2", name: "Qualificação", days: 7 },
-    { id: "3", name: "Proposta", days: 7 },
-    { id: "4", name: "Negociação", days: 7 },
-  ]);
+export function PipelineModal({ onClose, onSuccess, editPipelineId }: PipelineModalProps) {
+  const { state, addPipeline, updatePipeline } = useCrm();
+  const existingPipe = editPipelineId ? state.pipelines.find(p => p.id === editPipelineId) : null;
+  
+  const [name, setName] = useState(existingPipe?.name || "");
+  const [stages, setStages] = useState<{ id: string; name: string; days: number }[]>(
+    existingPipe ? existingPipe.stages.map(s => ({ id: s.id, name: s.name, days: s.maxDays })) : [
+      { id: "1", name: "Prospecção", days: 7 },
+      { id: "2", name: "Qualificação", days: 7 },
+      { id: "3", name: "Proposta", days: 7 },
+      { id: "4", name: "Negociação", days: 7 },
+    ]
+  );
   const [newStageName, setNewStageName] = useState("");
 
   const handleAddStage = () => {
@@ -34,19 +39,25 @@ export function PipelineModal({ onClose, onSuccess }: PipelineModalProps) {
   const handleSave = () => {
     if (!name.trim() || stages.length === 0) return;
     
-    const newPipeline: Pipeline = {
-      id: `pipe_${Date.now()}`,
-      name,
-      stages: stages.map((s, idx) => ({
-        id: `stage_${Date.now()}_${idx}`,
-        name: s.name,
-        maxDays: s.days,
-        order: idx
-      }))
-    };
-    
-    addPipeline(newPipeline);
-    onSuccess(newPipeline.id);
+    const formattedStages = stages.map((s, idx) => ({
+      id: s.id.includes('stage_') ? s.id : `stage_${Date.now()}_${idx}`,
+      name: s.name,
+      maxDays: s.days,
+      order: idx
+    }));
+
+    if (existingPipe) {
+      updatePipeline(existingPipe.id, { name, stages: formattedStages });
+      onSuccess(existingPipe.id);
+    } else {
+      const newPipeline: Pipeline = {
+        id: `pipe_${Date.now()}`,
+        name,
+        stages: formattedStages
+      };
+      addPipeline(newPipeline);
+      onSuccess(newPipeline.id);
+    }
   };
 
   return (
@@ -56,7 +67,7 @@ export function PipelineModal({ onClose, onSuccess }: PipelineModalProps) {
         {/* Header */}
         <div className="flex items-center justify-between p-6 pb-2">
           <div>
-            <h2 className="text-xl font-bold text-gray-900">Novo Pipeline</h2>
+            <h2 className="text-xl font-bold text-gray-900">{existingPipe ? "Editar Pipeline" : "Novo Pipeline"}</h2>
             <p className="text-sm text-gray-500 mt-1">Configure o nome, etapas e tempo de estagnacao por etapa.</p>
           </div>
           <button onClick={onClose} className="p-2 text-gray-400 hover:text-gray-700 hover:bg-gray-100 rounded-full transition-colors mb-auto">
@@ -139,7 +150,7 @@ export function PipelineModal({ onClose, onSuccess }: PipelineModalProps) {
              disabled={!name.trim() || stages.length === 0}
              className="w-full py-3 bg-[#F8D595] hover:bg-[#F2C979] disabled:opacity-50 disabled:cursor-not-allowed text-white font-bold rounded-xl transition-colors shadow-sm"
            >
-             Criar Pipeline
+             {existingPipe ? "Salvar Alterações" : "Criar Pipeline"}
            </button>
         </div>
 

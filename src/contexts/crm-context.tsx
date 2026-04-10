@@ -1,7 +1,7 @@
 "use client";
 
 import React, { createContext, useContext, useState, useEffect, ReactNode } from "react";
-import { CrmState, Pipeline, Deal, Contact, Company, Label, HistoryLog, Note } from "@/lib/crm-types";
+import { CrmState, Pipeline, Deal, Contact, Company, Label, HistoryLog, Note, Appointment, Activity } from "@/lib/crm-types";
 import { MOCK_STATE } from "@/lib/crm-mock";
 
 interface CrmContextType {
@@ -14,16 +14,25 @@ interface CrmContextType {
   addDealNote: (dealId: string, content: string) => void;
   addDealHistory: (dealId: string, description: string, subtext: string) => void;
   addDeal: (deal: Deal) => void;
+  deleteDeal: (dealId: string) => void;
   
   // Pipeline Mutations
   addPipeline: (pipeline: Pipeline) => void;
   deletePipeline: (pipelineId: string) => void;
+  updatePipeline: (pipelineId: string, fields: Partial<Pipeline>) => void;
   
   // Global Relations
   updateContact: (contactId: string, fields: Partial<Contact>) => void;
   addContact: (contact: Contact) => void;
+  updateCompany: (companyId: string, fields: Partial<Company>) => void;
   addCompany: (company: Company) => void;
   addLabel: (label: Label) => void;
+  
+  // Advanced Features
+  addAppointment: (appointment: Omit<Appointment, "id" | "createdAt" | "status">) => void;
+  addActivity: (activity: Omit<Activity, "id" | "createdAt" | "completed">) => void;
+  updateActivity: (activityId: string, fields: Partial<Activity>) => void;
+  deleteActivity: (activityId: string) => void;
 }
 
 const CrmContext = createContext<CrmContextType | undefined>(undefined);
@@ -36,7 +45,15 @@ export function CrmProvider({ children }: { children: ReactNode }) {
     try {
       if (typeof window !== "undefined") {
         const saved = localStorage.getItem("@trino:crm-state");
-        if (saved) return JSON.parse(saved);
+        if (saved) {
+           const parsed = JSON.parse(saved);
+           // Safety Check for New Schema (emails array vs email string)
+           if (parsed.contacts && parsed.contacts[0] && parsed.contacts[0].email) {
+              console.warn("Old CRM schema detected. Falling back to MOCK_STATE");
+              return MOCK_STATE; // Fallback entirely to ensure stability
+           }
+           return parsed;
+        }
       }
     } catch(e) {}
     return MOCK_STATE;
@@ -55,8 +72,6 @@ export function CrmProvider({ children }: { children: ReactNode }) {
     setState((prev) => {
       const deals = prev.deals.map(d => {
         if (d.id === dealId) {
-          
-          // Generate history log
           const oldStage = prev.pipelines.flatMap(p => p.stages).find(s => s.id === d.stageId);
           const newStage = prev.pipelines.flatMap(p => p.stages).find(s => s.id === newStageId);
           
@@ -67,12 +82,7 @@ export function CrmProvider({ children }: { children: ReactNode }) {
              createdAt: new Date().toISOString()
           };
 
-          return { 
-            ...d, 
-            stageId: newStageId, 
-            daysInStage: 0,
-            history: [newLog, ...d.history]
-          };
+          return { ...d, stageId: newStageId, daysInStage: 0, history: [newLog, ...d.history] };
         }
         return d;
       });
@@ -80,17 +90,17 @@ export function CrmProvider({ children }: { children: ReactNode }) {
     });
   };
 
-  const markDealStatus = (dealId: string, status: "Ganho" | "Perdido", reason?: string) => {
+  const markDealStatus = (dealId: string, status: "Ganho" | "Perdido" | "Ativo", reason?: string) => {
     setState((prev) => {
       const deals = prev.deals.map(d => {
         if (d.id === dealId) {
            const log: HistoryLog = {
              id: `log_${Date.now()}`,
-             description: `Negócio marcado como ${status}`,
+             description: status === "Ativo" ? "Negócio reaberto" : `Negócio marcado como ${status}`,
              subtext: reason ? `Motivo: ${reason}` : "",
              createdAt: new Date().toISOString()
            };
-           return { ...d, status, lossReason: reason, history: [log, ...d.history] };
+           return { ...d, status: status as any, lossReason: reason, history: [log, ...d.history] };
         }
         return d;
       });
@@ -125,6 +135,13 @@ export function CrmProvider({ children }: { children: ReactNode }) {
      });
   };
 
+  const deleteDeal = (dealId: string) => {
+    setState(prev => ({
+      ...prev,
+      deals: prev.deals.filter(d => d.id !== dealId)
+    }));
+  };
+
   const addPipeline = (pipeline: Pipeline) => {
     setState(prev => ({ ...prev, pipelines: [...prev.pipelines, pipeline] }));
   };
@@ -133,8 +150,14 @@ export function CrmProvider({ children }: { children: ReactNode }) {
     setState(prev => ({ 
        ...prev, 
        pipelines: prev.pipelines.filter(p => p.id !== pipelineId),
-       // We should ideally orphan or move deals, but for UI sake we drop them or keep them hidden
        deals: prev.deals.filter(d => d.pipelineId !== pipelineId)
+    }));
+  };
+
+  const updatePipeline = (pipelineId: string, fields: Partial<Pipeline>) => {
+    setState(prev => ({
+      ...prev,
+      pipelines: prev.pipelines.map(p => p.id === pipelineId ? { ...p, ...fields } : p)
     }));
   };
 
@@ -142,6 +165,13 @@ export function CrmProvider({ children }: { children: ReactNode }) {
     setState(prev => ({
        ...prev,
        contacts: prev.contacts.map(c => c.id === contactId ? { ...c, ...fields } : c)
+    }));
+  };
+
+  const updateCompany = (companyId: string, fields: Partial<Company>) => {
+    setState(prev => ({
+       ...prev,
+       companies: prev.companies.map(c => c.id === companyId ? { ...c, ...fields } : c)
     }));
   };
 
@@ -159,6 +189,94 @@ export function CrmProvider({ children }: { children: ReactNode }) {
   
   const addCompany = (company: Company) => {
      setState(prev => ({ ...prev, companies: [...prev.companies, company] }));
+  };
+
+  // --- Advanced Features ---
+  
+  const addAppointment = (appt: Omit<Appointment, "id" | "createdAt" | "status">) => {
+    setState((prev) => {
+      return {
+        ...prev,
+        deals: prev.deals.map(d => {
+          if (d.id === appt.dealId) {
+            
+            // Cancel older appointments
+            const updatedAppointments = d.appointments.map(a => 
+              a.status === "Scheduled" ? { ...a, status: "Cancelled" as const } : a
+            );
+            
+            const newAppointment: Appointment = {
+              ...appt,
+              id: `appt_${Date.now()}`,
+              createdAt: new Date().toISOString(),
+              status: "Scheduled"
+            };
+            
+            updatedAppointments.unshift(newAppointment);
+
+            const cancelLog: HistoryLog | null = d.appointments.some(a => a.status === "Scheduled") ? {
+               id: `log_cancel_${Date.now()}`,
+               description: "Agendamento Anterior Cancelado",
+               subtext: "Cancelado porque um novo agendamento foi gerado",
+               createdAt: new Date().toISOString()
+            } : null;
+
+            const newLog: HistoryLog = {
+               id: `log_appt_${Date.now()}`,
+               description: "Reunião Agendada",
+               subtext: `Procedimento: ${appt.procedure} | Com: ${appt.attendant}`,
+               createdAt: new Date().toISOString()
+            };
+
+            const history = [newLog, ...(cancelLog ? [cancelLog] : []), ...d.history];
+
+            // Change stage if "Reuniao" or "Agendada" column exists
+            const pipeline = prev.pipelines.find(p => p.id === d.pipelineId);
+            let newStageId = d.stageId;
+            if (pipeline) {
+               const targetStage = pipeline.stages.find(s => s.name.toLowerCase().includes("agendada") || s.name.toLowerCase().includes("reunião") || s.name.toLowerCase().includes("reuniao"));
+               if (targetStage) newStageId = targetStage.id;
+            }
+
+            return { ...d, appointments: updatedAppointments, history, stageId: newStageId };
+          }
+          return d;
+        })
+      };
+    });
+  };
+
+  const addActivity = (act: Omit<Activity, "id" | "createdAt" | "completed">) => {
+    setState(prev => ({
+      ...prev,
+      deals: prev.deals.map(d => {
+        if (d.id === act.dealId) {
+          const newAct: Activity = { ...act, id: `act_${Date.now()}`, createdAt: new Date().toISOString(), completed: false };
+          return { ...d, activities: [newAct, ...d.activities] };
+        }
+        return d;
+      })
+    }));
+  };
+
+  const updateActivity = (activityId: string, fields: Partial<Activity>) => {
+    setState(prev => ({
+      ...prev,
+      deals: prev.deals.map(d => ({
+        ...d,
+        activities: d.activities.map(a => a.id === activityId ? { ...a, ...fields } : a)
+      }))
+    }));
+  };
+
+  const deleteActivity = (activityId: string) => {
+    setState(prev => ({
+      ...prev,
+      deals: prev.deals.map(d => ({
+        ...d,
+        activities: d.activities.filter(a => a.id !== activityId)
+      }))
+    }));
   };
 
   if (!isMounted) {
@@ -179,12 +297,19 @@ export function CrmProvider({ children }: { children: ReactNode }) {
       addDealNote,
       addDealHistory,
       addDeal,
+      deleteDeal,
       addPipeline,
       deletePipeline,
+      updatePipeline,
       updateContact,
       addContact,
+      updateCompany,
       addCompany,
-      addLabel
+      addLabel,
+      addAppointment,
+      addActivity,
+      updateActivity,
+      deleteActivity
     }}>
       {children}
     </CrmContext.Provider>

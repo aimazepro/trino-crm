@@ -4,14 +4,16 @@ import { useState } from "react";
 import { formatDistanceToNow } from "date-fns";
 import { ptBR } from "date-fns/locale";
 import { useCrm } from "@/contexts/crm-context";
-import { ArrowRight, MessageCircleOff, Settings, ListTodo } from "lucide-react";
+import { ActivityTab } from "./activity-tab";
+import { AppointmentsTab } from "./appointments-tab";
+import { ArrowRight, MessageCircleOff, Settings } from "lucide-react";
 import { cn } from "@/lib/utils";
 
 interface DealTabsProps {
   dealId: string;
 }
 
-const TABS = ["Atividades", "Notas", "Histórico", "WhatsApp"];
+const TABS = ["Atividades", "Agendamentos", "Notas", "Histórico", "WhatsApp"];
 
 export function DealTabs({ dealId }: DealTabsProps) {
   const { state, addDealNote } = useCrm();
@@ -58,17 +60,10 @@ export function DealTabs({ dealId }: DealTabsProps) {
       <div className="flex-1 overflow-y-auto p-8 hide-scrollbar bg-gray-50/30">
         
         {/* Atividades Tab */}
-        {activeTab === "Atividades" && (
-          <div className="flex flex-col items-center justify-center h-full max-h-[400px]">
-             <div className="w-16 h-16 rounded-full bg-orange-50 text-orange-200 flex items-center justify-center mb-4">
-                <ListTodo size={32} />
-             </div>
-             <p className="text-sm font-medium text-gray-500">Nenhuma atividade registrada</p>
-             <button className="mt-2 text-sm font-bold text-amber-500 hover:text-amber-600">
-               Adicionar primeira atividade
-             </button>
-          </div>
-        )}
+        {activeTab === "Atividades" && <ActivityTab deal={deal} />}
+
+        {/* Agendamentos Tab */}
+        {activeTab === "Agendamentos" && <AppointmentsTab deal={deal} />}
 
         {/* Notas Tab */}
         {activeTab === "Notas" && (

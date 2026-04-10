@@ -11,38 +11,64 @@ export interface Company {
   cnpj?: string;
 }
 
+export type ContactEmail = { value: string; type: string }; 
+export type ContactPhone = { value: string; type: string };
+
 export interface Contact {
   id: string;
   name: string;
-  email: string;
-  phone: string;
+  emails: ContactEmail[];
+  phones: ContactPhone[];
   role: string;
-  companyId?: string; // Relation to Company
+  companyId?: string; 
 }
 
 export interface Label {
   id: string;
   name: string;
-  color: string; // Tailwind class like "bg-blue-500" or hex code
+  color: string; 
 }
 
 export interface Note {
   id: string;
   content: string;
-  createdAt: string; // ISO string
+  createdAt: string; 
 }
 
 export interface HistoryLog {
   id: string;
-  description: string; // e.g. "Etapa alterada"
-  subtext: string; // e.g. "De Prospecção para Qualificação"
-  createdAt: string; // ISO string
+  description: string; 
+  subtext: string; 
+  createdAt: string; 
 }
 
-export interface Product {
+export interface DealProduct {
   id: string;
   name: string;
+  quantity: number;
   price: number;
+}
+
+export interface Appointment {
+  id: string;
+  dealId: string;
+  attendant: string;
+  procedure: string; 
+  link?: string; 
+  date: string; 
+  status: "Scheduled" | "Cancelled" | "Done"; 
+  createdAt: string;
+}
+
+export interface Activity {
+  id: string;
+  dealId: string;
+  title: string;
+  description?: string;
+  date: string; 
+  type: string; 
+  completed: boolean;
+  createdAt: string;
 }
 
 export interface Deal {
@@ -52,24 +78,26 @@ export interface Deal {
   contactId: string;
   companyId?: string;
   pipelineId: string;
-  stageId: string; // Current column
+  stageId: string; 
   status: LeadStatus;
-  lossReason?: string; // If lost
-  expectedCloseDate?: string; // ISO string
+  lossReason?: string; 
+  expectedCloseDate?: string; 
   probability?: number;
-  labels: string[]; // Array of Label IDs
-  daysInStage: number; // Counter for SLA check
+  source?: string; 
+  labels: string[]; 
+  daysInStage: number; 
   
-  // Nested relations for the detail page
   notes: Note[];
   history: HistoryLog[];
-  products: Product[];
+  products: DealProduct[];
+  activities: Activity[];
+  appointments: Appointment[];
 }
 
 export interface PipelineStage {
   id: string;
   name: string;
-  maxDays: number; // Stagnation limit
+  maxDays: number; 
   order: number;
 }
 
@@ -79,7 +107,6 @@ export interface Pipeline {
   stages: PipelineStage[];
 }
 
-// Typings for the Context API State
 export interface CrmState {
   pipelines: Pipeline[];
   deals: Deal[];

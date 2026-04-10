@@ -18,6 +18,7 @@ export default function KanbanPage() {
   
   // Modals
   const [showNewPipelineModal, setShowNewPipelineModal] = useState(false);
+  const [editPipelineId, setEditPipelineId] = useState<string | null>(null);
   const [showNewDealModal, setShowNewDealModal] = useState(false);
   const [showColumnsModal, setShowColumnsModal] = useState(false);
 
@@ -61,7 +62,8 @@ export default function KanbanPage() {
               <PipelineSelector 
                 activeId={activePipelineId} 
                 onChange={setActivePipelineId} 
-                onNew={() => setShowNewPipelineModal(true)} 
+                onNew={() => setShowNewPipelineModal(true)}
+                onEdit={(id) => setEditPipelineId(id)}
               />
             </div>
          </div>
@@ -139,6 +141,14 @@ export default function KanbanPage() {
         <PipelineModal 
           onClose={() => setShowNewPipelineModal(false)}
           onSuccess={(id) => { setActivePipelineId(id); setShowNewPipelineModal(false); }}
+        />
+      )}
+
+      {editPipelineId && (
+        <PipelineModal 
+          editPipelineId={editPipelineId}
+          onClose={() => setEditPipelineId(null)}
+          onSuccess={() => setEditPipelineId(null)}
         />
       )}
       

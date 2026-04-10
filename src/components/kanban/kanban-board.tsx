@@ -4,6 +4,7 @@ import { useState } from "react";
 import { DragDropContext, Droppable, Draggable, DropResult } from "@hello-pangea/dnd";
 import { useCrm } from "@/contexts/crm-context";
 import { MoreHorizontal, Calendar, DollarSign, Building, ChevronRight, AlertTriangle, XCircle, Trophy, Plus } from "lucide-react";
+import { LossReasonModal } from "@/components/deal/loss-reason-modal";
 import { cn } from "@/lib/utils";
 
 interface KanbanBoardProps {
@@ -152,6 +153,16 @@ export function KanbanBoard({ pipelineId }: KanbanBoardProps) {
                                       </div>
                                       <div className="text-gray-400 font-medium">{deal.daysInStage}d</div>
                                     </div>
+
+                                    {/* Next Activity Badge */}
+                                    {deal.activities?.filter(a => !a.completed).length > 0 && (
+                                      <div className="mt-2 bg-gray-50 border border-gray-100 rounded-lg p-2 text-xs font-semibold text-gray-600 flex items-center justify-between">
+                                         <span>
+                                           {new Date(deal.activities.filter(a => !a.completed).sort((a,b) => new Date(a.date).getTime() - new Date(b.date).getTime())[0].date).toLocaleString('pt-BR', { day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' })}: {deal.activities.filter(a => !a.completed).sort((a,b) => new Date(a.date).getTime() - new Date(b.date).getTime())[0].type}
+                                         </span>
+                                         <span className="text-gray-400">0d</span>
+                                      </div>
+                                    )}
                                  </div>
                                )}
                              </Draggable>
@@ -219,39 +230,13 @@ export function KanbanBoard({ pipelineId }: KanbanBoardProps) {
 
       {/* Loss Reason Modal */}
       {lossModalDealId && (
-        <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-gray-900/40 backdrop-blur-sm animate-in fade-in">
-          <div className="bg-white rounded-2xl shadow-2xl w-full max-w-sm p-6 text-center animate-in zoom-in-95">
-            <div className="w-12 h-12 rounded-full bg-red-100 text-red-500 mx-auto flex items-center justify-center mb-4">
-               <XCircle size={24} />
-            </div>
-            <h2 className="text-xl font-bold text-gray-900 mb-2">Motivo da Perda</h2>
-            <p className="text-sm text-gray-500 mb-6">Por favor, documente o motivo pelo qual este negócio não evoluiu.</p>
-            
-            <textarea 
-              value={lossReason}
-              onChange={(e) => setLossReason(e.target.value)}
-              placeholder="Ex: Preço elevado, Concorrente venceu..."
-              className="w-full border border-gray-200 rounded-xl p-3 text-sm focus:outline-none focus:ring-2 focus:ring-red-500/20 focus:border-red-500 mb-6 min-h-[100px] resize-none"
-              autoFocus
-            />
-
-            <div className="flex gap-3">
-              <button 
-                onClick={() => { setLossModalDealId(null); setLossReason(""); }}
-                className="flex-1 py-2.5 font-medium text-gray-600 bg-gray-100 hover:bg-gray-200 rounded-xl transition-colors"
-              >
-                Cancelar
-              </button>
-              <button 
-                onClick={confirmLoss}
-                disabled={!lossReason.trim()}
-                className="flex-1 py-2.5 font-bold text-white bg-red-500 hover:bg-red-600 disabled:opacity-50 disabled:cursor-not-allowed rounded-xl transition-colors shadow-sm"
-              >
-                Confirmar
-              </button>
-            </div>
-          </div>
-        </div>
+        <LossReasonModal 
+          onConfirm={(reason) => {
+            markDealStatus(lossModalDealId, "Perdido", reason);
+            setLossModalDealId(null);
+          }}
+          onCancel={() => setLossModalDealId(null)}
+        />
       )}
     </>
   );

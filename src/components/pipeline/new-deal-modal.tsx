@@ -21,6 +21,7 @@ export function NewDealModal({ onClose, activePipelineId }: NewDealModalProps) {
   const [stageId, setStageId] = useState(pipeline?.stages[0]?.id || "");
   const [value, setValue] = useState("");
   const [date, setDate] = useState("");
+  const [source, setSource] = useState("");
 
   // Contact State
   const [isNewContact, setIsNewContact] = useState(false);
@@ -61,8 +62,8 @@ export function NewDealModal({ onClose, activePipelineId }: NewDealModalProps) {
        addContact({
          id: finalContactId,
          name: newContactName,
-         phone: "",
-         email: "",
+         emails: [],
+         phones: [],
          role: "",
          companyId: finalCompanyId
        });
@@ -90,8 +91,10 @@ export function NewDealModal({ onClose, activePipelineId }: NewDealModalProps) {
        labels: [],
        notes: [],
        history: [initialLog],
-       products: [],
+       activities: [],
+       appointments: [],
        expectedCloseDate: date ? new Date(date).toISOString() : undefined,
+       source: source || undefined,
     };
 
     addDeal(newDeal);
