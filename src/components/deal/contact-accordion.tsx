@@ -94,8 +94,16 @@ export function ContactAccordion({ contact }: ContactAccordionProps) {
                 <div className="space-y-2">
                   {contact.emails.map((e, idx) => (
                     <div key={idx} className="group flex items-center justify-between text-sm">
-                      <div>
-                        {e.value} <span className="text-[10px] text-gray-400 bg-gray-100 px-1 rounded ml-1">{e.type}</span>
+                      <div className="flex items-center flex-1 pr-2">
+                        <InlineEdit 
+                           value={e.value} 
+                           onSave={(v) => {
+                             const newer = [...contact.emails];
+                             newer[idx].value = v;
+                             updateContact(contact.id, { emails: newer });
+                           }} 
+                        />
+                        <span className="text-[10px] text-gray-400 bg-gray-100 px-1 rounded ml-2 shrink-0">{e.type}</span>
                       </div>
                       <button onClick={() => removeEmail(idx)} className="text-red-400 hover:text-red-600 opacity-0 group-hover:opacity-100 transition-opacity p-1">
                         <X size={14} />
@@ -151,8 +159,16 @@ export function ContactAccordion({ contact }: ContactAccordionProps) {
                 <div className="space-y-2">
                   {contact.phones.map((p, idx) => (
                     <div key={idx} className="group flex items-center justify-between text-sm">
-                      <div>
-                        {p.value} <span className="text-[10px] text-gray-400 bg-gray-100 px-1 rounded ml-1">{p.type}</span>
+                      <div className="flex items-center flex-1 pr-2">
+                        <InlineEdit 
+                           value={p.value} 
+                           onSave={(v) => {
+                             const newer = [...contact.phones];
+                             newer[idx].value = v;
+                             updateContact(contact.id, { phones: newer });
+                           }} 
+                        />
+                        <span className="text-[10px] text-gray-400 bg-gray-100 px-1 rounded ml-2 shrink-0">{p.type}</span>
                       </div>
                       <button onClick={() => removePhone(idx)} className="text-red-400 hover:text-red-600 opacity-0 group-hover:opacity-100 transition-opacity p-1">
                         <X size={14} />
@@ -207,16 +223,9 @@ export function ContactAccordion({ contact }: ContactAccordionProps) {
                <PhoneIcon size={14} /> Ligar
              </button>
              
-             {/* Mock de Conexão com o WhatsApp: false para forçar botão "Conectar", true para "WhatsApp" */}
-             {state.whatsappConnected ? (
-               <Link href={`/contatos/${contact.id}?tab=whatsapp`} className="flex-1 flex items-center justify-center gap-1.5 py-2 rounded-xl bg-[#25D366] text-white font-medium text-xs hover:bg-[#1DA851] shadow-sm transition-colors">
-                 WhatsApp
-               </Link>
-             ) : (
-               <Link href="/configuracoes" className="flex-1 flex items-center justify-center gap-1.5 py-2 rounded-xl border border-[#25D366] text-[#25D366] font-medium text-xs hover:bg-[#25D366]/5 transition-colors">
-                 Conectar
-               </Link>
-             )}
+             <Link href="?tab=WhatsApp" scroll={false} className="flex-1 flex items-center justify-center gap-1.5 py-2 rounded-xl bg-[#25D366] text-white font-medium text-xs hover:bg-[#1DA851] shadow-sm transition-colors">
+               WhatsApp
+             </Link>
           </div>
         </div>
       )}

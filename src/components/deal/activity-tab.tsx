@@ -46,7 +46,7 @@ export function ActivityTab({ deal }: { deal: Deal }) {
   };
 
   return (
-    <div className="max-w-3xl space-y-6">
+    <div className="w-full space-y-6">
       <div className="flex items-center justify-between border-b border-gray-100 pb-4">
          <h4 className="text-xs font-bold text-gray-400 uppercase tracking-widest">Atividades</h4>
          <button onClick={startAdding} className="text-xs font-bold text-white bg-amber-500 hover:bg-amber-600 px-4 py-2 rounded-xl shadow-sm transition-colors flex items-center gap-1.5 focus:outline-none focus:ring-2 focus:ring-amber-500/20">
