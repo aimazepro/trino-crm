@@ -4,87 +4,57 @@ import { useState } from "react";
 import { ListTodo, CheckCircle, Trash2, Edit2, Play } from "lucide-react";
 import { useCrm } from "@/contexts/crm-context";
 import { Deal, Activity } from "@/lib/crm-types";
+import { ActivityModal } from "./activity-modal";
 import { cn } from "@/lib/utils";
 
 export function ActivityTab({ deal }: { deal: Deal }) {
   const { addActivity, deleteActivity, updateActivity } = useCrm();
-  const [isAdding, setIsAdding] = useState(false);
-  
-  const [title, setTitle] = useState("");
-  const [date, setDate] = useState("");
-  const [type, setType] = useState("WhatsApp");
-  const [editingId, setEditingId] = useState<string | null>(null);
+  const [showModal, setShowModal] = useState(false);
+  const [editingActivity, setEditingActivity] = useState<Activity | null>(null);
 
   const startAdding = () => {
-    setIsAdding(true);
-    setEditingId(null);
-    setTitle("");
-    setDate("");
-    setType("WhatsApp");
+    setEditingActivity(null);
+    setShowModal(true);
   };
 
-  const saveActivity = () => {
-    if (!title.trim() || !date) return;
-    
-    if (editingId) {
-       updateActivity(editingId, { title, date: new Date(date).toISOString(), type });
+  const saveActivity = (data: { title: string; type: string; date: string; description: string }) => {
+    if (editingActivity) {
+       updateActivity(editingActivity.id, { 
+         title: data.title, 
+         date: data.date, 
+         type: data.type,
+         description: data.description
+       });
     } else {
        addActivity({
          dealId: deal.id,
-         title,
-         date: new Date(date).toISOString(),
-         type
+         title: data.title,
+         date: data.date,
+         type: data.type,
+         description: data.description,
+         completed: false
        });
     }
-    setIsAdding(false);
-    setEditingId(null);
+    setShowModal(false);
+    setEditingActivity(null);
   };
 
+
   const handleEdit = (a: Activity) => {
-    setTitle(a.title);
-    setDate(a.date.substring(0, 16));
-    setType(a.type);
-    setEditingId(a.id);
-    setIsAdding(true);
+    setEditingActivity(a);
+    setShowModal(true);
   };
 
   return (
     <div className="max-w-3xl space-y-6">
-      <div className="flex items-center justify-between">
+      <div className="flex items-center justify-between border-b border-gray-100 pb-4">
          <h4 className="text-xs font-bold text-gray-400 uppercase tracking-widest">Atividades</h4>
-         {!isAdding && (
-           <button onClick={startAdding} className="text-xs font-bold text-amber-500 hover:text-amber-600 bg-amber-50 px-3 py-1.5 rounded-lg border border-amber-100">
-              + Nova Atividade
-           </button>
-         )}
+         <button onClick={startAdding} className="text-xs font-bold text-white bg-amber-500 hover:bg-amber-600 px-4 py-2 rounded-xl shadow-sm transition-colors flex items-center gap-1.5 focus:outline-none focus:ring-2 focus:ring-amber-500/20">
+            + Adicionar
+         </button>
       </div>
 
-      {isAdding && (
-         <div className="bg-white border rounded-xl p-4 shadow-sm space-y-3">
-            <h5 className="font-bold text-sm text-gray-900">{editingId ? "Editar Atividade" : "Agendar Atividade"}</h5>
-            <div className="flex gap-2">
-               <input 
-                 value={title} onChange={e => setTitle(e.target.value)}
-                 className="flex-1 border rounded py-1.5 px-3 text-sm outline-none focus:border-amber-500" 
-                 placeholder="Descrição (ex: Ligar para confirmar)"
-               />
-               <select value={type} onChange={e => setType(e.target.value)} className="w-32 border rounded py-1.5 px-3 text-sm outline-none">
-                 <option>WhatsApp</option><option>Ligação</option><option>Email</option><option>Reunião</option>
-               </select>
-               <input 
-                 type="datetime-local" 
-                 value={date} onChange={e => setDate(e.target.value)}
-                 className="w-44 border rounded py-1.5 px-3 text-sm outline-none focus:border-amber-500" 
-               />
-            </div>
-            <div className="flex justify-end gap-2 pt-2">
-               <button onClick={() => setIsAdding(false)} className="text-sm px-3 py-1.5 text-gray-500 font-medium">Cancelar</button>
-               <button onClick={saveActivity} className="text-sm px-4 py-1.5 bg-amber-500 text-white font-bold rounded shadow-sm hover:bg-amber-600">Salvar</button>
-            </div>
-         </div>
-      )}
-
-      {deal.activities.length === 0 && !isAdding ? (
+      {deal.activities.length === 0 ? (
          <div className="flex flex-col items-center justify-center py-10">
             <div className="w-16 h-16 rounded-full bg-orange-50 text-orange-200 flex items-center justify-center mb-4">
                <ListTodo size={32} />
@@ -113,16 +83,24 @@ export function ActivityTab({ deal }: { deal: Deal }) {
                        </div>
                     </div>
                  </div>
-                 <div className="flex items-center gap-1">
-                    <button onClick={() => updateActivity(a.id, { completed: !a.completed })} className="text-xs font-bold px-2 py-1 bg-green-50 text-green-600 rounded">
+                  <div className="flex items-center gap-1">
+                    <button onClick={() => updateActivity(a.id, { completed: !a.completed })} className="text-xs font-bold px-3 py-1 border border-gray-200 text-gray-500 hover:text-gray-800 rounded-md whitespace-nowrap hidden sm:block">
                        {a.completed ? "Reabrir" : "Concluir"}
                     </button>
-                    <button onClick={() => handleEdit(a)} className="p-1.5 text-gray-400 hover:text-amber-600 hover:bg-amber-50 rounded"><Edit2 size={14}/></button>
-                    <button onClick={() => deleteActivity(a.id)} className="p-1.5 text-gray-400 hover:text-red-600 hover:bg-red-50 rounded"><Trash2 size={14}/></button>
+                    <button onClick={() => handleEdit(a)} className="p-1.5 text-gray-400 hover:text-amber-600 border border-transparent hover:border-amber-200 hover:bg-amber-50 rounded-md transition-colors"><Edit2 size={14}/></button>
+                    <button onClick={() => deleteActivity(a.id)} className="p-1.5 text-gray-400 hover:text-red-500 border border-transparent hover:border-red-200 hover:bg-red-50 rounded-md transition-colors"><Trash2 size={14}/></button>
                  </div>
               </div>
            ))}
          </div>
+      )}
+
+      {showModal && (
+        <ActivityModal 
+           activity={editingActivity || undefined}
+           onClose={() => setShowModal(false)}
+           onSave={saveActivity}
+        />
       )}
     </div>
   );

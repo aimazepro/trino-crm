@@ -1,16 +1,18 @@
 "use client";
 
 import { useState } from "react";
-import { ChevronDown, ChevronRight, Edit2, Check, X, Phone, Mail } from "lucide-react";
+import { ChevronDown, ChevronRight, Edit2, Check, X, Phone as PhoneIcon, Mail } from "lucide-react";
 import { Contact, ContactEmail, ContactPhone } from "@/lib/crm-types";
 import { useCrm } from "@/contexts/crm-context";
+import { InlineEdit } from "./inline-edit";
+import Link from "next/link";
 
 interface ContactAccordionProps {
   contact: Contact;
 }
 
 export function ContactAccordion({ contact }: ContactAccordionProps) {
-  const { updateContact } = useCrm();
+  const { state, updateContact } = useCrm();
   const [isOpen, setIsOpen] = useState(true);
 
   // New Email state
@@ -81,7 +83,13 @@ export function ContactAccordion({ contact }: ContactAccordionProps) {
             <div>
               <div className="text-xs text-gray-500 mb-1">Email</div>
               {contact.emails.length === 0 ? (
-                <div className="text-sm text-gray-400 pl-1">-</div>
+                <div 
+                   className="group flex items-center justify-between cursor-text p-1.5 -mx-1.5 rounded-lg hover:bg-gray-50 transition-colors"
+                   onClick={() => setIsAddingEmail(true)}
+                >
+                  <span className="text-sm text-gray-400">-</span>
+                  <span className="opacity-0 group-hover:opacity-100 text-gray-300 shrink-0"><Edit2 size={12} /></span>
+                </div>
               ) : (
                 <div className="space-y-2">
                   {contact.emails.map((e, idx) => (
@@ -132,7 +140,13 @@ export function ContactAccordion({ contact }: ContactAccordionProps) {
             <div>
               <div className="text-xs text-gray-500 mb-1">Telefone</div>
               {contact.phones.length === 0 ? (
-                <div className="text-sm text-gray-400 pl-1">-</div>
+                <div 
+                   className="group flex items-center justify-between cursor-text p-1.5 -mx-1.5 rounded-lg hover:bg-gray-50 transition-colors"
+                   onClick={() => setIsAddingPhone(true)}
+                >
+                  <span className="text-sm text-gray-400">-</span>
+                  <span className="opacity-0 group-hover:opacity-100 text-gray-300 shrink-0"><Edit2 size={12} /></span>
+                </div>
               ) : (
                 <div className="space-y-2">
                   {contact.phones.map((p, idx) => (
@@ -181,8 +195,8 @@ export function ContactAccordion({ contact }: ContactAccordionProps) {
 
             <div className="pt-2">
                <div className="text-xs text-gray-500 mb-1">Cargo</div>
-               <div className="text-sm text-gray-900 group flex items-center gap-2">
-                  <span>{contact.role || "-"}</span>
+               <div className="flex items-center text-sm">
+                  <InlineEdit value={contact.role || ""} onSave={(v) => updateContact(contact.id, { role: v })} />
                </div>
             </div>
 
@@ -190,11 +204,19 @@ export function ContactAccordion({ contact }: ContactAccordionProps) {
 
           <div className="flex gap-2 pt-4 border-t border-gray-50">
              <button className="flex-1 flex items-center justify-center gap-1.5 py-2 rounded-xl border border-gray-200 text-gray-600 font-medium text-xs hover:bg-gray-50 transition-colors">
-               <Phone size={14} /> Ligar
+               <PhoneIcon size={14} /> Ligar
              </button>
-             <button className="flex-1 flex items-center justify-center gap-1.5 py-2 rounded-xl bg-[#25D366] text-white font-medium text-xs hover:bg-[#1DA851] shadow-sm transition-colors">
-               WhatsApp
-             </button>
+             
+             {/* Mock de Conexão com o WhatsApp: false para forçar botão "Conectar", true para "WhatsApp" */}
+             {state.whatsappConnected ? (
+               <Link href={`/contatos/${contact.id}?tab=whatsapp`} className="flex-1 flex items-center justify-center gap-1.5 py-2 rounded-xl bg-[#25D366] text-white font-medium text-xs hover:bg-[#1DA851] shadow-sm transition-colors">
+                 WhatsApp
+               </Link>
+             ) : (
+               <Link href="/configuracoes" className="flex-1 flex items-center justify-center gap-1.5 py-2 rounded-xl border border-[#25D366] text-[#25D366] font-medium text-xs hover:bg-[#25D366]/5 transition-colors">
+                 Conectar
+               </Link>
+             )}
           </div>
         </div>
       )}

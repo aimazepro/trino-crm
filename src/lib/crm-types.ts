@@ -113,4 +113,5 @@ export interface CrmState {
   contacts: Contact[];
   companies: Company[];
   labels: Label[];
+  whatsappConnected?: boolean;
 }
