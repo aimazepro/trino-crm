@@ -3,15 +3,18 @@
 import { useState } from "react";
 import { DragDropContext, Droppable, Draggable, DropResult } from "@hello-pangea/dnd";
 import { useCrm } from "@/contexts/crm-context";
+import { isToday, isTomorrow, format } from "date-fns";
+import { ptBR } from "date-fns/locale";
 import { MoreHorizontal, Calendar, DollarSign, Building, ChevronRight, AlertTriangle, XCircle, Trophy, Plus } from "lucide-react";
 import { LossReasonModal } from "@/components/deal/loss-reason-modal";
 import { cn } from "@/lib/utils";
 
 interface KanbanBoardProps {
   pipelineId: string;
+  onNewDeal?: (stageId?: string) => void;
 }
 
-export function KanbanBoard({ pipelineId }: KanbanBoardProps) {
+export function KanbanBoard({ pipelineId, onNewDeal }: KanbanBoardProps) {
   const { state, moveDeal, markDealStatus } = useCrm();
   const [isDragging, setIsDragging] = useState(false);
   const [lossModalDealId, setLossModalDealId] = useState<string | null>(null);
@@ -65,6 +68,13 @@ export function KanbanBoard({ pipelineId }: KanbanBoardProps) {
     }
   };
 
+  const formatActivityDate = (dateInput: string) => {
+    const d = new Date(dateInput);
+    if (isToday(d)) return `Hoje ${format(d, 'HH:mm')}`;
+    if (isTomorrow(d)) return `Amanhã ${format(d, 'HH:mm')}`;
+    return format(d, 'dd/MM HH:mm');
+  };
+
   return (
     <>
       <DragDropContext onDragStart={handleDragStart} onDragEnd={handleDragEnd}>
@@ -108,6 +118,12 @@ export function KanbanBoard({ pipelineId }: KanbanBoardProps) {
                            const company = state.companies.find(c => c.id === deal.companyId);
                            const isStagnant = deal.daysInStage >= stage.maxDays;
                            
+                           const pendingActivities = deal.activities?.filter(a => !a.completed) || [];
+                           const nextActivity = pendingActivities.length > 0 
+                              ? pendingActivities.sort((a,b) => new Date(a.date).getTime() - new Date(b.date).getTime())[0] 
+                              : null;
+                           const isActivityToday = nextActivity ? isToday(new Date(nextActivity.date)) : false;
+                           
                            return (
                              <Draggable key={deal.id} draggableId={deal.id} index={index}>
                                {(provided, snapshot) => (
@@ -138,7 +154,7 @@ export function KanbanBoard({ pipelineId }: KanbanBoardProps) {
                                       </div>
                                     )}
 
-                                    <div className="flex items-center justify-between text-xs font-bold text-gray-900 mb-3">
+                                    <div className="flex items-center justify-between text-base font-bold text-gray-900 mb-3">
                                       {deal.value > 0 ? (
                                          deal.value.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })
                                       ) : (
@@ -147,22 +163,21 @@ export function KanbanBoard({ pipelineId }: KanbanBoardProps) {
                                     </div>
                                     
                                     <div className="flex items-center justify-between pt-3 border-t border-gray-50 text-[10px] font-bold">
-                                      <div className={cn("flex items-center gap-1", isStagnant ? "text-red-500" : "text-amber-500")}>
-                                         <AlertTriangle size={12} />
-                                         {isStagnant ? "Estagnado!" : "Sem atividade"}
-                                      </div>
+                                      {nextActivity ? (
+                                         <div className={cn(
+                                            "border rounded-lg px-2 py-1 text-xs font-medium",
+                                            isActivityToday ? "bg-green-50 border-green-200 text-green-700" : "bg-gray-50 border-gray-100 text-gray-600"
+                                         )}>
+                                            {formatActivityDate(nextActivity.date)}: {nextActivity.type}
+                                         </div>
+                                      ) : (
+                                         <div className={cn("flex items-center gap-1", isStagnant ? "text-red-500" : "text-amber-500")}>
+                                            <AlertTriangle size={12} />
+                                            {isStagnant ? "Estagnado!" : "Sem atividade"}
+                                         </div>
+                                      )}
                                       <div className="text-gray-400 font-medium">{deal.daysInStage}d</div>
                                     </div>
-
-                                    {/* Next Activity Badge */}
-                                    {deal.activities?.filter(a => !a.completed).length > 0 && (
-                                      <div className="mt-2 bg-gray-50 border border-gray-100 rounded-lg p-2 text-xs font-semibold text-gray-600 flex items-center justify-between">
-                                         <span>
-                                           {new Date(deal.activities.filter(a => !a.completed).sort((a,b) => new Date(a.date).getTime() - new Date(b.date).getTime())[0].date).toLocaleString('pt-BR', { day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' })}: {deal.activities.filter(a => !a.completed).sort((a,b) => new Date(a.date).getTime() - new Date(b.date).getTime())[0].type}
-                                         </span>
-                                         <span className="text-gray-400">0d</span>
-                                      </div>
-                                    )}
                                  </div>
                                )}
                              </Draggable>
@@ -171,11 +186,14 @@ export function KanbanBoard({ pipelineId }: KanbanBoardProps) {
                          {provided.placeholder}
                        </div>
                        
-                       {/* Ghost empty card creator */}
-                       {!snapshot.isDraggingOver && stageDeals.length === 0 && (
-                          <div className="h-24 border-2 border-dashed border-gray-200 rounded-xl flex items-center justify-center text-xs font-medium text-gray-400 mt-2">
+                       {/* + Negocio Button (Always visible) */}
+                       {!snapshot.isDraggingOver && (
+                          <button 
+                             onClick={() => onNewDeal?.(stage.id)}
+                             className="w-[calc(100%-8px)] mx-1 mt-2 border-2 border-dashed border-gray-100 rounded-xl flex items-center justify-center text-xs font-medium text-gray-300 py-2.5 hover:bg-gray-50 hover:text-gray-500 transition-colors"
+                          >
                              + Negócio
-                          </div>
+                          </button>
                        )}
                      </div>
                    )}

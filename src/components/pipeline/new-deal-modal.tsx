@@ -9,16 +9,17 @@ import { cn } from "@/lib/utils";
 interface NewDealModalProps {
   onClose: () => void;
   activePipelineId: string;
+  initialStageId?: string;
 }
 
-export function NewDealModal({ onClose, activePipelineId }: NewDealModalProps) {
+export function NewDealModal({ onClose, activePipelineId, initialStageId }: NewDealModalProps) {
   const { state, addDeal, addContact, addCompany } = useCrm();
 
   const pipeline = state.pipelines.find(p => p.id === activePipelineId);
   
   // Deal Form State
   const [title, setTitle] = useState("");
-  const [stageId, setStageId] = useState(pipeline?.stages[0]?.id || "");
+  const [stageId, setStageId] = useState(initialStageId || pipeline?.stages[0]?.id || "");
   const [value, setValue] = useState("");
   const [date, setDate] = useState("");
   const [source, setSource] = useState("");

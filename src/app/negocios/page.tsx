@@ -20,7 +20,13 @@ export default function KanbanPage() {
   const [showNewPipelineModal, setShowNewPipelineModal] = useState(false);
   const [editPipelineId, setEditPipelineId] = useState<string | null>(null);
   const [showNewDealModal, setShowNewDealModal] = useState(false);
+  const [initialStageId, setInitialStageId] = useState<string | undefined>(undefined);
   const [showColumnsModal, setShowColumnsModal] = useState(false);
+
+  const openNewDealModal = (stageId?: string) => {
+     setInitialStageId(stageId);
+     setShowNewDealModal(true);
+  };
 
   // set initial pipeline safely
   useEffect(() => {
@@ -112,7 +118,7 @@ export default function KanbanPage() {
             </button>
             
             <button 
-              onClick={() => setShowNewDealModal(true)}
+              onClick={() => openNewDealModal()}
               className="flex items-center gap-2 px-5 py-1.5 bg-amber-500 text-white font-bold text-sm rounded-lg shadow-sm shadow-amber-500/20 hover:bg-amber-600 transition-colors whitespace-nowrap"
             >
               <Plus size={16} />
@@ -129,7 +135,7 @@ export default function KanbanPage() {
       <div className="flex-1 overflow-hidden relative">
          {viewMode === "kanban" ? (
            <div className="h-full overflow-x-auto overflow-y-hidden hide-scrollbar pb-4 -mx-4 px-4">
-              <KanbanBoard pipelineId={activePipelineId} />
+              <KanbanBoard pipelineId={activePipelineId} onNewDeal={openNewDealModal} />
            </div>
          ) : (
            <KanbanListView pipelineId={activePipelineId} />
@@ -155,6 +161,7 @@ export default function KanbanPage() {
       {showNewDealModal && (
         <NewDealModal
           activePipelineId={activePipelineId}
+          initialStageId={initialStageId}
           onClose={() => setShowNewDealModal(false)}
         />
       )}
