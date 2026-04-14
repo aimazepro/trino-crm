@@ -70,12 +70,16 @@ export function ContactAccordion({ contact }: ContactAccordionProps) {
       {isOpen && (
         <div className="space-y-5 animate-in fade-in slide-in-from-top-2 duration-200">
           
-          <div className="flex items-center gap-3 group">
+          <Link 
+            href={`/contatos/${contact.id}`}
+            className="flex items-center gap-3 group/link rounded-xl p-2 -mx-2 hover:bg-amber-50 transition-colors"
+            onClick={e => e.stopPropagation()}
+          >
              <div className="w-10 h-10 rounded-full bg-blue-50 text-blue-600 font-bold flex items-center justify-center text-sm shrink-0">
                {contact.name.charAt(0).toUpperCase()}
              </div>
-             <span className="font-bold text-sm text-gray-900">{contact.name}</span>
-          </div>
+             <span className="font-bold text-sm text-gray-900 group-hover/link:text-amber-600 transition-colors">{contact.name}</span>
+          </Link>
 
           <div className="space-y-4 pt-2">
             

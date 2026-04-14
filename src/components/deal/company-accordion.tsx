@@ -5,6 +5,7 @@ import { ChevronDown, ChevronRight } from "lucide-react";
 import { Company } from "@/lib/crm-types";
 import { useCrm } from "@/contexts/crm-context";
 import { InlineEdit } from "./inline-edit";
+import Link from "next/link";
 
 interface CompanyAccordionProps {
   company: Company;
@@ -31,14 +32,18 @@ export function CompanyAccordion({ company }: CompanyAccordionProps) {
       {isOpen && (
         <div className="space-y-4 animate-in fade-in slide-in-from-top-2 duration-200">
           
-          <div className="flex items-center gap-3 group">
+          <Link 
+            href={`/empresas/${company.id}`}
+            className="flex items-center gap-3 group/link rounded-xl p-2 -mx-2 hover:bg-orange-50 transition-colors"
+            onClick={e => e.stopPropagation()}
+          >
              <div className="w-10 h-10 rounded-lg bg-orange-100 text-orange-600 font-bold flex items-center justify-center text-sm shrink-0">
                {company.name.charAt(0).toUpperCase()}
              </div>
-             <span className="font-bold text-sm text-gray-900 line-clamp-2 leading-tight">
+             <span className="font-bold text-sm text-gray-900 group-hover/link:text-orange-600 transition-colors line-clamp-2 leading-tight">
                {company.name}
              </span>
-          </div>
+          </Link>
 
           <div className="space-y-2 pt-2">
              <div className="flex items-center text-sm">

@@ -15,6 +15,7 @@ export function AppointmentsTab({ deal }: { deal: Deal }) {
   const [procedure, setProcedure] = useState(contact ? `${contact.name} <> ` : "");
   const [date, setDate] = useState("");
   const [link, setLink] = useState("");
+  const [dateError, setDateError] = useState(false);
 
   const startAdding = () => {
     setIsAdding(true);
@@ -22,10 +23,12 @@ export function AppointmentsTab({ deal }: { deal: Deal }) {
     setProcedure(contact ? `${contact.name} <> ` : "");
     setDate("");
     setLink("");
+    setDateError(false);
   };
 
   const saveAppointment = () => {
-    if (!procedure.trim() || !date) return;
+    if (!procedure.trim()) return;
+    if (!date) { setDateError(true); return; }
     
     addAppointment({
        dealId: deal.id,
@@ -36,6 +39,7 @@ export function AppointmentsTab({ deal }: { deal: Deal }) {
     });
     
     setIsAdding(false);
+    setDateError(false);
   };
 
   return (
@@ -72,12 +76,15 @@ export function AppointmentsTab({ deal }: { deal: Deal }) {
                     />
                   </div>
                   <div>
-                    <label className="text-xs font-bold text-gray-500 mb-1 block">Data e Hora</label>
+                    <label className="text-xs font-bold text-gray-500 mb-1 block">
+                      Data e Hora {dateError && <span className="text-red-500 font-bold">*</span>}
+                    </label>
                     <input 
                       type="datetime-local" 
-                      value={date} onChange={e => setDate(e.target.value)}
-                      className="w-full border rounded-lg py-2 px-3 text-sm outline-none focus:border-blue-500" 
+                      value={date} onChange={e => { setDate(e.target.value); setDateError(false); }}
+                      className={`w-full border rounded-lg py-2 px-3 text-sm outline-none focus:border-blue-500 transition-colors ${dateError ? 'border-red-400 bg-red-50' : ''}`}
                     />
+                    {dateError && <p className="text-red-500 text-[10px] mt-1 font-medium">Data é obrigatória</p>}
                   </div>
                </div>
                <div>
@@ -92,7 +99,11 @@ export function AppointmentsTab({ deal }: { deal: Deal }) {
             
             <div className="flex justify-end gap-2 pt-2">
                <button onClick={() => setIsAdding(false)} className="text-sm px-4 py-2 text-gray-500 font-medium hover:bg-gray-50 rounded-lg border">Cancelar</button>
-               <button onClick={saveAppointment} className="text-sm px-6 py-2 bg-blue-500 text-white font-bold rounded-lg shadow-sm hover:bg-blue-600">Salvar Agendamento</button>
+               <button 
+                 onClick={saveAppointment} 
+                 disabled={!procedure.trim() || !date}
+                 className="text-sm px-6 py-2 bg-blue-500 text-white font-bold rounded-lg shadow-sm hover:bg-blue-600 disabled:opacity-50 disabled:cursor-not-allowed transition-all"
+               >Salvar Agendamento</button>
             </div>
          </div>
       )}

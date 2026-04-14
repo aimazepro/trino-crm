@@ -17,8 +17,8 @@ export function InlineEdit({ value, onSave, placeholder = "-", type = "text", cl
   const inputRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
-    setTempVal(value);
-  }, [value]);
+    if (!isEditing) setTempVal(value);
+  }, [value, isEditing]);
 
   useEffect(() => {
     if (isEditing && inputRef.current) {

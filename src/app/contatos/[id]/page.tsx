@@ -142,7 +142,7 @@ export default function ContatoPage({ params }: { params: Promise<{ id: string }
                    <Mail size={16} className="text-gray-400 mt-1 shrink-0" />
                    <div>
                      <div className="text-xs font-bold text-gray-500 mb-0.5">Email</div>
-                     <div className="text-sm font-medium text-gray-900">{contact.email || "Não informado"}</div>
+                     <div className="text-sm font-medium text-gray-900">{contact.emails?.[0]?.value || "Não informado"}</div>
                    </div>
                  </div>
 
@@ -150,7 +150,7 @@ export default function ContatoPage({ params }: { params: Promise<{ id: string }
                    <Phone size={16} className="text-gray-400 mt-1 shrink-0" />
                    <div>
                      <div className="text-xs font-bold text-gray-500 mb-0.5">Telefone</div>
-                     <div className="text-sm font-medium text-gray-900">{contact.phone || "Não informado"}</div>
+                     <div className="text-sm font-medium text-gray-900">{contact.phones?.[0]?.value || "Não informado"}</div>
                    </div>
                  </div>
 

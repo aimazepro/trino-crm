@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import { DollarSign, Calendar, Clock, Hash, Tag, Plus } from "lucide-react";
+import { DollarSign, Calendar, Clock, Hash, Tag, Plus, Edit2, Check, X } from "lucide-react";
 import { useCrm } from "@/contexts/crm-context";
 import { InlineEdit } from "./inline-edit";
 import { ContactAccordion } from "./contact-accordion";
@@ -20,6 +20,8 @@ export function DealSidebar({ dealId }: DealSidebarProps) {
   const company = state.companies.find(c => c.id === deal?.companyId);
 
   const [isProductsOpen, setIsProductsOpen] = useState(false);
+  const [isEditingValue, setIsEditingValue] = useState(false);
+  const [tempValue, setTempValue] = useState("");
 
   if (!deal || !contact) return null;
 
@@ -44,19 +46,46 @@ export function DealSidebar({ dealId }: DealSidebarProps) {
         <h3 className="text-xs font-bold text-gray-400 uppercase tracking-wider mb-2">Resumo</h3>
         
         <div className="space-y-4">
+          {/* Value — Editable Inline */}
           <div className="flex items-center justify-between group">
-            <div className="flex items-center gap-2">
+            <div className="flex items-center gap-2 flex-1 min-w-0">
               <span className="text-gray-300 font-bold">$</span>
-              <span className="font-bold text-gray-900">
-                {new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(deal.value)}
-              </span>
+              {isEditingValue ? (
+                <div className="flex items-center gap-1.5 flex-1">
+                  <input
+                    type="number"
+                    value={tempValue}
+                    onChange={e => setTempValue(e.target.value)}
+                    autoFocus
+                    className="w-full min-w-0 px-2 py-1 text-sm border-2 border-amber-400 rounded outline-none shadow-sm font-bold text-gray-900"
+                    onKeyDown={e => {
+                      if (e.key === "Enter") { handleUpdate("value", parseFloat(tempValue) || 0); setIsEditingValue(false); }
+                      if (e.key === "Escape") setIsEditingValue(false);
+                    }}
+                  />
+                  <button onClick={() => { handleUpdate("value", parseFloat(tempValue) || 0); setIsEditingValue(false); }} className="text-green-500 hover:bg-green-50 p-1 rounded transition-colors"><Check size={14}/></button>
+                  <button onClick={() => setIsEditingValue(false)} className="text-red-400 hover:bg-red-50 p-1 rounded transition-colors"><X size={14}/></button>
+                </div>
+              ) : (
+                <button
+                  onClick={() => { setTempValue(String(deal.value)); setIsEditingValue(true); }}
+                  className="flex items-center gap-2 group/val hover:bg-gray-50 rounded px-1 py-0.5 transition-colors"
+                >
+                  <span className="font-bold text-gray-900 text-base">
+                    {new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(deal.value)}
+                  </span>
+                  <Edit2 size={12} className="text-gray-300 opacity-0 group-hover/val:opacity-100 transition-opacity" />
+                </button>
+              )}
             </div>
-            <button 
-              onClick={() => setIsProductsOpen(true)}
-              className="text-amber-500 font-bold text-xs hover:text-amber-600 transition-colors flex items-center gap-1"
-            >
-              <Plus size={12}/> Produtos
-            </button>
+            {!isEditingValue && (
+              <button 
+                onClick={() => setIsProductsOpen(true)}
+                className="text-amber-500 font-bold text-xs hover:text-amber-600 transition-colors flex items-center gap-1 shrink-0"
+              >
+                <Plus size={12}/> Produtos
+              </button>
+            )}
           </div>
 
           <div className="flex items-center justify-between group">
@@ -64,11 +93,11 @@ export function DealSidebar({ dealId }: DealSidebarProps) {
               <Calendar size={16} className="text-gray-400" />
               <span className="text-sm font-medium">Previsão</span>
             </div>
-            <div className="w-32">
+            <div className="w-36">
                <InlineEdit 
                  type="date"
                  value={deal.expectedCloseDate ? deal.expectedCloseDate.substring(0,10) : ""} 
-                 onSave={(v) => handleUpdate("expectedCloseDate", v ? new Date(v).toISOString() : "")} 
+                 onSave={(v) => handleUpdate("expectedCloseDate", v)} 
                />
             </div>
           </div>

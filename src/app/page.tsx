@@ -1,140 +1,302 @@
-import { ArrowUpRight, Users, DollarSign, Activity, Building } from "lucide-react";
+"use client";
+
+import { useMemo, useState } from "react";
+import { useCrm } from "@/contexts/crm-context";
+import { useRouter } from "next/navigation";
+import { ArrowUpRight, DollarSign, TrendingUp, CheckCircle, ListTodo, Plus, ChevronRight } from "lucide-react";
+import { NewDealModal } from "@/components/pipeline/new-deal-modal";
 import { cn } from "@/lib/utils";
+import { isToday } from "date-fns";
 
-const STATS = [
-  { label: "Total de Leads", value: "320", trend: "+18%", icon: Users, isCurrency: false },
-  { label: "Faturamento", value: "48.200", trend: "+24%", icon: DollarSign, isCurrency: true },
-  { label: "Taxa de Conv.", value: "11.8%", trend: "+3.2%", icon: Activity, isCurrency: false },
-  { label: "Empresas Ativas", value: "18", trend: "+5%", icon: Building, isCurrency: false },
-];
-
-const FUNNEL = [
-  { label: "Leads Captados", value: "320", percent: 100 },
-  { label: "MQL", value: "210", percent: 65 },
-  { label: "SQL", value: "130", percent: 40 },
-  { label: "Proposta", value: "74", percent: 23 },
-  { label: "Fechado", value: "38", percent: 11.8 },
-];
-
-// Falsa exibição de Gráfico usando divs
-function ChartMock() {
-  return (
-    <div className="h-64 flex items-end justify-between gap-2 mt-8 px-2 relative">
-      <div className="absolute inset-0 grid grid-rows-4 gap-0 pointer-events-none">
-        {[100, 75, 50, 25].map(v => (
-          <div key={v} className="border-t border-dashed border-gray-100 w-full flex items-start text-[10px] text-gray-400">
-            <span className="-mt-2 -ml-6">{v}</span>
-          </div>
-        ))}
-        <div className="border-t border-dashed border-gray-100 w-full flex items-start text-[10px] text-gray-400">
-          <span className="-mt-2 -ml-4">0</span>
-        </div>
-      </div>
-      
-      {/* Barras de Exemplo para não usar recharts pesado nesta mockup inicial */}
-      {[
-        { h: "35%", m: "Set" },
-        { h: "52%", m: "Out" },
-        { h: "43%", m: "Nov" },
-        { h: "68%", m: "Dez" },
-        { h: "59%", m: "Jan" },
-        { h: "81%", m: "Fev" },
-      ].map((b, i) => (
-        <div key={i} className="w-full flex justify-center group relative z-10">
-          <div 
-            className="w-12 bg-blue-500 rounded-t-sm transition-all duration-300 group-hover:bg-amber-500 group-hover:shadow-[0_0_15px_rgba(245,158,11,0.5)]" 
-            style={{ height: b.h }}
-          ></div>
-          <span className="absolute -bottom-6 text-xs text-gray-400">{b.m}</span>
-        </div>
-      ))}
-    </div>
-  );
-}
+const TYPE_COLORS: Record<string, string> = {
+  "Ligação": "bg-blue-100 text-blue-700",
+  "Reunião": "bg-purple-100 text-purple-700",
+  "Videochamada": "bg-green-100 text-green-700",
+  "Email": "bg-gray-100 text-gray-600",
+  "WhatsApp": "bg-emerald-100 text-emerald-700",
+  "Instagram": "bg-pink-100 text-pink-700",
+  "LinkedIn": "bg-sky-100 text-sky-700",
+  "Outros": "bg-gray-100 text-gray-600",
+};
 
 export default function DashboardPage() {
+  const { state } = useCrm();
+  const router = useRouter();
+  const [showNewDeal, setShowNewDeal] = useState(false);
+
+  const activePipeline = state.pipelines[0];
+
+  // ── Computed metrics ────────────────────────────────────────────────────────
+  const stats = useMemo(() => {
+    const activeDeals = state.deals.filter(d => d.status === "Ativo");
+    const totalPipeline = activeDeals.reduce((s, d) => s + d.value, 0);
+
+    const now = new Date();
+    const wonDeals = state.deals.filter(d => {
+      if (d.status !== "Ganho") return false;
+      // We don't have a closedAt field, so count all won deals this month
+      return true;
+    });
+    const wonValue = wonDeals.reduce((s, d) => s + d.value, 0);
+
+    const convRate = state.deals.length > 0
+      ? Math.round((wonDeals.length / state.deals.length) * 100)
+      : 0;
+
+    const allActivities = state.deals.flatMap(d => d.activities);
+    const todayPending = allActivities.filter(a => !a.completed && isToday(new Date(a.date)));
+    const todayActivities = allActivities.filter(a => isToday(new Date(a.date)));
+
+    return { activeDeals, totalPipeline, wonDeals, wonValue, convRate, todayPending, todayActivities, allActivities };
+  }, [state.deals]);
+
+  // Deals per stage for active pipeline
+  const stageData = useMemo(() => {
+    if (!activePipeline) return [];
+    return activePipeline.stages.map(stage => {
+      const stageDeals = state.deals.filter(d => d.pipelineId === activePipeline.id && d.stageId === stage.id && d.status === "Ativo");
+      return {
+        ...stage,
+        count: stageDeals.length,
+        value: stageDeals.reduce((s, d) => s + d.value, 0),
+      };
+    }).filter(s => s.count > 0 || true); // show all stages
+  }, [activePipeline, state.deals]);
+
+  const maxStageCount = Math.max(...stageData.map(s => s.count), 1);
+
+  const STAT_CARDS = [
+    {
+      label: "Total em Pipeline",
+      value: new Intl.NumberFormat("pt-BR", { style: "currency", currency: "BRL" }).format(stats.totalPipeline),
+      sub: `${stats.activeDeals.length} negócio${stats.activeDeals.length !== 1 ? "s" : ""} aberto${stats.activeDeals.length !== 1 ? "s" : ""}`,
+      icon: DollarSign,
+      color: "text-amber-500",
+      bg: "bg-amber-50",
+      href: "/negocios",
+    },
+    {
+      label: "Ganhos no Mês",
+      value: new Intl.NumberFormat("pt-BR", { style: "currency", currency: "BRL" }).format(stats.wonValue),
+      sub: `${stats.wonDeals.length} negócio${stats.wonDeals.length !== 1 ? "s" : ""} fechado${stats.wonDeals.length !== 1 ? "s" : ""}`,
+      icon: CheckCircle,
+      color: "text-green-500",
+      bg: "bg-green-50",
+      href: "/negocios",
+    },
+    {
+      label: "Taxa de Conversão",
+      value: `${stats.convRate}%`,
+      sub: `${stats.wonDeals.length} de ${state.deals.length} negócios fechados`,
+      icon: TrendingUp,
+      color: "text-blue-500",
+      bg: "bg-blue-50",
+      href: "/negocios",
+    },
+    {
+      label: "Atividades Hoje",
+      value: String(stats.todayPending.length),
+      sub: "pendentes",
+      icon: ListTodo,
+      color: "text-purple-500",
+      bg: "bg-purple-50",
+      href: "/atividades",
+    },
+  ];
+
   return (
-    <div className="max-w-6xl">
-      
-      <div className="mb-8">
-        <h1 className="text-3xl font-bold tracking-tight text-gray-900 flex items-center gap-2">
-          Bom dia! 👋
-        </h1>
-        <p className="text-gray-500 mt-1">
-          Panorama da <span className="font-semibold text-gray-700">Clínica Vida+</span> hoje
+    <div className="max-w-6xl space-y-6">
+
+      {/* Greeting */}
+      <div className="mb-2">
+        <h1 className="text-2xl font-bold text-gray-900">Meu Painel</h1>
+        <p className="text-sm text-gray-400 mt-0.5">
+          {new Date().toLocaleDateString("pt-BR", { weekday: "long", day: "numeric", month: "long", year: "numeric" })}
         </p>
       </div>
 
-      {/* Grid de Cards Menores */}
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 mb-6">
-        {STATS.map((stat, i) => (
-          <div key={i} className="bg-white p-6 rounded-2xl border border-gray-100 shadow-sm hover:shadow-md transition-shadow">
-            <div className="flex items-center justify-between mb-4">
-              <div className="w-10 h-10 rounded-full bg-blue-50 flex items-center justify-center text-blue-600">
-                <stat.icon size={20} />
+      {/* Stat Cards */}
+      <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
+        {STAT_CARDS.map((card, i) => (
+          <button
+            key={i}
+            onClick={() => router.push(card.href)}
+            className="bg-white p-5 rounded-2xl border border-gray-100 shadow-sm hover:shadow-md hover:border-gray-200 transition-all text-left group active:scale-[0.98]"
+          >
+            <div className="flex items-center justify-between mb-3">
+              <span className="text-xs font-bold text-gray-400 uppercase tracking-wider">{card.label}</span>
+              <div className={cn("w-9 h-9 rounded-full flex items-center justify-center", card.bg)}>
+                <card.icon size={17} className={card.color} />
               </div>
-              <span className="text-green-500 bg-green-50 text-[10px] font-bold px-2 py-1 rounded-full flex items-center gap-0.5">
-                <ArrowUpRight size={12} />
-                {stat.trend}
-              </span>
             </div>
-            
-            <div>
-              <p className="text-3xl font-bold text-gray-900">
-                {stat.isCurrency && <span className="text-lg text-gray-400 mr-1">R$</span>}
-                {stat.value}
-              </p>
-              <p className="text-sm text-gray-500 font-medium mt-1">{stat.label}</p>
+            <p className="text-2xl font-black text-gray-900 leading-none mb-1">{card.value}</p>
+            <p className="text-xs font-medium text-gray-400">{card.sub}</p>
+            <div className="flex items-center gap-1 mt-3 opacity-0 group-hover:opacity-100 transition-opacity">
+              <span className="text-xs font-bold text-amber-500">Ver detalhes</span>
+              <ChevronRight size={12} className="text-amber-500" />
             </div>
-          </div>
+          </button>
         ))}
       </div>
 
-      {/* Grid 2 Colunas */}
+      {/* Main Grid */}
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-        {/* Gráfico */}
-        <div className="lg:col-span-2 bg-white rounded-2xl border border-gray-100 shadow-sm p-6 pt-5">
-          <h2 className="text-lg font-bold text-gray-900">Leads ao longo do tempo</h2>
-          <p className="text-sm text-gray-400 mb-6">Últimos 6 meses</p>
-          <ChartMock />
-        </div>
 
-        {/* Funil */}
-        <div className="bg-white rounded-2xl border border-gray-100 shadow-sm p-6 pt-5">
-          <h2 className="text-lg font-bold text-gray-900">Funil de Vendas</h2>
-          <p className="text-sm text-gray-400 mb-6">Conversão por etapa</p>
+        {/* Negócios por Etapa */}
+        <div className="lg:col-span-2 bg-white rounded-2xl border border-gray-100 shadow-sm p-6">
+          <div className="flex items-center justify-between mb-6">
+            <div>
+              <h2 className="text-base font-bold text-gray-900">Negócios por Etapa</h2>
+              {activePipeline && (
+                <p className="text-xs text-gray-400 mt-0.5 uppercase font-bold tracking-wider">{activePipeline.name}</p>
+              )}
+            </div>
+            <button onClick={() => router.push("/negocios")} className="text-xs font-bold text-amber-500 hover:text-amber-600 flex items-center gap-1">
+              Ver todos <ChevronRight size={12} />
+            </button>
+          </div>
 
-          <div className="space-y-5">
-            {FUNNEL.map((step, i) => (
-              <div key={i}>
-                <div className="flex justify-between text-sm font-medium mb-1.5">
-                  <span className="text-gray-700">{step.label}</span>
-                  <span className="text-gray-900 font-bold">{step.value}</span>
-                </div>
-                <div className="w-full bg-gray-100 h-2.5 rounded-full overflow-hidden flex justify-end">
-                  {/* Simulando o afunilamento visual, alinhando a barra à esquerda e decrescendo */}
-                  <div className="h-full w-full bg-gray-100 flex justify-start">
-                     <div 
-                        className={cn(
-                          "h-full rounded-full transition-all duration-500",
-                          i === FUNNEL.length - 1 ? "bg-amber-500 shadow-[0_0_10px_rgba(245,158,11,0.5)]" : "bg-blue-400"
-                        )} 
-                        style={{ width: `${step.percent}%` }}
-                      ></div>
+          <div className="space-y-4">
+            {stageData.map(stage => (
+              <div key={stage.id}>
+                <div className="flex items-center justify-between mb-1.5">
+                  <span className="text-sm font-bold text-gray-700">{stage.name}</span>
+                  <div className="flex items-center gap-3 text-xs font-bold text-gray-500">
+                    <span className="w-6 h-6 rounded-full bg-gray-100 text-gray-700 flex items-center justify-center font-black text-[11px]">{stage.count}</span>
+                    <span className="text-amber-600 font-black">
+                      {new Intl.NumberFormat("pt-BR", { style: "currency", currency: "BRL", notation: "compact" }).format(stage.value)}
+                    </span>
                   </div>
+                </div>
+                <div className="w-full bg-gray-100 h-2.5 rounded-full overflow-hidden">
+                  <div
+                    className="h-full bg-gradient-to-r from-amber-400 to-amber-500 rounded-full transition-all duration-500"
+                    style={{ width: maxStageCount > 0 ? `${(stage.count / maxStageCount) * 100}%` : "0%" }}
+                  />
                 </div>
               </div>
             ))}
+
+            {stageData.length === 0 && (
+              <p className="text-center py-10 text-sm text-gray-300 font-medium">Nenhum negócio ainda</p>
+            )}
           </div>
-          
-          <div className="mt-8 bg-green-50 rounded-xl p-4 flex justify-between items-center border border-green-100">
-             <span className="text-sm text-green-700 font-medium">Taxa de fechamento</span>
-             <span className="font-bold text-xl text-green-600">11.8%</span>
+        </div>
+
+        {/* Atividades de Hoje */}
+        <div className="bg-white rounded-2xl border border-gray-100 shadow-sm p-6">
+          <div className="flex items-center justify-between mb-6">
+            <h2 className="text-base font-bold text-gray-900">Atividades de Hoje</h2>
+            <button onClick={() => router.push("/atividades")} className="text-xs font-bold text-amber-500 hover:text-amber-600">
+              Ver todas
+            </button>
           </div>
 
+          {stats.todayActivities.length === 0 ? (
+            <div className="flex flex-col items-center justify-center py-8 text-center">
+              <div className="w-12 h-12 rounded-2xl bg-gray-50 flex items-center justify-center mb-3">
+                <ListTodo size={22} className="text-gray-300" />
+              </div>
+              <p className="text-sm font-medium text-gray-400">Nenhuma atividade hoje</p>
+            </div>
+          ) : (
+            <div className="space-y-3">
+              {stats.todayActivities.slice(0, 5).map(a => (
+                <button
+                  key={a.id}
+                  onClick={() => router.push("/atividades")}
+                  className="w-full flex items-center gap-3 p-3 rounded-xl hover:bg-gray-50 text-left transition-colors group"
+                >
+                  <div className={cn(
+                    "w-2 h-2 rounded-full shrink-0",
+                    a.completed ? "bg-green-400" : "bg-amber-400"
+                  )} />
+                  <div className="flex-1 min-w-0">
+                    <p className={cn("text-sm font-bold text-gray-900 truncate", a.completed && "line-through text-gray-400")}>
+                      {a.title}
+                    </p>
+                    <span className={cn("text-[10px] font-bold px-1.5 py-0.5 rounded", TYPE_COLORS[a.type] || "bg-gray-100 text-gray-600")}>
+                      {a.type}
+                    </span>
+                  </div>
+                </button>
+              ))}
+            </div>
+          )}
+
+          {/* Este mês */}
+          <div className="mt-6 pt-4 border-t border-gray-50">
+            <p className="text-xs font-bold text-gray-400 uppercase tracking-wider mb-3">Este Mês</p>
+            <div className="grid grid-cols-2 gap-3">
+              <div className="flex flex-col items-center justify-center py-3 bg-green-50 rounded-xl border border-green-100">
+                <span className="text-2xl font-black text-green-600">{stats.wonDeals.length}</span>
+                <span className="text-[10px] font-bold text-green-500 uppercase mt-1">Ganhos</span>
+              </div>
+              <div className="flex flex-col items-center justify-center py-3 bg-red-50 rounded-xl border border-red-100">
+                <span className="text-2xl font-black text-red-500">
+                  {state.deals.filter(d => d.status === "Perdido").length}
+                </span>
+                <span className="text-[10px] font-bold text-red-400 uppercase mt-1">Perdidos</span>
+              </div>
+            </div>
+          </div>
         </div>
       </div>
 
+      {/* Ações Rápidas */}
+      <div>
+        <p className="text-xs font-bold text-gray-400 uppercase tracking-wider mb-3">Ações Rápidas</p>
+        <div className="grid grid-cols-3 gap-4">
+          {[
+            {
+              icon: Plus,
+              color: "text-amber-500",
+              bg: "bg-amber-50",
+              label: "Novo Negócio",
+              sub: "Adicionar ao pipeline",
+              action: () => setShowNewDeal(true),
+            },
+            {
+              icon: ListTodo,
+              color: "text-blue-500",
+              bg: "bg-blue-50",
+              label: "Nova Atividade",
+              sub: "Agendar tarefa",
+              action: () => router.push("/atividades"),
+            },
+            {
+              icon: TrendingUp,
+              color: "text-purple-500",
+              bg: "bg-purple-50",
+              label: "Ver Relatórios",
+              sub: "Análise de desempenho",
+              action: () => router.push("/"),
+            },
+          ].map((item, i) => (
+            <button
+              key={i}
+              onClick={item.action}
+              className="bg-white border border-gray-100 rounded-2xl p-5 flex items-center gap-4 hover:shadow-md hover:border-gray-200 transition-all group text-left active:scale-[0.98]"
+            >
+              <div className={cn("w-10 h-10 rounded-xl flex items-center justify-center shrink-0", item.bg)}>
+                <item.icon size={20} className={item.color} />
+              </div>
+              <div className="flex-1 min-w-0">
+                <p className="text-sm font-bold text-gray-900">{item.label}</p>
+                <p className="text-xs text-gray-400 font-medium">{item.sub}</p>
+              </div>
+              <ChevronRight size={16} className="text-gray-300 group-hover:text-amber-500 group-hover:translate-x-1 transition-all" />
+            </button>
+          ))}
+        </div>
+      </div>
+
+      {showNewDeal && activePipeline && (
+        <NewDealModal
+          activePipelineId={activePipeline.id}
+          onClose={() => setShowNewDeal(false)}
+        />
+      )}
     </div>
   );
 }

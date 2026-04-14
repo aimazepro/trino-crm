@@ -9,7 +9,7 @@ interface CrmContextType {
   
   // Deal Mutations
   moveDeal: (dealId: string, newStageId: string) => void;
-  markDealStatus: (dealId: string, status: "Ganho" | "Perdido", reason?: string) => void;
+  markDealStatus: (dealId: string, status: "Ganho" | "Perdido" | "Ativo", reason?: string) => void;
   updateDealFields: (dealId: string, fields: Partial<Deal>) => void;
   addDealNote: (dealId: string, content: string) => void;
   addDealHistory: (dealId: string, description: string, subtext: string) => void;
