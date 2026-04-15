@@ -4,9 +4,9 @@ import { use, useState, useRef, useEffect, useMemo } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useCrm } from "@/contexts/crm-context";
-import { ArrowLeft, Mail, Plus, Phone, Briefcase, Building2, Search, Clock, ArrowRight, CheckCircle, X } from "lucide-react";
+import { ArrowLeft, Mail, Plus, Phone, Briefcase, Building2, Search, Clock, ArrowRight, CheckCircle, X, AlertCircle } from "lucide-react";
 import { cn } from "@/lib/utils";
-import { format } from "date-fns";
+import { format, isPast, isToday } from "date-fns";
 import { ptBR } from "date-fns/locale";
 import { ContactEmail, ContactPhone } from "@/lib/crm-types";
 
@@ -136,25 +136,29 @@ function CompanySearch({
 }
 
 // ─── Timeline Item ────────────────────────────────────────────────────────────
-function TimelineItem({ icon: Icon, title, sub, time, color }: {
+function TimelineItem({ icon: Icon, title, sub, time, color, isOverdue }: {
   icon: React.ElementType;
   title: string;
   sub: string;
   time: string;
   color: string;
+  isOverdue?: boolean;
 }) {
   return (
     <div className="flex gap-4 pb-5 relative">
       <div className="flex flex-col items-center">
-        <div className={cn("w-8 h-8 rounded-xl flex items-center justify-center shrink-0 border", color)}>
+        <div className={cn("w-8 h-8 rounded-xl flex items-center justify-center shrink-0 border transition-colors", color)}>
           <Icon size={14} />
         </div>
         <div className="w-px flex-1 bg-gray-100 mt-2" />
       </div>
       <div className="flex-1 min-w-0 pt-1">
-        <p className="text-sm font-bold text-gray-900">{title}</p>
+        <p className={cn("text-sm font-bold", isOverdue ? "text-red-700" : "text-gray-900")}>
+          {title}
+          {isOverdue && <span className="ml-2 text-[9px] uppercase font-black text-red-500 bg-red-100 px-1.5 py-0.5 rounded-full tracking-wider">Atrasada</span>}
+        </p>
         <p className="text-xs text-gray-400 font-medium mt-0.5">{sub}</p>
-        <p className="text-[10px] text-gray-300 mt-1 font-medium">{time}</p>
+        <p className={cn("text-[10px] mt-1 font-medium", isOverdue ? "text-red-400" : "text-gray-300")}>{time}</p>
       </div>
     </div>
   );
@@ -335,18 +339,22 @@ export default function ContatoPage({ params }: { params: Promise<{ id: string }
                   timeline.map(item => {
                     const isActivity = item.type.startsWith("activity");
                     const isDone = item.type === "activity_done";
+                    const isOverdue = isActivity && !isDone && isPast(new Date(item.date)) && !isToday(new Date(item.date));
+                    
                     return (
                       <TimelineItem
                         key={item.id}
-                        icon={isActivity ? (isDone ? CheckCircle : Clock) : ArrowRight}
+                        icon={isActivity ? (isDone ? CheckCircle : (isOverdue ? AlertCircle : Clock)) : ArrowRight}
                         title={item.title}
                         sub={`${item.sub}  ·  ${item.dealName}`}
                         time={(() => {
                           try { return format(new Date(item.date), "dd/MM/yyyy 'às' HH:mm", { locale: ptBR }); }
                           catch { return item.date; }
                         })()}
+                        isOverdue={isOverdue}
                         color={
                           isDone ? "bg-green-50 border-green-100 text-green-600" :
+                          isOverdue ? "bg-red-50 border-red-100 text-red-600" :
                           isActivity ? "bg-amber-50 border-amber-100 text-amber-600" :
                           "bg-gray-50 border-gray-100 text-gray-400"
                         }

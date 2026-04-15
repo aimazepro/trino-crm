@@ -3,7 +3,7 @@
 import { useState } from "react";
 import { DragDropContext, Droppable, Draggable, DropResult } from "@hello-pangea/dnd";
 import { useCrm } from "@/contexts/crm-context";
-import { isToday, isTomorrow, format } from "date-fns";
+import { isToday, isTomorrow, isPast, format } from "date-fns";
 import { ptBR } from "date-fns/locale";
 import { MoreHorizontal, Calendar, DollarSign, Building, ChevronRight, AlertTriangle, XCircle, Trophy, Plus } from "lucide-react";
 import { LossReasonModal } from "@/components/deal/loss-reason-modal";
@@ -115,73 +115,76 @@ export function KanbanBoard({ pipelineId, onNewDeal }: KanbanBoardProps) {
                      >
                        <div className="space-y-3">
                          {stageDeals.map((deal, index) => {
-                           const company = state.companies.find(c => c.id === deal.companyId);
-                           const isStagnant = deal.daysInStage >= stage.maxDays;
-                           
-                           const pendingActivities = deal.activities?.filter(a => !a.completed) || [];
-                           const nextActivity = pendingActivities.length > 0 
-                              ? pendingActivities.sort((a,b) => new Date(a.date).getTime() - new Date(b.date).getTime())[0] 
-                              : null;
-                           const isActivityToday = nextActivity ? isToday(new Date(nextActivity.date)) : false;
-                           
-                           return (
-                             <Draggable key={deal.id} draggableId={deal.id} index={index}>
-                               {(provided, snapshot) => (
-                                 <div
-                                   ref={provided.innerRef}
-                                   {...provided.draggableProps}
-                                   {...provided.dragHandleProps}
-                                   className={cn(
-                                     "bg-white p-4 rounded-xl border transition-all group",
-                                     snapshot.isDragging ? "shadow-2xl border-amber-500 rotate-2 scale-105" : "border-gray-200 shadow-sm hover:border-amber-300 hover:shadow-md",
-                                     isStagnant ? "border-red-200 shadow-[0_0_0_1px_rgba(254,226,226,1)]" : ""
-                                   )}
-                                   onClick={() => window.location.href = `/pipeline/${deal.id}`}
-                                 >
-                                    <div className="flex justify-between items-start mb-1.5">
-                                      <h4 className="font-bold text-gray-900 text-sm group-hover:text-amber-600 transition-colors line-clamp-2 leading-snug">
-                                        {deal.title}
-                                      </h4>
-                                      <button className="text-gray-300 hover:text-gray-500 opacity-0 group-hover:opacity-100 transition-opacity shrink-0">
-                                        <MoreHorizontal size={16} />
-                                      </button>
-                                    </div>
-                                    
-                                    {company && (
-                                      <div className="flex items-center gap-1.5 text-xs font-medium text-gray-500 mb-2 truncate">
-                                        <Building size={12} className="text-gray-400 shrink-0" />
-                                        <span className="truncate">{company.name}</span>
-                                      </div>
+                            const company = state.companies.find(c => c.id === deal.companyId);
+                            const isStagnant = deal.daysInStage >= stage.maxDays;
+                            
+                            const pendingActivities = deal.activities?.filter(a => !a.completed) || [];
+                            const nextActivity = pendingActivities.length > 0 
+                               ? pendingActivities.sort((a,b) => new Date(a.date).getTime() - new Date(b.date).getTime())[0] 
+                               : null;
+                            const isActivityToday = nextActivity ? isToday(new Date(nextActivity.date)) : false;
+                            const isOverdue = nextActivity ? (isPast(new Date(nextActivity.date)) && !isActivityToday) : false;
+                            
+                            return (
+                              <Draggable key={deal.id} draggableId={deal.id} index={index}>
+                                {(provided, snapshot) => (
+                                  <div
+                                    ref={provided.innerRef}
+                                    {...provided.draggableProps}
+                                    {...provided.dragHandleProps}
+                                    className={cn(
+                                      "bg-white p-4 rounded-xl border transition-all group",
+                                      snapshot.isDragging ? "shadow-2xl border-amber-500 rotate-2 scale-105" : "border-gray-200 shadow-sm hover:border-amber-300 hover:shadow-md",
+                                      isStagnant ? "border-red-200 shadow-[0_0_0_1px_rgba(254,226,226,1)]" : ""
                                     )}
+                                    onClick={() => window.location.href = `/pipeline/${deal.id}`}
+                                  >
+                                     <div className="flex justify-between items-start mb-1.5">
+                                       <h4 className="font-bold text-gray-900 text-sm group-hover:text-amber-600 transition-colors line-clamp-2 leading-snug">
+                                         {deal.title}
+                                       </h4>
+                                       <button className="text-gray-300 hover:text-gray-500 opacity-0 group-hover:opacity-100 transition-opacity shrink-0">
+                                         <MoreHorizontal size={16} />
+                                       </button>
+                                     </div>
+                                     
+                                     {company && (
+                                       <div className="flex items-center gap-1.5 text-xs font-medium text-gray-500 mb-2 truncate">
+                                         <Building size={12} className="text-gray-400 shrink-0" />
+                                         <span className="truncate">{company.name}</span>
+                                       </div>
+                                     )}
 
-                                    <div className="flex items-center justify-between text-base font-bold text-gray-900 mb-3">
-                                      {deal.value > 0 ? (
-                                         deal.value.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })
-                                      ) : (
-                                         <span className="text-gray-400 font-medium">R$ 0,00</span>
-                                      )}
-                                    </div>
-                                    
-                                    <div className="flex items-center justify-between pt-3 border-t border-gray-50 text-[10px] font-bold">
-                                      {nextActivity ? (
-                                         <div className={cn(
-                                            "border rounded-lg px-2 py-1 text-xs font-medium",
-                                            isActivityToday ? "bg-green-50 border-green-200 text-green-700" : "bg-gray-50 border-gray-100 text-gray-600"
-                                         )}>
-                                            {formatActivityDate(nextActivity.date)}: {nextActivity.type}
-                                         </div>
-                                      ) : (
-                                         <div className={cn("flex items-center gap-1", isStagnant ? "text-red-500" : "text-amber-500")}>
-                                            <AlertTriangle size={12} />
-                                            {isStagnant ? "Estagnado!" : "Sem atividade"}
-                                         </div>
-                                      )}
-                                      <div className="text-gray-400 font-medium">{deal.daysInStage}d</div>
-                                    </div>
-                                 </div>
-                               )}
-                             </Draggable>
-                           );
+                                     <div className="flex items-center justify-between text-base font-bold text-gray-900 mb-3">
+                                       {deal.value > 0 ? (
+                                          deal.value.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })
+                                       ) : (
+                                          <span className="text-gray-400 font-medium">R$ 0,00</span>
+                                       )}
+                                     </div>
+                                     
+                                     <div className="flex items-center justify-between pt-3 border-t border-gray-50 text-[10px] font-bold">
+                                       {nextActivity ? (
+                                          <div className={cn(
+                                             "border rounded-lg px-2 py-1 text-xs font-medium",
+                                             isOverdue ? "bg-red-50 border-red-100 text-red-600 font-bold" :
+                                             isActivityToday ? "bg-green-50 border-green-200 text-green-700" :
+                                             "bg-gray-50 border-gray-100 text-gray-600"
+                                          )}>
+                                             {isOverdue ? `Atrasada: ${nextActivity.type}` : `${formatActivityDate(nextActivity.date)}: ${nextActivity.type}`}
+                                          </div>
+                                       ) : (
+                                          <div className={cn("flex items-center gap-1", isStagnant ? "text-red-500" : "text-amber-500")}>
+                                             <AlertTriangle size={12} />
+                                             {isStagnant ? "Estagnado!" : "Sem atividade"}
+                                          </div>
+                                       )}
+                                       <div className="text-gray-400 font-medium">{deal.daysInStage}d</div>
+                                     </div>
+                                  </div>
+                                )}
+                              </Draggable>
+                            );
                          })}
                          {provided.placeholder}
                        </div>
@@ -259,5 +262,3 @@ export function KanbanBoard({ pipelineId, onNewDeal }: KanbanBoardProps) {
     </>
   );
 }
-
-// Plus added to the import string from lucide-react if not present.

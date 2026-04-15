@@ -6,7 +6,7 @@ import { useRouter } from "next/navigation";
 import { ArrowUpRight, DollarSign, TrendingUp, CheckCircle, ListTodo, Plus, ChevronRight } from "lucide-react";
 import { NewDealModal } from "@/components/pipeline/new-deal-modal";
 import { cn } from "@/lib/utils";
-import { isToday } from "date-fns";
+import { isToday, isPast } from "date-fns";
 
 const TYPE_COLORS: Record<string, string> = {
   "Ligação": "bg-blue-100 text-blue-700",
@@ -73,7 +73,7 @@ export default function DashboardPage() {
       icon: DollarSign,
       color: "text-amber-500",
       bg: "bg-amber-50",
-      href: "/negocios",
+      href: "/pipeline",
     },
     {
       label: "Ganhos no Mês",
@@ -82,7 +82,7 @@ export default function DashboardPage() {
       icon: CheckCircle,
       color: "text-green-500",
       bg: "bg-green-50",
-      href: "/negocios",
+      href: "/pipeline",
     },
     {
       label: "Taxa de Conversão",
@@ -91,7 +91,7 @@ export default function DashboardPage() {
       icon: TrendingUp,
       color: "text-blue-500",
       bg: "bg-blue-50",
-      href: "/negocios",
+      href: "/pipeline",
     },
     {
       label: "Atividades Hoje",
@@ -151,7 +151,7 @@ export default function DashboardPage() {
                 <p className="text-xs text-gray-400 mt-0.5 uppercase font-bold tracking-wider">{activePipeline.name}</p>
               )}
             </div>
-            <button onClick={() => router.push("/negocios")} className="text-xs font-bold text-amber-500 hover:text-amber-600 flex items-center gap-1">
+            <button onClick={() => router.push("/pipeline")} className="text-xs font-bold text-amber-500 hover:text-amber-600 flex items-center gap-1">
               Ver todos <ChevronRight size={12} />
             </button>
           </div>
@@ -201,26 +201,37 @@ export default function DashboardPage() {
             </div>
           ) : (
             <div className="space-y-3">
-              {stats.todayActivities.slice(0, 5).map(a => (
-                <button
-                  key={a.id}
-                  onClick={() => router.push("/atividades")}
-                  className="w-full flex items-center gap-3 p-3 rounded-xl hover:bg-gray-50 text-left transition-colors group"
-                >
-                  <div className={cn(
-                    "w-2 h-2 rounded-full shrink-0",
-                    a.completed ? "bg-green-400" : "bg-amber-400"
-                  )} />
-                  <div className="flex-1 min-w-0">
-                    <p className={cn("text-sm font-bold text-gray-900 truncate", a.completed && "line-through text-gray-400")}>
-                      {a.title}
-                    </p>
-                    <span className={cn("text-[10px] font-bold px-1.5 py-0.5 rounded", TYPE_COLORS[a.type] || "bg-gray-100 text-gray-600")}>
-                      {a.type}
-                    </span>
-                  </div>
-                </button>
-              ))}
+              {stats.todayActivities.slice(0, 5).map(a => {
+                const isOverdue = !a.completed && isPast(new Date(a.date)) && !isToday(new Date(a.date));
+                return (
+                  <button
+                    key={a.id}
+                    onClick={() => router.push("/atividades")}
+                    className="w-full flex items-center gap-3 p-3 rounded-xl hover:bg-gray-50 text-left transition-colors group"
+                  >
+                    <div className={cn(
+                      "w-2 h-2 rounded-full shrink-0",
+                      a.completed ? "bg-green-400" : (isOverdue ? "bg-red-500 animate-pulse" : "bg-amber-400")
+                    )} />
+                    <div className="flex-1 min-w-0">
+                      <p className={cn(
+                        "text-sm font-bold text-gray-900 truncate", 
+                        a.completed && "line-through text-gray-400",
+                        isOverdue && "text-red-600"
+                      )}>
+                        {isOverdue && <span className="mr-1">⚠️</span>}
+                        {a.title}
+                      </p>
+                      <span className={cn(
+                        "text-[10px] font-bold px-1.5 py-0.5 rounded", 
+                        isOverdue ? "bg-red-50 text-red-600" : (TYPE_COLORS[a.type] || "bg-gray-100 text-gray-600")
+                      )}>
+                        {isOverdue ? "Atrasada" : a.type}
+                      </span>
+                    </div>
+                  </button>
+                );
+              })}
             </div>
           )}
 

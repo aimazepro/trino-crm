@@ -4,7 +4,7 @@ import { useState, useMemo } from "react";
 import {
   ChevronLeft, ChevronRight, Plus, List, Calendar as CalendarIcon,
   CheckCircle, Edit2, Trash2, Phone, Users, Video, Mail,
-  MessageCircle, Camera, Briefcase, ClipboardList, Filter
+  MessageCircle, Camera, Briefcase, ClipboardList, Filter, AlertCircle
 } from "lucide-react";
 import { useCrm } from "@/contexts/crm-context";
 import { Activity } from "@/lib/crm-types";
@@ -12,7 +12,7 @@ import { ActivityModal } from "@/components/deal/activity-modal";
 import { NextActivityModal } from "@/components/deal/next-activity-modal";
 import {
   format, startOfMonth, endOfMonth, startOfWeek, endOfWeek,
-  eachDayOfInterval, isSameMonth, isToday, isSameDay,
+  eachDayOfInterval, isSameMonth, isToday, isSameDay, isPast,
   addMonths, subMonths
 } from "date-fns";
 import { ptBR } from "date-fns/locale";
@@ -98,7 +98,7 @@ export default function AtividadesPage() {
       updateActivity(editingActivity.id, data);
     } else {
       // Add to first deal if none selected, or use a generic approach
-      const firstDeal = state.deals[0];
+      const firstDeal = state.deals.find(d => d.status === "Ativo") || state.deals[0];
       if (firstDeal) {
         addActivity({ dealId: firstDeal.id, ...data });
       }
@@ -212,12 +212,14 @@ export default function AtividadesPage() {
                   {acts.map(a => {
                     const colors = getColors(a.type);
                     const Icon = TYPE_ICONS[a.type] || ClipboardList;
+                    const isOverdue = !a.completed && isPast(new Date(a.date)) && !isToday(new Date(a.date));
+                    
                     return (
                       <div
                         key={a.id}
                         className={cn(
                           "flex items-center gap-4 p-4 bg-white border rounded-2xl shadow-sm transition-all group hover:shadow-md",
-                          a.completed ? "opacity-50 border-gray-100" : "border-gray-100 hover:border-amber-200"
+                          a.completed ? "opacity-50 border-gray-100" : (isOverdue ? "border-red-200 bg-red-50/10" : "border-gray-100 hover:border-amber-200")
                         )}
                       >
                         {/* Complete circle */}
@@ -225,23 +227,27 @@ export default function AtividadesPage() {
                           onClick={() => handleComplete(a)}
                           className={cn(
                             "w-7 h-7 rounded-full border-2 flex items-center justify-center shrink-0 transition-all",
-                            a.completed ? "bg-green-500 border-green-500 text-white" : "border-gray-300 hover:border-amber-500 hover:scale-110"
+                            a.completed ? "bg-green-500 border-green-500 text-white" : (isOverdue ? "border-red-400 hover:border-red-600" : "border-gray-300 hover:border-amber-500 hover:scale-110")
                           )}
                         >
-                          {a.completed && <CheckCircle size={14} />}
+                          {a.completed ? <CheckCircle size={14} /> : (isOverdue ? <AlertCircle size={14} className="text-red-400" /> : null)}
                         </button>
 
                         {/* Type icon */}
-                        <div className={cn("w-8 h-8 rounded-xl flex items-center justify-center shrink-0", colors.badge)}>
+                        <div className={cn("w-8 h-8 rounded-xl flex items-center justify-center shrink-0", isOverdue ? "bg-red-100 text-red-600" : colors.badge)}>
                           <Icon size={15} />
                         </div>
 
                         <div className="flex-1 min-w-0">
-                          <p className={cn("text-sm font-bold text-gray-900 truncate", a.completed && "line-through text-gray-400")}>
+                          <p className={cn(
+                            "text-sm font-bold truncate", 
+                            a.completed ? "line-through text-gray-400" : (isOverdue ? "text-red-700" : "text-gray-900")
+                          )}>
                             {format(new Date(a.date), "HH:mm")} — {a.title}
+                            {isOverdue && <span className="ml-2 text-[10px] uppercase tracking-wider text-red-500 bg-red-100 px-1.5 py-0.5 rounded-full font-black">Atrasada</span>}
                           </p>
                           <div className="flex items-center gap-2 mt-0.5">
-                            <span className={cn("text-[10px] font-bold px-1.5 py-0.5 rounded", colors.badge)}>{a.type}</span>
+                            <span className={cn("text-[10px] font-bold px-1.5 py-0.5 rounded", isOverdue ? "bg-red-50 text-red-600" : colors.badge)}>{a.type}</span>
                             <span className="text-xs text-gray-400 font-medium">{a.dealTitle}</span>
                           </div>
                         </div>
@@ -319,16 +325,17 @@ export default function AtividadesPage() {
                   <div className="space-y-1 overflow-hidden">
                     {dayActs.slice(0, 4).map(a => {
                       const colors = getColors(a.type);
+                      const isOverdue = !a.completed && isPast(new Date(a.date)) && !isToday(day);
                       return (
                         <button
                           key={a.id}
                           onClick={() => { setEditingActivity(a); setShowModal(true); }}
                           className={cn(
                             "w-full text-left px-2 py-1 rounded-lg border text-[10px] font-bold truncate transition-all hover:scale-[1.02]",
-                            a.completed ? "line-through opacity-60 " + colors.chip : colors.chip
+                            a.completed ? "line-through opacity-60 " + colors.chip : (isOverdue ? "bg-red-50 border-red-300 text-red-800" : colors.chip)
                           )}
                         >
-                          <span className={cn("inline-block w-1.5 h-1.5 rounded-full mr-1 shrink-0", colors.dot)} />
+                          <span className={cn("inline-block w-1.5 h-1.5 rounded-full mr-1 shrink-0", isOverdue ? "bg-red-500" : colors.dot)} />
                           {format(new Date(a.date), "HH:mm")} {a.title}
                         </button>
                       );
