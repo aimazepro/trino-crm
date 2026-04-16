@@ -41,6 +41,8 @@ const SECTIONS = [
       { label: "Telefone", href: "/configuracoes/telefone", icon: Phone },
       { label: "Calendário", href: "/configuracoes/calendario", icon: Calendar },
       { label: "Integrações", href: "/configuracoes/integracoes", icon: Blocks },
+      { label: "API", href: "/configuracoes/api", icon: FileText },
+      { label: "Webhooks", href: "/configuracoes/webhooks", icon: ListTree },
     ]
   }
 ];

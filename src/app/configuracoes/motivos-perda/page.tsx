@@ -1,72 +1,77 @@
 "use client";
 
 import { useState } from "react";
-import { Plus, Search, Trash2, Edit2, ShieldAlert } from "lucide-react";
+import { Plus, X } from "lucide-react";
 
-type LossReason = {
-  id: string;
-  title: string;
-  type: "Vendas" | "Pré-Venda" | "Ambos";
-};
-
-const MOCK: LossReason[] = [
-  { id: "1", title: "Falta de Interesse", type: "Ambos" },
-  { id: "2", title: "Comprou do Concorrente", type: "Vendas" },
-  { id: "3", title: "Achou Muito Caro", type: "Vendas" },
-  { id: "4", title: "Sem Tempo Agora", type: "Pré-Venda" },
-];
+const INITIAL = ["Preço", "Concorrência", "Timing ruim", "Sem budget", "Produto não atende", "Sem resposta"];
 
 export default function MotivosPerdaPage() {
-  const [items] = useState<LossReason[]>(MOCK);
-  
+  const [items, setItems] = useState<string[]>(INITIAL);
+  const [input, setInput] = useState("");
+
+  const handleAdd = () => {
+    const trimmed = input.trim();
+    if (!trimmed || items.includes(trimmed)) return;
+    setItems([...items, trimmed]);
+    setInput("");
+  };
+
+  const handleRemove = (item: string) => setItems(items.filter(i => i !== item));
+
   return (
-    <div className="flex flex-col h-full bg-white border-l border-zinc-200">
-      
+    <div className="flex flex-col min-h-full bg-[#F4F4F5]">
+
       {/* Header */}
-      <div className="flex items-center justify-between border-b border-zinc-100 px-8 py-5 shrink-0 bg-white">
+      <div className="flex items-center border-b border-zinc-200 px-8 py-5 shrink-0 bg-white">
         <div>
           <h1 className="text-xl font-bold text-zinc-900 tracking-tight">Motivos de Perda</h1>
-          <p className="text-sm font-medium text-zinc-400 mt-1">Padronize por que seus negócios não estão fechando</p>
+          <p className="text-sm font-medium text-zinc-400 mt-0.5">Configure os motivos de perda disponíveis ao marcar um negócio como perdido.</p>
         </div>
       </div>
 
-      {/* Toolbox */}
-      <div className="flex items-center justify-between px-8 py-4 bg-zinc-50/50 border-b border-zinc-100 shrink-0">
-        <div className="relative w-72">
-          <Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-zinc-400" />
-          <input
-            type="text"
-            placeholder="Buscar motivos..."
-            className="w-full pl-9 pr-4 py-2 bg-white border border-zinc-200 rounded-lg text-[13px] font-medium text-zinc-700 outline-none focus:border-amber-500 transition-all placeholder:text-zinc-400"
-          />
-        </div>
+      <div className="flex-1 p-8">
+        <div className="max-w-lg space-y-4">
 
-        <button className="flex items-center gap-2 bg-amber-500 text-white px-4 py-2 rounded-lg text-[13px] font-bold hover:bg-amber-600 transition-colors shadow-sm">
-          <Plus size={15} /> Novo Motivo
-        </button>
-      </div>
+          {/* Inline add */}
+          <div className="flex gap-2">
+            <input
+              type="text"
+              placeholder="Novo motivo de perda..."
+              value={input}
+              onChange={e => setInput(e.target.value)}
+              onKeyDown={e => e.key === "Enter" && handleAdd()}
+              className="flex-1 bg-white border border-zinc-200 text-[13px] font-medium rounded-lg px-4 py-2.5 outline-none focus:border-amber-500 transition-all placeholder:text-zinc-400"
+            />
+            <button
+              onClick={handleAdd}
+              className="flex items-center gap-2 bg-amber-500 text-white px-4 py-2.5 rounded-lg text-[13px] font-bold hover:bg-amber-600 transition-colors shadow-sm whitespace-nowrap"
+            >
+              <Plus size={14} /> Adicionar
+            </button>
+          </div>
 
-      {/* list */}
-      <div className="flex-1 overflow-y-auto custom-scrollbar p-8">
-        <div className="max-w-3xl space-y-3">
-          {items.map(item => (
-            <div key={item.id} className="flex items-center justify-between p-4 bg-white border border-zinc-200 rounded-xl hover:border-amber-400 transition-all group shadow-sm">
-              <div className="flex items-center gap-3">
-                <div className="w-10 h-10 rounded-lg bg-red-50 text-red-500 flex items-center justify-center shrink-0">
-                  <ShieldAlert size={18} />
-                </div>
-                <div>
-                  <h3 className="text-sm font-bold text-zinc-900">{item.title}</h3>
-                  <span className="text-[11px] font-bold text-zinc-400 uppercase tracking-wider">{item.type}</span>
-                </div>
+          {/* List */}
+          <div className="bg-white border border-zinc-200 rounded-xl shadow-sm overflow-hidden">
+            {items.map((item, i) => (
+              <div
+                key={item}
+                className={`flex items-center justify-between px-5 py-3.5 group hover:bg-zinc-50/50 transition-colors ${i > 0 ? "border-t border-zinc-100" : ""}`}
+              >
+                <span className="text-[14px] font-medium text-zinc-800">{item}</span>
+                <button
+                  onClick={() => handleRemove(item)}
+                  className="p-1 text-zinc-300 hover:text-red-500 opacity-0 group-hover:opacity-100 transition-all rounded"
+                >
+                  <X size={14} />
+                </button>
               </div>
+            ))}
+          </div>
 
-              <div className="flex items-center gap-2 opacity-0 group-hover:opacity-100 transition-all">
-                <button className="p-2 text-zinc-400 hover:text-amber-600 hover:bg-amber-50 rounded-lg"><Edit2 size={15} /></button>
-                <button className="p-2 text-zinc-400 hover:text-red-500 hover:bg-red-50 rounded-lg"><Trash2 size={15} /></button>
-              </div>
-            </div>
-          ))}
+          <p className="text-[12px] font-medium text-zinc-400 text-center">
+            Esses motivos serão exibidos como opções ao marcar um negócio como perdido.
+          </p>
+
         </div>
       </div>
 
