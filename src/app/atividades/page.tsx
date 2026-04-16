@@ -4,7 +4,7 @@ import { useState, useMemo } from "react";
 import {
   ChevronLeft, ChevronRight, Plus, List, Calendar as CalendarIcon,
   CheckCircle, Edit2, Trash2, Phone, Users, Video, Mail,
-  MessageCircle, Camera, Briefcase, ClipboardList, Filter, AlertCircle
+  MessageCircle, Camera, Briefcase, ClipboardList, Filter, AlertCircle, ChevronDown
 } from "lucide-react";
 import { useCrm } from "@/contexts/crm-context";
 import { Activity } from "@/lib/crm-types";
@@ -85,8 +85,15 @@ export default function AtividadesPage() {
       const d = new Date(a.date);
       d.setHours(0, 0, 0, 0);
       let label = format(d, "EEEE, d 'de' MMMM", { locale: ptBR });
-      if (d.getTime() === today.getTime()) label = "HOJE";
-      else if (d.getTime() === tomorrow.getTime()) label = "AMANHÃ";
+      
+      if (!a.completed && d.getTime() < today.getTime()) {
+        label = "ATRASADAS";
+      } else if (d.getTime() === today.getTime()) {
+        label = "HOJE";
+      } else if (d.getTime() === tomorrow.getTime()) {
+        label = "AMANHÃ";
+      }
+      
       if (!groups[label]) groups[label] = [];
       groups[label].push(a);
     });
@@ -125,46 +132,48 @@ export default function AtividadesPage() {
   const calDays = eachDayOfInterval({ start: calStart, end: calEnd });
 
   return (
-    <div className="flex flex-col h-full">
-      {/* Header */}
-      <div className="flex items-center justify-between mb-6 shrink-0">
+    <div className="flex flex-col h-full overflow-hidden bg-[#F4F4F5]">
+      
+      {/* Main Secondary Header */}
+      <div className="flex items-center justify-between border-b border-zinc-100 bg-white px-6 py-3.5 shrink-0">
         <div>
-          <h1 className="text-2xl font-bold text-gray-900">Atividades</h1>
-          <p className="text-sm text-gray-400">{allActivities.length} atividades</p>
+          <h1 className="text-lg font-semibold text-zinc-900 leading-none mb-1">Atividades</h1>
+          <p className="text-[11px] font-medium text-zinc-400">{allActivities.length} {allActivities.length === 1 ? 'atividade' : 'atividades'}</p>
         </div>
 
-        <div className="flex items-center gap-3">
+        <div className="flex items-center gap-2">
           {/* View toggle */}
-          <div className="flex bg-white border border-gray-200 rounded-xl p-1 shadow-sm gap-1">
+          <div className="flex items-center rounded-lg border border-zinc-200 overflow-hidden">
             <button
               onClick={() => setViewMode("list")}
               className={cn(
-                "flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-bold transition-all",
-                viewMode === "list" ? "bg-gray-900 text-white shadow" : "text-gray-500 hover:bg-gray-50"
+                "flex items-center justify-center px-3 py-1.5 border-r border-zinc-200 transition-colors text-[12px] font-semibold",
+                viewMode === "list" ? "bg-amber-500 text-white" : "bg-white text-zinc-500 hover:text-zinc-700"
               )}
             >
-              <List size={15} /> Lista
+              <List size={13} className="mr-1.5" /> Lista
             </button>
             <button
               onClick={() => setViewMode("calendar")}
               className={cn(
-                "flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-bold transition-all",
-                viewMode === "calendar" ? "bg-amber-500 text-white shadow" : "text-gray-500 hover:bg-gray-50"
+                "flex items-center justify-center px-3 py-1.5 transition-colors text-[12px] font-semibold",
+                viewMode === "calendar" ? "bg-amber-500 text-white" : "bg-white text-zinc-500 hover:text-zinc-700"
               )}
             >
-              <CalendarIcon size={15} /> Calendário
+              <CalendarIcon size={13} className="mr-1.5" /> Calendário
             </button>
           </div>
 
           {/* Status filter */}
-          <div className="flex bg-white border border-gray-200 rounded-xl p-1 shadow-sm gap-1">
-            {["Pendentes", "Concluídas", "Todas"].map(s => (
+          <div className="flex items-center rounded-lg border border-zinc-200 overflow-hidden ml-2">
+            {["Pendentes", "Concluídas", "Todas"].map((s, i) => (
               <button
                 key={s}
                 onClick={() => setFilterStatus(s)}
                 className={cn(
-                  "px-3 py-2 rounded-lg text-xs font-bold transition-all",
-                  filterStatus === s ? "bg-amber-500 text-white" : "text-gray-500 hover:bg-gray-50"
+                  "flex items-center justify-center px-3 py-1.5 transition-colors text-[12px] font-semibold border-zinc-200",
+                  filterStatus === s ? "bg-amber-500 text-white" : "bg-white text-zinc-500 hover:text-zinc-700",
+                  i !== 2 && "border-r"
                 )}
               >
                 {s}
@@ -172,101 +181,108 @@ export default function AtividadesPage() {
             ))}
           </div>
 
-          {/* Type filter */}
-          <select
-            value={filterType}
-            onChange={e => setFilterType(e.target.value)}
-            className="border border-gray-200 rounded-xl px-4 py-2 text-sm font-bold bg-white text-gray-700 shadow-sm outline-none focus:border-amber-500"
-          >
-            {ACTIVITY_TYPES.map(t => <option key={t}>{t}</option>)}
-          </select>
+          {/* Select dropdowns */}
+          <button className="flex items-center gap-2 rounded-lg border border-zinc-200 bg-white px-3 py-1.5 text-[12px] font-semibold text-zinc-600 hover:bg-zinc-50 ml-2">
+            <Filter size={13} className="text-zinc-400" /> Todos <ChevronDown size={13} className="text-zinc-400 ml-1" />
+          </button>
+          
+          <button className="flex items-center gap-2 rounded-lg border border-zinc-200 bg-white px-3 py-1.5 text-[12px] font-semibold text-zinc-600 hover:bg-zinc-50">
+            <Users size={13} className="text-zinc-400" /> Todos os usuários <ChevronDown size={13} className="text-zinc-400 ml-1" />
+          </button>
 
           <button
             onClick={() => { setEditingActivity(null); setShowModal(true); }}
-            className="flex items-center gap-2 px-5 py-2.5 bg-amber-500 text-white font-bold text-sm rounded-xl hover:bg-amber-600 shadow-lg shadow-amber-500/20 transition-all active:scale-95"
+            className="flex items-center gap-2 rounded-lg bg-gradient-to-r from-amber-500 to-amber-400 px-4 py-1.5 text-[13px] font-medium text-white hover:from-amber-600 hover:to-amber-500 transition-all shadow-sm hover:shadow-md ml-2"
           >
-            <Plus size={18} /> Nova Atividade
+            <Plus size={15} /> Nova Atividade
           </button>
         </div>
       </div>
 
       {/* LIST VIEW */}
       {viewMode === "list" && (
-        <div className="flex-1 overflow-y-auto custom-scrollbar space-y-6">
+        <div className="flex-1 overflow-y-auto w-full max-w-5xl mx-auto p-8 space-y-8">
           {Object.keys(grouped).length === 0 ? (
             <div className="flex flex-col items-center justify-center py-20 text-gray-300">
               <CalendarIcon size={64} className="mb-4 opacity-20" />
-              <p className="font-bold uppercase tracking-widest text-sm">Nenhuma atividade encontrada</p>
+              <p className="font-medium uppercase tracking-widest text-sm">Nenhuma atividade encontrada</p>
             </div>
           ) : (
             Object.entries(grouped).map(([label, acts]) => (
               <div key={label}>
-                <h3 className={cn(
-                  "text-xs font-black uppercase tracking-widest mb-3 flex items-center gap-2",
-                  label === "HOJE" ? "text-amber-500" : "text-gray-400"
-                )}>
-                  {label === "HOJE" && <span className="w-2 h-2 rounded-full bg-amber-500 animate-pulse" />}
-                  {label}
-                </h3>
-                <div className="space-y-2">
+                <div className="flex items-center justify-between mb-2">
+                  <span className="text-[10px] font-semibold text-zinc-400 tracking-wider uppercase">
+                    {label}
+                  </span>
+                  <span className="text-[10px] font-semibold text-zinc-400">{acts.length}</span>
+                </div>
+
+                <div className="space-y-1.5">
                   {acts.map(a => {
                     const colors = getColors(a.type);
                     const Icon = TYPE_ICONS[a.type] || ClipboardList;
-                    const isOverdue = !a.completed && isPast(new Date(a.date)) && !isToday(new Date(a.date));
+                    const isOverdueLabel = label === "ATRASADAS";
                     
                     return (
                       <div
                         key={a.id}
                         className={cn(
-                          "flex items-center gap-4 p-4 bg-white border rounded-2xl shadow-sm transition-all group hover:shadow-md",
-                          a.completed ? "opacity-50 border-gray-100" : (isOverdue ? "border-red-200 bg-red-50/10" : "border-gray-100 hover:border-amber-200")
+                          "flex items-center justify-between p-2 pl-4 pr-3 bg-white rounded-xl shadow-[0_1px_3px_rgba(0,0,0,0.02)] transition-all group border",
+                          a.completed ? "opacity-60 border-transparent shadow-none" : "border-transparent hover:border-zinc-200"
                         )}
                       >
-                        {/* Complete circle */}
-                        <button
-                          onClick={() => handleComplete(a)}
-                          className={cn(
-                            "w-7 h-7 rounded-full border-2 flex items-center justify-center shrink-0 transition-all",
-                            a.completed ? "bg-green-500 border-green-500 text-white" : (isOverdue ? "border-red-400 hover:border-red-600" : "border-gray-300 hover:border-amber-500 hover:scale-110")
-                          )}
-                        >
-                          {a.completed ? <CheckCircle size={14} /> : (isOverdue ? <AlertCircle size={14} className="text-red-400" /> : null)}
-                        </button>
+                         <div className="flex items-center gap-3 w-full">
+                            {/* Complete circle */}
+                            <button
+                              onClick={() => handleComplete(a)}
+                              className={cn(
+                                "w-[18px] h-[18px] rounded-full border flex items-center justify-center shrink-0 transition-all",
+                                a.completed ? "bg-green-500 border-green-500 text-white" : "border-zinc-300 hover:border-amber-500 bg-white"
+                              )}
+                            >
+                              {a.completed && <CheckCircle size={10} />}
+                            </button>
+                            
+                            {/* Type icon block */}
+                            <div className="w-[30px] h-[30px] rounded-lg bg-zinc-100 flex items-center justify-center shrink-0">
+                               <Icon size={14} className="text-zinc-500" />
+                            </div>
 
-                        {/* Type icon */}
-                        <div className={cn("w-8 h-8 rounded-xl flex items-center justify-center shrink-0", isOverdue ? "bg-red-100 text-red-600" : colors.badge)}>
-                          <Icon size={15} />
-                        </div>
+                            <div className="flex flex-col ml-1">
+                               <span 
+                                 className="text-[13px] font-semibold text-zinc-900 cursor-pointer hover:text-amber-600 transition-colors" 
+                                 onClick={() => { setEditingActivity(a); setShowModal(true); }}
+                               >
+                                  {format(new Date(a.date), "HH:mm")} - {a.title}
+                               </span>
+                               
+                               <div className="flex items-center gap-2 mt-[2px]">
+                                  <span className={cn(
+                                    "rounded text-[10px] px-1.5 py-0.5 font-medium flex items-center gap-1",
+                                    !a.completed && isOverdueLabel ? "bg-red-50 text-red-500" : "bg-zinc-100 text-zinc-500"
+                                  )}>
+                                    <CalendarIcon size={10} /> 
+                                    {format(new Date(a.date), "d 'de' MMM, HH:mm", { locale: ptBR })}
+                                  </span>
+                                  <span className="text-amber-500 text-[10px] font-medium tracking-wide">{a.dealTitle}</span>
+                               </div>
+                            </div>
+                         </div>
 
-                        <div className="flex-1 min-w-0">
-                          <p className={cn(
-                            "text-sm font-bold truncate", 
-                            a.completed ? "line-through text-gray-400" : (isOverdue ? "text-red-700" : "text-gray-900")
-                          )}>
-                            {format(new Date(a.date), "HH:mm")} — {a.title}
-                            {isOverdue && <span className="ml-2 text-[10px] uppercase tracking-wider text-red-500 bg-red-100 px-1.5 py-0.5 rounded-full font-black">Atrasada</span>}
-                          </p>
-                          <div className="flex items-center gap-2 mt-0.5">
-                            <span className={cn("text-[10px] font-bold px-1.5 py-0.5 rounded", isOverdue ? "bg-red-50 text-red-600" : colors.badge)}>{a.type}</span>
-                            <span className="text-xs text-gray-400 font-medium">{a.dealTitle}</span>
-                          </div>
-                        </div>
-
-                        {/* Actions on hover */}
-                        <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
-                          <button
-                            onClick={() => { setEditingActivity(a); setShowModal(true); }}
-                            className="p-1.5 text-gray-400 hover:text-amber-600 hover:bg-amber-50 rounded-lg transition-colors"
-                          >
-                            <Edit2 size={14} />
-                          </button>
-                          <button
-                            onClick={() => deleteActivity(a.id)}
-                            className="p-1.5 text-gray-400 hover:text-red-500 hover:bg-red-50 rounded-lg transition-colors"
-                          >
-                            <Trash2 size={14} />
-                          </button>
-                        </div>
+                         {/* Right side Actions & Badge */}
+                         <div className="shrink-0 flex items-center pr-1 gap-2">
+                           <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
+                             <button onClick={() => { setEditingActivity(a); setShowModal(true); }} className="p-1 text-zinc-400 hover:text-amber-600 hover:bg-amber-50 rounded-md transition-colors">
+                               <Edit2 size={13} />
+                             </button>
+                             <button onClick={() => deleteActivity(a.id)} className="p-1 text-zinc-400 hover:text-red-500 hover:bg-red-50 rounded-md transition-colors">
+                               <Trash2 size={13} />
+                             </button>
+                           </div>
+                           <span className="bg-zinc-100/80 text-zinc-400 rounded-full px-2.5 py-0.5 text-[10px] font-medium">
+                             {a.type}
+                           </span>
+                         </div>
                       </div>
                     );
                   })}
@@ -285,7 +301,7 @@ export default function AtividadesPage() {
             <button onClick={() => setCurrentDate(subMonths(currentDate, 1))} className="p-2 hover:bg-gray-50 rounded-xl transition-colors">
               <ChevronLeft size={20} className="text-gray-500" />
             </button>
-            <h2 className="text-lg font-black text-gray-900 uppercase tracking-tight">
+            <h2 className="text-lg font-semibold text-gray-900 uppercase tracking-tight">
               {format(currentDate, "MMMM 'De' yyyy", { locale: ptBR })}
             </h2>
             <button onClick={() => setCurrentDate(addMonths(currentDate, 1))} className="p-2 hover:bg-gray-50 rounded-xl transition-colors">
@@ -296,7 +312,7 @@ export default function AtividadesPage() {
           {/* Day names */}
           <div className="grid grid-cols-7 border-b border-gray-100 bg-gray-50/50">
             {["DOM", "SEG", "TER", "QUA", "QUI", "SEX", "SÁB"].map(d => (
-              <div key={d} className="py-3 text-center text-[10px] font-black text-gray-400 uppercase tracking-widest">{d}</div>
+              <div key={d} className="py-3 text-center text-[10px] font-semibold text-gray-400 uppercase tracking-widest">{d}</div>
             ))}
           </div>
 
@@ -317,7 +333,7 @@ export default function AtividadesPage() {
                   )}
                 >
                   <span className={cn(
-                    "w-7 h-7 flex items-center justify-center rounded-full text-xs font-black mb-2 self-start",
+                    "w-7 h-7 flex items-center justify-center rounded-full text-xs font-semibold mb-2 self-start",
                     isToday(day) ? "bg-amber-500 text-white shadow-lg shadow-amber-500/30" : "text-gray-700"
                   )}>
                     {format(day, "d")}
@@ -331,7 +347,7 @@ export default function AtividadesPage() {
                           key={a.id}
                           onClick={() => { setEditingActivity(a); setShowModal(true); }}
                           className={cn(
-                            "w-full text-left px-2 py-1 rounded-lg border text-[10px] font-bold truncate transition-all hover:scale-[1.02]",
+                            "w-full text-left px-2 py-1 rounded-lg border text-[10px] font-medium truncate transition-all hover:scale-[1.02]",
                             a.completed ? "line-through opacity-60 " + colors.chip : (isOverdue ? "bg-red-50 border-red-300 text-red-800" : colors.chip)
                           )}
                         >
@@ -341,7 +357,7 @@ export default function AtividadesPage() {
                       );
                     })}
                     {dayActs.length > 4 && (
-                      <p className="text-[10px] text-gray-400 font-bold pl-1">+{dayActs.length - 4} mais</p>
+                      <p className="text-[10px] text-gray-400 font-medium pl-1">+{dayActs.length - 4} mais</p>
                     )}
                   </div>
                 </div>

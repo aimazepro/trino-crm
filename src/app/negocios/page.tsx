@@ -56,15 +56,14 @@ export default function KanbanPage() {
   }
 
   return (
-    <div className="flex flex-col h-[calc(100vh-20px)] overflow-hidden animate-in fade-in duration-500 bg-gray-50/30 -mt-6 -mx-8 px-8">
+    <div className="flex flex-col h-full overflow-hidden animate-in fade-in duration-500 bg-[#F4F4F5]">
       
       {/* Main Secondary Header (Title & Actions) */}
-      <div className="flex items-center justify-between py-5 shrink-0">
-         <div className="flex items-center gap-4">
-            <h1 className="text-xl font-bold text-gray-900 tracking-tight">Negócios</h1>
-            <div className="w-px h-6 bg-gray-200"></div>
+      <div className="flex items-center justify-between border-b border-zinc-100 bg-white px-6 py-3.5">
+         <div className="flex items-center gap-3">
+            <h1 className="text-lg font-semibold text-zinc-900">Negócios</h1>
             
-            <div className="w-48">
+            <div className="w-[180px]">
               <PipelineSelector 
                 activeId={activePipelineId} 
                 onChange={setActivePipelineId} 
@@ -75,58 +74,61 @@ export default function KanbanPage() {
          </div>
 
          {/* Toolbar */}
-         <div className="flex items-center gap-3">
-            {/* View Toggles */}
-            <div className="flex items-center bg-gray-100 rounded-lg p-0.5 border border-gray-200 shadow-sm">
+         <div className="flex items-center gap-2">
+            
+            {/* View Mode */}
+            <div className="flex items-center rounded-lg border border-zinc-200 overflow-hidden">
                <button 
                  onClick={() => setViewMode("kanban")}
-                 className={cn("p-1.5 rounded-md transition-colors", viewMode === "kanban" ? "bg-white text-gray-800 shadow-sm" : "text-gray-400 hover:text-gray-600")}
+                 className={cn("flex items-center justify-center px-2.5 py-1.5 border-r border-zinc-200 transition-colors", viewMode === "kanban" ? "bg-zinc-100 text-zinc-800" : "bg-white text-zinc-400 hover:text-zinc-600")}
+                 title="Visualização kanban"
                >
-                 <LayoutGrid size={16}/>
+                 <LayoutGrid size={16} />
                </button>
                <button 
                  onClick={() => setViewMode("list")}
-                 className={cn("p-1.5 rounded-md transition-colors", viewMode === "list" ? "bg-white text-gray-800 shadow-sm" : "text-gray-400 hover:text-gray-600")}
+                 className={cn("flex items-center justify-center px-2.5 py-1.5 transition-colors", viewMode === "list" ? "bg-zinc-100 text-zinc-800" : "bg-white text-zinc-400 hover:text-zinc-600")}
+                 title="Visualização em lista"
                >
-                 <List size={16}/>
+                 <List size={16} />
                </button>
             </div>
 
-            <div className="w-px h-6 bg-gray-200"></div>
-
             {/* Stage Filters */}
-            <div className="flex bg-white rounded-lg border border-gray-200 shadow-sm p-0.5">
-              <button className="flex items-center gap-2 px-3 py-1.5 bg-gray-100 text-gray-700 font-bold text-xs rounded-md shadow-sm">
-                <Eye size={14} className="text-gray-500" />
-                Ativos
-              </button>
-              <button className="flex items-center gap-2 px-3 py-1.5 text-gray-500 font-medium text-xs rounded-md hover:bg-gray-50 transition-colors">
-                <Trophy size={14} className="text-gray-400" />
-                Ganhos
-              </button>
-              <button className="flex items-center gap-2 px-3 py-1.5 text-gray-500 font-medium text-xs rounded-md hover:bg-gray-50 transition-colors">
-                <XCircle size={14} className="text-gray-400" />
-                Perdidos
-              </button>
-            </div>
+            <button className="flex items-center gap-1.5 rounded-lg border px-3 py-1.5 text-sm font-medium transition-colors border-zinc-300 bg-zinc-100 text-zinc-800">
+               <Eye size={14} /> 
+               Ativos
+            </button>
+            <button className="flex items-center gap-1.5 rounded-lg border px-3 py-1.5 text-sm font-medium transition-colors border-zinc-200 text-zinc-500 hover:bg-zinc-50">
+               <Trophy size={14} /> 
+               Ganhos
+            </button>
+            <button className="flex items-center gap-1.5 rounded-lg border px-3 py-1.5 text-sm font-medium transition-colors border-zinc-200 text-zinc-500 hover:bg-zinc-50">
+               <XCircle size={14} /> 
+               Perdidos
+            </button>
 
-            <div className="w-px h-6 bg-gray-200"></div>
-
-            <button className="flex items-center gap-2 px-4 py-1.5 bg-white border border-gray-200 text-gray-600 font-medium text-xs rounded-lg hover:bg-gray-50 transition-colors shadow-sm">
-              <Download size={14} className="text-gray-400" />
+            {/* Exportar */}
+            <button disabled className="flex items-center gap-1.5 rounded-lg border border-zinc-200 px-3 py-1.5 text-sm font-medium text-zinc-500 hover:bg-zinc-50 transition-colors disabled:opacity-50">
+              <Download size={14} /> 
               Exportar
             </button>
             
+            {/* Novo Negócio */}
             <button 
               onClick={() => openNewDealModal()}
-              className="flex items-center gap-2 px-5 py-1.5 bg-amber-500 text-white font-bold text-sm rounded-lg shadow-sm shadow-amber-500/20 hover:bg-amber-600 transition-colors whitespace-nowrap"
+              className="flex items-center gap-2 rounded-lg bg-gradient-to-r from-amber-500 to-amber-400 px-4 py-1.5 text-sm font-semibold text-white hover:from-amber-600 hover:to-amber-500 transition-all shadow-sm hover:shadow-md"
             >
-              <Plus size={16} />
+              <Plus size={16} /> 
               Novo Negócio
             </button>
 
-            <button onClick={() => setShowColumnsModal(true)} className="p-1.5 text-gray-400 hover:text-gray-700 transition-colors border border-gray-200 hover:bg-gray-50 rounded-lg bg-white shadow-sm ml-1">
-              <SettingsIcon size={18} />
+            {/* Configs */}
+            <button 
+              onClick={() => setShowColumnsModal(true)} 
+              className="rounded-lg border border-zinc-200 p-1.5 text-zinc-400 hover:bg-zinc-50 transition-colors"
+            >
+              <SettingsIcon size={16} />
             </button>
          </div>
       </div>
@@ -134,11 +136,13 @@ export default function KanbanPage() {
       {/* Main Board / List View Area */}
       <div className="flex-1 overflow-hidden relative">
          {viewMode === "kanban" ? (
-           <div className="h-full overflow-x-auto overflow-y-hidden hide-scrollbar pb-4 -mx-4 px-4">
+           <div className="h-full overflow-x-auto overflow-y-hidden hide-scrollbar py-6 px-8">
               <KanbanBoard pipelineId={activePipelineId} onNewDeal={openNewDealModal} />
            </div>
          ) : (
-           <KanbanListView pipelineId={activePipelineId} />
+           <div className="p-6">
+             <KanbanListView pipelineId={activePipelineId} />
+           </div>
          )}
       </div>
       

@@ -226,7 +226,7 @@ export default function ContatoPage({ params }: { params: Promise<{ id: string }
   };
 
   return (
-    <div className="flex flex-col h-full animate-in fade-in">
+    <div className="flex flex-col h-full animate-in fade-in bg-[#F4F4F5] p-8">
 
       {/* Top bar */}
       <div className="flex items-center justify-between mb-5 shrink-0">

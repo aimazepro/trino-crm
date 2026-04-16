@@ -52,15 +52,15 @@ export function KanbanListView({ pipelineId }: KanbanListViewProps) {
             <thead className="bg-gray-50/80 sticky top-0 z-10 border-b border-gray-200">
                <tr>
                  <th className="p-3 w-10 text-center"><input type="checkbox" className="rounded border-gray-300" /></th>
-                 <th className="p-3 text-xs font-bold text-gray-500 uppercase tracking-wider">Título</th>
-                 <th className="p-3 text-xs font-bold text-gray-500 uppercase tracking-wider text-right">Valor</th>
-                 <th className="p-3 text-xs font-bold text-gray-500 uppercase tracking-wider">Etapa</th>
-                 <th className="p-3 text-xs font-bold text-gray-500 uppercase tracking-wider">Pipeline</th>
-                 <th className="p-3 text-xs font-bold text-gray-500 uppercase tracking-wider">Empresa</th>
-                 <th className="p-3 text-xs font-bold text-gray-500 uppercase tracking-wider">Contato</th>
-                 <th className="p-3 text-xs font-bold text-gray-500 uppercase tracking-wider">Proprietário</th>
-                 <th className="p-3 text-xs font-bold text-gray-500 uppercase tracking-wider">Status</th>
-                 <th className="p-3 text-xs font-bold text-gray-500 uppercase tracking-wider text-center">Ações</th>
+                 <th className="p-3 text-xs font-medium text-gray-500 uppercase tracking-wider">Título</th>
+                 <th className="p-3 text-xs font-medium text-gray-500 uppercase tracking-wider text-right">Valor</th>
+                 <th className="p-3 text-xs font-medium text-gray-500 uppercase tracking-wider">Etapa</th>
+                 <th className="p-3 text-xs font-medium text-gray-500 uppercase tracking-wider">Pipeline</th>
+                 <th className="p-3 text-xs font-medium text-gray-500 uppercase tracking-wider">Empresa</th>
+                 <th className="p-3 text-xs font-medium text-gray-500 uppercase tracking-wider">Contato</th>
+                 <th className="p-3 text-xs font-medium text-gray-500 uppercase tracking-wider">Proprietário</th>
+                 <th className="p-3 text-xs font-medium text-gray-500 uppercase tracking-wider">Status</th>
+                 <th className="p-3 text-xs font-medium text-gray-500 uppercase tracking-wider text-center">Ações</th>
                </tr>
             </thead>
             <tbody className="divide-y divide-gray-100">
@@ -70,28 +70,28 @@ export function KanbanListView({ pipelineId }: KanbanListViewProps) {
                  const contact = state.contacts.find(c => c.id === deal.contactId);
 
                  return (
-                   <tr key={deal.id} className="hover:bg-gray-50/50 transition-colors group cursor-pointer" onClick={() => window.location.href = `/pipeline/${deal.id}`}>
+                   <tr key={deal.id} className="hover:bg-gray-50/50 transition-colors group cursor-pointer" onClick={() => window.location.href = `/negocios/${deal.id}`}>
                       <td className="p-3 text-center" onClick={e => e.stopPropagation()}><input type="checkbox" className="rounded border-gray-300" /></td>
                       <td className="p-3">
-                        <span className="font-bold text-gray-900 text-sm group-hover:text-amber-600 transition-colors">{deal.title}</span>
+                        <span className="font-medium text-gray-900 text-sm group-hover:text-amber-600 transition-colors">{deal.title}</span>
                       </td>
                       <td className="p-3 text-right">
-                        <span className="font-bold text-gray-900 text-sm">
+                        <span className="font-medium text-gray-900 text-sm">
                           {deal.value > 0 ? deal.value.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' }) : '-'}
                         </span>
                       </td>
                       <td className="p-3">
-                        <span className="inline-flex items-center px-2.5 py-1 rounded-full text-[11px] font-bold bg-gray-100 text-gray-600 truncate max-w-[120px]">
+                        <span className="inline-flex items-center px-2.5 py-1 rounded-full text-[11px] font-medium bg-gray-100 text-gray-600 truncate max-w-[120px]">
                           {stage?.name}
                         </span>
                       </td>
                       <td className="p-3 text-sm text-gray-500 font-medium">{pipeline.name}</td>
-                      <td className="p-3 text-sm text-gray-700 font-bold">{company?.name || '-'}</td>
+                      <td className="p-3 text-sm text-gray-700 font-medium">{company?.name || '-'}</td>
                       <td className="p-3 text-sm text-gray-500 font-medium">{contact?.name || '-'}</td>
                       <td className="p-3 text-sm text-gray-500 font-medium">João Paulo</td>
                       <td className="p-3">
                         <span className={cn(
-                          "px-2 py-1 text-[11px] font-bold uppercase tracking-wider rounded-md",
+                          "px-2 py-1 text-[11px] font-medium uppercase tracking-wider rounded-md",
                           deal.status === 'Ativo' ? "bg-amber-50 text-amber-600" :
                           deal.status === 'Ganho' ? "bg-green-50 text-green-600" : "bg-red-50 text-red-600"
                         )}>

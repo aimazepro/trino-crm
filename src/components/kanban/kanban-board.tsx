@@ -87,18 +87,16 @@ export function KanbanBoard({ pipelineId, onNewDeal }: KanbanBoardProps) {
              return (
                <div key={stage.id} className="w-[320px] flex flex-col shrink-0">
                  {/* Column Header */}
-                 <div className="mb-3 px-1 flex items-center justify-between">
-                   <div>
-                     <div className="flex items-center gap-2">
-                       <h3 className="font-bold text-gray-900 text-sm tracking-tight">{stage.name}</h3>
-                       <span className="text-gray-400 text-xs font-bold">{stageDeals.length}</span>
-                     </div>
-                     <span className="text-xs font-medium text-gray-500 mt-0.5 block">
-                       {totalValue.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}
-                     </span>
+                 <div className="mb-4 px-1 flex items-center justify-between">
+                   <div className="flex items-center gap-2">
+                     <h3 className="font-medium text-gray-700 text-[13px]">{stage.name}</h3>
+                     <span className="text-gray-400 text-[11px] font-medium">{stageDeals.length}</span>
                    </div>
-                   <button className="text-gray-300 hover:text-gray-600 transition-colors">
-                     <Plus size={16} />
+                   <button 
+                     onClick={() => onNewDeal?.(stage.id)}
+                     className="text-gray-300 hover:text-gray-600 transition-colors"
+                   >
+                     <Plus size={14} />
                    </button>
                  </div>
 
@@ -109,13 +107,14 @@ export function KanbanBoard({ pipelineId, onNewDeal }: KanbanBoardProps) {
                        ref={provided.innerRef} 
                        {...provided.droppableProps}
                        className={cn(
-                         "flex-1 rounded-2xl p-2 transition-colors min-h-[150px] border",
-                         snapshot.isDraggingOver ? "bg-amber-50/50 border-amber-200" : "bg-gray-50/50 border-transparent"
+                         "flex-1 transition-colors min-h-[150px] rounded-2xl",
+                         snapshot.isDraggingOver ? "bg-amber-50/30 ring-1 ring-amber-200" : "bg-transparent"
                        )}
                      >
                        <div className="space-y-3">
                          {stageDeals.map((deal, index) => {
                             const company = state.companies.find(c => c.id === deal.companyId);
+                            const contact = deal.contactId ? state.contacts.find(c => c.id === deal.contactId) : null;
                             const isStagnant = deal.daysInStage >= stage.maxDays;
                             
                             const pendingActivities = deal.activities?.filter(a => !a.completed) || [];
@@ -133,53 +132,52 @@ export function KanbanBoard({ pipelineId, onNewDeal }: KanbanBoardProps) {
                                     {...provided.draggableProps}
                                     {...provided.dragHandleProps}
                                     className={cn(
-                                      "bg-white p-4 rounded-xl border transition-all group",
-                                      snapshot.isDragging ? "shadow-2xl border-amber-500 rotate-2 scale-105" : "border-gray-200 shadow-sm hover:border-amber-300 hover:shadow-md",
+                                      "bg-white p-4 rounded-xl border transition-all group cursor-grab active:cursor-grabbing",
+                                      snapshot.isDragging ? "shadow-xl border-amber-500 rotate-2 scale-105 z-50" : "border-gray-100 shadow-sm hover:border-amber-200 hover:shadow-md",
                                       isStagnant ? "border-red-200 shadow-[0_0_0_1px_rgba(254,226,226,1)]" : ""
                                     )}
-                                    onClick={() => window.location.href = `/pipeline/${deal.id}`}
+                                    onClick={() => window.location.href = `/negocios/${deal.id}`}
                                   >
-                                     <div className="flex justify-between items-start mb-1.5">
-                                       <h4 className="font-bold text-gray-900 text-sm group-hover:text-amber-600 transition-colors line-clamp-2 leading-snug">
+                                     <div className="flex justify-between items-start mb-2">
+                                       <h4 className="font-semibold text-gray-900 text-[13px] group-hover:text-amber-600 transition-colors line-clamp-1 leading-snug">
                                          {deal.title}
                                        </h4>
-                                       <button className="text-gray-300 hover:text-gray-500 opacity-0 group-hover:opacity-100 transition-opacity shrink-0">
-                                         <MoreHorizontal size={16} />
-                                       </button>
                                      </div>
                                      
-                                     {company && (
-                                       <div className="flex items-center gap-1.5 text-xs font-medium text-gray-500 mb-2 truncate">
-                                         <Building size={12} className="text-gray-400 shrink-0" />
+                                     {contact ? (
+                                       <div className="flex items-center gap-1.5 text-[11px] font-medium text-gray-400 mb-1 truncate">
+                                         <span className="truncate">{contact.name}</span>
+                                       </div>
+                                     ) : company ? (
+                                       <div className="flex items-center gap-1.5 text-[11px] font-medium text-gray-400 mb-1 truncate">
+                                         <Building size={12} className="text-gray-300 shrink-0" />
                                          <span className="truncate">{company.name}</span>
                                        </div>
-                                     )}
+                                     ) : null}
 
-                                     <div className="flex items-center justify-between text-base font-bold text-gray-900 mb-3">
+                                     <div className="flex items-center justify-between text-[13px] font-semibold text-gray-900 mb-4">
                                        {deal.value > 0 ? (
                                           deal.value.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })
                                        ) : (
-                                          <span className="text-gray-400 font-medium">R$ 0,00</span>
+                                          <span className="text-gray-300 font-medium">R$ 0,00</span>
                                        )}
                                      </div>
                                      
-                                     <div className="flex items-center justify-between pt-3 border-t border-gray-50 text-[10px] font-bold">
+                                     <div className="flex items-center justify-between text-[10px] font-medium">
                                        {nextActivity ? (
                                           <div className={cn(
-                                             "border rounded-lg px-2 py-1 text-xs font-medium",
-                                             isOverdue ? "bg-red-50 border-red-100 text-red-600 font-bold" :
-                                             isActivityToday ? "bg-green-50 border-green-200 text-green-700" :
-                                             "bg-gray-50 border-gray-100 text-gray-600"
+                                             "rounded-md px-2 py-1 text-[10px] font-semibold tracking-wider transition-colors",
+                                             isOverdue ? "bg-red-50 text-red-500" :
+                                             isActivityToday ? "bg-amber-50 text-amber-600" :
+                                             "bg-gray-50 text-gray-400"
                                           )}>
-                                             {isOverdue ? `Atrasada: ${nextActivity.type}` : `${formatActivityDate(nextActivity.date)}: ${nextActivity.type}`}
+                                             {isOverdue ? `ATRASADA: ${nextActivity.type.toUpperCase()}` : `${formatActivityDate(nextActivity.date)}: ${nextActivity.type}`}
                                           </div>
                                        ) : (
-                                          <div className={cn("flex items-center gap-1", isStagnant ? "text-red-500" : "text-amber-500")}>
-                                             <AlertTriangle size={12} />
-                                             {isStagnant ? "Estagnado!" : "Sem atividade"}
+                                          <div className="flex items-center gap-1 text-gray-300">
                                           </div>
                                        )}
-                                       <div className="text-gray-400 font-medium">{deal.daysInStage}d</div>
+                                       <div className="text-gray-300 font-medium">{deal.daysInStage}d</div>
                                      </div>
                                   </div>
                                 )}
@@ -221,7 +219,7 @@ export function KanbanBoard({ pipelineId, onNewDeal }: KanbanBoardProps) {
                     snapshot.isDraggingOver ? "bg-red-50" : "hover:bg-red-50/50"
                   )}
                 >
-                  <div className={cn("flex items-center gap-2 font-bold text-lg", snapshot.isDraggingOver ? "text-red-600 scale-110" : "text-red-400")}>
+                  <div className={cn("flex items-center gap-2 font-medium text-lg", snapshot.isDraggingOver ? "text-red-600 scale-110" : "text-red-400")}>
                     <XCircle size={24} /> PERDIDO
                   </div>
                   <div className="hidden">{provided.placeholder}</div>
@@ -239,7 +237,7 @@ export function KanbanBoard({ pipelineId, onNewDeal }: KanbanBoardProps) {
                     snapshot.isDraggingOver ? "bg-green-50" : "hover:bg-green-50/50"
                   )}
                 >
-                  <div className={cn("flex items-center gap-2 font-bold text-lg", snapshot.isDraggingOver ? "text-green-600 scale-110" : "text-green-400")}>
+                  <div className={cn("flex items-center gap-2 font-medium text-lg", snapshot.isDraggingOver ? "text-green-600 scale-110" : "text-green-400")}>
                     <Trophy size={24} /> GANHO
                   </div>
                   <div className="hidden">{provided.placeholder}</div>

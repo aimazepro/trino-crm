@@ -9,126 +9,204 @@ import {
   MessageSquareText,
   Zap,
   Bell,
-  Activity,
+  CheckCircle2,
   Settings,
   Building2,
-  ChevronDown
+  ChevronDown,
+  Target,
+  Phone,
+  Crosshair,
+  PhoneCall,
+  ChevronLeft
 } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { useState } from "react";
 
-const NAV_ITEMS = [
-  { label: "Dashboard", href: "/", icon: LayoutDashboard },
-  { label: "Negócios", href: "/negocios", icon: Briefcase },
-  { label: "Empresas", href: "/empresas", icon: Building2 },
-  { label: "Contatos", href: "/contatos", icon: Users },
-  { label: "Conversas", href: "/conversas", icon: MessageSquareText, badge: 6 },
-  { label: "Disparos", href: "/disparos", icon: Zap },
-  { label: "Follow-up", href: "/follow-up", icon: Bell },
-  { label: "Atividades", href: "/atividades", icon: Activity },
+interface NavItem {
+  label: string;
+  href: string;
+  icon: React.ElementType;
+  badge?: number;
+  sub?: { label: string; href: string }[];
+}
+
+interface Section {
+  label: string;
+  items: NavItem[];
+}
+
+const SECTIONS: Section[] = [
+  {
+    label: "CRM",
+    items: [
+      { label: "Meu Painel", href: "/", icon: LayoutDashboard },
+      { label: "Negócios", href: "/negocios", icon: Briefcase },
+      { label: "Contatos", href: "/contatos", icon: Users },
+      { label: "Atividades", href: "/atividades", icon: CheckCircle2, badge: 1 },
+    ],
+  },
+  {
+    label: "RELATÓRIOS",
+    items: [
+      { label: "Métricas", href: "/metricas", icon: Target },
+      { label: "Ligações", href: "/ligacoes", icon: Phone },
+      { label: "Metas", href: "/metas", icon: Target },
+    ],
+  },
+  {
+    label: "FERRAMENTAS",
+    items: [
+      { label: "Prospecção", href: "/prospeccao", icon: Crosshair },
+      { label: "Automações", href: "/automacoes", icon: Zap },
+      { label: "Análise de Calls", href: "/analise-calls", icon: PhoneCall },
+      { label: "Configurações", href: "/configuracoes", icon: Settings },
+    ],
+  },
 ];
 
 export function Sidebar() {
   const pathname = usePathname();
 
+  const isActive = (href: string) =>
+    href === "/" ? pathname === "/dashboard" || pathname === "/" : pathname.startsWith(href);
+
+  // Exclude configuracoes from regular sections as it goes below divider
+  const topSections = SECTIONS.filter(s => s.label !== "FERRAMENTAS" || true); 
+  // Let's manually implement the precise menu
+
   return (
-    <aside className="w-64 bg-white border-r border-gray-100 flex flex-col h-screen overflow-y-auto">
-      {/* Header / Logo */}
-      <div className="p-6">
-        <div className="flex items-center gap-3">
-          <div className="w-10 h-10 rounded-xl bg-gradient-to-tr from-amber-500 to-orange-400 flex items-center justify-center text-white shadow-sm">
-            <Zap size={20} className="fill-white/20" />
-          </div>
-          <div>
-            <h1 className="font-bold text-gray-900 text-lg leading-tight">Trino Flow</h1>
-            <p className="text-[10px] uppercase font-bold text-gray-400 tracking-wider">Marketing Hub</p>
-          </div>
-        </div>
+    <aside className="flex h-screen shrink-0 flex-col bg-white border-r border-zinc-100/80 transition-[width] duration-200 ease-in-out overflow-hidden w-56">
+      
+      {/* Logo */}
+      <div className="flex h-14 items-center px-3 shrink-0">
+        <Link href="/">
+           <img src="/logo.png" alt="DMhub" className="h-7 object-contain" />
+        </Link>
       </div>
 
-      {/* Empresa Ativa Dropdown Mock */}
-      <div className="px-4 mb-6">
-        <button className="w-full flex items-center gap-3 bg-gray-50/80 hover:bg-gray-100 border border-gray-100 p-3 rounded-2xl transition-colors text-left group">
-          <div className="bg-blue-100 text-blue-600 p-2 rounded-lg">
-            <Building2 size={16} />
-          </div>
-          <div className="flex-1">
-            <p className="text-xs text-gray-500 font-medium">Empresa ativa</p>
-            <p className="text-sm font-semibold text-gray-900">Clínica Vida+</p>
-          </div>
-          <ChevronDown size={16} className="text-gray-400 group-hover:text-gray-600" />
+      {/* Nav */}
+      <nav className="flex-1 overflow-y-auto overflow-x-hidden px-2 py-2">
+        {/* CRM */}
+        <div className="">
+          <span className="px-3 mb-1 block text-[10px] font-semibold uppercase tracking-wider text-zinc-400">
+            CRM
+          </span>
+          <ul className="space-y-0.5">
+            {[
+              { href: "/", label: "Meu Painel", icon: LayoutDashboard },
+              { href: "/negocios", label: "Negócios", icon: Briefcase },
+              { href: "/contatos", label: "Contatos", icon: Users },
+              { href: "/atividades", label: "Atividades", icon: CheckCircle2 }
+            ].map(item => {
+              const active = isActive(item.href);
+              return (
+                <li key={item.href}>
+                  <Link 
+                    href={item.href}
+                    className={cn(
+                      "flex items-center gap-3 rounded-xl px-3 py-2 text-[13px] font-medium transition-all duration-150",
+                      active ? "bg-zinc-100 text-zinc-900" : "text-zinc-500 hover:bg-zinc-50 hover:text-zinc-800"
+                    )}
+                  >
+                    <item.icon className={cn("h-[18px] w-[18px] shrink-0", active ? "text-zinc-700" : "text-zinc-400")} />
+                    <span className="flex-1 whitespace-nowrap overflow-hidden">{item.label}</span>
+                  </Link>
+                </li>
+              )
+            })}
+          </ul>
+        </div>
+
+        {/* Relatórios */}
+        <div className="mt-4">
+          <span className="px-3 mb-1 block text-[10px] font-semibold uppercase tracking-wider text-zinc-400">
+            Relatórios
+          </span>
+          <ul className="space-y-0.5">
+            {[
+              { href: "/insights", label: "Métricas", icon: Target },
+              { href: "/ligacoes", label: "Ligações", icon: Phone },
+              { href: "/metas", label: "Metas", icon: Target }
+            ].map(item => {
+              const active = isActive(item.href);
+              return (
+                <li key={item.href}>
+                  <Link 
+                    href={item.href}
+                    className={cn(
+                      "flex items-center gap-3 rounded-xl px-3 py-2 text-[13px] font-medium transition-all duration-150",
+                      active ? "bg-zinc-100 text-zinc-900" : "text-zinc-500 hover:bg-zinc-50 hover:text-zinc-800"
+                    )}
+                  >
+                    <item.icon className={cn("h-[18px] w-[18px] shrink-0", active ? "text-zinc-700" : "text-zinc-400")} />
+                    <span className="flex-1 whitespace-nowrap overflow-hidden">{item.label}</span>
+                  </Link>
+                </li>
+              )
+            })}
+          </ul>
+        </div>
+
+        {/* Ferramentas */}
+        <div className="mt-4">
+          <span className="px-3 mb-1 block text-[10px] font-semibold uppercase tracking-wider text-zinc-400">
+            Ferramentas
+          </span>
+          <ul className="space-y-0.5">
+            {[
+              { href: "/prospeccao", label: "Prospecção", icon: Crosshair },
+              { href: "/automacoes", label: "Automações", icon: Zap },
+              { href: "/analise-calls", label: "Análise de Calls", icon: PhoneCall }
+            ].map(item => {
+              const active = isActive(item.href);
+              return (
+                <li key={item.href}>
+                  <Link 
+                    href={item.href}
+                    className={cn(
+                      "flex items-center gap-3 rounded-xl px-3 py-2 text-[13px] font-medium transition-all duration-150",
+                      active ? "bg-zinc-100 text-zinc-900" : "text-zinc-500 hover:bg-zinc-50 hover:text-zinc-800"
+                    )}
+                  >
+                    <item.icon className={cn("h-[18px] w-[18px] shrink-0", active ? "text-zinc-700" : "text-zinc-400")} />
+                    <span className="flex-1 whitespace-nowrap overflow-hidden">{item.label}</span>
+                  </Link>
+                </li>
+              )
+            })}
+          </ul>
+        </div>
+
+        <div className="my-3 mx-2 h-px bg-zinc-100"></div>
+        <ul>
+          <li>
+            <Link
+              href="/configuracoes"
+              className={cn(
+                "flex items-center gap-3 rounded-xl px-3 py-2 text-[13px] font-medium transition-all duration-150",
+                isActive("/configuracoes") ? "bg-zinc-100 text-zinc-900" : "text-zinc-500 hover:bg-zinc-50 hover:text-zinc-800"
+              )}
+            >
+               <Settings className={cn("h-[18px] w-[18px] shrink-0", isActive("/configuracoes") ? "text-zinc-700" : "text-zinc-400")} />
+               <span className="flex-1 whitespace-nowrap overflow-hidden">Configurações</span>
+            </Link>
+          </li>
+        </ul>
+      </nav>
+
+      {/* Footer controls */}
+      <div className="px-2 py-2 space-y-1">
+        <button 
+          title="Recolher" 
+          className="flex w-full items-center gap-2 rounded-xl px-3 py-2 text-[13px] font-medium text-zinc-400 hover:bg-zinc-50 hover:text-zinc-600 transition-all duration-150"
+        >
+          <ChevronLeft className="h-4 w-4 shrink-0 transition-transform duration-200" />
+          <span className="whitespace-nowrap overflow-hidden text-xs">Recolher</span>
         </button>
       </div>
-
-      {/* Navegação Principal */}
-      <div className="flex-1 px-4">
-        <p className="text-xs font-semibold text-gray-400 uppercase tracking-wider mb-4 px-2">Menu</p>
-        <nav className="space-y-1">
-          {NAV_ITEMS.map((item) => {
-            const isActive = pathname === item.href || (item.href !== "/" && pathname.startsWith(item.href));
-            
-            return (
-              <Link
-                key={item.href}
-                href={item.href}
-                className={cn(
-                  "flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm font-medium transition-all duration-200 group relative",
-                  isActive 
-                    ? "bg-gradient-to-r from-amber-500 to-orange-500 text-white shadow-md shadow-orange-500/20" 
-                    : "text-gray-500 hover:text-gray-900 hover:bg-gray-50"
-                )}
-              >
-                <item.icon 
-                  size={18} 
-                  className={cn(
-                    isActive ? "text-white" : "text-gray-400 group-hover:text-amber-500",
-                    "transition-colors"
-                  )} 
-                />
-                
-                <span className="flex-1">{item.label}</span>
-                
-                {item.badge && (
-                  <span className={cn(
-                    "text-[10px] font-bold px-2 py-0.5 rounded-full flex items-center justify-center",
-                    isActive 
-                      ? "bg-white/20 text-white" 
-                      : "bg-red-500 text-white"
-                  )}>
-                    {item.badge}
-                  </span>
-                )}
-              </Link>
-            );
-          })}
-        </nav>
-      </div>
-
-      {/* Área Inferior (Configurações) */}
-      <div className="p-4 mt-auto">
-        <Link
-          href="/configuracoes"
-          className={cn(
-            "flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm font-medium transition-colors group",
-            pathname.startsWith("/configuracoes")
-              ? "bg-orange-50 text-orange-600"
-              : "text-gray-500 hover:text-gray-900 hover:bg-gray-50"
-          )}
-        >
-          <Settings size={18} className={pathname.startsWith("/configuracoes") ? "text-orange-500" : "text-gray-400 group-hover:text-amber-500"} />
-          <span>Configurações</span>
-        </Link>
-        
-        {/* User Profile Mini */}
-        <div className="mt-4 flex items-center gap-3 px-3 py-2">
-          <div className="w-8 h-8 rounded-full bg-gray-200 border border-gray-300 overflow-hidden shrink-0">
-            {/* eslint-disable-next-line @next/next/no-img-element */}
-            <img src="https://i.pravatar.cc/100?img=11" alt="Perfil" className="w-full h-full object-cover" />
-          </div>
-          <div className="flex-1 min-w-0">
-            <p className="text-sm font-medium text-gray-900 truncate">João Paulo</p>
-            <p className="text-xs text-gray-500 truncate">Admin</p>
-          </div>
-        </div>
+      
+      <div className="border-t border-zinc-100/80 px-3 py-3">
+         {/* User block space */}
       </div>
     </aside>
   );

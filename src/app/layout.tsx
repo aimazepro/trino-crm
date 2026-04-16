@@ -19,13 +19,15 @@ export default function RootLayout({
 }) {
   return (
     <html lang="pt-BR" suppressHydrationWarning>
-      <body className={`${inter.variable} font-sans antialiased bg-gray-50/50`}>
+      <body className={`${inter.variable} font-sans antialiased`}>
         <CrmProvider>
-          <div className="flex min-h-screen">
-            <Sidebar />
-            <div className="flex-1 flex flex-col min-w-0 bg-background/50">
+          <div className="flex h-screen overflow-hidden bg-[#F4F4F5]">
+            <div className="hidden md:flex">
+              <Sidebar />
+            </div>
+            <div className="flex flex-col flex-1 overflow-hidden">
               <Topbar />
-              <main className="flex-1 flex flex-col p-6 overflow-auto">
+              <main className="flex-1 overflow-y-auto">
                 {children}
               </main>
             </div>

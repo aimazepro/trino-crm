@@ -105,39 +105,34 @@ export default function DashboardPage() {
   ];
 
   return (
-    <div className="max-w-6xl space-y-6">
+    <div className="flex flex-col h-full overflow-y-auto bg-[#F4F4F5]">
+      <div className="max-w-7xl mx-auto w-full p-8 space-y-8">
+        
+        {/* Greeting */}
+        <div>
+          <h1 className="text-[22px] font-black text-gray-900 tracking-tight">Meu Painel</h1>
+          <p className="text-[13px] font-medium text-gray-400 mt-1">
+            {new Date().toLocaleDateString("pt-BR", { weekday: "long", day: "numeric", month: "long", year: "numeric" })}
+          </p>
+        </div>
 
-      {/* Greeting */}
-      <div className="mb-2">
-        <h1 className="text-2xl font-bold text-gray-900">Meu Painel</h1>
-        <p className="text-sm text-gray-400 mt-0.5">
-          {new Date().toLocaleDateString("pt-BR", { weekday: "long", day: "numeric", month: "long", year: "numeric" })}
-        </p>
-      </div>
-
-      {/* Stat Cards */}
-      <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
-        {STAT_CARDS.map((card, i) => (
-          <button
-            key={i}
-            onClick={() => router.push(card.href)}
-            className="bg-white p-5 rounded-2xl border border-gray-100 shadow-sm hover:shadow-md hover:border-gray-200 transition-all text-left group active:scale-[0.98]"
-          >
-            <div className="flex items-center justify-between mb-3">
-              <span className="text-xs font-bold text-gray-400 uppercase tracking-wider">{card.label}</span>
-              <div className={cn("w-9 h-9 rounded-full flex items-center justify-center", card.bg)}>
-                <card.icon size={17} className={card.color} />
+        {/* Stat Cards */}
+        <div className="grid grid-cols-2 lg:grid-cols-4 gap-6">
+          {STAT_CARDS.map((card, i) => (
+            <button
+              key={i}
+              onClick={() => router.push(card.href)}
+              className="bg-white p-6 rounded-[24px] border border-gray-100 shadow-[0_2px_10px_rgba(0,0,0,0.02)] hover:shadow-[0_8px_30px_rgba(0,0,0,0.04)] hover:border-gray-200 transition-all text-left flex flex-col justify-between min-h-[140px] group active:scale-[0.98]"
+            >
+              <p className="text-[28px] font-black text-gray-900 leading-none">{card.value}</p>
+              
+              <div className="flex items-center gap-2 mt-auto">
+                 <card.icon size={16} className={card.color} />
+                 <span className="text-[13px] font-bold text-gray-500">{card.label}</span>
               </div>
-            </div>
-            <p className="text-2xl font-black text-gray-900 leading-none mb-1">{card.value}</p>
-            <p className="text-xs font-medium text-gray-400">{card.sub}</p>
-            <div className="flex items-center gap-1 mt-3 opacity-0 group-hover:opacity-100 transition-opacity">
-              <span className="text-xs font-bold text-amber-500">Ver detalhes</span>
-              <ChevronRight size={12} className="text-amber-500" />
-            </div>
-          </button>
-        ))}
-      </div>
+            </button>
+          ))}
+        </div>
 
       {/* Main Grid */}
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
@@ -308,6 +303,7 @@ export default function DashboardPage() {
           onClose={() => setShowNewDeal(false)}
         />
       )}
+    </div>
     </div>
   );
 }

@@ -55,39 +55,43 @@ export default function EmpresasPage() {
   };
 
   return (
-    <div className="flex flex-col h-full">
-      {/* Header */}
-      <div className="flex items-center justify-between mb-6 shrink-0">
+    <div className="flex flex-col h-full overflow-hidden bg-[#F4F4F5]">
+      
+      {/* Main Secondary Header */}
+      <div className="flex items-center justify-between px-8 py-3 bg-white border-b border-gray-200 shrink-0">
         <div className="flex items-center gap-3">
-          <h1 className="text-2xl font-bold text-gray-900">Empresas</h1>
-          <span className="bg-gray-100 text-gray-600 font-bold text-xs px-2.5 py-1 rounded-full">{state.companies.length}</span>
+          <h1 className="text-[17px] font-bold text-gray-900 tracking-tight">Empresas</h1>
+          <span className="bg-gray-100 text-gray-600 font-bold text-[11px] px-2 py-0.5 rounded-full">{state.companies.length}</span>
         </div>
-        <div className="flex items-center gap-3">
+        
+        <div className="flex items-center gap-2">
           <div className="relative">
             <Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
             <input
               value={search} onChange={e => setSearch(e.target.value)}
               placeholder="Buscar empresa..."
-              className="pl-8 pr-4 py-2 text-sm border border-gray-200 rounded-xl bg-white outline-none focus:border-amber-500 w-52 shadow-sm"
+              className="pl-8 pr-4 py-1.5 text-[13px] border border-gray-200 rounded-lg bg-white outline-none focus:border-amber-500 w-56 shadow-sm placeholder:text-gray-400 font-medium transition-colors"
             />
           </div>
-          <button className="p-2 text-gray-400 hover:text-gray-600 border border-gray-200 rounded-xl bg-white shadow-sm">
-            <Settings size={16} />
+          <button className="p-1.5 text-gray-400 hover:text-gray-700 transition-colors border border-gray-200 hover:bg-gray-50 rounded-lg bg-white shadow-sm ml-1">
+            <Settings size={15} />
           </button>
-          <button className="flex items-center gap-2 px-4 py-2 border border-gray-200 text-gray-600 font-bold text-sm rounded-xl bg-white hover:bg-gray-50 shadow-sm">
-            <Download size={14} /> Exportar
+          <button className="flex items-center gap-1.5 px-3 py-1.5 bg-white border border-gray-200 text-gray-600 font-medium text-[12px] rounded-lg hover:bg-gray-50 transition-colors shadow-sm ml-1">
+            <Download size={14} className="text-gray-400" />
+            Exportar
           </button>
           <button
             onClick={() => setShowModal(true)}
-            className="flex items-center gap-2 px-4 py-2 bg-amber-500 text-white font-bold text-sm rounded-xl hover:bg-amber-600 shadow-sm shadow-amber-500/20 transition-all"
+            className="flex items-center gap-1.5 px-4 py-1.5 bg-amber-500 text-white font-bold text-[13px] rounded-lg shadow-sm shadow-amber-500/20 hover:bg-amber-600 transition-colors whitespace-nowrap ml-1"
           >
-            <Plus size={16} /> Nova Empresa
+            <Plus size={15} /> Nova Empresa
           </button>
         </div>
       </div>
 
-      {/* Table */}
-      <div className="bg-white border border-gray-200 rounded-2xl overflow-hidden shadow-sm flex-1 flex flex-col">
+      {/* Table Container */}
+      <div className="flex-1 overflow-auto p-6">
+      <div className="bg-white border border-gray-200 rounded-[24px] overflow-hidden shadow-sm flex flex-col min-h-full">
         {state.companies.length === 0 && !search ? (
           <div className="flex-1 flex flex-col items-center justify-center py-20 text-center">
             <div className="w-16 h-16 rounded-2xl bg-gray-50 flex items-center justify-center mb-4">
@@ -166,6 +170,7 @@ export default function EmpresasPage() {
             </table>
           </div>
         )}
+      </div>
       </div>
 
       {showModal && <NewCompanyModal onClose={() => setShowModal(false)} onSave={handleCreate} />}

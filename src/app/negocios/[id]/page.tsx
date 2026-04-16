@@ -34,7 +34,7 @@ export default function DealPage({ params }: { params: Promise<{ id: string }> }
   }
 
   return (
-    <div className="flex flex-col h-[calc(100vh-80px)] -mt-2 -mx-2 animate-in fade-in bg-white border border-gray-200 rounded-2xl overflow-hidden shadow-sm">
+    <div className="flex flex-col h-full animate-in fade-in bg-white overflow-hidden">
       
       {/* Header Profile Area */}
       <div className="flex items-center justify-between p-4 border-b border-gray-100 shrink-0">
