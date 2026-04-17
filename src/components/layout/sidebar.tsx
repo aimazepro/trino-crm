@@ -6,73 +6,24 @@ import {
   LayoutDashboard,
   Briefcase,
   Users,
-  MessageSquareText,
   Zap,
-  Bell,
   CheckCircle2,
   Settings,
   Building2,
-  ChevronDown,
   Target,
   Phone,
   Crosshair,
   PhoneCall,
-  ChevronLeft
+  LogOut,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
-import { useState } from "react";
 
-interface NavItem {
-  label: string;
-  href: string;
-  icon: React.ElementType;
-  badge?: number;
-  sub?: { label: string; href: string }[];
-}
-
-interface Section {
-  label: string;
-  items: NavItem[];
-}
-
-const SECTIONS: Section[] = [
-  {
-    label: "CRM",
-    items: [
-      { label: "Meu Painel", href: "/", icon: LayoutDashboard },
-      { label: "Negócios", href: "/negocios", icon: Briefcase },
-      { label: "Contatos", href: "/contatos", icon: Users },
-      { label: "Atividades", href: "/atividades", icon: CheckCircle2, badge: 1 },
-    ],
-  },
-  {
-    label: "RELATÓRIOS",
-    items: [
-      { label: "Métricas", href: "/metricas", icon: Target },
-      { label: "Ligações", href: "/ligacoes", icon: Phone },
-      { label: "Metas", href: "/metas", icon: Target },
-    ],
-  },
-  {
-    label: "FERRAMENTAS",
-    items: [
-      { label: "Prospecção", href: "/prospeccao", icon: Crosshair },
-      { label: "Automações", href: "/automacoes", icon: Zap },
-      { label: "Análise de Calls", href: "/analise-calls", icon: PhoneCall },
-      { label: "Configurações", href: "/configuracoes", icon: Settings },
-    ],
-  },
-];
 
 export function Sidebar() {
   const pathname = usePathname();
 
   const isActive = (href: string) =>
     href === "/" ? pathname === "/dashboard" || pathname === "/" : pathname.startsWith(href);
-
-  // Exclude configuracoes from regular sections as it goes below divider
-  const topSections = SECTIONS.filter(s => s.label !== "FERRAMENTAS" || true); 
-  // Let's manually implement the precise menu
 
   return (
     <aside className="flex h-screen shrink-0 flex-col bg-white border-r border-zinc-100/80 transition-[width] duration-200 ease-in-out overflow-hidden w-56">
@@ -96,6 +47,7 @@ export function Sidebar() {
               { href: "/", label: "Meu Painel", icon: LayoutDashboard },
               { href: "/negocios", label: "Negócios", icon: Briefcase },
               { href: "/contatos", label: "Contatos", icon: Users },
+              { href: "/empresas", label: "Empresas", icon: Building2 },
               { href: "/atividades", label: "Atividades", icon: CheckCircle2 }
             ].map(item => {
               const active = isActive(item.href);
@@ -194,19 +146,18 @@ export function Sidebar() {
         </ul>
       </nav>
 
-      {/* Footer controls */}
-      <div className="px-2 py-2 space-y-1">
-        <button 
-          title="Recolher" 
-          className="flex w-full items-center gap-2 rounded-xl px-3 py-2 text-[13px] font-medium text-zinc-400 hover:bg-zinc-50 hover:text-zinc-600 transition-all duration-150"
-        >
-          <ChevronLeft className="h-4 w-4 shrink-0 transition-transform duration-200" />
-          <span className="whitespace-nowrap overflow-hidden text-xs">Recolher</span>
-        </button>
-      </div>
-      
-      <div className="border-t border-zinc-100/80 px-3 py-3">
-         {/* User block space */}
+      {/* User footer */}
+      <div className="border-t border-zinc-100/80 px-3 py-3 shrink-0">
+        <div className="flex items-center gap-2.5 rounded-xl px-2 py-2 hover:bg-zinc-50 transition-colors cursor-pointer group">
+          <div className="w-7 h-7 rounded-full bg-violet-500 text-white flex items-center justify-center font-bold text-[11px] shrink-0">
+            P
+          </div>
+          <div className="flex-1 min-w-0">
+            <p className="text-[12px] font-bold text-zinc-800 truncate">Pixeo Digital</p>
+            <p className="text-[10px] font-medium text-zinc-400 truncate">Administrador</p>
+          </div>
+          <LogOut className="h-3.5 w-3.5 text-zinc-300 group-hover:text-zinc-500 shrink-0 transition-colors" />
+        </div>
       </div>
     </aside>
   );
