@@ -9,7 +9,7 @@ const mockLabels: Label[] = [
 const mockPipelines: Pipeline[] = [
   {
     id: "pipe_1",
-    name: "Prospecção",
+    name: "Prospeccao",
     stages: [
       { id: "stage_leads", name: "Entrada de Leads", maxDays: 7, order: 0 },
       { id: "stage_contact", name: "Tentando contato", maxDays: 5, order: 1 },
@@ -17,7 +17,40 @@ const mockPipelines: Pipeline[] = [
       { id: "stage_decisor", name: "Contato realizado com o decisor", maxDays: 7, order: 3 },
       { id: "stage_reuniao", name: "Reunião Agendada", maxDays: 3, order: 4 },
     ]
-  }
+  },
+  {
+    id: "pipe_2",
+    name: "Inbound",
+    stages: [
+      { id: "ib_form", name: "Formulário Preenchido", maxDays: 2, order: 0 },
+      { id: "ib_qual", name: "Qualificado pelo formulário", maxDays: 3, order: 1 },
+      { id: "ib_contact", name: "Tentando contato", maxDays: 5, order: 2 },
+      { id: "ib_done", name: "Contato realizado", maxDays: 5, order: 3 },
+      { id: "ib_meet", name: "Reunião Agendada", maxDays: 3, order: 4 },
+    ]
+  },
+  {
+    id: "pipe_3",
+    name: "Social Selling",
+    stages: [
+      { id: "ss_mql", name: "MQL Cadastrado", maxDays: 3, order: 0 },
+      { id: "ss_contact", name: "Tentando contato", maxDays: 5, order: 1 },
+      { id: "ss_done", name: "Contato realizado", maxDays: 5, order: 2 },
+      { id: "ss_conv", name: "Conversa Significativa", maxDays: 7, order: 3 },
+      { id: "ss_meet", name: "Reunião Agendada", maxDays: 3, order: 4 },
+    ]
+  },
+  {
+    id: "pipe_4",
+    name: "Negociação",
+    stages: [
+      { id: "neg_meet", name: "Reunião Realizada", maxDays: 3, order: 0 },
+      { id: "neg_prop_ag", name: "Proposta Agendada", maxDays: 5, order: 1 },
+      { id: "neg_prop_ap", name: "Proposta Apresentada", maxDays: 7, order: 2 },
+      { id: "neg_neg", name: "Negociação", maxDays: 7, order: 3 },
+      { id: "neg_contract", name: "Contrato", maxDays: 5, order: 4 },
+    ]
+  },
 ];
 
 const mockCompanies: Company[] = [

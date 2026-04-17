@@ -5,7 +5,7 @@ import { DragDropContext, Droppable, Draggable, DropResult } from "@hello-pangea
 import { useCrm } from "@/contexts/crm-context";
 import { isToday, isTomorrow, isPast, format } from "date-fns";
 import { ptBR } from "date-fns/locale";
-import { MoreHorizontal, Calendar, DollarSign, Building, ChevronRight, AlertTriangle, XCircle, Trophy, Plus } from "lucide-react";
+import { Building, AlertTriangle, XCircle, Trophy, Plus, Briefcase } from "lucide-react";
 import { LossReasonModal } from "@/components/deal/loss-reason-modal";
 import { cn } from "@/lib/utils";
 
@@ -13,6 +13,9 @@ interface KanbanBoardProps {
   pipelineId: string;
   onNewDeal?: (stageId?: string) => void;
 }
+
+const fmt = (v: number) =>
+  v.toLocaleString("pt-BR", { style: "currency", currency: "BRL" });
 
 export function KanbanBoard({ pipelineId, onNewDeal }: KanbanBoardProps) {
   const { state, moveDeal, markDealStatus } = useCrm();
@@ -25,14 +28,15 @@ export function KanbanBoard({ pipelineId, onNewDeal }: KanbanBoardProps) {
 
   // Render cards logic mapped by stage
   const dealsByStage = pipeline.stages.reduce((acc, stage) => {
-    // Only active deals in this pipeline and this stage
-    acc[stage.id] = state.deals.filter(d => 
-      d.pipelineId === pipelineId && 
-      d.stageId === stage.id && 
+    acc[stage.id] = state.deals.filter(d =>
+      d.pipelineId === pipelineId &&
+      d.stageId === stage.id &&
       d.status === "Ativo"
     );
     return acc;
   }, {} as Record<string, typeof state.deals>);
+
+  const totalDeals = Object.values(dealsByStage).reduce((sum, arr) => sum + arr.length, 0);
 
   const handleDragStart = () => {
     setIsDragging(true);
@@ -75,29 +79,53 @@ export function KanbanBoard({ pipelineId, onNewDeal }: KanbanBoardProps) {
     return format(d, 'dd/MM HH:mm');
   };
 
+  // Empty pipeline state
+  if (totalDeals === 0) {
+    return (
+      <div className="flex flex-col items-center justify-center h-full py-20">
+        <div className="w-16 h-16 rounded-2xl bg-amber-50 flex items-center justify-center mb-4">
+          <Briefcase size={28} className="text-amber-400" />
+        </div>
+        <p className="text-[15px] font-bold text-zinc-800 mb-1">Nenhum negocio ainda</p>
+        <p className="text-[13px] font-medium text-zinc-400 text-center max-w-xs mb-5">
+          Adicione seu primeiro negocio para comecar a acompanhar seu pipeline de vendas.
+        </p>
+        <button
+          onClick={() => onNewDeal?.()}
+          className="flex items-center gap-2 px-5 py-2.5 bg-amber-500 text-white text-[13px] font-bold rounded-xl hover:bg-amber-600 transition-colors shadow-sm"
+        >
+          <Plus size={15} /> Adicionar primeiro negocio
+        </button>
+      </div>
+    );
+  }
+
   return (
     <>
       <DragDropContext onDragStart={handleDragStart} onDragEnd={handleDragEnd}>
         <div className="flex gap-4 h-full min-w-max relative pb-32">
-          
+
           {pipeline.stages.map((stage) => {
              const stageDeals = dealsByStage[stage.id] || [];
              const totalValue = stageDeals.reduce((sum, deal) => sum + deal.value, 0);
 
              return (
-               <div key={stage.id} className="w-[320px] flex flex-col shrink-0">
+               <div key={stage.id} className="w-[270px] flex flex-col shrink-0">
                  {/* Column Header */}
-                 <div className="mb-4 px-1 flex items-center justify-between">
-                   <div className="flex items-center gap-2">
-                     <h3 className="font-medium text-gray-700 text-[13px]">{stage.name}</h3>
-                     <span className="text-gray-400 text-[11px] font-medium">{stageDeals.length}</span>
+                 <div className="mb-3 px-1">
+                   <div className="flex items-center justify-between">
+                     <div className="flex items-center gap-2">
+                       <h3 className="font-semibold text-zinc-700 text-[13px]">{stage.name}</h3>
+                       <span className="text-zinc-400 text-[11px] font-medium">{stageDeals.length}</span>
+                     </div>
+                     <button
+                       onClick={() => onNewDeal?.(stage.id)}
+                       className="text-zinc-300 hover:text-zinc-600 transition-colors"
+                     >
+                       <Plus size={14} />
+                     </button>
                    </div>
-                   <button 
-                     onClick={() => onNewDeal?.(stage.id)}
-                     className="text-gray-300 hover:text-gray-600 transition-colors"
-                   >
-                     <Plus size={14} />
-                   </button>
+                   <p className="text-[12px] font-medium text-zinc-400 mt-0.5">{fmt(totalValue)}</p>
                  </div>
 
                  {/* Drop Area */}
@@ -166,18 +194,21 @@ export function KanbanBoard({ pipelineId, onNewDeal }: KanbanBoardProps) {
                                      <div className="flex items-center justify-between text-[10px] font-medium">
                                        {nextActivity ? (
                                           <div className={cn(
-                                             "rounded-md px-2 py-1 text-[10px] font-semibold tracking-wider transition-colors",
+                                             "flex items-center gap-1 rounded-md px-2 py-1 text-[10px] font-semibold transition-colors",
                                              isOverdue ? "bg-red-50 text-red-500" :
                                              isActivityToday ? "bg-amber-50 text-amber-600" :
-                                             "bg-gray-50 text-gray-400"
+                                             "bg-zinc-50 text-zinc-400"
                                           )}>
-                                             {isOverdue ? `ATRASADA: ${nextActivity.type.toUpperCase()}` : `${formatActivityDate(nextActivity.date)}: ${nextActivity.type}`}
+                                             {isOverdue && <AlertTriangle size={10} />}
+                                             {isOverdue ? `Atrasada: ${nextActivity.type}` : `${formatActivityDate(nextActivity.date)}: ${nextActivity.type}`}
                                           </div>
                                        ) : (
-                                          <div className="flex items-center gap-1 text-gray-300">
+                                          <div className="flex items-center gap-1 text-amber-400">
+                                            <AlertTriangle size={10} />
+                                            <span className="text-[10px] font-medium">Sem atividade</span>
                                           </div>
                                        )}
-                                       <div className="text-gray-300 font-medium">{deal.daysInStage}d</div>
+                                       <div className="text-zinc-300 font-medium">{deal.daysInStage}d</div>
                                      </div>
                                   </div>
                                 )}

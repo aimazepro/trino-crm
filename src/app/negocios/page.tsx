@@ -123,9 +123,9 @@ export default function KanbanPage() {
               Novo Negócio
             </button>
 
-            {/* Configs */}
-            <button 
-              onClick={() => setShowColumnsModal(true)} 
+            {/* Configs — kanban → pipeline settings, list → columns modal */}
+            <button
+              onClick={() => viewMode === "kanban" ? setEditPipelineId(activePipelineId) : setShowColumnsModal(true)}
               className="rounded-lg border border-zinc-200 p-1.5 text-zinc-400 hover:bg-zinc-50 transition-colors"
             >
               <SettingsIcon size={16} />
