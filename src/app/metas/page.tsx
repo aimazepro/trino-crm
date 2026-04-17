@@ -1,9 +1,9 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { Plus, Target, TrendingUp, Trophy, DollarSign, Activity, X, ChevronDown, Calendar, Trash2 } from "lucide-react";
 import { cn } from "@/lib/utils";
-import Link from "next/link";
+import { useRouter } from "next/navigation";
 
 type GoalType = "Negócios Adicionados" | "Negócios em Andamento" | "Negócios Ganhos" | "Receita" | "Atividades";
 
@@ -16,9 +16,30 @@ const GOAL_TYPES = [
 ];
 
 export default function MetasPage() {
-  const [goals, setGoals] = useState<any[]>([
-    { id: "ligacoes", title: "ligacoes", subtitle: "Negócios Ganhos | Trimestral", current: 0, target: 100, progress: 0 }
-  ]); // Simulated state with 1 item to match Image 4. If empty array, matches Image 1.
+  const router = useRouter();
+  const [goals, setGoals] = useState<any[]>([]);
+  const [isLoaded, setIsLoaded] = useState(false);
+
+  // Load from localStorage on mount
+  useEffect(() => {
+    const savedGoals = localStorage.getItem("dmhub_goals");
+    if (savedGoals) {
+      setGoals(JSON.parse(savedGoals));
+    } else {
+      // Initial default goal if nothing is saved
+      const initial = [{ id: "ligacoes", title: "ligacoes", subtitle: "Negócios Ganhos | Trimestral", current: 0, target: 100, progress: 0 }];
+      setGoals(initial);
+      localStorage.setItem("dmhub_goals", JSON.stringify(initial));
+    }
+    setIsLoaded(true);
+  }, []);
+
+  // Save to localStorage whenever goals change
+  useEffect(() => {
+    if (isLoaded) {
+      localStorage.setItem("dmhub_goals", JSON.stringify(goals));
+    }
+  }, [goals, isLoaded]);
 
   // Modal State
   const [showModal, setShowModal] = useState(false);
@@ -112,11 +133,20 @@ export default function MetasPage() {
           /* List State */
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
             {goals.map(goal => (
-              <Link href={`/metas/${goal.id}`} key={goal.id} className="block group">
-                <div className="bg-white border border-zinc-100 rounded-2xl p-6 shadow-sm hover:shadow-md hover:border-zinc-200 transition-all relative">
+              <div 
+                key={goal.id} 
+                onClick={() => router.push(`/metas/${goal.id}`)}
+                className="block group"
+              >
+                <div className="bg-white border border-zinc-100 rounded-2xl p-6 shadow-sm hover:shadow-md hover:border-zinc-200 transition-all relative cursor-pointer">
                   <button 
-                    onClick={(e) => { e.preventDefault(); e.stopPropagation(); setGoalToDelete(goal.id); setShowDeleteModal(true); }}
-                    className="absolute top-6 right-6 text-zinc-300 hover:text-red-500 opacity-0 group-hover:opacity-100 transition-opacity"
+                    onClick={(e) => { 
+                      e.preventDefault(); 
+                      e.stopPropagation(); 
+                      setGoalToDelete(goal.id); 
+                      setShowDeleteModal(true); 
+                    }}
+                    className="absolute top-6 right-6 text-zinc-300 hover:text-red-500 opacity-0 group-hover:opacity-100 transition-opacity z-10"
                   >
                     <Trash2 size={16} />
                   </button>
@@ -147,7 +177,7 @@ export default function MetasPage() {
                     </div>
                   </div>
                 </div>
-              </Link>
+              </div>
             ))}
           </div>
         )}
