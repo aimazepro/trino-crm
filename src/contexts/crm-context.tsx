@@ -1,325 +1,442 @@
 "use client";
 
 import React, { createContext, useContext, useState, useEffect, ReactNode } from "react";
-import { CrmState, Pipeline, Deal, Contact, Company, Label, HistoryLog, Note, Appointment, Activity } from "@/lib/crm-types";
-import { MOCK_STATE } from "@/lib/crm-mock";
+import { createClient } from "@/lib/supabase/client";
+import type {
+  CrmState, Pipeline, PipelineStage, Deal, Contact, Company,
+  Label, HistoryLog, Note, Appointment, Activity,
+} from "@/lib/crm-types";
+
+// ── Context Type ───────────────────────────────────────────────────────────────
 
 interface CrmContextType {
   state: CrmState;
-  
-  // Deal Mutations
+  loading: boolean;
+
   moveDeal: (dealId: string, newStageId: string) => void;
   markDealStatus: (dealId: string, status: "Ganho" | "Perdido" | "Ativo", reason?: string) => void;
   updateDealFields: (dealId: string, fields: Partial<Deal>) => void;
   addDealNote: (dealId: string, content: string) => void;
   addDealHistory: (dealId: string, description: string, subtext: string) => void;
-  addDeal: (deal: Deal) => void;
+  addDeal: (deal: Deal) => Promise<void>;
   deleteDeal: (dealId: string) => void;
-  
-  // Pipeline Mutations
-  addPipeline: (pipeline: Pipeline) => void;
+
+  addPipeline: (pipeline: Pipeline) => Promise<void>;
   deletePipeline: (pipelineId: string) => void;
   updatePipeline: (pipelineId: string, fields: Partial<Pipeline>) => void;
-  
-  // Global Relations
+
   updateContact: (contactId: string, fields: Partial<Contact>) => void;
-  addContact: (contact: Contact) => void;
+  addContact: (contact: Contact) => Promise<void>;
   updateCompany: (companyId: string, fields: Partial<Company>) => void;
-  addCompany: (company: Company) => void;
-  addLabel: (label: Label) => void;
-  
-  // Advanced Features
+  addCompany: (company: Company) => Promise<void>;
+  addLabel: (label: Label) => Promise<void>;
+
   addAppointment: (appointment: Omit<Appointment, "id" | "createdAt" | "status">) => void;
   addActivity: (activity: Omit<Activity, "id" | "createdAt" | "completed">) => void;
   updateActivity: (activityId: string, fields: Partial<Activity>) => void;
   deleteActivity: (activityId: string) => void;
 }
 
+// ── DB → Frontend transforms ───────────────────────────────────────────────────
+
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+function transformPipeline(row: any): Pipeline {
+  return {
+    id: row.id,
+    name: row.name,
+    stages: ((row.pipeline_stages ?? []) as any[])
+      .sort((a, b) => a.order - b.order)
+      .map((s): PipelineStage => ({ id: s.id, name: s.name, maxDays: s.max_days, order: s.order })),
+  };
+}
+
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+function transformContact(row: any): Contact {
+  return {
+    id: row.id, name: row.name, role: row.role ?? "",
+    companyId: row.company_id ?? undefined,
+    emails: row.emails ?? [], phones: row.phones ?? [],
+  };
+}
+
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+function transformCompany(row: any): Company {
+  return {
+    id: row.id, name: row.name,
+    website: row.website ?? undefined, segment: row.segment ?? undefined,
+    size: row.size ?? undefined, city: row.city ?? undefined,
+    state: row.state ?? undefined, cnpj: row.cnpj ?? undefined,
+  };
+}
+
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+function transformLabel(row: any): Label {
+  return { id: row.id, name: row.name, color: row.color };
+}
+
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+function transformDeal(row: any): Deal {
+  const byDate = (a: any, b: any) =>
+    new Date(b.created_at).getTime() - new Date(a.created_at).getTime();
+  return {
+    id: row.id, title: row.title, value: row.value,
+    contactId: row.contact_id, companyId: row.company_id ?? undefined,
+    pipelineId: row.pipeline_id, stageId: row.stage_id,
+    status: row.status, lossReason: row.loss_reason ?? undefined,
+    expectedCloseDate: row.expected_close_date ?? undefined,
+    probability: row.probability ?? undefined, source: row.source ?? undefined,
+    daysInStage: row.days_in_stage,
+    labels: ((row.deal_labels ?? []) as any[]).map((dl) => dl.label_id),
+    notes: ((row.deal_notes ?? []) as any[]).sort(byDate).map((n): Note => ({
+      id: n.id, content: n.content, createdAt: n.created_at,
+    })),
+    history: ((row.deal_history ?? []) as any[]).sort(byDate).map((h): HistoryLog => ({
+      id: h.id, description: h.description, subtext: h.subtext ?? "", createdAt: h.created_at,
+    })),
+    products: ((row.deal_products ?? []) as any[]).map((p) => ({
+      id: p.id, name: p.name, quantity: p.quantity, price: p.price,
+    })),
+    activities: ((row.activities ?? []) as any[]).map((a): Activity => ({
+      id: a.id, dealId: a.deal_id, title: a.title, description: a.description ?? undefined,
+      date: a.date, type: a.type, completed: a.completed, createdAt: a.created_at,
+    })),
+    appointments: ((row.appointments ?? []) as any[]).map((a): Appointment => ({
+      id: a.id, dealId: a.deal_id, attendant: a.attendant, procedure: a.procedure,
+      link: a.link ?? undefined, date: a.date, status: a.status, createdAt: a.created_at,
+    })),
+  };
+}
+
+function dealToDb(fields: Partial<Deal>): Record<string, unknown> {
+  const db: Record<string, unknown> = {};
+  if (fields.title !== undefined) db.title = fields.title;
+  if (fields.value !== undefined) db.value = fields.value;
+  if (fields.contactId !== undefined) db.contact_id = fields.contactId;
+  if (fields.companyId !== undefined) db.company_id = fields.companyId ?? null;
+  if (fields.pipelineId !== undefined) db.pipeline_id = fields.pipelineId;
+  if (fields.stageId !== undefined) db.stage_id = fields.stageId;
+  if (fields.status !== undefined) db.status = fields.status;
+  if (fields.lossReason !== undefined) db.loss_reason = fields.lossReason ?? null;
+  if (fields.expectedCloseDate !== undefined) db.expected_close_date = fields.expectedCloseDate ?? null;
+  if (fields.probability !== undefined) db.probability = fields.probability ?? null;
+  if (fields.source !== undefined) db.source = fields.source ?? null;
+  if (fields.daysInStage !== undefined) db.days_in_stage = fields.daysInStage;
+  return db;
+}
+
+// ── Context ────────────────────────────────────────────────────────────────────
+
 const CrmContext = createContext<CrmContextType | undefined>(undefined);
 
+export function useCrm() {
+  const ctx = useContext(CrmContext);
+  if (!ctx) throw new Error("useCrm must be used inside CrmProvider");
+  return ctx;
+}
+
 export function CrmProvider({ children }: { children: ReactNode }) {
-  const [isMounted, setIsMounted] = useState(false);
-  
-  const [state, setState] = useState<CrmState>(() => {
-    // Try to restore from localStorage if exists, else MOCK
-    try {
-      if (typeof window !== "undefined") {
-        const saved = localStorage.getItem("@trino:crm-state");
-        if (saved) {
-           const parsed = JSON.parse(saved);
-           // Safety Check for New Schema (emails array vs email string)
-           if (parsed.contacts && parsed.contacts[0] && parsed.contacts[0].email) {
-              console.warn("Old CRM schema detected. Falling back to MOCK_STATE");
-              return MOCK_STATE; // Fallback entirely to ensure stability
-           }
-           return parsed;
-        }
-      }
-    } catch(e) {}
-    return MOCK_STATE;
-  });
-
-  // Persist State to Local Storage automatically
-  useEffect(() => {
-    localStorage.setItem("@trino:crm-state", JSON.stringify(state));
-  }, [state]);
+  const [state, setState] = useState<CrmState>({ pipelines: [], deals: [], contacts: [], companies: [], labels: [] });
+  const [loading, setLoading] = useState(true);
+  const [userId, setUserId] = useState<string | null>(null);
+  const supabase = createClient();
 
   useEffect(() => {
-    setIsMounted(true);
+    async function load() {
+      const { data: { user } } = await supabase.auth.getUser();
+      if (!user) return;
+      setUserId(user.id);
+
+      const [
+        { data: pipelinesRaw },
+        { data: contactsRaw },
+        { data: companiesRaw },
+        { data: labelsRaw },
+        { data: dealsRaw },
+      ] = await Promise.all([
+        supabase.from("pipelines").select("*, pipeline_stages(*)").order("created_at"),
+        supabase.from("contacts").select("*").order("name"),
+        supabase.from("companies").select("*").order("name"),
+        supabase.from("labels").select("*"),
+        supabase.from("deals").select(`
+          *, deal_notes(*), deal_history(*), deal_products(*),
+          deal_labels(label_id), activities(*), appointments(*)
+        `).order("created_at"),
+      ]);
+      setState({
+        pipelines: (pipelinesRaw ?? []).map(transformPipeline),
+        contacts: (contactsRaw ?? []).map(transformContact),
+        companies: (companiesRaw ?? []).map(transformCompany),
+        labels: (labelsRaw ?? []).map(transformLabel),
+        deals: (dealsRaw ?? []).map(transformDeal),
+      });
+      setLoading(false);
+    }
+    load();
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
+
+  // ── Deal mutations ─────────────────────────────────────────────────────────
 
   const moveDeal = (dealId: string, newStageId: string) => {
     setState((prev) => {
-      const deals = prev.deals.map(d => {
-        if (d.id === dealId) {
-          const oldStage = prev.pipelines.flatMap(p => p.stages).find(s => s.id === d.stageId);
-          const newStage = prev.pipelines.flatMap(p => p.stages).find(s => s.id === newStageId);
-          
-          const newLog: HistoryLog = {
-             id: `log_${Date.now()}`,
-             description: "Etapa alterada",
-             subtext: `De ${oldStage?.name || "Desconhecida"} para ${newStage?.name || "Desconhecida"}`,
-             createdAt: new Date().toISOString()
-          };
-
-          return { ...d, stageId: newStageId, daysInStage: 0, history: [newLog, ...d.history] };
-        }
-        return d;
+      const allStages = prev.pipelines.flatMap((p) => p.stages);
+      const deals = prev.deals.map((d) => {
+        if (d.id !== dealId) return d;
+        const oldStage = allStages.find((s) => s.id === d.stageId);
+        const newStage = allStages.find((s) => s.id === newStageId);
+        const log: HistoryLog = {
+          id: `log_${Date.now()}`, description: "Etapa alterada",
+          subtext: `De ${oldStage?.name ?? "?"} para ${newStage?.name ?? "?"}`,
+          createdAt: new Date().toISOString(),
+        };
+        return { ...d, stageId: newStageId, daysInStage: 0, history: [log, ...d.history] };
       });
       return { ...prev, deals };
     });
+    supabase.from("deals").update({ stage_id: newStageId, days_in_stage: 0 }).eq("id", dealId).then();
+    supabase.from("deal_history").insert({ deal_id: dealId, description: "Etapa alterada", subtext: "" }).then();
   };
 
   const markDealStatus = (dealId: string, status: "Ganho" | "Perdido" | "Ativo", reason?: string) => {
-    setState((prev) => {
-      const deals = prev.deals.map(d => {
-        if (d.id === dealId) {
-           const log: HistoryLog = {
-             id: `log_${Date.now()}`,
-             description: status === "Ativo" ? "Negócio reaberto" : `Negócio marcado como ${status}`,
-             subtext: reason ? `Motivo: ${reason}` : "",
-             createdAt: new Date().toISOString()
-           };
-           return { ...d, status: status as any, lossReason: reason, history: [log, ...d.history] };
-        }
-        return d;
-      });
-      return { ...prev, deals };
-    });
+    setState((prev) => ({
+      ...prev,
+      deals: prev.deals.map((d) => {
+        if (d.id !== dealId) return d;
+        const log: HistoryLog = {
+          id: `log_${Date.now()}`,
+          description: status === "Ativo" ? "Negócio reaberto" : `Negócio marcado como ${status}`,
+          subtext: reason ? `Motivo: ${reason}` : "",
+          createdAt: new Date().toISOString(),
+        };
+        return { ...d, status, lossReason: reason, history: [log, ...d.history] };
+      }),
+    }));
+    supabase.from("deals").update({ status, loss_reason: reason ?? null }).eq("id", dealId).then();
+    supabase.from("deal_history").insert({
+      deal_id: dealId,
+      description: status === "Ativo" ? "Negócio reaberto" : `Negócio marcado como ${status}`,
+      subtext: reason ? `Motivo: ${reason}` : "",
+    }).then();
   };
 
   const updateDealFields = (dealId: string, fields: Partial<Deal>) => {
     setState((prev) => ({
       ...prev,
-      deals: prev.deals.map(d => d.id === dealId ? { ...d, ...fields } : d)
+      deals: prev.deals.map((d) => (d.id === dealId ? { ...d, ...fields } : d)),
     }));
+    const dbFields = dealToDb(fields);
+    if (Object.keys(dbFields).length > 0) {
+      supabase.from("deals").update(dbFields).eq("id", dealId).then();
+    }
+    if (fields.labels !== undefined) {
+      supabase.from("deal_labels").delete().eq("deal_id", dealId).then(async () => {
+        if (fields.labels!.length > 0) {
+          await supabase.from("deal_labels").insert(
+            fields.labels!.map((lid) => ({ deal_id: dealId, label_id: lid }))
+          );
+        }
+      });
+    }
   };
 
   const addDealNote = (dealId: string, content: string) => {
-    setState((prev) => {
-      const newNote: Note = { id: `note_${Date.now()}`, content, createdAt: new Date().toISOString() };
-      return {
-        ...prev,
-        deals: prev.deals.map(d => d.id === dealId ? { ...d, notes: [newNote, ...d.notes] } : d)
-      };
-    });
-  }
+    const tempNote: Note = { id: `note_${Date.now()}`, content, createdAt: new Date().toISOString() };
+    setState((prev) => ({
+      ...prev,
+      deals: prev.deals.map((d) => d.id === dealId ? { ...d, notes: [tempNote, ...d.notes] } : d),
+    }));
+    supabase.from("deal_notes").insert({ deal_id: dealId, content }).then();
+  };
 
   const addDealHistory = (dealId: string, description: string, subtext: string) => {
-     setState((prev) => {
-       const newLog: HistoryLog = { id: `log_${Date.now()}`, description, subtext, createdAt: new Date().toISOString() };
-       return {
-         ...prev,
-         deals: prev.deals.map(d => d.id === dealId ? { ...d, history: [newLog, ...d.history] } : d)
-       };
-     });
+    const log: HistoryLog = { id: `hist_${Date.now()}`, description, subtext, createdAt: new Date().toISOString() };
+    setState((prev) => ({
+      ...prev,
+      deals: prev.deals.map((d) => d.id === dealId ? { ...d, history: [log, ...d.history] } : d),
+    }));
+    supabase.from("deal_history").insert({ deal_id: dealId, description, subtext }).then();
+  };
+
+  const addDeal = async (deal: Deal) => {
+    const { data, error } = await supabase
+      .from("deals")
+      .insert({
+        user_id: userId!, title: deal.title, value: deal.value, contact_id: deal.contactId,
+        company_id: deal.companyId ?? null, pipeline_id: deal.pipelineId,
+        stage_id: deal.stageId, status: deal.status, days_in_stage: 0,
+      })
+      .select().single();
+
+    if (error || !data) return;
+
+    if (deal.labels.length > 0) {
+      await supabase.from("deal_labels").insert(deal.labels.map((lid) => ({ deal_id: data.id, label_id: lid })));
+    }
+    const firstLog: HistoryLog = { id: `h_${Date.now()}`, description: "Negócio criado", subtext: "Criado manualmente", createdAt: new Date().toISOString() };
+    await supabase.from("deal_history").insert({ deal_id: data.id, description: firstLog.description, subtext: firstLog.subtext });
+
+    setState((prev) => ({
+      ...prev,
+      deals: [...prev.deals, { ...deal, id: data.id, history: [firstLog], notes: [], products: [], activities: [], appointments: [] }],
+    }));
   };
 
   const deleteDeal = (dealId: string) => {
-    setState(prev => ({
-      ...prev,
-      deals: prev.deals.filter(d => d.id !== dealId)
-    }));
+    setState((prev) => ({ ...prev, deals: prev.deals.filter((d) => d.id !== dealId) }));
+    supabase.from("deals").delete().eq("id", dealId).then();
   };
 
-  const addPipeline = (pipeline: Pipeline) => {
-    setState(prev => ({ ...prev, pipelines: [...prev.pipelines, pipeline] }));
+  // ── Pipeline mutations ─────────────────────────────────────────────────────
+
+  const addPipeline = async (pipeline: Pipeline) => {
+    const { data, error } = await supabase.from("pipelines").insert({ user_id: userId!, name: pipeline.name }).select().single();
+    if (error || !data) return;
+    if (pipeline.stages.length > 0) {
+      await supabase.from("pipeline_stages").insert(
+        pipeline.stages.map((s) => ({ pipeline_id: data.id, name: s.name, max_days: s.maxDays, order: s.order }))
+      );
+    }
+    setState((prev) => ({ ...prev, pipelines: [...prev.pipelines, { ...pipeline, id: data.id }] }));
   };
 
   const deletePipeline = (pipelineId: string) => {
-    setState(prev => ({ 
-       ...prev, 
-       pipelines: prev.pipelines.filter(p => p.id !== pipelineId),
-       deals: prev.deals.filter(d => d.pipelineId !== pipelineId)
-    }));
+    setState((prev) => ({ ...prev, pipelines: prev.pipelines.filter((p) => p.id !== pipelineId) }));
+    supabase.from("pipelines").delete().eq("id", pipelineId).then();
   };
 
   const updatePipeline = (pipelineId: string, fields: Partial<Pipeline>) => {
-    setState(prev => ({
+    setState((prev) => ({
       ...prev,
-      pipelines: prev.pipelines.map(p => p.id === pipelineId ? { ...p, ...fields } : p)
+      pipelines: prev.pipelines.map((p) => (p.id === pipelineId ? { ...p, ...fields } : p)),
     }));
+    if (fields.name) supabase.from("pipelines").update({ name: fields.name }).eq("id", pipelineId).then();
+    if (fields.stages) {
+      supabase.from("pipeline_stages").delete().eq("pipeline_id", pipelineId).then(async () => {
+        await supabase.from("pipeline_stages").insert(
+          fields.stages!.map((s) => ({ pipeline_id: pipelineId, name: s.name, max_days: s.maxDays, order: s.order }))
+        );
+      });
+    }
   };
 
+  // ── Contact / Company / Label mutations ───────────────────────────────────
+
   const updateContact = (contactId: string, fields: Partial<Contact>) => {
-    setState(prev => ({
-       ...prev,
-       contacts: prev.contacts.map(c => c.id === contactId ? { ...c, ...fields } : c)
+    setState((prev) => ({
+      ...prev,
+      contacts: prev.contacts.map((c) => (c.id === contactId ? { ...c, ...fields } : c)),
     }));
+    const db: Record<string, unknown> = {};
+    if (fields.name !== undefined) db.name = fields.name;
+    if (fields.role !== undefined) db.role = fields.role;
+    if (fields.companyId !== undefined) db.company_id = fields.companyId ?? null;
+    if (fields.emails !== undefined) db.emails = fields.emails;
+    if (fields.phones !== undefined) db.phones = fields.phones;
+    if (Object.keys(db).length > 0) supabase.from("contacts").update(db).eq("id", contactId).then();
+  };
+
+  const addContact = async (contact: Contact) => {
+    const { data, error } = await supabase.from("contacts").insert({
+      user_id: userId!, name: contact.name, role: contact.role, company_id: contact.companyId ?? null,
+      emails: contact.emails, phones: contact.phones,
+    }).select().single();
+    if (error || !data) return;
+    setState((prev) => ({ ...prev, contacts: [...prev.contacts, { ...contact, id: data.id }] }));
   };
 
   const updateCompany = (companyId: string, fields: Partial<Company>) => {
-    setState(prev => ({
-       ...prev,
-       companies: prev.companies.map(c => c.id === companyId ? { ...c, ...fields } : c)
-    }));
-  };
-
-  const addLabel = (label: Label) => {
-    setState(prev => ({ ...prev, labels: [...prev.labels, label] }));
-  };
-
-  const addDeal = (deal: Deal) => {
-     setState(prev => ({ ...prev, deals: [...prev.deals, deal] }));
-  };
-
-  const addContact = (contact: Contact) => {
-     setState(prev => ({ ...prev, contacts: [...prev.contacts, contact] }));
-  };
-  
-  const addCompany = (company: Company) => {
-     setState(prev => ({ ...prev, companies: [...prev.companies, company] }));
-  };
-
-  // --- Advanced Features ---
-  
-  const addAppointment = (appt: Omit<Appointment, "id" | "createdAt" | "status">) => {
-    setState((prev) => {
-      return {
-        ...prev,
-        deals: prev.deals.map(d => {
-          if (d.id === appt.dealId) {
-            
-            // Cancel older appointments
-            const updatedAppointments = d.appointments.map(a => 
-              a.status === "Scheduled" ? { ...a, status: "Cancelled" as const } : a
-            );
-            
-            const newAppointment: Appointment = {
-              ...appt,
-              id: `appt_${Date.now()}`,
-              createdAt: new Date().toISOString(),
-              status: "Scheduled"
-            };
-            
-            updatedAppointments.unshift(newAppointment);
-
-            const cancelLog: HistoryLog | null = d.appointments.some(a => a.status === "Scheduled") ? {
-               id: `log_cancel_${Date.now()}`,
-               description: "Agendamento Anterior Cancelado",
-               subtext: "Cancelado porque um novo agendamento foi gerado",
-               createdAt: new Date().toISOString()
-            } : null;
-
-            const newLog: HistoryLog = {
-               id: `log_appt_${Date.now()}`,
-               description: "Reunião Agendada",
-               subtext: `Procedimento: ${appt.procedure} | Com: ${appt.attendant}`,
-               createdAt: new Date().toISOString()
-            };
-
-            const history = [newLog, ...(cancelLog ? [cancelLog] : []), ...d.history];
-
-            // Change stage if "Reuniao" or "Agendada" column exists
-            const pipeline = prev.pipelines.find(p => p.id === d.pipelineId);
-            let newStageId = d.stageId;
-            if (pipeline) {
-               const targetStage = pipeline.stages.find(s => s.name.toLowerCase().includes("agendada") || s.name.toLowerCase().includes("reunião") || s.name.toLowerCase().includes("reuniao"));
-               if (targetStage) newStageId = targetStage.id;
-            }
-
-            return { ...d, appointments: updatedAppointments, history, stageId: newStageId };
-          }
-          return d;
-        })
-      };
-    });
-  };
-
-  const addActivity = (act: Omit<Activity, "id" | "createdAt" | "completed">) => {
-    setState(prev => ({
+    setState((prev) => ({
       ...prev,
-      deals: prev.deals.map(d => {
-        if (d.id === act.dealId) {
-          const newAct: Activity = { ...act, id: `act_${Date.now()}`, createdAt: new Date().toISOString(), completed: false };
-          return { ...d, activities: [newAct, ...d.activities] };
-        }
-        return d;
-      })
+      companies: prev.companies.map((c) => (c.id === companyId ? { ...c, ...fields } : c)),
     }));
+    const db: Record<string, unknown> = {};
+    if (fields.name !== undefined) db.name = fields.name;
+    if (fields.website !== undefined) db.website = fields.website ?? null;
+    if (fields.segment !== undefined) db.segment = fields.segment ?? null;
+    if (fields.size !== undefined) db.size = fields.size ?? null;
+    if (fields.city !== undefined) db.city = fields.city ?? null;
+    if (fields.state !== undefined) db.state = fields.state ?? null;
+    if (fields.cnpj !== undefined) db.cnpj = fields.cnpj ?? null;
+    if (Object.keys(db).length > 0) supabase.from("companies").update(db).eq("id", companyId).then();
+  };
+
+  const addCompany = async (company: Company) => {
+    const { data, error } = await supabase.from("companies").insert({
+      user_id: userId!, name: company.name, website: company.website ?? null, segment: company.segment ?? null,
+      size: company.size ?? null, city: company.city ?? null, state: company.state ?? null,
+      cnpj: company.cnpj ?? null,
+    }).select().single();
+    if (error || !data) return;
+    setState((prev) => ({ ...prev, companies: [...prev.companies, { ...company, id: data.id }] }));
+  };
+
+  const addLabel = async (label: Label) => {
+    const { data, error } = await supabase.from("labels").insert({ user_id: userId!, name: label.name, color: label.color }).select().single();
+    if (error || !data) return;
+    setState((prev) => ({ ...prev, labels: [...prev.labels, { ...label, id: data.id }] }));
+  };
+
+  // ── Activity / Appointment mutations ──────────────────────────────────────
+
+  const addAppointment = (appointment: Omit<Appointment, "id" | "createdAt" | "status">) => {
+    const newApt: Appointment = { ...appointment, id: `apt_${Date.now()}`, status: "Scheduled", createdAt: new Date().toISOString() };
+    setState((prev) => ({
+      ...prev,
+      deals: prev.deals.map((d) => d.id === appointment.dealId ? { ...d, appointments: [...d.appointments, newApt] } : d),
+    }));
+    supabase.from("appointments").insert({
+      deal_id: appointment.dealId, attendant: appointment.attendant,
+      procedure: appointment.procedure, link: appointment.link ?? null, date: appointment.date,
+    }).then();
+  };
+
+  const addActivity = (activity: Omit<Activity, "id" | "createdAt" | "completed">) => {
+    const newAct: Activity = { ...activity, id: `act_${Date.now()}`, completed: false, createdAt: new Date().toISOString() };
+    setState((prev) => ({
+      ...prev,
+      deals: prev.deals.map((d) => d.id === activity.dealId ? { ...d, activities: [...d.activities, newAct] } : d),
+    }));
+    if (userId) {
+      supabase.from("activities").insert({
+        deal_id: activity.dealId, user_id: userId, title: activity.title,
+        description: activity.description ?? null, date: activity.date, type: activity.type,
+      }).then();
+    }
   };
 
   const updateActivity = (activityId: string, fields: Partial<Activity>) => {
-    setState(prev => ({
+    setState((prev) => ({
       ...prev,
-      deals: prev.deals.map(d => ({
-        ...d,
-        activities: d.activities.map(a => a.id === activityId ? { ...a, ...fields } : a)
-      }))
+      deals: prev.deals.map((d) => ({
+        ...d, activities: d.activities.map((a) => (a.id === activityId ? { ...a, ...fields } : a)),
+      })),
     }));
+    const db: Record<string, unknown> = {};
+    if (fields.title !== undefined) db.title = fields.title;
+    if (fields.description !== undefined) db.description = fields.description ?? null;
+    if (fields.date !== undefined) db.date = fields.date;
+    if (fields.type !== undefined) db.type = fields.type;
+    if (fields.completed !== undefined) db.completed = fields.completed;
+    if (Object.keys(db).length > 0) supabase.from("activities").update(db).eq("id", activityId).then();
   };
 
   const deleteActivity = (activityId: string) => {
-    setState(prev => ({
+    setState((prev) => ({
       ...prev,
-      deals: prev.deals.map(d => ({
-        ...d,
-        activities: d.activities.filter(a => a.id !== activityId)
-      }))
+      deals: prev.deals.map((d) => ({ ...d, activities: d.activities.filter((a) => a.id !== activityId) })),
     }));
+    supabase.from("activities").delete().eq("id", activityId).then();
   };
-
-  if (!isMounted) {
-    return (
-      <div className="flex flex-col items-center justify-center min-h-screen">
-         <div className="w-8 h-8 rounded-full border-4 border-amber-200 border-t-amber-500 animate-spin"></div>
-         <p className="text-sm font-medium text-gray-500 mt-4">Carregando CRM...</p>
-      </div>
-    );
-  }
 
   return (
     <CrmContext.Provider value={{
-      state,
-      moveDeal,
-      markDealStatus,
-      updateDealFields,
-      addDealNote,
-      addDealHistory,
-      addDeal,
-      deleteDeal,
-      addPipeline,
-      deletePipeline,
-      updatePipeline,
-      updateContact,
-      addContact,
-      updateCompany,
-      addCompany,
-      addLabel,
-      addAppointment,
-      addActivity,
-      updateActivity,
-      deleteActivity
+      state, loading,
+      moveDeal, markDealStatus, updateDealFields, addDealNote, addDealHistory, addDeal, deleteDeal,
+      addPipeline, deletePipeline, updatePipeline,
+      updateContact, addContact, updateCompany, addCompany, addLabel,
+      addAppointment, addActivity, updateActivity, deleteActivity,
     }}>
       {children}
     </CrmContext.Provider>
   );
-}
-
-export function useCrm() {
-  const context = useContext(CrmContext);
-  if (context === undefined) {
-    throw new Error("useCrm must be used within a CrmProvider");
-  }
-  return context;
 }
