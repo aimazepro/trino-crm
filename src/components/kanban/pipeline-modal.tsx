@@ -36,9 +36,12 @@ export function PipelineModal({ onClose, onSuccess, editPipelineId }: PipelineMo
     setStages(stages.filter(s => s.id !== id));
   };
 
-  const handleSave = () => {
-    if (!name.trim() || stages.length === 0) return;
-    
+  const [saving, setSaving] = useState(false);
+
+  const handleSave = async () => {
+    if (!name.trim() || stages.length === 0 || saving) return;
+    setSaving(true);
+
     const formattedStages = stages.map((s, idx) => ({
       id: s.id.includes('stage_') ? s.id : `stage_${Date.now()}_${idx}`,
       name: s.name,
@@ -55,9 +58,10 @@ export function PipelineModal({ onClose, onSuccess, editPipelineId }: PipelineMo
         name,
         stages: formattedStages
       };
-      addPipeline(newPipeline);
-      onSuccess(newPipeline.id);
+      const realId = await addPipeline(newPipeline);
+      if (realId) onSuccess(realId);
     }
+    setSaving(false);
   };
 
   return (

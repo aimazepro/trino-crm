@@ -12,7 +12,7 @@ import { ColumnsModal } from "@/components/kanban/columns-modal";
 import { cn } from "@/lib/utils";
 
 export default function KanbanPage() {
-  const { state } = useCrm();
+  const { state, loading } = useCrm();
   const [activePipelineId, setActivePipelineId] = useState<string>("");
   const [viewMode, setViewMode] = useState<"kanban" | "list">("kanban");
   
@@ -34,6 +34,14 @@ export default function KanbanPage() {
       setActivePipelineId(state.pipelines[0].id);
     }
   }, [state.pipelines, activePipelineId]);
+
+  if (loading) {
+    return (
+      <div className="flex items-center justify-center flex-1">
+        <div className="w-6 h-6 border-2 border-amber-500 border-t-transparent rounded-full animate-spin" />
+      </div>
+    );
+  }
 
   if (state.pipelines.length === 0) {
     return (
