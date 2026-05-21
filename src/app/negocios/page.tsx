@@ -2,7 +2,7 @@
 
 import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
-import { Search, LayoutGrid, List, Eye, Trophy, XCircle, Download, Plus, Settings as SettingsIcon, HelpCircle, Bell, Filter } from "lucide-react";
+import { LayoutGrid, List, Eye, Trophy, XCircle, Download, Plus, Settings as SettingsIcon } from "lucide-react";
 import { useCrm } from "@/contexts/crm-context";
 import { PipelineSelector } from "@/components/kanban/pipeline-selector";
 import { PipelineModal } from "@/components/kanban/pipeline-modal";
@@ -66,21 +66,19 @@ export default function KanbanPage() {
   }
 
   return (
-    <div className="flex flex-col h-full overflow-hidden animate-in fade-in duration-500 bg-[#F4F4F5]">
-      
+    <div className="flex h-full flex-col animate-in fade-in duration-500">
+
       {/* Main Secondary Header (Title & Actions) */}
       <div className="flex items-center justify-between border-b border-zinc-100 bg-white px-6 py-3.5">
          <div className="flex items-center gap-3">
             <h1 className="text-lg font-semibold text-zinc-900">Negócios</h1>
-            
-            <div className="w-[180px]">
-              <PipelineSelector 
-                activeId={activePipelineId} 
-                onChange={setActivePipelineId} 
-                onNew={() => setShowNewPipelineModal(true)}
-                onEdit={(id) => setEditPipelineId(id)}
-              />
-            </div>
+
+            <PipelineSelector
+              activeId={activePipelineId}
+              onChange={setActivePipelineId}
+              onNew={() => setShowNewPipelineModal(true)}
+              onEdit={(id) => setEditPipelineId(id)}
+            />
          </div>
 
          {/* Toolbar */}
@@ -168,17 +166,17 @@ export default function KanbanPage() {
       </div>
 
       {/* Main Board / List View Area */}
-      <div className="flex-1 overflow-hidden relative">
-         {viewMode === "kanban" ? (
-           <div className="h-full overflow-x-auto overflow-y-hidden hide-scrollbar py-6 px-8">
-              <KanbanBoard pipelineId={activePipelineId} onNewDeal={openNewDealModal} statusFilter={statusFilter} />
-           </div>
-         ) : (
-           <div className="p-6">
-             <KanbanListView pipelineId={activePipelineId} statusFilter={statusFilter} />
-           </div>
-         )}
-      </div>
+      {viewMode === "kanban" ? (
+        <div className="flex-1 overflow-hidden p-6">
+          <div className="relative h-full">
+            <KanbanBoard pipelineId={activePipelineId} onNewDeal={openNewDealModal} statusFilter={statusFilter} />
+          </div>
+        </div>
+      ) : (
+        <div className="flex-1 overflow-hidden p-6">
+          <KanbanListView pipelineId={activePipelineId} statusFilter={statusFilter} />
+        </div>
+      )}
       
       {/* Modals */}
       {showNewPipelineModal && (

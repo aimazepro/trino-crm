@@ -32,7 +32,7 @@ function SearchOverlay({ onClose }: { onClose: () => void }) {
 
   return (
     <div className="fixed inset-0 z-[200] bg-black/30 backdrop-blur-sm flex items-start justify-center pt-20 px-4" onClick={onClose}>
-      <div className="bg-white rounded-2xl shadow-2xl w-full max-w-xl overflow-hidden animate-in zoom-in-95 duration-150" onClick={e => e.stopPropagation()}>
+      <div className="bg-white rounded-2xl border border-zinc-200 w-full max-w-xl overflow-hidden animate-in zoom-in-95 duration-150" onClick={e => e.stopPropagation()}>
         {/* Input */}
         <div className="flex items-center gap-3 px-4 py-3.5 border-b border-zinc-100">
           <Search size={17} className="text-zinc-400 shrink-0" />
