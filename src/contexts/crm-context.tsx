@@ -257,8 +257,9 @@ export function CrmProvider({ children }: { children: ReactNode }) {
   const addDeal = async (deal: Deal): Promise<string | null> => {
     if (!userId) { console.error("[CRM] addDeal: no userId"); alert("Sessão ainda carregando."); return null; }
     const { data, error } = await supabase.from("deals").insert({
-      user_id: userId, title: deal.title, value: deal.value, contact_id: deal.contactId,
-      company_id: deal.companyId ?? null, pipeline_id: deal.pipelineId,
+      user_id: userId, title: deal.title, value: deal.value,
+      contact_id: deal.contactId || null,
+      company_id: deal.companyId || null, pipeline_id: deal.pipelineId,
       stage_id: deal.stageId, status: deal.status, days_in_stage: 0,
     }).select().single();
     if (error || !data) {

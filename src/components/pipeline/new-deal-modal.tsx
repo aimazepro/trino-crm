@@ -122,53 +122,47 @@ export function NewDealModal({ onClose, activePipelineId, initialStageId }: NewD
   const contactItems = state.contacts.map(c => ({ id: c.id, name: c.name }));
   const companyItems = state.companies.map(c => ({ id: c.id, name: c.name }));
 
-  const handleCreateContact = (name: string) => {
-    const id = `cont_${Date.now()}`;
-    addContact({ id, name, emails: [], phones: [], role: "", companyId: selectedCompanyId });
-    setSelectedContactId(id);
+  const [saving, setSaving] = useState(false);
+
+  const handleCreateContact = async (name: string) => {
+    const realId = await addContact({ id: "", name, emails: [], phones: [], role: "", companyId: selectedCompanyId || undefined });
+    if (realId) setSelectedContactId(realId);
   };
 
-  const handleCreateCompany = (name: string) => {
-    const id = `comp_${Date.now()}`;
-    addCompany({ id, name });
-    setSelectedCompanyId(id);
+  const handleCreateCompany = async (name: string) => {
+    const realId = await addCompany({ id: "", name });
+    if (realId) setSelectedCompanyId(realId);
   };
 
-  const handleSave = () => {
-    if (!title.trim()) return;
-
-    const dealId = `deal_${Date.now()}`;
-    const initialLog: HistoryLog = {
-      id: `log_${Date.now()}`,
-      description: "Negócio criado",
-      subtext: "Criado manualmente",
-      createdAt: new Date().toISOString(),
-    };
+  const handleSave = async () => {
+    if (!title.trim() || saving) return;
+    setSaving(true);
 
     const newDeal: Deal = {
-      id: dealId,
+      id: "",
       title,
       value: Number(value.replace(/[^0-9.-]+/g, "")) || 0,
-      contactId: selectedContactId,
-      companyId: selectedCompanyId,
+      contactId: selectedContactId || undefined as unknown as string,
+      companyId: selectedCompanyId || undefined,
       pipelineId: activePipelineId,
       stageId,
       status: "Ativo",
       daysInStage: 0,
       labels: [],
       notes: [],
-      history: [initialLog],
+      history: [],
       activities: [],
       appointments: [],
       products: [],
       expectedCloseDate: date || undefined,
     };
 
-    addDeal(newDeal);
-    onClose();
+    const id = await addDeal(newDeal);
+    setSaving(false);
+    if (id) onClose();
   };
 
-  const isSaveDisabled = !title.trim();
+  const isSaveDisabled = !title.trim() || saving;
 
   return (
     <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-gray-900/40 backdrop-blur-sm animate-in fade-in pt-10 pb-10">
@@ -265,7 +259,7 @@ export function NewDealModal({ onClose, activePipelineId, initialStageId }: NewD
             disabled={isSaveDisabled}
             className="w-full py-3 bg-amber-500 hover:bg-amber-600 disabled:opacity-40 disabled:cursor-not-allowed text-white font-bold rounded-lg transition-colors shadow-sm"
           >
-            Criar Negócio
+            {saving ? "Salvando..." : "Criar Negócio"}
           </button>
         </div>
 
