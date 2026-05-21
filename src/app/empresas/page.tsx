@@ -3,30 +3,145 @@
 import { useState, useMemo } from "react";
 import { useRouter } from "next/navigation";
 import { useCrm } from "@/contexts/crm-context";
-import { Plus, Search, Download, Settings, Building2 } from "lucide-react";
+import { Plus, Search, Download, Settings, Building2, X, Search as SearchIcon } from "lucide-react";
 import { Company } from "@/lib/crm-types";
 
-function NewCompanyModal({ onClose, onSave }: { onClose: () => void; onSave: (name: string) => void }) {
+const PORTE_OPTIONS = ["Selecionar", "MEI", "Micro", "Pequena", "Media", "Grande"];
+
+function NewCompanyModal({ onClose, onSave, companies }: {
+  onClose: () => void;
+  onSave: (data: Partial<Company> & { name: string }) => void;
+  companies: Company[];
+}) {
   const [name, setName] = useState("");
+  const [cnpj, setCnpj] = useState("");
+  const [website, setWebsite] = useState("");
+  const [segment, setSegment] = useState("");
+  const [size, setSize] = useState("");
+  const [city, setCity] = useState("");
+  const [state, setState] = useState("");
+  const [parentSearch, setParentSearch] = useState("");
+  const [parentCompanyId, setParentCompanyId] = useState<string | undefined>();
+  const [showParentDropdown, setShowParentDropdown] = useState(false);
+
+  const parentOptions = useMemo(() => {
+    if (!parentSearch.trim()) return [];
+    return companies.filter(c => c.name.toLowerCase().includes(parentSearch.toLowerCase())).slice(0, 6);
+  }, [companies, parentSearch]);
+
+  const selectedParent = companies.find(c => c.id === parentCompanyId);
+
+  const formatCnpj = (val: string) => {
+    const digits = val.replace(/\D/g, "").slice(0, 14);
+    return digits.replace(/^(\d{2})(\d{3})(\d{3})(\d{4})(\d{2})$/, "$1.$2.$3/$4-$5")
+      .replace(/^(\d{2})(\d{3})(\d{3})(\d{4})(\d*)$/, "$1.$2.$3/$4-$5")
+      .replace(/^(\d{2})(\d{3})(\d{3})(\d*)$/, "$1.$2.$3/$4")
+      .replace(/^(\d{2})(\d{3})(\d*)$/, "$1.$2.$3")
+      .replace(/^(\d{2})(\d*)$/, "$1.$2");
+  };
+
+  const inputClass = "w-full border border-gray-200 rounded-xl px-3.5 py-2.5 text-sm outline-none focus:border-amber-400 focus:ring-2 focus:ring-amber-100 placeholder:text-gray-300 text-gray-800 transition";
+
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-gray-900/40 backdrop-blur-sm" onClick={onClose}>
-      <div className="bg-white rounded-2xl shadow-xl w-full max-w-sm p-6" onClick={e => e.stopPropagation()}>
-        <h2 className="text-lg font-bold text-gray-900 mb-4">Nova Empresa</h2>
-        <input
-          value={name} onChange={e => setName(e.target.value)}
-          autoFocus
-          placeholder="Nome da empresa..."
-          className="w-full border border-gray-200 rounded-xl px-4 py-2.5 text-sm outline-none focus:border-amber-500 mb-4"
-          onKeyDown={e => { if (e.key === "Enter" && name.trim()) onSave(name.trim()); }}
-        />
-        <div className="flex gap-3">
-          <button onClick={onClose} className="flex-1 py-2.5 border border-gray-200 text-gray-600 font-bold rounded-xl text-sm hover:bg-gray-50">Cancelar</button>
-          <button
-            onClick={() => name.trim() && onSave(name.trim())}
-            disabled={!name.trim()}
-            className="flex-1 py-2.5 bg-amber-500 text-white font-bold rounded-xl text-sm hover:bg-amber-600 disabled:opacity-40"
-          >Criar</button>
+      <div className="bg-white rounded-2xl shadow-2xl w-full max-w-md p-6" onClick={e => e.stopPropagation()}>
+        <div className="flex items-start justify-between mb-1">
+          <h2 className="text-lg font-bold text-gray-900">Nova Empresa</h2>
+          <button onClick={onClose} className="text-gray-400 hover:text-gray-600 transition mt-0.5"><X size={18} /></button>
         </div>
+        <p className="text-sm text-gray-400 mb-5">Preencha os dados da empresa.</p>
+
+        {/* Nome */}
+        <div className="mb-4">
+          <label className="block text-xs font-semibold text-gray-600 mb-1.5">Nome <span className="text-red-400">*</span></label>
+          <input autoFocus value={name} onChange={e => setName(e.target.value)}
+            placeholder="Razao Social ou Nome Fantasia" className={inputClass} />
+        </div>
+
+        {/* CNPJ + Site */}
+        <div className="grid grid-cols-2 gap-3 mb-4">
+          <div>
+            <label className="block text-xs font-semibold text-gray-600 mb-1.5">CNPJ</label>
+            <input value={cnpj} onChange={e => setCnpj(formatCnpj(e.target.value))}
+              placeholder="00.000.000/0001-00" className={inputClass} />
+          </div>
+          <div>
+            <label className="block text-xs font-semibold text-gray-600 mb-1.5">Site</label>
+            <input value={website} onChange={e => setWebsite(e.target.value)}
+              placeholder="https://..." className={inputClass} />
+          </div>
+        </div>
+
+        {/* Segmento + Porte */}
+        <div className="grid grid-cols-2 gap-3 mb-4">
+          <div>
+            <label className="block text-xs font-semibold text-gray-600 mb-1.5">Segmento</label>
+            <input value={segment} onChange={e => setSegment(e.target.value)}
+              placeholder="Ex: Tecnologia" className={inputClass} />
+          </div>
+          <div>
+            <label className="block text-xs font-semibold text-gray-600 mb-1.5">Porte</label>
+            <select value={size} onChange={e => setSize(e.target.value === "Selecionar" ? "" : e.target.value)}
+              className={inputClass + " cursor-pointer bg-white"}>
+              {PORTE_OPTIONS.map(o => <option key={o} value={o === "Selecionar" ? "" : o}>{o}</option>)}
+            </select>
+          </div>
+        </div>
+
+        {/* Cidade + Estado */}
+        <div className="grid grid-cols-2 gap-3 mb-4">
+          <div>
+            <label className="block text-xs font-semibold text-gray-600 mb-1.5">Cidade</label>
+            <input value={city} onChange={e => setCity(e.target.value)}
+              placeholder="Sao Paulo" className={inputClass} />
+          </div>
+          <div>
+            <label className="block text-xs font-semibold text-gray-600 mb-1.5">Estado</label>
+            <input value={state} onChange={e => setState(e.target.value)}
+              placeholder="SP" maxLength={2} className={inputClass} />
+          </div>
+        </div>
+
+        {/* Empresa Mae */}
+        <div className="mb-6 relative">
+          <label className="block text-xs font-semibold text-gray-600 mb-1.5">Empresa Mae <span className="text-gray-400 font-normal">(opcional)</span></label>
+          {selectedParent ? (
+            <div className="flex items-center gap-2 border border-amber-300 rounded-xl px-3.5 py-2.5 bg-amber-50">
+              <div className="w-5 h-5 rounded-md bg-orange-100 text-orange-600 font-bold flex items-center justify-center text-[10px] uppercase shrink-0">{selectedParent.name.charAt(0)}</div>
+              <span className="text-sm font-semibold text-gray-800 flex-1">{selectedParent.name}</span>
+              <button onClick={() => { setParentCompanyId(undefined); setParentSearch(""); }} className="text-gray-400 hover:text-gray-600"><X size={14} /></button>
+            </div>
+          ) : (
+            <div className="relative">
+              <SearchIcon size={14} className="absolute left-3.5 top-1/2 -translate-y-1/2 text-gray-300 pointer-events-none" />
+              <input value={parentSearch}
+                onChange={e => { setParentSearch(e.target.value); setShowParentDropdown(true); }}
+                onFocus={() => setShowParentDropdown(true)}
+                onBlur={() => setTimeout(() => setShowParentDropdown(false), 150)}
+                placeholder="Buscar empresa mae..."
+                className={inputClass + " pl-9"} />
+              {showParentDropdown && parentOptions.length > 0 && (
+                <div className="absolute top-full left-0 right-0 mt-1 bg-white border border-gray-200 rounded-xl shadow-lg z-10 overflow-hidden">
+                  {parentOptions.map(c => (
+                    <button key={c.id} onMouseDown={() => { setParentCompanyId(c.id); setParentSearch(""); setShowParentDropdown(false); }}
+                      className="w-full flex items-center gap-2.5 px-3.5 py-2.5 text-sm text-left hover:bg-gray-50 transition-colors">
+                      <div className="w-5 h-5 rounded-md bg-orange-100 text-orange-600 font-bold flex items-center justify-center text-[10px] uppercase shrink-0">{c.name.charAt(0)}</div>
+                      <span className="font-medium text-gray-800">{c.name}</span>
+                    </button>
+                  ))}
+                </div>
+              )}
+            </div>
+          )}
+        </div>
+
+        <button
+          onClick={() => name.trim() && onSave({ name: name.trim(), cnpj: cnpj || undefined, website: website || undefined, segment: segment || undefined, size: size || undefined, city: city || undefined, state: state || undefined, parentCompanyId })}
+          disabled={!name.trim()}
+          className="w-full py-3 bg-amber-400 hover:bg-amber-500 text-white font-bold rounded-xl text-sm transition disabled:opacity-40 shadow-sm"
+        >
+          Criar Empresa
+        </button>
       </div>
     </div>
   );
@@ -47,9 +162,9 @@ export default function EmpresasPage() {
   const getDealsCount = (c: Company) => state.deals.filter(d => d.companyId === c.id).length;
   const getDealsValue = (c: Company) => state.deals.filter(d => d.companyId === c.id).reduce((s, d) => s + d.value, 0);
 
-  const handleCreate = (name: string) => {
+  const handleCreate = (data: Partial<Company> & { name: string }) => {
     const id = `comp_${Date.now()}`;
-    addCompany({ id, name });
+    addCompany({ id, ...data });
     setShowModal(false);
     router.push(`/empresas/${id}`);
   };
@@ -173,7 +288,7 @@ export default function EmpresasPage() {
       </div>
       </div>
 
-      {showModal && <NewCompanyModal onClose={() => setShowModal(false)} onSave={handleCreate} />}
+      {showModal && <NewCompanyModal onClose={() => setShowModal(false)} onSave={handleCreate} companies={state.companies} />}
     </div>
   );
 }
