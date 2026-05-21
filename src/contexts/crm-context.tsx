@@ -82,6 +82,7 @@ function transformDeal(row: any): Deal {
     expectedCloseDate: row.expected_close_date ?? undefined,
     probability: row.probability ?? undefined, source: row.source ?? undefined,
     daysInStage: row.days_in_stage,
+    createdAt: row.created_at,
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     labels: ((row.deal_labels ?? []) as any[]).map((dl) => dl.label_id),
     // eslint-disable-next-line @typescript-eslint/no-explicit-any

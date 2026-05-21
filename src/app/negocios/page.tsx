@@ -9,6 +9,7 @@ import { PipelineModal } from "@/components/kanban/pipeline-modal";
 import { KanbanBoard } from "@/components/kanban/kanban-board";
 import { KanbanListView } from "@/components/kanban/kanban-list-view";
 import { NewDealModal } from "@/components/pipeline/new-deal-modal";
+import { CustomizeColumnsModal, DEFAULT_COLUMNS } from "@/components/deal/customize-columns-modal";
 import { cn } from "@/lib/utils";
 import { LeadStatus } from "@/lib/crm-types";
 
@@ -24,6 +25,28 @@ export default function KanbanPage() {
   const [editPipelineId, setEditPipelineId] = useState<string | null>(null);
   const [showNewDealModal, setShowNewDealModal] = useState(false);
   const [initialStageId, setInitialStageId] = useState<string | undefined>(undefined);
+  const [showCustomizeColumnsModal, setShowCustomizeColumnsModal] = useState(false);
+  const [visibleColumns, setVisibleColumns] = useState<string[]>(DEFAULT_COLUMNS);
+
+  useEffect(() => {
+    const saved = localStorage.getItem("trino_crm_deals_list_columns");
+    if (saved) {
+      try {
+        const parsed = JSON.parse(saved);
+        if (Array.isArray(parsed) && parsed.length > 0) {
+          setVisibleColumns(parsed);
+        }
+      } catch (e) {
+        console.error("Failed to parse saved columns", e);
+      }
+    }
+  }, []);
+
+  const handleSaveColumns = (newCols: string[]) => {
+    setVisibleColumns(newCols);
+    localStorage.setItem("trino_crm_deals_list_columns", JSON.stringify(newCols));
+    setShowCustomizeColumnsModal(false);
+  };
 
   const openNewDealModal = (stageId?: string) => {
      setInitialStageId(stageId);
@@ -157,7 +180,14 @@ export default function KanbanPage() {
 
             {/* Configs */}
             <button
-              onClick={() => router.push("/negocios/configuracoes")}
+              onClick={() => {
+                if (viewMode === "list") {
+                  setShowCustomizeColumnsModal(true);
+                } else {
+                  router.push("/negocios/configuracoes");
+                }
+              }}
+              title={viewMode === "list" ? "Personalizar colunas" : "Configurações"}
               className="rounded-lg border border-zinc-200 p-1.5 text-zinc-400 hover:bg-zinc-50 transition-colors"
             >
               <SettingsIcon size={16} />
@@ -174,7 +204,7 @@ export default function KanbanPage() {
         </div>
       ) : (
         <div className="flex-1 overflow-hidden p-6">
-          <KanbanListView pipelineId={activePipelineId} statusFilter={statusFilter} />
+          <KanbanListView pipelineId={activePipelineId} statusFilter={statusFilter} columns={visibleColumns} />
         </div>
       )}
       
@@ -199,6 +229,14 @@ export default function KanbanPage() {
           activePipelineId={activePipelineId}
           initialStageId={initialStageId}
           onClose={() => setShowNewDealModal(false)}
+        />
+      )}
+
+      {showCustomizeColumnsModal && (
+        <CustomizeColumnsModal
+          initialColumns={visibleColumns}
+          onClose={() => setShowCustomizeColumnsModal(false)}
+          onSave={handleSaveColumns}
         />
       )}
 
