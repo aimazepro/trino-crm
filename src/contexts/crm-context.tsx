@@ -132,6 +132,9 @@ export function useCrm() {
   return ctx;
 }
 
+// Prevents StrictMode double-invoke from seeding pipelines twice
+let _pipelinesSeedDone = false;
+
 export function CrmProvider({ children }: { children: ReactNode }) {
   const [state, setState] = useState<CrmState>({ pipelines: [], deals: [], contacts: [], companies: [], labels: [] });
   const [loading, setLoading] = useState(true);
@@ -165,7 +168,8 @@ export function CrmProvider({ children }: { children: ReactNode }) {
       const pipelines = (pipelinesRaw ?? []).map(transformPipeline);
 
       // Seed default pipelines for new accounts
-      if (pipelines.length === 0 && user) {
+      if (pipelines.length === 0 && user && !_pipelinesSeedDone) {
+        _pipelinesSeedDone = true;
         const DEFAULT_PIPELINES = [
           { name: "Prospeccao", stages: ["Entrada de Leads", "Tentando contato", "Contato realizado com a empresa", "Contato realizado com o decisor", "Reunião Agendada"] },
           { name: "Inbound", stages: ["Formulário Preenchido", "Qualificado pelo formulário", "Tentando contato", "Contato realizado", "Reunião Agendada"] },
