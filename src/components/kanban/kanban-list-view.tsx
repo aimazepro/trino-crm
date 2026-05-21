@@ -2,7 +2,7 @@
 
 import { useState, useEffect, useRef } from "react";
 import { useCrm } from "@/contexts/crm-context";
-import { MoreHorizontal, Pencil, Trophy, CircleX, Trash2, Search } from "lucide-react";
+import { MoreHorizontal, Pencil, Trophy, CircleX, Trash2, Search, ChevronDown } from "lucide-react";
 import { format } from "date-fns";
 import { cn } from "@/lib/utils";
 import { DEFAULT_COLUMNS } from "@/components/deal/customize-columns-modal";
@@ -244,39 +244,48 @@ export function KanbanListView({ pipelineId, columns = DEFAULT_COLUMNS }: Kanban
       {/* Filter Bar */}
       <div className="flex items-center gap-3 border-b border-zinc-100 bg-white px-6 py-3 flex-wrap shrink-0">
         {/* Pipeline selector */}
-        <select
-          value={activePipelineId}
-          onChange={e => { setActivePipelineId(e.target.value); setStageFilter(""); }}
-          className="appearance-none rounded-lg border border-zinc-200 px-3 py-1.5 text-sm text-zinc-700 outline-none focus:ring-2 focus:ring-zinc-300 bg-white cursor-pointer"
-        >
-          {state.pipelines.map(p => (
-            <option key={p.id} value={p.id}>{p.name}</option>
-          ))}
-        </select>
+        <div className="relative">
+          <select
+            value={activePipelineId}
+            onChange={e => { setActivePipelineId(e.target.value); setStageFilter(""); }}
+            className="appearance-none rounded-lg border border-zinc-200 pl-3 pr-7 py-1.5 text-sm text-zinc-700 outline-none focus:ring-2 focus:ring-zinc-300 bg-white cursor-pointer"
+          >
+            {state.pipelines.map(p => (
+              <option key={p.id} value={p.id}>{p.name}</option>
+            ))}
+          </select>
+          <ChevronDown className="pointer-events-none absolute right-2 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-zinc-400" />
+        </div>
 
         {/* Stage filter */}
-        <select
-          value={stageFilter}
-          onChange={e => setStageFilter(e.target.value)}
-          className="appearance-none rounded-lg border border-zinc-200 px-3 py-1.5 text-sm text-zinc-700 outline-none focus:ring-2 focus:ring-zinc-300 bg-white cursor-pointer"
-        >
-          <option value="">Todas as etapas</option>
-          {pipeline.stages.map(s => (
-            <option key={s.id} value={s.id}>{s.name}</option>
-          ))}
-        </select>
+        <div className="relative">
+          <select
+            value={stageFilter}
+            onChange={e => setStageFilter(e.target.value)}
+            className="appearance-none rounded-lg border border-zinc-200 pl-3 pr-7 py-1.5 text-sm text-zinc-700 outline-none focus:ring-2 focus:ring-zinc-300 bg-white cursor-pointer"
+          >
+            <option value="">Todas as etapas</option>
+            {pipeline.stages.map(s => (
+              <option key={s.id} value={s.id}>{s.name}</option>
+            ))}
+          </select>
+          <ChevronDown className="pointer-events-none absolute right-2 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-zinc-400" />
+        </div>
 
         {/* Status filter */}
-        <select
-          value={statusLocalFilter}
-          onChange={e => setStatusLocalFilter(e.target.value)}
-          className="appearance-none rounded-lg border border-zinc-200 px-3 py-1.5 text-sm text-zinc-700 outline-none focus:ring-2 focus:ring-zinc-300 bg-white cursor-pointer"
-        >
-          <option value="todos">Todos os status</option>
-          <option value="aberto">Abertos</option>
-          <option value="ganho">Ganhos</option>
-          <option value="perdido">Perdidos</option>
-        </select>
+        <div className="relative">
+          <select
+            value={statusLocalFilter}
+            onChange={e => setStatusLocalFilter(e.target.value)}
+            className="appearance-none rounded-lg border border-zinc-200 pl-3 pr-7 py-1.5 text-sm text-zinc-700 outline-none focus:ring-2 focus:ring-zinc-300 bg-white cursor-pointer"
+          >
+            <option value="todos">Todos os status</option>
+            <option value="aberto">Abertos</option>
+            <option value="ganho">Ganhos</option>
+            <option value="perdido">Perdidos</option>
+          </select>
+          <ChevronDown className="pointer-events-none absolute right-2 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-zinc-400" />
+        </div>
 
         {/* Label filter */}
         <div className="relative">

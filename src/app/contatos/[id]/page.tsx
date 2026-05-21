@@ -4,15 +4,16 @@ import { use, useState, useRef, useEffect, useMemo } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useCrm } from "@/contexts/crm-context";
-import { ArrowLeft, Mail, Plus, Phone, Briefcase, Building2, Search, Clock, ArrowRight, CheckCircle, X, AlertCircle } from "lucide-react";
+import {
+  ArrowLeft, Mail, Plus, Phone, Briefcase, Building2, Search,
+  History, ArrowRight, CheckCircle, X, AlertCircle, Users, Pen,
+} from "lucide-react";
 import { cn } from "@/lib/utils";
 import { format, isPast, isToday } from "date-fns";
 import { ptBR } from "date-fns/locale";
-import { ContactEmail, ContactPhone } from "@/lib/crm-types";
 
 type Tab = "negocios" | "timeline";
 
-// ─── Inline editable field ───────────────────────────────────────────────────
 function EditableField({
   label,
   value,
@@ -36,33 +37,47 @@ function EditableField({
   const commit = () => { onSave(val); setEditing(false); };
 
   return (
-    <div className="flex items-start justify-between py-2.5 border-b border-gray-50 last:border-0 group">
-      <span className="text-sm font-medium text-gray-400 w-20 shrink-0 pt-0.5">{label}</span>
+    <div className="flex items-center justify-between py-3 border-b border-zinc-50 last:border-0">
+      <div className="flex items-center gap-2 text-sm text-zinc-500 w-28 shrink-0">
+        {Icon && <Icon className="h-3.5 w-3.5" aria-hidden="true" />}
+        {label}
+      </div>
       {editing ? (
-        <div className="flex items-center gap-1.5 flex-1 min-w-0">
+        <div className="flex items-center gap-1.5 flex-1 justify-end min-w-0">
           <input
             ref={ref}
             value={val}
             onChange={e => setVal(e.target.value)}
-            onKeyDown={e => { if (e.key === "Enter") commit(); if (e.key === "Escape") { setVal(value); setEditing(false); } }}
-            className="flex-1 text-sm border-b-2 border-amber-400 outline-none bg-transparent py-0.5 text-gray-900 font-medium"
+            onKeyDown={e => {
+              if (e.key === "Enter") commit();
+              if (e.key === "Escape") { setVal(value); setEditing(false); }
+            }}
+            className="flex-1 text-sm border-b-2 border-amber-400 outline-none bg-transparent py-0.5 text-zinc-900 text-right"
           />
-          <button onClick={commit} className="text-green-500 hover:bg-green-50 p-0.5 rounded transition-colors"><CheckCircle size={14} /></button>
-          <button onClick={() => { setVal(value); setEditing(false); }} className="text-red-400 hover:bg-red-50 p-0.5 rounded transition-colors"><X size={14} /></button>
+          <button onClick={commit} className="text-green-500 hover:bg-green-50 p-0.5 rounded transition-colors">
+            <CheckCircle className="h-3.5 w-3.5" />
+          </button>
+          <button onClick={() => { setVal(value); setEditing(false); }} className="text-red-400 hover:bg-red-50 p-0.5 rounded transition-colors">
+            <X className="h-3.5 w-3.5" />
+          </button>
         </div>
       ) : (
-        <button
-          onClick={() => setEditing(true)}
-          className="flex-1 text-left text-sm font-medium text-gray-900 hover:text-amber-600 transition-colors truncate"
-        >
-          {value || <span className="text-gray-300 italic font-normal">{placeholder}</span>}
-        </button>
+        <div className="flex items-center gap-2 flex-1 justify-end group min-w-0">
+          <span className="text-sm text-zinc-800 truncate">
+            {value || <span className="text-zinc-300">-</span>}
+          </span>
+          <button
+            onClick={() => setEditing(true)}
+            className="opacity-0 group-hover:opacity-100 text-zinc-300 hover:text-zinc-500 transition-opacity shrink-0"
+          >
+            <Pen className="h-3.5 w-3.5" />
+          </button>
+        </div>
       )}
     </div>
   );
 }
 
-// ─── Company search combobox ──────────────────────────────────────────────────
 function CompanySearch({
   companies,
   selectedId,
@@ -88,12 +103,14 @@ function CompanySearch({
   if (selected && !open) {
     return (
       <div className="flex items-center justify-between">
-        <Link href={`/empresas/${selected.id}`} className="flex items-center gap-2 text-sm font-bold text-gray-900 hover:text-amber-600 transition-colors">
-          <div className="w-5 h-5 rounded bg-orange-100 text-orange-600 text-[10px] font-black flex items-center justify-center">{selected.name.charAt(0)}</div>
+        <Link href={`/empresas/${selected.id}`} className="flex items-center gap-2 text-sm font-medium text-zinc-800 hover:text-amber-600 transition-colors">
+          <div className="w-5 h-5 rounded bg-orange-100 text-orange-600 text-[10px] font-bold flex items-center justify-center shrink-0">
+            {selected.name.charAt(0)}
+          </div>
           {selected.name}
         </Link>
-        <button onClick={() => { onSelect(""); setOpen(false); }} className="text-gray-300 hover:text-red-400 transition-colors ml-2">
-          <X size={12} />
+        <button onClick={() => { onSelect(""); setOpen(false); }} className="text-zinc-300 hover:text-red-400 transition-colors ml-2">
+          <X className="h-3.5 w-3.5" />
         </button>
       </div>
     );
@@ -101,33 +118,33 @@ function CompanySearch({
 
   return (
     <div ref={ref} className="relative">
-      <div className="flex items-center gap-2">
-        <Search size={12} className="text-gray-400 shrink-0" />
+      <div className="flex items-center gap-2 text-zinc-400">
+        <Building2 className="h-4 w-4" />
         <input
           value={query}
           onChange={e => { setQuery(e.target.value); setOpen(true); }}
           onFocus={() => setOpen(true)}
-          placeholder="Vincular empresa..."
-          className="flex-1 text-sm outline-none bg-transparent text-gray-700 placeholder:text-gray-300"
+          placeholder="Vincular empresa"
+          className="flex-1 text-sm outline-none bg-transparent text-zinc-700 placeholder:text-zinc-400"
         />
-        <button onClick={() => { setQuery(""); setOpen(true); }} className="text-amber-500 font-bold text-xs hover:text-amber-600">
-          <Plus size={14} />
-        </button>
+        <Plus className="h-3.5 w-3.5 ml-auto" />
       </div>
       {open && query.trim() && (
-        <div className="absolute z-50 top-full mt-1 left-0 right-0 bg-white border border-gray-200 rounded-xl shadow-xl overflow-hidden">
+        <div className="absolute z-50 top-full mt-1 left-0 right-0 bg-white border border-zinc-200 rounded-xl shadow-xl overflow-hidden">
           {filtered.slice(0, 5).map(c => (
             <button
               key={c.id}
               onMouseDown={() => { onSelect(c.id); setQuery(""); setOpen(false); }}
-              className="w-full flex items-center gap-2.5 px-3 py-2.5 hover:bg-amber-50 text-left text-sm font-medium text-gray-900 transition-colors"
+              className="w-full flex items-center gap-2.5 px-3 py-2.5 hover:bg-amber-50 text-left text-sm font-medium text-zinc-900 transition-colors"
             >
-              <div className="w-5 h-5 rounded bg-orange-100 text-orange-600 text-[10px] font-black flex items-center justify-center shrink-0">{c.name.charAt(0)}</div>
+              <div className="w-5 h-5 rounded bg-orange-100 text-orange-600 text-[10px] font-bold flex items-center justify-center shrink-0">
+                {c.name.charAt(0)}
+              </div>
               {c.name}
             </button>
           ))}
           {filtered.length === 0 && (
-            <div className="px-3 py-2.5 text-xs text-gray-400">Nenhuma empresa encontrada</div>
+            <div className="px-3 py-2.5 text-xs text-zinc-400">Nenhuma empresa encontrada</div>
           )}
         </div>
       )}
@@ -135,56 +152,21 @@ function CompanySearch({
   );
 }
 
-// ─── Timeline Item ────────────────────────────────────────────────────────────
-function TimelineItem({ icon: Icon, title, sub, time, color, isOverdue }: {
-  icon: React.ElementType;
-  title: string;
-  sub: string;
-  time: string;
-  color: string;
-  isOverdue?: boolean;
-}) {
-  return (
-    <div className="flex gap-4 pb-5 relative">
-      <div className="flex flex-col items-center">
-        <div className={cn("w-8 h-8 rounded-xl flex items-center justify-center shrink-0 border transition-colors", color)}>
-          <Icon size={14} />
-        </div>
-        <div className="w-px flex-1 bg-gray-100 mt-2" />
-      </div>
-      <div className="flex-1 min-w-0 pt-1">
-        <p className={cn("text-sm font-bold", isOverdue ? "text-red-700" : "text-gray-900")}>
-          {title}
-          {isOverdue && <span className="ml-2 text-[9px] uppercase font-black text-red-500 bg-red-100 px-1.5 py-0.5 rounded-full tracking-wider">Atrasada</span>}
-        </p>
-        <p className="text-xs text-gray-400 font-medium mt-0.5">{sub}</p>
-        <p className={cn("text-[10px] mt-1 font-medium", isOverdue ? "text-red-400" : "text-gray-300")}>{time}</p>
-      </div>
-    </div>
-  );
-}
-
-// ─── Main page ─────────────────────────────────────────────────────────────────
 export default function ContatoPage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = use(params);
   const router = useRouter();
   const { state, updateContact } = useCrm();
 
   const contact = state.contacts.find(c => c.id === id);
-  const company = state.companies.find(c => c.id === contact?.companyId);
   const deals = state.deals.filter(d => d.contactId === id);
-
   const [activeTab, setActiveTab] = useState<Tab>("negocios");
 
-  // Build timeline from all deals of this contact
   const timeline = useMemo(() => {
     const items: { id: string; type: string; title: string; sub: string; dealName: string; date: string }[] = [];
     for (const deal of deals) {
-      // History logs
       for (const log of deal.history) {
         items.push({ id: log.id, type: "history", title: log.description, sub: log.subtext || deal.title, dealName: deal.title, date: log.createdAt });
       }
-      // Activities
       for (const a of deal.activities) {
         items.push({ id: a.id, type: a.completed ? "activity_done" : "activity", title: a.title, sub: `${a.type} — ${deal.title}`, dealName: deal.title, date: a.date });
       }
@@ -195,7 +177,7 @@ export default function ContatoPage({ params }: { params: Promise<{ id: string }
   if (!contact) {
     return (
       <div className="flex flex-col items-center justify-center flex-1 h-full">
-        <h2 className="text-xl font-bold mb-4">Contato não encontrado</h2>
+        <h2 className="text-xl font-semibold mb-4 text-zinc-900">Contato não encontrado</h2>
         <Link href="/contatos" className="px-6 py-2 bg-amber-500 text-white rounded-xl shadow-sm">Ir para contatos</Link>
       </div>
     );
@@ -226,66 +208,65 @@ export default function ContatoPage({ params }: { params: Promise<{ id: string }
   };
 
   return (
-    <div className="flex flex-col h-full animate-in fade-in bg-[#F4F4F5] p-8">
+    <div className="flex h-full flex-col animate-in fade-in duration-500">
 
-      {/* Top bar */}
-      <div className="flex items-center justify-between mb-5 shrink-0">
-        <div className="flex items-center gap-3">
-          <button onClick={() => router.back()} className="p-1.5 text-gray-400 hover:text-gray-700 hover:bg-gray-100 rounded-lg transition-colors">
-            <ArrowLeft size={18} />
-          </button>
-          <div className="w-7 h-7 rounded-full bg-gray-200 text-gray-700 font-black flex items-center justify-center text-sm">
-            {contact.name.charAt(0).toUpperCase()}
-          </div>
-          <h1 className="text-lg font-bold text-gray-900">{contact.name}</h1>
-        </div>
-        <button className="flex items-center gap-2 px-4 py-2 border border-gray-200 text-sm font-bold text-gray-600 rounded-xl bg-white hover:bg-gray-50 shadow-sm transition-colors">
-          <Mail size={14} /> Usar template de email
+      {/* Header */}
+      <div className="flex items-center gap-3 bg-white px-6 py-4 border-b border-zinc-100 shrink-0">
+        <button onClick={() => router.back()} className="text-zinc-400 hover:text-zinc-600 transition-colors">
+          <ArrowLeft className="h-5 w-5" aria-hidden="true" />
         </button>
+        <div className="flex h-8 w-8 items-center justify-center rounded-full bg-zinc-100 text-zinc-600 font-medium shrink-0">
+          {contact.name.charAt(0).toUpperCase()}
+        </div>
+        <div>
+          <h1 className="text-base font-semibold text-zinc-800">{contact.name}</h1>
+        </div>
+        <div className="ml-auto flex items-center gap-2">
+          <button className="flex items-center gap-1.5 rounded-xl bg-zinc-100 px-3 py-1.5 text-xs font-medium text-zinc-600 hover:bg-zinc-200 transition-colors">
+            <Mail className="h-3 w-3" aria-hidden="true" /> Usar template de email
+          </button>
+        </div>
       </div>
 
-      <div className="flex gap-6 flex-1 min-h-0">
+      {/* Body */}
+      <div className="flex flex-1 overflow-hidden">
 
-        {/* ── Left: Tabs ─────────────────────────────────────────────────────── */}
-        <div className="flex-1 flex flex-col min-w-0 bg-white border border-gray-100 rounded-2xl shadow-sm overflow-hidden">
+        {/* Left: tabs + content */}
+        <div className="flex-1 overflow-auto p-6 space-y-4 bg-zinc-50/50">
 
           {/* Tabs */}
-          <div className="flex gap-0 border-b border-gray-100 px-4 shrink-0">
-            {[
-              { key: "negocios", label: "Negócios", count: deals.length },
-              { key: "timeline", label: "Timeline" },
-            ].map(tab => (
-              <button
-                key={tab.key}
-                onClick={() => setActiveTab(tab.key as Tab)}
-                className={cn(
-                  "flex items-center gap-2 py-4 px-2 mr-4 text-sm font-bold border-b-2 transition-colors",
-                  activeTab === tab.key
-                    ? "border-amber-500 text-amber-600"
-                    : "border-transparent text-gray-400 hover:text-gray-600"
-                )}
-              >
-                {tab.key === "negocios" && <Briefcase size={14} />}
-                {tab.key === "timeline" && <Clock size={14} />}
-                {tab.label}
-                {tab.count !== undefined && (
-                  <span className={cn("text-[10px] font-black px-1.5 py-0.5 rounded-full", activeTab === tab.key ? "bg-amber-100 text-amber-600" : "bg-gray-100 text-gray-500")}>
-                    {tab.count}
-                  </span>
-                )}
-              </button>
-            ))}
+          <div className="flex items-center gap-1">
+            <button
+              onClick={() => setActiveTab("negocios")}
+              className={cn(
+                "flex items-center gap-1.5 px-4 py-2 text-sm font-medium border-b-2 transition-colors -mb-px",
+                activeTab === "negocios" ? "border-amber-500 text-amber-600" : "border-transparent text-zinc-400 hover:text-zinc-600"
+              )}
+            >
+              <Briefcase className="h-3.5 w-3.5" aria-hidden="true" />
+              Negócios
+              <span className="ml-1 rounded-full bg-zinc-100 px-1.5 py-0.5 text-xs text-zinc-500">{deals.length}</span>
+            </button>
+            <button
+              onClick={() => setActiveTab("timeline")}
+              className={cn(
+                "flex items-center gap-1.5 px-4 py-2 text-sm font-medium border-b-2 transition-colors -mb-px",
+                activeTab === "timeline" ? "border-amber-500 text-amber-600" : "border-transparent text-zinc-400 hover:text-zinc-600"
+              )}
+            >
+              <History className="h-3.5 w-3.5" aria-hidden="true" />
+              Timeline
+            </button>
           </div>
 
-          {/* Tab Content */}
-          <div className="flex-1 overflow-y-auto p-6 custom-scrollbar">
-
+          {/* Tab content */}
+          <section>
             {activeTab === "negocios" && (
-              <div className="space-y-3">
+              <div className="space-y-2">
                 {deals.length === 0 ? (
                   <div className="flex flex-col items-center py-16 text-center">
-                    <Briefcase size={36} className="text-gray-200 mb-3" />
-                    <p className="text-sm font-medium text-gray-400">Nenhum negócio vinculado</p>
+                    <Briefcase className="h-9 w-9 text-zinc-200 mb-3" />
+                    <p className="text-sm text-zinc-400">Nenhum negócio vinculado</p>
                   </div>
                 ) : (
                   deals.map(deal => {
@@ -294,33 +275,30 @@ export default function ContatoPage({ params }: { params: Promise<{ id: string }
                     return (
                       <Link
                         key={deal.id}
-                        href={`/pipeline/${deal.id}`}
-                        className="flex items-center justify-between p-4 border border-gray-100 rounded-xl hover:border-amber-200 hover:shadow-sm transition-all group bg-white"
+                        href={`/negocios/${deal.id}`}
+                        className="flex items-center gap-3 rounded-xl bg-white p-3.5 cursor-pointer hover:bg-amber-50/30 transition-colors"
                       >
-                        <div className="flex items-center gap-3">
-                          <div className={cn(
-                            "w-2 h-2 rounded-full shrink-0",
-                            deal.status === "Ativo" ? "bg-amber-400" :
-                            deal.status === "Ganho" ? "bg-green-500" : "bg-red-400"
-                          )} />
-                          <div>
-                            <div className="flex items-center gap-2 mb-0.5">
-                              <span className="font-bold text-sm text-gray-900 group-hover:text-amber-600 transition-colors">{deal.title}</span>
-                              <span className={cn(
-                                "text-[9px] uppercase font-black px-1.5 py-0.5 rounded tracking-wider",
-                                deal.status === "Ativo" ? "bg-amber-100 text-amber-700" :
-                                deal.status === "Ganho" ? "bg-green-100 text-green-700" : "bg-red-100 text-red-700"
-                              )}>{deal.status}</span>
-                            </div>
-                            <p className="text-xs text-gray-400 font-medium">{pipeline?.name} / {stage?.name}</p>
+                        <div className={cn(
+                          "h-2 w-2 rounded-full shrink-0",
+                          deal.status === "Ativo" ? "bg-amber-400" :
+                          deal.status === "Ganho" ? "bg-green-500" : "bg-red-400"
+                        )} />
+                        <div className="flex-1 min-w-0">
+                          <div className="flex items-center gap-2">
+                            <p className="text-sm font-medium text-zinc-800 truncate">{deal.title}</p>
+                            <span className={cn(
+                              "inline-flex items-center rounded-full px-1.5 py-0.5 text-[10px] font-semibold shrink-0",
+                              deal.status === "Ativo" ? "bg-amber-100 text-amber-700" :
+                              deal.status === "Ganho" ? "bg-green-100 text-green-700" : "bg-red-100 text-red-700"
+                            )}>
+                              {deal.status === "Ativo" ? "Aberto" : deal.status}
+                            </span>
                           </div>
+                          <p className="text-xs text-zinc-400">{pipeline?.name} / {stage?.name}</p>
                         </div>
-                        <div className="flex items-center gap-3">
-                          <span className="font-bold text-gray-900 text-sm">
-                            {deal.value.toLocaleString("pt-BR", { style: "currency", currency: "BRL" })}
-                          </span>
-                          <ArrowRight size={14} className="text-gray-300 group-hover:text-amber-400 transition-colors" />
-                        </div>
+                        <span className="text-sm font-semibold text-zinc-700 shrink-0">
+                          {deal.value.toLocaleString("pt-BR", { style: "currency", currency: "BRL" })}
+                        </span>
                       </Link>
                     );
                   })
@@ -332,62 +310,81 @@ export default function ContatoPage({ params }: { params: Promise<{ id: string }
               <div className="space-y-0">
                 {timeline.length === 0 ? (
                   <div className="flex flex-col items-center py-16 text-center">
-                    <Clock size={36} className="text-gray-200 mb-3" />
-                    <p className="text-sm font-medium text-gray-400">Nenhuma atividade registrada ainda</p>
+                    <History className="h-9 w-9 text-zinc-200 mb-3" />
+                    <p className="text-sm text-zinc-400">Nenhuma atividade registrada ainda</p>
                   </div>
                 ) : (
                   timeline.map(item => {
                     const isActivity = item.type.startsWith("activity");
                     const isDone = item.type === "activity_done";
                     const isOverdue = isActivity && !isDone && isPast(new Date(item.date)) && !isToday(new Date(item.date));
-                    
+                    const Icon = isActivity ? (isDone ? CheckCircle : (isOverdue ? AlertCircle : History)) : ArrowRight;
                     return (
-                      <TimelineItem
-                        key={item.id}
-                        icon={isActivity ? (isDone ? CheckCircle : (isOverdue ? AlertCircle : Clock)) : ArrowRight}
-                        title={item.title}
-                        sub={`${item.sub}  ·  ${item.dealName}`}
-                        time={(() => {
-                          try { return format(new Date(item.date), "dd/MM/yyyy 'às' HH:mm", { locale: ptBR }); }
-                          catch { return item.date; }
-                        })()}
-                        isOverdue={isOverdue}
-                        color={
-                          isDone ? "bg-green-50 border-green-100 text-green-600" :
-                          isOverdue ? "bg-red-50 border-red-100 text-red-600" :
-                          isActivity ? "bg-amber-50 border-amber-100 text-amber-600" :
-                          "bg-gray-50 border-gray-100 text-gray-400"
-                        }
-                      />
+                      <div key={item.id} className="flex gap-4">
+                        <div className="flex flex-col items-center w-10 shrink-0">
+                          <div className={cn(
+                            "flex h-10 w-10 items-center justify-center rounded-full bg-white border border-zinc-200 shadow-sm",
+                            isDone ? "text-green-500" : isOverdue ? "text-red-500" : isActivity ? "text-amber-500" : "text-zinc-500"
+                          )}>
+                            <Icon className="h-4 w-4" aria-hidden="true" />
+                          </div>
+                          <div className="w-px flex-1 bg-zinc-200 my-1" />
+                        </div>
+                        <div className="flex-1 min-w-0 pb-6 pt-1">
+                          <div className="flex items-center gap-2 mb-1">
+                            <span className="text-xs font-medium text-zinc-500">
+                              {item.type === "history" ? "Evento" : isDone ? "Atividade" : isOverdue ? "Atrasada" : "Atividade"}
+                            </span>
+                          </div>
+                          <p className={cn("text-sm font-medium leading-snug", isOverdue ? "text-red-700" : "text-zinc-900")}>
+                            {item.title}
+                          </p>
+                          <div className="flex items-center gap-3 mt-2">
+                            <span className="text-xs text-zinc-400">
+                              {(() => { try { return format(new Date(item.date), "dd/MM/yyyy 'às' HH:mm", { locale: ptBR }); } catch { return item.date; } })()}
+                            </span>
+                            <Link
+                              href={`/negocios/${deals.find(d => d.title === item.dealName)?.id || ""}`}
+                              className="text-xs text-zinc-500 underline decoration-zinc-300 hover:text-zinc-700 inline-flex items-center gap-1 transition-colors"
+                            >
+                              <ArrowRight className="h-3 w-3" aria-hidden="true" />
+                              {item.dealName}
+                            </Link>
+                          </div>
+                        </div>
+                      </div>
                     );
                   })
                 )}
               </div>
             )}
-          </div>
+          </section>
         </div>
 
-        {/* ── Right: Info Sidebar ─────────────────────────────────────────────── */}
-        <div className="w-72 shrink-0 flex flex-col gap-0 bg-white border border-gray-100 rounded-2xl shadow-sm overflow-hidden">
+        {/* Right: sidebar */}
+        <div className="w-80 shrink-0 overflow-auto p-5 space-y-5 bg-white border-l border-zinc-100">
 
           {/* INFORMAÇÕES */}
-          <div className="p-5 border-b border-gray-50">
-            <p className="text-[10px] font-black text-gray-400 uppercase tracking-widest mb-3">Informações</p>
-            <div className="space-y-0">
+          <div>
+            <h3 className="text-xs font-medium text-zinc-400 tracking-wide mb-3">INFORMAÇÕES</h3>
+            <div className="rounded-xl bg-zinc-50 px-4">
               <EditableField
                 label="Nome"
+                icon={Users}
                 value={contact.name}
                 placeholder="Nome"
                 onSave={v => handleUpdateField("name", v)}
               />
               <EditableField
                 label="Email"
+                icon={Mail}
                 value={contact.emails?.[0]?.value || ""}
                 placeholder="+ Adicionar email"
                 onSave={handleUpdateEmail}
               />
               <EditableField
                 label="Telefone"
+                icon={Phone}
                 value={contact.phones?.[0]?.value || ""}
                 placeholder="+ Adicionar telefone"
                 onSave={handleUpdatePhone}
@@ -402,33 +399,47 @@ export default function ContatoPage({ params }: { params: Promise<{ id: string }
           </div>
 
           {/* EMPRESA */}
-          <div className="p-5 border-b border-gray-50">
-            <p className="text-[10px] font-black text-gray-400 uppercase tracking-widest mb-3">Empresa</p>
-            <CompanySearch
-              companies={state.companies}
-              selectedId={contact.companyId}
-              onSelect={handleLinkCompany}
-            />
+          <div>
+            <h3 className="text-xs font-medium text-zinc-400 tracking-wide mb-3">EMPRESA</h3>
+            <div className="rounded-xl bg-zinc-50 px-4 py-3 cursor-pointer hover:bg-zinc-100 transition-colors group">
+              <CompanySearch
+                companies={state.companies}
+                selectedId={contact.companyId}
+                onSelect={handleLinkCompany}
+              />
+            </div>
+          </div>
+
+          {/* Custom fields placeholder */}
+          <div className="rounded-lg border border-dashed border-zinc-200 p-3 text-center">
+            <p className="text-xs text-zinc-400 leading-relaxed">
+              Configure campos personalizados nas{" "}
+              <button className="text-amber-500 hover:underline">configurações</button>
+            </p>
           </div>
 
           {/* RESUMO */}
-          <div className="p-5">
-            <p className="text-[10px] font-black text-gray-400 uppercase tracking-widest mb-3">Resumo</p>
-            <div className="space-y-2.5">
-              <div className="flex items-center justify-between">
-                <span className="text-sm font-medium text-gray-500">Negócios</span>
-                <span className="text-sm font-black text-gray-900">{deals.length}</span>
+          <div>
+            <h3 className="text-xs font-medium text-zinc-400 tracking-wide mb-2">
+              <span className="flex items-center gap-1.5">
+                <Users className="h-3.5 w-3.5" aria-hidden="true" />
+                RESUMO
+              </span>
+            </h3>
+            <div className="rounded-xl bg-zinc-50 px-4 py-3 space-y-2">
+              <div className="flex items-center justify-between text-sm">
+                <span className="text-zinc-500">Negócios</span>
+                <span className="font-semibold text-zinc-800">{deals.length}</span>
               </div>
-              <div className="flex items-center justify-between">
-                <span className="text-sm font-medium text-gray-500">Valor total</span>
-                <span className="text-sm font-black text-amber-600">
+              <div className="flex items-center justify-between text-sm">
+                <span className="text-zinc-500">Valor total</span>
+                <span className="font-semibold text-zinc-800">
                   {totalValue.toLocaleString("pt-BR", { style: "currency", currency: "BRL" })}
                 </span>
               </div>
             </div>
           </div>
         </div>
-
       </div>
     </div>
   );
