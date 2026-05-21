@@ -2,10 +2,10 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { 
-  User, CreditCard, Building2, Users, LayoutTemplate, DownloadCloud, 
-  Package, FileX, Copy, ListTree, Mail, MessageCircle, FileText, 
-  MessageSquare, Phone, Calendar, Blocks 
+import {
+  User, CreditCard, Building2, Users, LayoutTemplate, DownloadCloud,
+  Package, FileX, Copy, ListTree, Mail, MessageCircle, FileText,
+  MessageSquare, Phone, Calendar, Blocks, Tag
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 
@@ -31,6 +31,7 @@ const SECTIONS = [
       { label: "Templates de Email", href: "/configuracoes/templates-email", icon: Mail },
       { label: "Templates WhatsApp", href: "/configuracoes/templates-whatsapp", icon: MessageCircle },
       { label: "Scripts de Ligação", href: "/configuracoes/scripts", icon: FileText },
+      { label: "Etiquetas de Automações", href: "/configuracoes/etiquetas-automacoes", icon: Tag },
     ]
   },
   {

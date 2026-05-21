@@ -4,6 +4,7 @@ import { usePathname } from "next/navigation";
 import { Sidebar } from "./sidebar";
 import { Topbar } from "./topbar";
 import { CrmProvider, useCrm } from "@/contexts/crm-context";
+import { AutomacoesProvider } from "@/contexts/automacoes-context";
 
 function AppContent({ children }: { children: React.ReactNode }) {
   const { loading } = useCrm();
@@ -39,7 +40,9 @@ export function AppShell({ children }: { children: React.ReactNode }) {
   if (pathname.startsWith("/login")) return <>{children}</>;
   return (
     <CrmProvider>
-      <AppContent>{children}</AppContent>
+      <AutomacoesProvider>
+        <AppContent>{children}</AppContent>
+      </AutomacoesProvider>
     </CrmProvider>
   );
 }

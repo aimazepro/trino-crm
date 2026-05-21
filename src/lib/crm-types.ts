@@ -116,3 +116,70 @@ export interface CrmState {
   labels: Label[];
   whatsappConnected?: boolean;
 }
+
+// ── Automações ──────────────────────────────────────────────────────────────
+
+export type TriggerType =
+  | 'deal_created'
+  | 'stage_changed'
+  | 'deal_won'
+  | 'deal_lost'
+  | 'deal_updated'
+  | 'activity_created';
+
+export type AutomationConditionField =
+  | 'stage' | 'pipeline' | 'status' | 'value' | 'owner' | 'label';
+
+export type AutomationConditionOperator = 'is' | 'is_not' | 'contains' | 'greater_than' | 'less_than';
+
+export interface AutomationConditionRule {
+  field: AutomationConditionField;
+  operator: AutomationConditionOperator;
+  value: string;
+}
+
+export type ActionType =
+  | 'create_deal'
+  | 'create_activity'
+  | 'move_stage'
+  | 'assign_owner'
+  | 'mark_won'
+  | 'mark_lost'
+  | 'add_label'
+  | 'duplicate_deal'
+  | 'create_note'
+  | 'send_webhook'
+  | 'send_email'
+  | 'send_whatsapp'
+  | 'start_sequence';
+
+export interface AutomationStep {
+  id: string;
+  type: 'condition' | 'action';
+  condition?: {
+    rules: AutomationConditionRule[];
+  };
+  action?: {
+    type: ActionType;
+    config: Record<string, string | number | boolean>;
+  };
+}
+
+export interface AutomationLabel {
+  id: string;
+  name: string;
+  color: string;
+}
+
+export interface Automation {
+  id: string;
+  name: string;
+  description: string;
+  trigger: TriggerType | null;
+  steps: AutomationStep[];
+  labelIds: string[];
+  active: boolean;
+  executionCount: number;
+  createdAt: string;
+  updatedAt: string;
+}
