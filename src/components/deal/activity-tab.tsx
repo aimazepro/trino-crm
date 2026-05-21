@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import { ListTodo, CheckCircle, Trash2, Edit2, AlertCircle } from "lucide-react";
+import { ListTodo, CheckCircle, Trash2, Pencil, AlertCircle, Phone, Mail, Video, Users, MessageCircle, Hash, ChevronDown, Plus, Calendar, Play } from "lucide-react";
 import { useCrm } from "@/contexts/crm-context";
 import { Deal, Activity } from "@/lib/crm-types";
 import { ActivityModal } from "./activity-modal";
@@ -9,26 +9,25 @@ import { NextActivityModal } from "./next-activity-modal";
 import { cn } from "@/lib/utils";
 import { isPast, isToday } from "date-fns";
 
-// Color map per activity type
-const TYPE_COLORS: Record<string, { dot: string; badge: string }> = {
-  "Ligação":      { dot: "bg-blue-500",    badge: "bg-blue-50 text-blue-700" },
-  "Reunião":      { dot: "bg-purple-500",  badge: "bg-purple-50 text-purple-700" },
-  "Videochamada": { dot: "bg-green-500",   badge: "bg-green-50 text-green-700" },
-  "Email":        { dot: "bg-gray-400",    badge: "bg-gray-100 text-gray-600" },
-  "WhatsApp":     { dot: "bg-emerald-500", badge: "bg-emerald-50 text-emerald-700" },
-  "Instagram":    { dot: "bg-pink-500",    badge: "bg-pink-50 text-pink-700" },
-  "LinkedIn":     { dot: "bg-sky-600",     badge: "bg-sky-50 text-sky-700" },
-  "Outros":       { dot: "bg-gray-400",    badge: "bg-gray-100 text-gray-600" },
+const TYPE_ICONS: Record<string, React.ReactNode> = {
+  "Ligação":      <Phone className="h-4 w-4" />,
+  "Reunião":      <Users className="h-4 w-4" />,
+  "Videochamada": <Video className="h-4 w-4" />,
+  "Email":        <Mail className="h-4 w-4" />,
+  "WhatsApp":     <MessageCircle className="h-4 w-4" />,
+  "Instagram":    <Hash className="h-4 w-4" />,
+  "LinkedIn":     <Hash className="h-4 w-4" />,
+  "Outros":       <Hash className="h-4 w-4" />,
 };
 
-const getColors = (type: string) =>
-  TYPE_COLORS[type] || { dot: "bg-amber-500", badge: "bg-amber-50 text-amber-700" };
+const getIcon = (type: string) => TYPE_ICONS[type] ?? <Hash className="h-4 w-4" />;
 
 export function ActivityTab({ deal }: { deal: Deal }) {
   const { addActivity, deleteActivity, updateActivity } = useCrm();
   const [showModal, setShowModal] = useState(false);
   const [editingActivity, setEditingActivity] = useState<Activity | null>(null);
   const [showNextModal, setShowNextModal] = useState(false);
+  const [showSeqMenu, setShowSeqMenu] = useState(false);
 
   const startAdding = () => {
     setEditingActivity(null);
@@ -46,14 +45,8 @@ export function ActivityTab({ deal }: { deal: Deal }) {
   };
 
   const handleComplete = (a: Activity) => {
-    if (!a.completed) {
-      // Mark as done then prompt next
-      updateActivity(a.id, { completed: true });
-      setShowNextModal(true);
-    } else {
-      // Reopen
-      updateActivity(a.id, { completed: false });
-    }
+    updateActivity(a.id, { completed: !a.completed });
+    if (!a.completed) setShowNextModal(true);
   };
 
   const handleEdit = (a: Activity) => {
@@ -62,117 +55,104 @@ export function ActivityTab({ deal }: { deal: Deal }) {
   };
 
   const saveNextActivity = (data: { title: string; type: string; date: string; description: string }) => {
-    addActivity({
-      dealId: deal.id,
-      title: data.title,
-      date: data.date,
-      type: data.type,
-      description: data.description,
-    });
+    addActivity({ dealId: deal.id, ...data });
     setShowNextModal(false);
   };
 
-  // Sort: pending first, completed last. For pending, earlier dates first.
   const sorted = [...deal.activities].sort((a, b) => {
     if (a.completed !== b.completed) return a.completed ? 1 : -1;
     return new Date(a.date).getTime() - new Date(b.date).getTime();
   });
 
   return (
-    <div className="w-full space-y-6">
-      <div className="flex items-center justify-between border-b border-gray-100 pb-4">
-        <h4 className="text-xs font-bold text-gray-400 uppercase tracking-widest">Atividades</h4>
-        <button
-          onClick={startAdding}
-          className="text-xs font-bold text-white bg-amber-500 hover:bg-amber-600 px-4 py-2 rounded-xl transition-colors flex items-center gap-1.5 focus:outline-none focus:ring-2 focus:ring-amber-500/20"
-        >
-          + Adicionar
-        </button>
+    <div className="w-full">
+      <div className="flex items-center justify-between mb-4">
+        <h2 className="text-xs font-medium text-zinc-400 tracking-wide">ATIVIDADES</h2>
+        <div className="flex items-center gap-2">
+          <div className="relative">
+            <button
+              onClick={() => setShowSeqMenu(v => !v)}
+              className="flex items-center gap-1.5 rounded-lg border border-zinc-200 px-3 py-1.5 text-xs font-semibold text-zinc-600 hover:bg-zinc-50 transition-colors"
+            >
+              <Play className="h-3 w-3" /> Sequências <ChevronDown className="h-3 w-3" />
+            </button>
+            {showSeqMenu && (
+              <div className="absolute right-0 top-full mt-1 z-20 bg-white border border-zinc-200 rounded-lg shadow-lg min-w-[200px]">
+                <p className="text-xs text-zinc-400 px-3 py-2">Nenhuma sequencia disponivel.</p>
+              </div>
+            )}
+          </div>
+          <button
+            onClick={startAdding}
+            className="flex items-center gap-1.5 rounded-lg bg-gradient-to-r from-amber-500 to-amber-400 px-3 py-1.5 text-xs font-semibold text-white hover:from-amber-600 hover:to-amber-500 shadow-sm hover:shadow-md transition-colors"
+          >
+            <Plus className="h-3.5 w-3.5" /> Adicionar
+          </button>
+        </div>
       </div>
 
       {deal.activities.length === 0 ? (
         <div className="flex flex-col items-center justify-center py-10">
-          <div className="w-16 h-16 rounded-full bg-orange-50 text-orange-200 flex items-center justify-center mb-4">
+          <div className="w-16 h-16 rounded-full bg-zinc-100 text-zinc-300 flex items-center justify-center mb-4">
             <ListTodo size={32} />
           </div>
-          <p className="text-sm font-medium text-gray-500">Nenhuma atividade registrada</p>
+          <p className="text-sm font-medium text-zinc-500">Nenhuma atividade registrada</p>
         </div>
       ) : (
-        <div className="space-y-3">
+        <div className="space-y-2">
           {sorted.map(a => {
-            const colors = getColors(a.type);
             const isOverdue = !a.completed && isPast(new Date(a.date)) && !isToday(new Date(a.date));
-            
             return (
-              <div
-                key={a.id}
-                className={cn(
-                  "flex items-center justify-between p-4 border rounded-xl transition-all group",
-                  a.completed
-                    ? "bg-gray-50/70 border-gray-100 opacity-60"
-                    : isOverdue 
-                      ? "bg-red-50/30 border-red-100 hover:border-red-200" 
-                      : "bg-white border-gray-100 hover:border-amber-200"
-                )}
-              >
-                <div className="flex items-center gap-3 flex-1 min-w-0">
-                  {/* Complete button */}
-                  <button
-                    onClick={() => handleComplete(a)}
-                    className={cn(
-                      "w-6 h-6 rounded-full border-2 flex items-center justify-center shrink-0 transition-all",
-                      a.completed
-                        ? "bg-green-500 border-green-500 text-white"
-                        : isOverdue 
-                          ? "border-red-300 text-red-500 hover:bg-red-50" 
-                          : "border-gray-300 hover:border-amber-500 hover:scale-110"
-                    )}
-                  >
-                    {a.completed ? <CheckCircle size={14} /> : (isOverdue ? <AlertCircle size={14} /> : null)}
-                  </button>
-
-                  {/* Color dot */}
-                  <div className={cn("w-2 h-2 rounded-full shrink-0", isOverdue ? "bg-red-500" : colors.dot)} />
-
-                  <div className="min-w-0">
-                    <div className={cn(
-                      "text-sm font-bold flex items-center gap-2",
-                      a.completed ? "line-through text-gray-400" : (isOverdue ? "text-red-700" : "text-gray-900")
+              <div key={a.id}>
+                <div className={cn(
+                  "flex items-start gap-3 rounded-xl p-3.5 transition-colors",
+                  a.completed ? "bg-zinc-50 opacity-70" : isOverdue ? "bg-red-50" : "bg-zinc-50"
+                )}>
+                  <div className="shrink-0 rounded-full p-2 bg-zinc-100 text-zinc-400">
+                    {isOverdue ? <AlertCircle className="h-4 w-4 text-red-400" /> : getIcon(a.type)}
+                  </div>
+                  <div className="flex-1 min-w-0">
+                    <p className={cn(
+                      "text-sm font-medium",
+                      a.completed ? "line-through text-zinc-500" : isOverdue ? "text-red-700" : "text-zinc-800"
                     )}>
                       {a.title}
-                      {isOverdue && <span className="text-[9px] uppercase font-black text-red-500 px-1.5 py-0.5 bg-red-100 rounded-full tracking-wider">Atrasada</span>}
-                    </div>
-                    <div className="flex items-center gap-2 mt-0.5 flex-wrap">
-                      <span className={cn("text-[10px] font-bold px-1.5 py-0.5 rounded", isOverdue ? "bg-red-100 text-red-700" : colors.badge)}>
-                        {a.type}
-                      </span>
-                      <span className={cn("text-xs font-medium", a.completed ? "text-gray-300" : (isOverdue ? "text-red-400" : "text-gray-400"))}>
-                        {new Date(a.date).toLocaleString("pt-BR", { dateStyle: "short", timeStyle: "short" })}
-                      </span>
-                    </div>
+                      {isOverdue && <span className="ml-2 text-[9px] uppercase font-black text-red-500 px-1.5 py-0.5 bg-red-100 rounded-full tracking-wider">Atrasada</span>}
+                    </p>
+                    {a.description && (
+                      <p className="text-xs mt-0.5 whitespace-pre-wrap break-words text-zinc-400">{a.description}</p>
+                    )}
+                    <p className="text-xs mt-1 flex items-center gap-1.5 text-zinc-400">
+                      <Calendar className="h-3 w-3" />
+                      {new Date(a.date).toLocaleString("pt-BR", { dateStyle: "short", timeStyle: "short" })}
+                    </p>
                   </div>
-                </div>
-
-                {/* Actions — visible on hover */}
-                <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity shrink-0 ml-2">
-                  <button
-                    onClick={() => handleComplete(a)}
-                    className="text-xs font-bold px-3 py-1 border border-gray-200 text-gray-500 hover:text-gray-800 rounded-md whitespace-nowrap hidden sm:block"
-                  >
-                    {a.completed ? "Reabrir" : "Concluir"}
-                  </button>
-                  <button
-                    onClick={() => handleEdit(a)}
-                    className="p-1.5 text-gray-400 hover:text-amber-600 border border-transparent hover:border-amber-200 hover:bg-amber-50 rounded-md transition-colors"
-                  >
-                    <Edit2 size={14} />
-                  </button>
-                  <button
-                    onClick={() => deleteActivity(a.id)}
-                    className="p-1.5 text-gray-400 hover:text-red-500 border border-transparent hover:border-red-200 hover:bg-red-50 rounded-md transition-colors"
-                  >
-                    <Trash2 size={14} />
-                  </button>
+                  <div className="flex items-center gap-1.5 shrink-0">
+                    <button
+                      onClick={() => handleComplete(a)}
+                      className={cn(
+                        "rounded-md border p-1 transition-colors",
+                        a.completed
+                          ? "border-green-200 text-green-500 bg-green-50"
+                          : "border-zinc-200 text-zinc-400 hover:border-amber-300 hover:text-amber-500 hover:bg-amber-50"
+                      )}
+                      title={a.completed ? "Reabrir" : "Concluir"}
+                    >
+                      <CheckCircle className="h-3.5 w-3.5" />
+                    </button>
+                    <button
+                      onClick={() => handleEdit(a)}
+                      className="rounded-md border border-zinc-200 p-1 text-zinc-400 hover:border-amber-300 hover:text-amber-500 hover:bg-amber-50 transition-colors"
+                    >
+                      <Pencil className="h-3.5 w-3.5" />
+                    </button>
+                    <button
+                      onClick={() => deleteActivity(a.id)}
+                      className="rounded-md border border-zinc-200 p-1 text-zinc-400 hover:border-red-300 hover:text-red-500 hover:bg-red-50 transition-colors"
+                    >
+                      <Trash2 className="h-3.5 w-3.5" />
+                    </button>
+                  </div>
                 </div>
               </div>
             );

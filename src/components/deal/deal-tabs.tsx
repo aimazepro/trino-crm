@@ -6,8 +6,7 @@ import { formatDistanceToNow } from "date-fns";
 import { ptBR } from "date-fns/locale";
 import { useCrm } from "@/contexts/crm-context";
 import { ActivityTab } from "./activity-tab";
-import { AppointmentsTab } from "./appointments-tab";
-import { ArrowRight, MessageCircleOff, Settings, Paperclip, Mic, LayoutTemplate, PhoneOff, WifiOff, Mail } from "lucide-react";
+import { ArrowRight, MessageCircleOff, Settings, Paperclip, Mic, LayoutTemplate, PhoneOff, WifiOff, Mail, History, Phone, MessageCircle, FileText } from "lucide-react";
 import Link from "next/link";
 import { cn } from "@/lib/utils";
 
@@ -15,7 +14,19 @@ interface DealTabsProps {
   dealId: string;
 }
 
-const TABS = ["Atividades", "Agendamentos", "Notas", "Histórico", "WhatsApp", "Email"];
+const TABS = ["Atividades", "Notas", "Histórico", "Ligações", "WhatsApp", "Email"];
+
+const TAB_ICONS: Record<string, React.ReactNode> = {
+  "Histórico": <History className="h-3.5 w-3.5" />,
+  "Ligações": <Phone className="h-3.5 w-3.5" />,
+  "WhatsApp": <MessageCircle className="h-3.5 w-3.5" />,
+  "Email": <Mail className="h-3.5 w-3.5" />,
+};
+
+const TAB_ACTIVE_COLOR: Record<string, string> = {
+  "WhatsApp": "border-green-500 text-green-600",
+  "Email": "border-blue-500 text-blue-600",
+};
 
 export function DealTabs({ dealId }: DealTabsProps) {
   const { state, addDealNote } = useCrm();
@@ -53,70 +64,90 @@ export function DealTabs({ dealId }: DealTabsProps) {
     <div className="flex-1 flex flex-col h-full bg-white relative">
       
       {/* Tabs Header */}
-      <div className="flex gap-8 border-b border-gray-100 px-8 shrink-0">
-        {TABS.map(tab => (
-          <button
-            key={tab}
-            onClick={() => handleTabClick(tab)}
-            className={cn(
-              "py-4 text-sm font-bold border-b-2 transition-all relative",
-              activeTab === tab 
-                ? "border-amber-500 text-amber-600" 
-                : "border-transparent text-gray-400 hover:text-gray-600 hover:border-gray-200"
-            )}
-          >
-            {tab}
-            {tab === "Notas" && deal.notes.length > 0 && (
-              <span className="ml-2 px-1.5 py-0.5 bg-gray-100 text-gray-500 rounded-full text-[10px]">
-                {deal.notes.length}
-              </span>
-            )}
-          </button>
-        ))}
+      <div className="flex items-center gap-1 px-6 border-b border-zinc-100 shrink-0">
+        {TABS.map(tab => {
+          const isActive = activeTab === tab;
+          const activeColor = TAB_ACTIVE_COLOR[tab] ?? "border-amber-500 text-amber-600";
+          const icon = TAB_ICONS[tab];
+          return (
+            <button
+              key={tab}
+              onClick={() => handleTabClick(tab)}
+              className={cn(
+                "flex items-center gap-1.5 px-4 py-2 text-sm font-medium border-b-2 transition-colors -mb-px",
+                isActive ? activeColor : "border-transparent text-zinc-400 hover:text-zinc-600"
+              )}
+            >
+              {icon}
+              {tab}
+              {tab === "Atividades" && deal.activities && deal.activities.length > 0 && (
+                <span className="ml-1 rounded-full bg-zinc-100 px-1.5 py-0.5 text-xs text-zinc-500">
+                  {deal.activities.length}
+                </span>
+              )}
+              {tab === "Notas" && deal.notes.length > 0 && (
+                <span className="ml-1 rounded-full bg-zinc-100 px-1.5 py-0.5 text-xs text-zinc-500">
+                  {deal.notes.length}
+                </span>
+              )}
+            </button>
+          );
+        })}
       </div>
 
       {/* Tabs Content */}
-      <div className="flex-1 overflow-y-auto p-8 hide-scrollbar bg-gray-50/30">
+      <div className="flex-1 overflow-auto p-6 bg-zinc-50/50">
         
         {/* Atividades Tab */}
         {activeTab === "Atividades" && <ActivityTab deal={deal} />}
 
-        {/* Agendamentos Tab */}
-        {activeTab === "Agendamentos" && <AppointmentsTab deal={deal} />}
+        {/* Ligações Tab */}
+        {activeTab === "Ligações" && (
+          <div className="rounded-xl bg-white border border-zinc-200 overflow-hidden">
+            <div className="flex flex-col items-center justify-center h-64 text-center px-4">
+              <div className="h-12 w-12 rounded-full bg-zinc-100 flex items-center justify-center mb-3">
+                <Phone className="h-6 w-6 text-zinc-400" />
+              </div>
+              <p className="text-sm font-medium text-zinc-700">Nenhuma ligação registrada</p>
+              <p className="text-xs text-zinc-500 mt-1">As ligações realizadas aparecerão aqui</p>
+            </div>
+          </div>
+        )}
 
         {/* Notas Tab */}
         {activeTab === "Notas" && (
-          <div className="max-w-3xl space-y-6">
-            <div>
-               <h4 className="text-xs font-bold text-gray-400 uppercase tracking-widest mb-3">Notas</h4>
-               <div className="bg-white border text-sm text-gray-500 font-medium border-gray-200 rounded-2xl overflow-hidden focus-within:ring-2 focus-within:ring-amber-500/20 focus-within:border-amber-500 transition-all">
-                 <textarea 
-                   value={noteContent}
-                   onChange={e => setNoteContent(e.target.value)}
-                   placeholder="Adicione uma nota sobre este negócio..."
-                   className="w-full min-h-[100px] p-4 bg-transparent outline-none resize-none placeholder:text-gray-400"
-                 />
-                 <div className="bg-gray-50/50 p-2 border-t border-gray-100 flex justify-end">
-                   <button 
-                     onClick={handleSaveNote}
-                     disabled={!noteContent.trim()}
-                     className="px-4 py-1.5 bg-amber-500 text-white font-bold text-xs rounded-lg disabled:opacity-50 disabled:cursor-not-allowed hover:bg-amber-600 transition-colors"
-                   >
-                     Salvar
-                   </button>
-                 </div>
-               </div>
+          <div className="space-y-4">
+            <div className="mb-4">
+              <h2 className="text-xs font-medium text-zinc-400 tracking-wide mb-3">NOTAS</h2>
+              <div className="rounded-xl bg-white overflow-hidden">
+                <textarea
+                  value={noteContent}
+                  onChange={e => setNoteContent(e.target.value)}
+                  placeholder="Adicione uma nota sobre este negócio..."
+                  rows={3}
+                  className="w-full resize-none px-3 py-2.5 text-sm text-zinc-900 placeholder-zinc-400 outline-none"
+                />
+                <div className="flex items-center justify-end px-3 py-2 border-t border-zinc-100 bg-zinc-50">
+                  <button
+                    onClick={handleSaveNote}
+                    disabled={!noteContent.trim()}
+                    className="flex items-center gap-1.5 rounded-lg bg-gradient-to-r from-amber-500 to-amber-400 px-3 py-1.5 text-xs font-semibold text-white hover:from-amber-600 hover:to-amber-500 shadow-sm hover:shadow-md disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+                  >
+                    <FileText className="h-3.5 w-3.5" /> Salvar Nota
+                  </button>
+                </div>
+              </div>
             </div>
 
-            <div className="space-y-4">
-               {deal.notes.map(note => (
-                 <div key={note.id} className="bg-white p-5 rounded-2xl border border-gray-100">
-                    <p className="text-sm text-gray-700 whitespace-pre-wrap">{note.content}</p>
-                    <div className="mt-4 text-[11px] font-bold text-gray-400 uppercase tracking-wider">
-                      {new Date(note.createdAt).toLocaleString('pt-BR', { dateStyle: 'medium', timeStyle: 'short' })}
-                    </div>
-                 </div>
-               ))}
+            <div className="space-y-3">
+              {deal.notes.map(note => (
+                <div key={note.id} className="rounded-xl bg-white p-4">
+                  <p className="text-sm text-zinc-800 whitespace-pre-wrap">{note.content}</p>
+                  <p className="text-xs text-zinc-400 mt-2">
+                    {new Date(note.createdAt).toLocaleString('pt-BR', { dateStyle: 'medium', timeStyle: 'short' })}
+                  </p>
+                </div>
+              ))}
             </div>
           </div>
         )}
@@ -127,7 +158,7 @@ export function DealTabs({ dealId }: DealTabsProps) {
             <h4 className="text-xs font-bold text-gray-400 uppercase tracking-widest mb-4">Histórico</h4>
             
             <div className="space-y-6 pl-4 border-l-2 border-gray-100 ml-4 py-2">
-              {deal.history.map((log, index) => (
+              {deal.history.map((log) => (
                 <div key={log.id} className="relative">
                    <div className="absolute -left-[27px] top-0 w-8 h-8 bg-blue-50 text-blue-500 rounded-full flex items-center justify-center border-4 border-white">
                      <ArrowRight size={14} className="opacity-70" />
