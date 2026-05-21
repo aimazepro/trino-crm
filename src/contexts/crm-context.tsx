@@ -6,6 +6,7 @@ import type {
   CrmState, Pipeline, PipelineStage, Deal, Contact, Company,
   Label, HistoryLog, Note, Appointment, Activity,
 } from "@/lib/crm-types";
+import { runAutomations } from "@/lib/run-automations";
 
 interface CrmContextType {
   state: CrmState;
@@ -204,6 +205,7 @@ export function CrmProvider({ children }: { children: ReactNode }) {
   }, []);
 
   const moveDeal = (dealId: string, newStageId: string) => {
+    const deal = state.deals.find((d) => d.id === dealId);
     setState((prev) => {
       const allStages = prev.pipelines.flatMap((p) => p.stages);
       const deals = prev.deals.map((d) => {
@@ -221,9 +223,13 @@ export function CrmProvider({ children }: { children: ReactNode }) {
     });
     supabase.from("deals").update({ stage_id: newStageId, days_in_stage: 0 }).eq("id", dealId)
       .then(({ error }) => { if (error) console.error("[CRM] moveDeal failed:", error); });
+    if (deal && userId) {
+      runAutomations("stage_changed", { ...deal, stageId: newStageId }, { userId, pipelines: state.pipelines });
+    }
   };
 
   const markDealStatus = (dealId: string, status: "Ganho" | "Perdido" | "Ativo", reason?: string) => {
+    const deal = state.deals.find((d) => d.id === dealId);
     setState((prev) => ({
       ...prev,
       deals: prev.deals.map((d) => {
@@ -239,13 +245,21 @@ export function CrmProvider({ children }: { children: ReactNode }) {
     }));
     supabase.from("deals").update({ status, loss_reason: reason ?? null }).eq("id", dealId)
       .then(({ error }) => { if (error) console.error("[CRM] markDealStatus failed:", error); });
+    if (deal && userId && (status === "Ganho" || status === "Perdido")) {
+      const trigger = status === "Ganho" ? "deal_won" : "deal_lost";
+      runAutomations(trigger, { ...deal, status, lossReason: reason }, { userId, pipelines: state.pipelines });
+    }
   };
 
   const updateDealFields = (dealId: string, fields: Partial<Deal>) => {
+    const deal = state.deals.find((d) => d.id === dealId);
     setState((prev) => ({
       ...prev,
       deals: prev.deals.map((d) => (d.id === dealId ? { ...d, ...fields } : d)),
     }));
+    if (deal && userId) {
+      runAutomations("deal_updated", { ...deal, ...fields }, { userId, pipelines: state.pipelines });
+    }
     const dbFields = dealToDb(fields);
     if (Object.keys(dbFields).length > 0) {
       supabase.from("deals").update(dbFields).eq("id", dealId)
@@ -301,10 +315,9 @@ export function CrmProvider({ children }: { children: ReactNode }) {
     const firstLog: HistoryLog = { id: `h_${Date.now()}`, description: "Negócio criado", subtext: "Criado manualmente", createdAt: new Date().toISOString() };
     await supabase.from("deal_history").insert({ deal_id: data.id, description: firstLog.description, subtext: firstLog.subtext });
 
-    setState((prev) => ({
-      ...prev,
-      deals: [...prev.deals, { ...deal, id: data.id, history: [firstLog], notes: [], products: [], activities: [], appointments: [] }],
-    }));
+    const newDeal: Deal = { ...deal, id: data.id, history: [firstLog], notes: [], products: [], activities: [], appointments: [] };
+    setState((prev) => ({ ...prev, deals: [...prev.deals, newDeal] }));
+    runAutomations("deal_created", newDeal, { userId, pipelines: state.pipelines });
     return data.id;
   };
 
@@ -469,6 +482,7 @@ export function CrmProvider({ children }: { children: ReactNode }) {
   };
 
   const addActivity = (activity: Omit<Activity, "id" | "createdAt" | "completed">) => {
+    const deal = state.deals.find((d) => d.id === activity.dealId);
     const newAct: Activity = { ...activity, id: `act_${Date.now()}`, completed: false, createdAt: new Date().toISOString() };
     setState((prev) => ({
       ...prev,
@@ -479,6 +493,9 @@ export function CrmProvider({ children }: { children: ReactNode }) {
         deal_id: activity.dealId, user_id: userId, title: activity.title,
         description: activity.description ?? null, date: activity.date, type: activity.type,
       }).then(({ error }) => { if (error) console.error("[CRM] addActivity failed:", error); });
+    }
+    if (deal && userId) {
+      runAutomations("activity_created", deal, { userId, pipelines: state.pipelines });
     }
   };
 
