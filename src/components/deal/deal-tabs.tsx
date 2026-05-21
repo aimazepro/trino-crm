@@ -7,14 +7,15 @@ import { ptBR } from "date-fns/locale";
 import { useCrm } from "@/contexts/crm-context";
 import { ActivityTab } from "./activity-tab";
 import { AppointmentsTab } from "./appointments-tab";
-import { ArrowRight, MessageCircleOff, Settings, Paperclip, Mic, LayoutTemplate, PhoneOff } from "lucide-react";
+import { ArrowRight, MessageCircleOff, Settings, Paperclip, Mic, LayoutTemplate, PhoneOff, WifiOff, Mail } from "lucide-react";
+import Link from "next/link";
 import { cn } from "@/lib/utils";
 
 interface DealTabsProps {
   dealId: string;
 }
 
-const TABS = ["Atividades", "Agendamentos", "Notas", "Histórico", "WhatsApp"];
+const TABS = ["Atividades", "Agendamentos", "Notas", "Histórico", "WhatsApp", "Email"];
 
 export function DealTabs({ dealId }: DealTabsProps) {
   const { state, addDealNote } = useCrm();
@@ -147,16 +148,52 @@ export function DealTabs({ dealId }: DealTabsProps) {
           </div>
         )}
 
+        {/* Email Tab */}
+        {activeTab === "Email" && (
+          <div className="rounded-xl bg-white border border-zinc-200 overflow-hidden">
+            <div className="flex flex-col items-center justify-center h-64 text-center px-4">
+              {(!contact || !contact.emails || contact.emails.length === 0) ? (
+                <>
+                  <div className="h-12 w-12 rounded-full bg-zinc-100 flex items-center justify-center mb-3">
+                    <Mail className="h-6 w-6 text-zinc-400" />
+                  </div>
+                  <p className="text-sm font-medium text-zinc-700">Contato sem email</p>
+                  <p className="text-xs text-zinc-500 mt-1">Adicione um email ao contato para enviar mensagens</p>
+                </>
+              ) : state.gmailConnected ? (
+                <>
+                  <div className="h-12 w-12 rounded-full bg-blue-50 flex items-center justify-center mb-3">
+                    <Mail className="h-6 w-6 text-blue-500" />
+                  </div>
+                  <p className="text-sm font-medium text-zinc-700">Gmail conectado</p>
+                  <p className="text-xs text-zinc-500 mt-1">{contact?.emails?.[0]?.value}</p>
+                </>
+              ) : (
+                <>
+                  <div className="h-12 w-12 rounded-full bg-zinc-100 flex items-center justify-center mb-3">
+                    <WifiOff className="h-6 w-6 text-zinc-400" />
+                  </div>
+                  <p className="text-sm font-medium text-zinc-700">Gmail nao conectado</p>
+                  <p className="text-xs text-zinc-500 mt-1 mb-4">Conecte sua conta Gmail nas configuracoes</p>
+                  <Link href="/configuracoes/gmail" className="inline-flex items-center gap-2 px-4 py-2 bg-blue-600 text-white text-sm rounded-lg hover:bg-blue-700 transition-colors">
+                    <Settings className="h-4 w-4" /> Configurar Gmail
+                  </Link>
+                </>
+              )}
+            </div>
+          </div>
+        )}
+
         {/* WhatsApp Tab */}
         {activeTab === "WhatsApp" && (
           <div className="h-full min-h-[400px] flex flex-col bg-[#F0F2F5] rounded-xl overflow-hidden border border-gray-200/60">
              {(!contact || !contact.phones || contact.phones.length === 0) ? (
-               <div className="flex flex-col items-center justify-center h-full m-auto w-full p-8 text-center">
-                  <div className="w-16 h-16 rounded-full bg-white flex items-center justify-center mb-4 border border-gray-200">
-                     <PhoneOff size={24} className="text-gray-300" />
+               <div className="flex flex-col items-center justify-center h-64 text-center px-4">
+                  <div className="h-12 w-12 rounded-full bg-zinc-100 flex items-center justify-center mb-3">
+                     <PhoneOff className="h-6 w-6 text-zinc-400" />
                   </div>
-                  <h3 className="text-base font-bold text-gray-900 mb-1">Contato sem telefone</h3>
-                  <p className="text-xs text-gray-500 font-medium max-w-xs">Adicione um número de telefone ao contato para iniciar uma conversa.</p>
+                  <p className="text-sm font-medium text-zinc-700">Contato sem telefone</p>
+                  <p className="text-xs text-zinc-500 mt-1">Adicione um telefone ao contato para enviar mensagens</p>
                </div>
              ) : state.whatsappConnected ? (
                <>
@@ -213,15 +250,15 @@ export function DealTabs({ dealId }: DealTabsProps) {
                  </div>
                </>
              ) : (
-               <div className="flex flex-col items-center justify-center h-full m-auto w-full">
-                 <div className="w-16 h-16 rounded-full bg-white flex items-center justify-center mb-6 border border-gray-200">
-                    <MessageCircleOff size={24} className="text-gray-300" />
+               <div className="flex flex-col items-center justify-center h-64 text-center px-4">
+                 <div className="h-12 w-12 rounded-full bg-zinc-100 flex items-center justify-center mb-3">
+                    <WifiOff className="h-6 w-6 text-zinc-400" />
                  </div>
-                 <h3 className="text-lg font-bold text-gray-900 mb-2">WhatsApp nao conectado</h3>
-                 <p className="text-sm text-gray-500 mb-6 font-medium">Conecte seu WhatsApp nas configuracoes</p>
-                 <button className="flex items-center gap-2 px-6 py-2.5 bg-[#25D366] text-white font-bold rounded-xl hover:opacity-90 transition-opacity">
-                   <Settings size={16} /> Configurar WhatsApp
-                 </button>
+                 <p className="text-sm font-medium text-zinc-700">WhatsApp nao conectado</p>
+                 <p className="text-xs text-zinc-500 mt-1 mb-4">Conecte seu WhatsApp nas configuracoes</p>
+                 <Link href="/configuracoes/whatsapp" className="inline-flex items-center gap-2 px-4 py-2 bg-green-600 text-white text-sm rounded-lg hover:bg-green-700 transition-colors">
+                   <Settings className="h-4 w-4" /> Configurar WhatsApp
+                 </Link>
                </div>
              )}
           </div>

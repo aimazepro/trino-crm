@@ -116,6 +116,7 @@ export interface CrmState {
   companies: Company[];
   labels: Label[];
   whatsappConnected?: boolean;
+  gmailConnected?: boolean;
 }
 
 // ── Automações ──────────────────────────────────────────────────────────────

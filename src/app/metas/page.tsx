@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useEffect } from "react";
-import { Plus, Target, TrendingUp, Trophy, DollarSign, Activity, X, ChevronDown, Calendar, Trash2 } from "lucide-react";
+import { Plus, Target, TrendingUp, Trophy, DollarSign, Activity, X, ArrowRight, ArrowLeft, Trash2 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useRouter } from "next/navigation";
 
@@ -20,13 +20,11 @@ export default function MetasPage() {
   const [goals, setGoals] = useState<any[]>([]);
   const [isLoaded, setIsLoaded] = useState(false);
 
-  // Load from localStorage on mount
   useEffect(() => {
     const savedGoals = localStorage.getItem("dmhub_goals");
     if (savedGoals) {
       setGoals(JSON.parse(savedGoals));
     } else {
-      // Initial default goal if nothing is saved
       const initial = [{ id: "ligacoes", title: "ligacoes", subtitle: "Negócios Ganhos | Trimestral", current: 0, target: 100, progress: 0 }];
       setGoals(initial);
       localStorage.setItem("dmhub_goals", JSON.stringify(initial));
@@ -34,147 +32,135 @@ export default function MetasPage() {
     setIsLoaded(true);
   }, []);
 
-  // Save to localStorage whenever goals change
   useEffect(() => {
     if (isLoaded) {
       localStorage.setItem("dmhub_goals", JSON.stringify(goals));
     }
   }, [goals, isLoaded]);
 
-  // Modal State
   const [showModal, setShowModal] = useState(false);
   const [showDeleteModal, setShowDeleteModal] = useState(false);
   const [goalToDelete, setGoalToDelete] = useState<string | null>(null);
   const [step, setStep] = useState(1);
   const [selectedType, setSelectedType] = useState<GoalType | "">("Negócios Ganhos");
 
-  // Step 2 Form State
   const [formData, setFormData] = useState({
     name: "Negócios Ganhos",
-    metric: "Quantidade", // Quantidade | Valor
-    period: "Mensal", // Semanal | Mensal | Trimestral
+    metric: "COUNT",
+    period: "MONTHLY",
     target: "10",
-    pipeline: "Todos os pipelines",
-    responsible: "Todos os usuários",
+    pipeline: "",
+    responsible: "",
     startDate: "",
-    endDate: ""
+    endDate: "",
   });
 
   const openModal = () => {
     setStep(1);
     setSelectedType("Negócios Ganhos");
+    setFormData({ name: "Negócios Ganhos", metric: "COUNT", period: "MONTHLY", target: "10", pipeline: "", responsible: "", startDate: "", endDate: "" });
     setShowModal(true);
   };
 
   const handleNextStep = () => {
     if (selectedType) {
-      setFormData({ ...formData, name: selectedType });
+      setFormData(prev => ({ ...prev, name: selectedType }));
       setStep(2);
     }
   };
 
   const handleCreateGoal = () => {
+    const periodLabel = formData.period === "WEEKLY" ? "Semanal" : formData.period === "MONTHLY" ? "Mensal" : "Trimestral";
     const newGoal = {
       id: Date.now().toString(),
       title: formData.name || selectedType,
-      subtitle: `${selectedType} | ${formData.period}`,
+      subtitle: `${selectedType} | ${periodLabel}`,
       current: 0,
       target: parseInt(formData.target) || 0,
-      progress: 0
+      progress: 0,
     };
-    setGoals([...goals, newGoal]);
+    setGoals(prev => [...prev, newGoal]);
     setShowModal(false);
   };
 
   const handleDeleteGoal = () => {
     if (goalToDelete) {
-      setGoals(goals.filter(g => g.id !== goalToDelete));
+      setGoals(prev => prev.filter(g => g.id !== goalToDelete));
     }
     setShowDeleteModal(false);
     setGoalToDelete(null);
   };
 
   return (
-    <div className="flex flex-col h-full bg-[#F3F4F6] border-l border-zinc-200">
+    <div className="flex-1 overflow-y-auto bg-[#F3F4F6] border-l border-zinc-200">
+      <div className="p-6 max-w-6xl mx-auto space-y-6">
 
-      {/* Header */}
-      <div className="flex items-start justify-between px-8 py-8 shrink-0">
-        <div>
-          <h1 className="text-xl font-bold text-zinc-900 tracking-tight">Metas</h1>
-          <p className="text-[13px] font-medium text-zinc-400 mt-1">Acompanhe o progresso das suas metas de vendas</p>
+        <div className="flex items-center justify-between">
+          <div>
+            <h1 className="text-xl font-semibold text-zinc-900">Metas</h1>
+            <p className="text-sm text-zinc-400 mt-0.5">Acompanhe o progresso das suas metas de vendas</p>
+          </div>
+          <button
+            onClick={openModal}
+            className="flex items-center gap-2 px-4 py-2 text-sm font-medium text-white bg-gradient-to-r from-amber-500 to-amber-400 rounded-lg hover:from-amber-600 hover:to-amber-500 shadow-sm hover:shadow-md transition-colors"
+          >
+            <Plus className="h-4 w-4" /> Nova Meta
+          </button>
         </div>
-        <button
-          onClick={openModal}
-          className="flex items-center gap-2 bg-amber-500 text-white px-5 py-2.5 rounded-lg text-[13px] font-medium hover:bg-amber-600 transition-all shadow-sm"
-        >
-          <Plus size={16} strokeWidth={2.5} /> Nova Meta
-        </button>
-      </div>
 
-      <div className="flex-1 overflow-y-auto custom-scrollbar px-8 pb-10">
         {goals.length === 0 ? (
-          /* Empty State */
-          <div className="flex flex-col items-center justify-center h-full max-w-md mx-auto text-center animate-in fade-in zoom-in-95 duration-500">
+          <div className="flex flex-col items-center justify-center min-h-[60vh] max-w-md mx-auto text-center">
             <div className="w-16 h-16 bg-amber-50 rounded-2xl flex items-center justify-center mb-6 shadow-sm border border-amber-100">
               <Target size={32} className="text-amber-500" strokeWidth={2} />
             </div>
             <h2 className="text-[15px] font-bold text-zinc-900 mb-2">Nenhuma meta criada</h2>
-            <p className="text-[13px] font-medium text-zinc-400 mb-8 leading-relaxed max-w-sm">
+            <p className="text-sm text-zinc-400 mb-8 leading-relaxed max-w-sm">
               Defina metas para acompanhar o desempenho da sua equipe em negócios, receita e atividades.
             </p>
             <button
               onClick={openModal}
-              className="flex items-center gap-2 bg-amber-500 text-white px-6 py-2.5 rounded-lg text-[13px] font-medium hover:bg-amber-600 transition-all shadow-md"
+              className="flex items-center gap-2 px-4 py-2 text-sm font-medium text-white bg-gradient-to-r from-amber-500 to-amber-400 rounded-lg hover:from-amber-600 hover:to-amber-500 shadow-sm hover:shadow-md transition-colors"
             >
-              <Plus size={16} strokeWidth={2.5} /> Criar primeira meta
+              <Plus className="h-4 w-4" /> Criar primeira meta
             </button>
           </div>
         ) : (
-          /* List State */
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
             {goals.map(goal => (
-              <div 
-                key={goal.id} 
+              <div
+                key={goal.id}
                 onClick={() => router.push(`/metas/${goal.id}`)}
-                className="block group"
+                className="bg-white rounded-xl p-5 flex flex-col gap-4 cursor-pointer hover:shadow-md transition-shadow border border-zinc-100"
               >
-                <div className="bg-white border border-zinc-100 rounded-2xl p-6 shadow-sm hover:shadow-md hover:border-zinc-200 transition-all relative cursor-pointer">
-                  <button 
-                    onClick={(e) => { 
-                      e.preventDefault(); 
-                      e.stopPropagation(); 
-                      setGoalToDelete(goal.id); 
-                      setShowDeleteModal(true); 
-                    }}
-                    className="absolute top-6 right-6 text-zinc-300 hover:text-red-500 opacity-0 group-hover:opacity-100 transition-opacity z-10"
-                  >
-                    <Trash2 size={16} />
-                  </button>
-
-                  <div className="flex bg-white items-center gap-4 mb-6">
-                    <div className="w-10 h-10 rounded-xl bg-green-50 text-green-500 flex items-center justify-center">
-                      <Trophy size={20} />
+                <div className="flex items-start justify-between">
+                  <div className="flex items-center gap-2.5">
+                    <div className="flex h-9 w-9 items-center justify-center rounded-lg bg-green-50 text-green-600">
+                      <Trophy className="h-5 w-5" />
                     </div>
                     <div>
-                      <h3 className="text-[15px] font-bold text-zinc-900">{goal.title}</h3>
-                      <p className="text-[12px] font-medium text-zinc-400">{goal.subtitle}</p>
+                      <p className="text-sm font-semibold text-zinc-900">{goal.title}</p>
+                      <p className="text-xs text-zinc-400">{goal.subtitle}</p>
                     </div>
                   </div>
-
-                  <div className="space-y-2">
-                    <div className="flex justify-between items-baseline">
-                      <span className="text-2xl font-bold text-zinc-900">{goal.current}</span>
-                      <span className="text-[12px] font-medium text-zinc-400">de {goal.target}</span>
-                    </div>
-
-                    <div className="w-full h-1.5 bg-zinc-100 rounded-full overflow-hidden">
-                      <div className="h-full bg-amber-500 rounded-full" style={{ width: `${goal.progress}%` }} />
-                    </div>
-
-                    <div className="flex justify-between items-center pt-1">
-                      <span className="text-[11px] font-medium text-zinc-400">Em andamento</span>
-                      <span className="text-[12px] font-bold text-amber-500">{goal.progress}%</span>
-                    </div>
+                  <button
+                    onClick={(e) => { e.preventDefault(); e.stopPropagation(); setGoalToDelete(goal.id); setShowDeleteModal(true); }}
+                    className="p-1.5 rounded-md text-zinc-400 hover:bg-red-50 hover:text-red-600 transition-colors"
+                    aria-label="Excluir meta"
+                  >
+                    <Trash2 className="h-3.5 w-3.5" />
+                  </button>
+                </div>
+                <div>
+                  <div className="flex items-end justify-between mb-2">
+                    <span className="text-xl font-bold text-zinc-900">{goal.current}</span>
+                    <span className="text-xs text-zinc-400">de {goal.target}</span>
+                  </div>
+                  <div className="h-2 w-full rounded-full bg-zinc-100">
+                    <div className="h-2 rounded-full transition-all bg-amber-500" style={{ width: `${goal.progress}%` }} />
+                  </div>
+                  <div className="flex items-center justify-between mt-1.5">
+                    <span className="text-xs text-zinc-400">Em andamento</span>
+                    <span className="text-xs font-bold text-amber-600">{goal.progress}%</span>
                   </div>
                 </div>
               </div>
@@ -185,198 +171,171 @@ export default function MetasPage() {
 
       {/* Modal Nova Meta */}
       {showModal && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
-          <div className="absolute inset-0 bg-zinc-900/20 backdrop-blur-sm" onClick={() => setShowModal(false)} />
-
-          <div className="relative w-full max-w-[500px] bg-white rounded-2xl shadow-xl overflow-hidden flex flex-col max-h-[90vh]">
-
-            {/* Header Modal */}
-            <div className="px-6 py-5 flex items-start justify-between bg-white border-b border-zinc-100 shrink-0">
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40">
+          <div className="bg-white rounded-2xl shadow-lg w-full max-w-lg mx-4">
+            <div className="flex items-center justify-between px-6 pt-5 pb-3">
               <div>
-                <h2 className="text-[16px] font-bold text-zinc-900">Nova Meta</h2>
-                <p className="text-[12px] font-medium text-zinc-400 mt-1">Passo {step} de 2</p>
+                <h2 className="text-base font-semibold text-zinc-900">Nova Meta</h2>
+                <p className="text-xs text-zinc-400 mt-0.5">Passo {step} de 2</p>
               </div>
-              <button onClick={() => setShowModal(false)} className="text-zinc-400 hover:text-zinc-600 transition-colors">
-                <X size={20} />
+              <button onClick={() => setShowModal(false)} className="p-1.5 rounded-md text-zinc-400 hover:bg-zinc-100">
+                <X className="h-4 w-4" />
               </button>
             </div>
-
-            {/* Progress Bar Modal */}
-            <div className="w-full h-0.5 bg-zinc-100 shrink-0">
-              <div className="h-full bg-amber-500 transition-all duration-300" style={{ width: step === 1 ? '50%' : '100%' }} />
+            <div className="mx-6 h-1 rounded-full bg-zinc-100 mb-5">
+              <div className="h-1 rounded-full bg-amber-500 transition-all" style={{ width: step === 1 ? "50%" : "100%" }} />
             </div>
-
-            <div className="flex-1 overflow-y-auto px-6 py-6 pb-24">
+            <div className="px-6 pb-6 space-y-2">
               {step === 1 ? (
-                /* STEP 1 */
-                <div className="space-y-4 animate-in fade-in slide-in-from-right-4 duration-300">
-                  <p className="text-[14px] font-medium text-zinc-700 mb-2">Que tipo de meta você quer acompanhar?</p>
-
-                  <div className="space-y-3">
-                    {GOAL_TYPES.map((type) => {
-                      const isSelected = selectedType === type.id;
-                      return (
-                        <button
-                          key={type.id}
-                          onClick={() => setSelectedType(type.id as GoalType)}
-                          className={cn(
-                            "w-full flex items-center p-4 rounded-xl border text-left transition-all",
-                            isSelected ? "border-amber-500 bg-amber-50/10 shadow-sm" : "border-zinc-200 hover:border-zinc-300 bg-white"
-                          )}
-                        >
-                          <div className={cn("w-10 h-10 rounded-lg flex items-center justify-center mr-4", isSelected ? "bg-amber-100 text-amber-600" : "bg-zinc-50 text-zinc-400")}>
-                            <type.icon size={20} />
-                          </div>
-                          <div>
-                            <h4 className={cn("text-[14px] font-bold", isSelected ? "text-amber-700" : "text-zinc-700")}>{type.title}</h4>
-                            <p className="text-[12px] font-medium text-zinc-400 mt-0.5">{type.desc}</p>
-                          </div>
-                        </button>
-                      )
-                    })}
+                <>
+                  <p className="text-sm text-zinc-600 mb-3">Que tipo de meta você quer acompanhar?</p>
+                  {GOAL_TYPES.map((type) => {
+                    const isSelected = selectedType === type.id;
+                    return (
+                      <button
+                        key={type.id}
+                        onClick={() => setSelectedType(type.id as GoalType)}
+                        className={cn(
+                          "w-full flex items-center gap-3 p-3 rounded-xl border transition-all text-left",
+                          isSelected
+                            ? "border-amber-400 bg-amber-50/50 ring-1 ring-amber-400"
+                            : "border-zinc-200 hover:border-zinc-300"
+                        )}
+                      >
+                        <div className={cn(
+                          "flex h-9 w-9 items-center justify-center rounded-lg shrink-0",
+                          isSelected ? "bg-amber-100 text-amber-600" : "bg-zinc-100 text-zinc-500"
+                        )}>
+                          <type.icon className="h-4 w-4" />
+                        </div>
+                        <div>
+                          <p className={cn("text-sm font-medium", isSelected ? "text-amber-700" : "text-zinc-700")}>{type.title}</p>
+                          <p className="text-xs text-zinc-400">{type.desc}</p>
+                        </div>
+                      </button>
+                    );
+                  })}
+                  <div className="flex justify-end pt-3">
+                    <button
+                      onClick={handleNextStep}
+                      disabled={!selectedType}
+                      className="flex items-center gap-2 px-4 py-2 text-sm font-medium text-white bg-gradient-to-r from-amber-500 to-amber-400 rounded-lg hover:from-amber-600 hover:to-amber-500 shadow-sm hover:shadow-md transition-colors disabled:opacity-50"
+                    >
+                      Próximo <ArrowRight className="h-4 w-4" />
+                    </button>
                   </div>
-                </div>
+                </>
               ) : (
-                /* STEP 2 */
-                <div className="space-y-5 animate-in fade-in slide-in-from-right-4 duration-300">
-                  <div className="space-y-1.5">
-                    <label className="text-[12px] font-medium text-zinc-600">Nome da meta</label>
+                <div className="space-y-4">
+                  <div>
+                    <label className="block text-xs font-medium text-zinc-600 mb-1.5">Nome da meta</label>
                     <input
                       type="text"
+                      placeholder="Negócios Ganhos"
                       value={formData.name}
-                      onChange={(e) => setFormData({ ...formData, name: e.target.value })}
-                      className="w-full px-3 py-2.5 bg-white border border-zinc-200 rounded-lg text-[13px] font-medium text-zinc-700 outline-none focus:border-amber-500"
+                      onChange={(e) => setFormData(prev => ({ ...prev, name: e.target.value }))}
+                      className="w-full rounded-lg border border-zinc-200 px-3 py-2 text-sm text-zinc-900 focus:outline-none focus:ring-2 focus:ring-amber-400"
                     />
                   </div>
-
-                  <div className="flex gap-4">
-                    <div className="space-y-1.5 flex-1">
-                      <label className="text-[12px] font-medium text-zinc-600">Métrica</label>
-                      <div className="relative">
-                        <select
-                          className="w-full appearance-none px-3 py-2.5 bg-white border border-zinc-200 rounded-lg text-[13px] font-medium text-zinc-700 outline-none focus:border-amber-500 cursor-pointer"
-                          value={formData.metric}
-                          onChange={(e) => setFormData({ ...formData, metric: e.target.value })}
-                        >
-                          <option>Quantidade</option>
-                          <option>Valor (R$)</option>
-                        </select>
-                        <ChevronDown size={16} className="absolute right-3 top-1/2 -translate-y-1/2 text-zinc-400 pointer-events-none" />
-                      </div>
+                  <div className="grid grid-cols-2 gap-3">
+                    <div>
+                      <label className="block text-xs font-medium text-zinc-600 mb-1.5">Métrica</label>
+                      <select
+                        value={formData.metric}
+                        onChange={(e) => setFormData(prev => ({ ...prev, metric: e.target.value }))}
+                        className="w-full rounded-lg border border-zinc-200 px-3 py-2 text-sm text-zinc-900 focus:outline-none focus:ring-2 focus:ring-amber-400"
+                      >
+                        <option value="COUNT">Quantidade</option>
+                        <option value="VALUE">Valor (R$)</option>
+                      </select>
                     </div>
-                    <div className="space-y-1.5 flex-1">
-                      <label className="text-[12px] font-medium text-zinc-600">Período</label>
-                      <div className="relative">
-                        <select
-                          className="w-full appearance-none px-3 py-2.5 bg-white border border-zinc-200 rounded-lg text-[13px] font-medium text-zinc-700 outline-none focus:border-amber-500 cursor-pointer"
-                          value={formData.period}
-                          onChange={(e) => setFormData({ ...formData, period: e.target.value })}
-                        >
-                          <option>Semanal</option>
-                          <option>Mensal</option>
-                          <option>Trimestral</option>
-                        </select>
-                        <ChevronDown size={16} className="absolute right-3 top-1/2 -translate-y-1/2 text-zinc-400 pointer-events-none" />
-                      </div>
+                    <div>
+                      <label className="block text-xs font-medium text-zinc-600 mb-1.5">Período</label>
+                      <select
+                        value={formData.period}
+                        onChange={(e) => setFormData(prev => ({ ...prev, period: e.target.value }))}
+                        className="w-full rounded-lg border border-zinc-200 px-3 py-2 text-sm text-zinc-900 focus:outline-none focus:ring-2 focus:ring-amber-400"
+                      >
+                        <option value="WEEKLY">Semanal</option>
+                        <option value="MONTHLY">Mensal</option>
+                        <option value="QUARTERLY">Trimestral</option>
+                      </select>
                     </div>
                   </div>
-
-                  <div className="space-y-1.5">
-                    <label className="text-[12px] font-medium text-zinc-600">
-                      {formData.metric === "Valor (R$)" ? "Valor alvo (R$)" : "Quantidade alvo"}
+                  <div>
+                    <label className="block text-xs font-medium text-zinc-600 mb-1.5">
+                      {formData.metric === "VALUE" ? "Valor alvo (R$)" : "Quantidade alvo"}
                     </label>
                     <input
                       type="number"
+                      min="0"
+                      placeholder="10"
                       value={formData.target}
-                      onChange={(e) => setFormData({ ...formData, target: e.target.value })}
-                      className="w-full px-3 py-2.5 bg-white border border-zinc-200 rounded-lg text-[13px] font-medium text-zinc-700 outline-none focus:border-amber-500"
+                      onChange={(e) => setFormData(prev => ({ ...prev, target: e.target.value }))}
+                      className="w-full rounded-lg border border-zinc-200 px-3 py-2 text-sm text-zinc-900 focus:outline-none focus:ring-2 focus:ring-amber-400"
                     />
                   </div>
-
-                  <div className="space-y-1.5">
-                    <label className="text-[12px] font-medium text-zinc-600">Pipeline (opcional)</label>
-                    <div className="relative">
-                      <select
-                        className="w-full appearance-none px-3 py-2.5 bg-white border border-zinc-200 rounded-lg text-[13px] font-medium text-zinc-700 outline-none focus:border-amber-500 cursor-pointer"
-                        value={formData.pipeline}
-                        onChange={(e) => setFormData({ ...formData, pipeline: e.target.value })}
-                      >
-                        <option>Todos os pipelines</option>
-                        <option>Vendas B2B</option>
-                        <option>Parcerias</option>
-                      </select>
-                      <ChevronDown size={16} className="absolute right-3 top-1/2 -translate-y-1/2 text-zinc-400 pointer-events-none" />
-                    </div>
+                  <div>
+                    <label className="block text-xs font-medium text-zinc-600 mb-1.5">Pipeline (opcional)</label>
+                    <select
+                      value={formData.pipeline}
+                      onChange={(e) => setFormData(prev => ({ ...prev, pipeline: e.target.value }))}
+                      className="w-full rounded-lg border border-zinc-200 px-3 py-2 text-sm text-zinc-900 focus:outline-none focus:ring-2 focus:ring-amber-400"
+                    >
+                      <option value="">Todos os pipelines</option>
+                      <option value="Vendas B2B">Vendas B2B</option>
+                      <option value="Parcerias">Parcerias</option>
+                    </select>
                   </div>
-
-                  <div className="space-y-1.5">
-                    <label className="text-[12px] font-medium text-zinc-600">Responsável (opcional)</label>
-                    <div className="relative">
-                      <select
-                        className="w-full appearance-none px-3 py-2.5 bg-white border border-amber-500 rounded-lg text-[13px] font-medium text-zinc-700 outline-none shadow-sm cursor-pointer" // Matches yellow border from screenshot focus state
-                        value={formData.responsible}
-                        onChange={(e) => setFormData({ ...formData, responsible: e.target.value })}
-                      >
-                        <option>Todos os usuários</option>
-                        <option>João Paulo</option>
-                        <option>Equipe de Vendas</option>
-                      </select>
-                      <ChevronDown size={16} className="absolute right-3 top-1/2 -translate-y-1/2 text-amber-500 pointer-events-none" />
-                    </div>
+                  <div>
+                    <label className="block text-xs font-medium text-zinc-600 mb-1.5">Responsável (opcional)</label>
+                    <select
+                      value={formData.responsible}
+                      onChange={(e) => setFormData(prev => ({ ...prev, responsible: e.target.value }))}
+                      className="w-full rounded-lg border border-zinc-200 px-3 py-2 text-sm text-zinc-900 focus:outline-none focus:ring-2 focus:ring-amber-400"
+                    >
+                      <option value="">Todos os usuários</option>
+                      <option value="João Paulo">João Paulo Oliveira</option>
+                    </select>
                   </div>
-
-                  <div className="flex gap-4">
-                    <div className="space-y-1.5 flex-1 relative">
-                      <label className="text-[12px] font-medium text-zinc-600">Data início (opcional)</label>
+                  <div className="grid grid-cols-2 gap-3">
+                    <div>
+                      <label className="block text-xs font-medium text-zinc-600 mb-1.5">Data início (opcional)</label>
                       <input
                         type="date"
-                        className="w-full px-3 py-2 bg-white border border-zinc-200 rounded-lg text-[13px] font-medium text-zinc-700 outline-none focus:border-amber-500"
+                        value={formData.startDate}
+                        onChange={(e) => setFormData(prev => ({ ...prev, startDate: e.target.value }))}
+                        className="w-full rounded-lg border border-zinc-200 px-3 py-2 text-sm text-zinc-900 focus:outline-none focus:ring-2 focus:ring-amber-400"
                       />
                     </div>
-                    <div className="space-y-1.5 flex-1 relative">
-                      <label className="text-[12px] font-medium text-zinc-600">Data fim (opcional)</label>
+                    <div>
+                      <label className="block text-xs font-medium text-zinc-600 mb-1.5">Data fim (opcional)</label>
                       <input
                         type="date"
-                        className="w-full px-3 py-2 bg-white border border-zinc-200 rounded-lg text-[13px] font-medium text-zinc-700 outline-none focus:border-amber-500"
+                        value={formData.endDate}
+                        onChange={(e) => setFormData(prev => ({ ...prev, endDate: e.target.value }))}
+                        className="w-full rounded-lg border border-zinc-200 px-3 py-2 text-sm text-zinc-900 focus:outline-none focus:ring-2 focus:ring-amber-400"
                       />
                     </div>
                   </div>
-
+                  <div className="flex justify-between pt-2">
+                    <button
+                      onClick={() => setStep(1)}
+                      className="flex items-center gap-2 px-4 py-2 text-sm text-zinc-600 rounded-lg bg-zinc-100 hover:bg-zinc-200 transition-colors"
+                    >
+                      <ArrowLeft className="h-4 w-4" /> Voltar
+                    </button>
+                    <button
+                      onClick={handleCreateGoal}
+                      disabled={!formData.name || !formData.target}
+                      className="px-5 py-2 text-sm font-medium text-white bg-gradient-to-r from-amber-500 to-amber-400 rounded-lg hover:from-amber-600 hover:to-amber-500 shadow-sm hover:shadow-md disabled:opacity-50 transition-colors"
+                    >
+                      Criar Meta
+                    </button>
+                  </div>
                 </div>
               )}
             </div>
-
-            {/* Footer Fixado */}
-            <div className="absolute bottom-0 left-0 w-full px-6 py-4 bg-white border-t border-zinc-100 flex items-center justify-between">
-              {step === 1 ? (
-                <>
-                  <div />
-                  <button
-                    onClick={handleNextStep}
-                    disabled={!selectedType}
-                    className="bg-amber-500 text-white px-6 py-2.5 rounded-lg text-[13px] font-medium hover:bg-amber-600 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
-                  >
-                    Próximo →
-                  </button>
-                </>
-              ) : (
-                <>
-                  <button
-                    onClick={() => setStep(1)}
-                    className="flex items-center gap-2 px-4 py-2.5 text-[13px] font-medium text-zinc-500 bg-zinc-100 hover:bg-zinc-200 rounded-lg transition-colors"
-                  >
-                    ← Voltar
-                  </button>
-                  <button
-                    onClick={handleCreateGoal}
-                    className="bg-amber-500 text-white px-6 py-2.5 rounded-lg text-[13px] font-medium hover:bg-amber-600 transition-colors shadow-sm"
-                  >
-                    Criar Meta
-                  </button>
-                </>
-              )}
-            </div>
-
           </div>
         </div>
       )}
@@ -386,24 +345,29 @@ export default function MetasPage() {
         <div className="fixed inset-0 z-[60] flex items-center justify-center p-4">
           <div className="absolute inset-0 bg-zinc-900/20 backdrop-blur-sm" onClick={() => setShowDeleteModal(false)} />
           <div className="relative w-full max-w-[320px] bg-[#f9fafb] border border-zinc-100 rounded-xl shadow-xl overflow-hidden p-6 animate-in fade-in zoom-in-95 duration-200">
-             <div className="bg-amber-100/50 text-amber-900 px-2 py-1 rounded inline-block mb-3">
-               <h3 className="text-[14px] font-bold">Excluir meta?</h3>
-             </div>
-             <div className="bg-amber-100/50 text-amber-900 px-2 py-1 rounded inline-block mb-6">
-               <p className="text-[13px] font-medium">Essa ação não pode ser desfeita.</p>
-             </div>
-             <div className="flex items-center justify-end gap-3 mt-2">
-                <button onClick={() => { setShowDeleteModal(false); setGoalToDelete(null); }} className="px-4 py-2 text-[13px] font-medium text-zinc-600 bg-amber-50 border border-amber-200 hover:bg-amber-100 rounded-lg transition-colors">
-                   Cancelar
-                </button>
-                <button onClick={handleDeleteGoal} className="px-4 py-2 text-[13px] font-medium text-white bg-red-500 hover:bg-red-600 rounded-lg shadow-sm transition-colors">
-                   Excluir
-                </button>
-             </div>
+            <div className="bg-amber-100/50 text-amber-900 px-2 py-1 rounded inline-block mb-3">
+              <h3 className="text-[14px] font-bold">Excluir meta?</h3>
+            </div>
+            <div className="bg-amber-100/50 text-amber-900 px-2 py-1 rounded inline-block mb-6">
+              <p className="text-[13px] font-medium">Essa ação não pode ser desfeita.</p>
+            </div>
+            <div className="flex items-center justify-end gap-3 mt-2">
+              <button
+                onClick={() => { setShowDeleteModal(false); setGoalToDelete(null); }}
+                className="px-4 py-2 text-[13px] font-medium text-zinc-600 bg-amber-50 border border-amber-200 hover:bg-amber-100 rounded-lg transition-colors"
+              >
+                Cancelar
+              </button>
+              <button
+                onClick={handleDeleteGoal}
+                className="px-4 py-2 text-[13px] font-medium text-white bg-red-500 hover:bg-red-600 rounded-lg shadow-sm transition-colors"
+              >
+                Excluir
+              </button>
+            </div>
           </div>
         </div>
       )}
-
     </div>
   );
 }

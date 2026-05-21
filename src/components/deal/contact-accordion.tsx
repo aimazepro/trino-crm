@@ -1,10 +1,11 @@
 "use client";
 
 import { useState } from "react";
-import { ChevronDown, ChevronRight, Edit2, X, Plus } from "lucide-react";
+import { ChevronDown, Edit2, X, Plus, Phone, MessageCircle } from "lucide-react";
 import { Contact } from "@/lib/crm-types";
 import { useCrm } from "@/contexts/crm-context";
 import Link from "next/link";
+import { useRouter, usePathname } from "next/navigation";
 import { cn } from "@/lib/utils";
 
 interface ContactAccordionProps {
@@ -14,6 +15,8 @@ interface ContactAccordionProps {
 
 export function ContactAccordion({ contact, dealId }: ContactAccordionProps) {
   const { updateContact, updateDealFields } = useCrm();
+  const router = useRouter();
+  const pathname = usePathname();
   const [isOpen, setIsOpen] = useState(true);
 
   // Name state
@@ -509,7 +512,7 @@ export function ContactAccordion({ contact, dealId }: ContactAccordionProps) {
           </div>
 
           {/* Cargo Grid Row */}
-          <div className="grid grid-cols-[72px_1fr] gap-x-2 py-2 border-b border-zinc-100 items-start">
+          <div className="grid grid-cols-[72px_1fr] gap-x-2 py-2 items-start">
             <p className="text-xs text-zinc-500 pt-1.5">Cargo</p>
             <div className="min-w-0">
               {isEditingRole ? (
@@ -568,6 +571,21 @@ export function ContactAccordion({ contact, dealId }: ContactAccordionProps) {
               )}
             </div>
           </div>
+
+          {/* Ligar + WhatsApp buttons — only when phone exists */}
+          {contact.phones && contact.phones.length > 0 && (
+            <div className="mt-3 mb-2 flex gap-2">
+              <button className="flex-1 flex items-center justify-center gap-1.5 rounded-lg border border-zinc-200 py-2 text-xs font-medium text-zinc-600 hover:bg-zinc-50 transition-colors">
+                <Phone className="h-3.5 w-3.5 text-zinc-400" /> Ligar
+              </button>
+              <button
+                onClick={() => router.push(`${pathname}?tab=WhatsApp`)}
+                className="flex-1 flex items-center justify-center gap-1.5 rounded-lg bg-green-500 py-2 text-xs font-medium text-white hover:bg-green-600 transition-colors"
+              >
+                <MessageCircle className="h-3.5 w-3.5" /> WhatsApp
+              </button>
+            </div>
+          )}
 
         </div>
       )}
