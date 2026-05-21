@@ -5,7 +5,7 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useCrm } from "@/contexts/crm-context";
 import {
-  ArrowLeft, Mail, Plus, Phone, Briefcase, Building2, Search,
+  ArrowLeft, Mail, Plus, Phone, Briefcase, Building2,
   History, ArrowRight, CheckCircle, X, AlertCircle, Users, Pen,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
@@ -14,18 +14,23 @@ import { ptBR } from "date-fns/locale";
 
 type Tab = "negocios" | "timeline";
 
-function EditableField({
+// ─── Inline editable field row ────────────────────────────────────────────────
+function FieldRow({
   label,
   value,
   placeholder,
-  onSave,
   icon: Icon,
+  addLabel,
+  onSave,
+  onAdd,
 }: {
   label: string;
   value: string;
-  placeholder: string;
-  onSave: (v: string) => void;
+  placeholder?: string;
   icon?: React.ElementType;
+  addLabel?: string;
+  onSave: (v: string) => void;
+  onAdd?: () => void;
 }) {
   const [editing, setEditing] = useState(false);
   const [val, setVal] = useState(value);
@@ -37,47 +42,63 @@ function EditableField({
   const commit = () => { onSave(val); setEditing(false); };
 
   return (
-    <div className="flex items-center justify-between py-3 border-b border-zinc-50 last:border-0">
-      <div className="flex items-center gap-2 text-sm text-zinc-500 w-28 shrink-0">
-        {Icon && <Icon className="h-3.5 w-3.5" aria-hidden="true" />}
-        {label}
-      </div>
-      {editing ? (
-        <div className="flex items-center gap-1.5 flex-1 justify-end min-w-0">
-          <input
-            ref={ref}
-            value={val}
-            onChange={e => setVal(e.target.value)}
-            onKeyDown={e => {
-              if (e.key === "Enter") commit();
-              if (e.key === "Escape") { setVal(value); setEditing(false); }
-            }}
-            className="flex-1 text-sm border-b-2 border-amber-400 outline-none bg-transparent py-0.5 text-zinc-900 text-right"
-          />
-          <button onClick={commit} className="text-green-500 hover:bg-green-50 p-0.5 rounded transition-colors">
-            <CheckCircle className="h-3.5 w-3.5" />
-          </button>
-          <button onClick={() => { setVal(value); setEditing(false); }} className="text-red-400 hover:bg-red-50 p-0.5 rounded transition-colors">
-            <X className="h-3.5 w-3.5" />
-          </button>
+    <>
+      <div className="flex items-center justify-between py-3 border-b border-zinc-50 last:border-0">
+        <div className="flex items-center gap-2 text-sm text-zinc-500 w-28 shrink-0">
+          {Icon && <Icon className="h-3.5 w-3.5" aria-hidden="true" />}
+          {label}
         </div>
-      ) : (
-        <div className="flex items-center gap-2 flex-1 justify-end group min-w-0">
-          <span className="text-sm text-zinc-800 truncate">
-            {value || <span className="text-zinc-300">-</span>}
-          </span>
-          <button
-            onClick={() => setEditing(true)}
-            className="opacity-0 group-hover:opacity-100 text-zinc-300 hover:text-zinc-500 transition-opacity shrink-0"
-          >
-            <Pen className="h-3.5 w-3.5" />
-          </button>
+        {editing ? (
+          <div className="flex items-center gap-1.5 flex-1 justify-end min-w-0">
+            <input
+              ref={ref}
+              value={val}
+              onChange={e => setVal(e.target.value)}
+              onKeyDown={e => {
+                if (e.key === "Enter") commit();
+                if (e.key === "Escape") { setVal(value); setEditing(false); }
+              }}
+              className="flex-1 text-sm border-b-2 border-amber-400 outline-none bg-transparent py-0.5 text-zinc-900 text-right"
+            />
+            <button onClick={commit} className="text-green-500 hover:bg-green-50 p-0.5 rounded transition-colors">
+              <CheckCircle className="h-3.5 w-3.5" />
+            </button>
+            <button onClick={() => { setVal(value); setEditing(false); }} className="text-red-400 hover:bg-red-50 p-0.5 rounded transition-colors">
+              <X className="h-3.5 w-3.5" />
+            </button>
+          </div>
+        ) : (
+          <div className="flex items-center gap-2 flex-1 justify-end group min-w-0">
+            <span className="text-sm text-zinc-800 truncate">
+              {value || <span className="text-zinc-300">-</span>}
+            </span>
+            <button
+              onClick={() => setEditing(true)}
+              className="opacity-0 group-hover:opacity-100 text-zinc-300 hover:text-zinc-500 transition-opacity shrink-0"
+            >
+              <Pen className="h-3.5 w-3.5" />
+            </button>
+          </div>
+        )}
+      </div>
+      {addLabel && (
+        <div className="px-1 pb-2 -mt-1">
+          <div className="mt-1">
+            <button
+              onClick={onAdd}
+              className="flex items-center gap-1 text-[11px] text-amber-600 hover:text-amber-700 font-medium mt-0.5"
+            >
+              <Plus className="h-3 w-3" aria-hidden="true" />
+              {addLabel}
+            </button>
+          </div>
         </div>
       )}
-    </div>
+    </>
   );
 }
 
+// ─── Company search combobox ──────────────────────────────────────────────────
 function CompanySearch({
   companies,
   selectedId,
@@ -119,15 +140,15 @@ function CompanySearch({
   return (
     <div ref={ref} className="relative">
       <div className="flex items-center gap-2 text-zinc-400">
-        <Building2 className="h-4 w-4" />
+        <Building2 className="h-4 w-4" aria-hidden="true" />
         <input
           value={query}
           onChange={e => { setQuery(e.target.value); setOpen(true); }}
           onFocus={() => setOpen(true)}
-          placeholder="Vincular empresa"
+          placeholder="Buscar empresa..."
           className="flex-1 text-sm outline-none bg-transparent text-zinc-700 placeholder:text-zinc-400"
         />
-        <Plus className="h-3.5 w-3.5 ml-auto" />
+        <Plus className="h-3.5 w-3.5 ml-auto" aria-hidden="true" />
       </div>
       {open && query.trim() && (
         <div className="absolute z-50 top-full mt-1 left-0 right-0 bg-white border border-zinc-200 rounded-xl shadow-xl overflow-hidden">
@@ -146,12 +167,19 @@ function CompanySearch({
           {filtered.length === 0 && (
             <div className="px-3 py-2.5 text-xs text-zinc-400">Nenhuma empresa encontrada</div>
           )}
+          <button
+            onMouseDown={() => { setQuery(""); setOpen(false); }}
+            className="w-full px-3 py-2 text-xs text-zinc-400 hover:bg-zinc-50 text-left border-t border-zinc-100 transition-colors"
+          >
+            Cancelar
+          </button>
         </div>
       )}
     </div>
   );
 }
 
+// ─── Main page ─────────────────────────────────────────────────────────────────
 export default function ContatoPage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = use(params);
   const router = useRouter();
@@ -162,13 +190,13 @@ export default function ContatoPage({ params }: { params: Promise<{ id: string }
   const [activeTab, setActiveTab] = useState<Tab>("negocios");
 
   const timeline = useMemo(() => {
-    const items: { id: string; type: string; title: string; sub: string; dealName: string; date: string }[] = [];
+    const items: { id: string; type: string; title: string; sub: string; dealName: string; dealId: string; date: string }[] = [];
     for (const deal of deals) {
       for (const log of deal.history) {
-        items.push({ id: log.id, type: "history", title: log.description, sub: log.subtext || deal.title, dealName: deal.title, date: log.createdAt });
+        items.push({ id: log.id, type: "history", title: log.description, sub: log.subtext || deal.title, dealName: deal.title, dealId: deal.id, date: log.createdAt });
       }
       for (const a of deal.activities) {
-        items.push({ id: a.id, type: a.completed ? "activity_done" : "activity", title: a.title, sub: `${a.type} — ${deal.title}`, dealName: deal.title, date: a.date });
+        items.push({ id: a.id, type: a.completed ? "activity_done" : "activity", title: a.title, sub: `${a.type} — ${deal.title}`, dealName: deal.title, dealId: deal.id, date: a.date });
       }
     }
     return items.sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
@@ -184,10 +212,6 @@ export default function ContatoPage({ params }: { params: Promise<{ id: string }
   }
 
   const totalValue = deals.reduce((s, d) => s + d.value, 0);
-
-  const handleUpdateField = (field: keyof typeof contact, value: string) => {
-    updateContact(id, { [field]: value });
-  };
 
   const handleUpdateEmail = (value: string) => {
     const emails = [...(contact.emails || [])];
@@ -208,34 +232,39 @@ export default function ContatoPage({ params }: { params: Promise<{ id: string }
   };
 
   return (
-    <div className="flex h-full flex-col animate-in fade-in duration-500">
+    <div className="flex h-full flex-col">
 
-      {/* Header */}
-      <div className="flex items-center gap-3 bg-white px-6 py-4 border-b border-zinc-100 shrink-0">
-        <button onClick={() => router.back()} className="text-zinc-400 hover:text-zinc-600 transition-colors">
+      {/* Header — identical structure to list page */}
+      <div className="flex items-center gap-3 bg-white px-6 py-4">
+        <button onClick={() => router.back()} className="text-zinc-400 hover:text-zinc-600 pointer-events-auto">
           <ArrowLeft className="h-5 w-5" aria-hidden="true" />
         </button>
         <div className="flex h-8 w-8 items-center justify-center rounded-full bg-zinc-100 text-zinc-600 font-medium shrink-0">
           {contact.name.charAt(0).toUpperCase()}
         </div>
         <div>
-          <h1 className="text-base font-semibold text-zinc-800">{contact.name}</h1>
+          <h1 className="text-base font-semibold text-zinc-800 cursor-pointer hover:text-amber-600 transition-colors">
+            {contact.name}
+          </h1>
         </div>
-        <div className="ml-auto flex items-center gap-2">
-          <button className="flex items-center gap-1.5 rounded-xl bg-zinc-100 px-3 py-1.5 text-xs font-medium text-zinc-600 hover:bg-zinc-200 transition-colors">
-            <Mail className="h-3 w-3" aria-hidden="true" /> Usar template de email
-          </button>
-        </div>
+        <div className="ml-auto flex items-center gap-2" />
       </div>
 
       {/* Body */}
       <div className="flex flex-1 overflow-hidden">
 
-        {/* Left: tabs + content */}
-        <div className="flex-1 overflow-auto p-6 space-y-4 bg-zinc-50/50">
+        {/* Left: template button + tabs + content */}
+        <div className="flex-1 overflow-auto p-6 space-y-5 bg-zinc-50/50">
+
+          {/* Template button */}
+          <div className="flex justify-end">
+            <button className="flex items-center gap-1.5 rounded-xl bg-zinc-100 px-3 py-1.5 text-xs font-medium text-zinc-600 hover:bg-zinc-200 transition-colors">
+              <Mail className="h-3 w-3" aria-hidden="true" /> Usar template de email
+            </button>
+          </div>
 
           {/* Tabs */}
-          <div className="flex items-center gap-1">
+          <div className="flex items-center gap-1 pb-0">
             <button
               onClick={() => setActiveTab("negocios")}
               className={cn(
@@ -322,11 +351,11 @@ export default function ContatoPage({ params }: { params: Promise<{ id: string }
                     return (
                       <div key={item.id} className="flex gap-4">
                         <div className="flex flex-col items-center w-10 shrink-0">
-                          <div className={cn(
-                            "flex h-10 w-10 items-center justify-center rounded-full bg-white border border-zinc-200 shadow-sm",
-                            isDone ? "text-green-500" : isOverdue ? "text-red-500" : isActivity ? "text-amber-500" : "text-zinc-500"
-                          )}>
-                            <Icon className="h-4 w-4" aria-hidden="true" />
+                          <div className="flex h-10 w-10 items-center justify-center rounded-full bg-white border border-zinc-200 shadow-sm">
+                            <Icon className={cn(
+                              "h-4 w-4",
+                              isDone ? "text-green-500" : isOverdue ? "text-red-500" : isActivity ? "text-amber-500" : "text-zinc-500"
+                            )} aria-hidden="true" />
                           </div>
                           <div className="w-px flex-1 bg-zinc-200 my-1" />
                         </div>
@@ -344,8 +373,8 @@ export default function ContatoPage({ params }: { params: Promise<{ id: string }
                               {(() => { try { return format(new Date(item.date), "dd/MM/yyyy 'às' HH:mm", { locale: ptBR }); } catch { return item.date; } })()}
                             </span>
                             <Link
-                              href={`/negocios/${deals.find(d => d.title === item.dealName)?.id || ""}`}
-                              className="text-xs text-zinc-500 underline decoration-zinc-300 hover:text-zinc-700 inline-flex items-center gap-1 transition-colors"
+                              href={`/negocios/${item.dealId}`}
+                              className="text-xs text-zinc-500 underline decoration-zinc-300 hover:text-zinc-700 hover:decoration-zinc-500 inline-flex items-center gap-1 transition-colors"
                             >
                               <ArrowRight className="h-3 w-3" aria-hidden="true" />
                               {item.dealName}
@@ -362,38 +391,38 @@ export default function ContatoPage({ params }: { params: Promise<{ id: string }
         </div>
 
         {/* Right: sidebar */}
-        <div className="w-80 shrink-0 overflow-auto p-5 space-y-5 bg-white border-l border-zinc-100">
+        <div className="w-80 shrink-0 overflow-auto p-5 space-y-5 bg-white">
 
           {/* INFORMAÇÕES */}
           <div>
             <h3 className="text-xs font-medium text-zinc-400 tracking-wide mb-3">INFORMAÇÕES</h3>
             <div className="rounded-xl bg-zinc-50 px-4">
-              <EditableField
+              <FieldRow
                 label="Nome"
                 icon={Users}
                 value={contact.name}
-                placeholder="Nome"
-                onSave={v => handleUpdateField("name", v)}
+                onSave={v => updateContact(id, { name: v })}
               />
-              <EditableField
+              <FieldRow
                 label="Email"
                 icon={Mail}
                 value={contact.emails?.[0]?.value || ""}
-                placeholder="+ Adicionar email"
+                addLabel="Adicionar e-mail"
                 onSave={handleUpdateEmail}
+                onAdd={() => {/* focus email field */}}
               />
-              <EditableField
+              <FieldRow
                 label="Telefone"
                 icon={Phone}
                 value={contact.phones?.[0]?.value || ""}
-                placeholder="+ Adicionar telefone"
+                addLabel="Adicionar telefone"
                 onSave={handleUpdatePhone}
+                onAdd={() => {/* focus phone field */}}
               />
-              <EditableField
+              <FieldRow
                 label="Cargo"
                 value={contact.role || ""}
-                placeholder="—"
-                onSave={v => handleUpdateField("role", v)}
+                onSave={v => updateContact(id, { role: v })}
               />
             </div>
           </div>
@@ -439,6 +468,7 @@ export default function ContatoPage({ params }: { params: Promise<{ id: string }
               </div>
             </div>
           </div>
+
         </div>
       </div>
     </div>
