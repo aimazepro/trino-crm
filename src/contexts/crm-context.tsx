@@ -162,8 +162,32 @@ export function CrmProvider({ children }: { children: ReactNode }) {
       ]);
       if (pErr) console.error("[CRM] load pipelines failed:", pErr);
 
+      const pipelines = (pipelinesRaw ?? []).map(transformPipeline);
+
+      // Seed default pipelines for new accounts
+      if (pipelines.length === 0 && user) {
+        const DEFAULT_PIPELINES = [
+          { name: "Prospeccao", stages: ["Entrada de Leads", "Tentando contato", "Contato realizado com a empresa", "Contato realizado com o decisor", "Reunião Agendada"] },
+          { name: "Inbound", stages: ["Formulário Preenchido", "Qualificado pelo formulário", "Tentando contato", "Contato realizado", "Reunião Agendada"] },
+          { name: "Social Selling", stages: ["MQL Cadastrado", "Tentando contato", "Contato realizado", "Conversa Significativa", "Reunião Agendada"] },
+          { name: "Negociação", stages: ["Reunião Realizada", "Proposta Agendada", "Proposta Apresentada", "Negociação", "Contrato"] },
+        ];
+        for (const def of DEFAULT_PIPELINES) {
+          const { data: pData } = await supabase.from("pipelines").insert({ user_id: user.id, name: def.name }).select().single();
+          if (pData) {
+            const stageRows = def.stages.map((s, i) => ({ pipeline_id: pData.id, name: s, max_days: 7, order: i }));
+            const { data: sData } = await supabase.from("pipeline_stages").insert(stageRows).select();
+            pipelines.push({
+              id: pData.id,
+              name: pData.name,
+              stages: (sData ?? []).sort((a: any, b: any) => a.order - b.order).map((s: any): PipelineStage => ({ id: s.id, name: s.name, maxDays: s.max_days, order: s.order })),
+            });
+          }
+        }
+      }
+
       setState({
-        pipelines: (pipelinesRaw ?? []).map(transformPipeline),
+        pipelines,
         contacts: (contactsRaw ?? []).map(transformContact),
         companies: (companiesRaw ?? []).map(transformCompany),
         labels: (labelsRaw ?? []).map(transformLabel),

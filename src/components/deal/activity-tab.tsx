@@ -35,22 +35,11 @@ export function ActivityTab({ deal }: { deal: Deal }) {
     setShowModal(true);
   };
 
-  const saveActivity = (data: { title: string; type: string; date: string; description: string }) => {
+  const saveActivity = (data: { title: string; type: string; date: string; description: string; dealId: string }) => {
     if (editingActivity) {
-      updateActivity(editingActivity.id, {
-        title: data.title,
-        date: data.date,
-        type: data.type,
-        description: data.description,
-      });
+      updateActivity(editingActivity.id, { title: data.title, date: data.date, type: data.type, description: data.description });
     } else {
-      addActivity({
-        dealId: deal.id,
-        title: data.title,
-        date: data.date,
-        type: data.type,
-        description: data.description,
-      });
+      addActivity({ dealId: deal.id, title: data.title, date: data.date, type: data.type, description: data.description });
     }
     setShowModal(false);
     setEditingActivity(null);
@@ -196,6 +185,8 @@ export function ActivityTab({ deal }: { deal: Deal }) {
           activity={editingActivity || undefined}
           onClose={() => setShowModal(false)}
           onSave={saveActivity}
+          defaultDealId={deal.id}
+          userName="João Paulo Olivera"
         />
       )}
 
