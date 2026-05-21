@@ -99,41 +99,58 @@ function ContactSearch({ allContacts, onLink, onClose }: { allContacts: { id: st
 function ParentCompanySearch({ companies, onLink }: { companies: Company[]; onLink: (id: string) => void }) {
   const [open, setOpen] = useState(false);
   const [query, setQuery] = useState("");
-  const filtered = query.trim() ? companies.filter(c => c.name.toLowerCase().includes(query.toLowerCase())) : companies;
   const ref = useRef<HTMLDivElement>(null);
+  const inputRef = useRef<HTMLInputElement>(null);
+  const filtered = query.trim()
+    ? companies.filter(c => c.name.toLowerCase().includes(query.toLowerCase()))
+    : companies;
+
   useEffect(() => {
-    const h = (e: MouseEvent) => { if (ref.current && !ref.current.contains(e.target as Node)) setOpen(false); };
+    if (open) inputRef.current?.focus();
+  }, [open]);
+
+  useEffect(() => {
+    const h = (e: MouseEvent) => { if (ref.current && !ref.current.contains(e.target as Node)) { setOpen(false); setQuery(""); } };
     document.addEventListener("mousedown", h);
     return () => document.removeEventListener("mousedown", h);
   }, []);
 
-  if (!open) {
-    return (
-      <button onClick={() => setOpen(true)}
-        className="flex items-center gap-1.5 w-full rounded-lg border border-dashed border-zinc-200 px-3 py-2 text-sm text-zinc-400 hover:border-amber-300 hover:text-amber-500 transition-colors">
-        <Plus className="h-3.5 w-3.5" aria-hidden="true" /> Vincular empresa mae
-      </button>
-    );
-  }
-
   return (
     <div ref={ref} className="relative">
-      <input
-        autoFocus
-        value={query}
-        onChange={e => setQuery(e.target.value)}
-        placeholder="Buscar empresa..."
-        className="w-full rounded-lg border border-amber-300 px-3 py-1.5 text-sm outline-none text-zinc-700 placeholder:text-zinc-400"
-      />
-      {filtered.length > 0 && (
-        <div className="absolute z-50 top-full mt-1 left-0 right-0 bg-white border border-zinc-200 rounded-xl shadow-xl overflow-hidden max-h-48 overflow-y-auto">
-          {filtered.slice(0, 5).map(c => (
-            <button key={c.id} onMouseDown={() => { onLink(c.id); setOpen(false); setQuery(""); }}
-              className="w-full flex items-center gap-2.5 px-3 py-2 hover:bg-amber-50 text-left text-sm font-medium text-zinc-900 transition-colors">
-              <div className="w-5 h-5 rounded bg-orange-100 text-orange-600 text-[10px] font-bold flex items-center justify-center shrink-0">{c.name.charAt(0)}</div>
-              {c.name}
-            </button>
-          ))}
+      <button
+        onClick={() => setOpen(v => !v)}
+        className="flex items-center gap-1.5 w-full rounded-lg border border-dashed border-zinc-200 px-3 py-2 text-sm text-zinc-400 hover:border-amber-300 hover:text-amber-500 transition-colors"
+      >
+        <Plus className="h-3.5 w-3.5" aria-hidden="true" /> Vincular empresa mae
+      </button>
+      {open && (
+        <div className="absolute left-0 top-full mt-1 z-30 bg-white rounded-xl shadow-lg w-full border border-zinc-100">
+          <div className="p-2 border-b border-zinc-100">
+            <div className="flex items-center gap-1.5 rounded-lg border border-zinc-200 px-2 py-1">
+              <Search className="h-3.5 w-3.5 text-zinc-300 shrink-0" aria-hidden="true" />
+              <input
+                ref={inputRef}
+                value={query}
+                onChange={e => setQuery(e.target.value)}
+                placeholder="Buscar empresa..."
+                className="text-sm outline-none w-full text-zinc-700 placeholder:text-zinc-400 bg-transparent"
+              />
+            </div>
+          </div>
+          <div className="max-h-48 overflow-y-auto py-1">
+            {filtered.slice(0, 8).map(c => (
+              <button
+                key={c.id}
+                onMouseDown={() => { onLink(c.id); setOpen(false); setQuery(""); }}
+                className="w-full text-left px-3 py-2 text-sm text-zinc-700 hover:bg-amber-50 hover:text-amber-700 transition-colors"
+              >
+                {c.name}
+              </button>
+            ))}
+            {filtered.length === 0 && (
+              <p className="px-3 py-2 text-xs text-zinc-400">Nenhuma empresa encontrada</p>
+            )}
+          </div>
         </div>
       )}
     </div>
@@ -147,7 +164,7 @@ export default function EmpresaPage({ params }: { params: Promise<{ id: string }
   const { state, updateCompany, updateContact } = useCrm();
 
   const company = state.companies.find(c => c.id === id);
-  const employees = state.contacts.filter(c => c.companyId === id);
+  const linkedContact = state.contacts.find(c => c.companyId === id) ?? null;
   const deals = state.deals.filter(d => d.companyId === id);
   const [activeTab, setActiveTab] = useState<Tab>("negocios");
   const [showVincularPessoa, setShowVincularPessoa] = useState(false);
@@ -206,7 +223,7 @@ export default function EmpresaPage({ params }: { params: Promise<{ id: string }
             <div className="flex items-center justify-between mb-3">
               <h2 className="text-xs font-medium text-zinc-400 tracking-wide flex items-center gap-2">
                 <Users className="h-4 w-4 text-zinc-400" aria-hidden="true" />
-                PESSOAS ({employees.length})
+                PESSOAS ({linkedContact ? 1 : 0})
               </h2>
               <button
                 onClick={() => setShowVincularPessoa(v => !v)}
@@ -217,24 +234,27 @@ export default function EmpresaPage({ params }: { params: Promise<{ id: string }
               </button>
             </div>
             <div className="space-y-2">
-              {employees.map(emp => (
+              {linkedContact && !showVincularPessoa && (
                 <Link
-                  key={emp.id}
-                  href={`/contatos/${emp.id}`}
+                  href={`/contatos/${linkedContact.id}`}
                   className="flex items-center gap-3 rounded-xl bg-white p-3.5 cursor-pointer hover:bg-amber-50/30 transition-colors"
                 >
                   <div className="flex h-8 w-8 items-center justify-center rounded-full bg-zinc-100 text-zinc-600 font-medium text-sm shrink-0">
-                    {emp.name.charAt(0).toUpperCase()}
+                    {linkedContact.name.charAt(0).toUpperCase()}
                   </div>
                   <div className="flex-1 min-w-0">
-                    <p className="text-sm font-medium text-zinc-800">{emp.name}</p>
+                    <p className="text-sm font-medium text-zinc-800">{linkedContact.name}</p>
                   </div>
                 </Link>
-              ))}
+              )}
               {showVincularPessoa && (
                 <ContactSearch
-                  allContacts={state.contacts.filter(c => c.companyId !== id)}
-                  onLink={cid => { updateContact(cid, { companyId: id }); setShowVincularPessoa(false); }}
+                  allContacts={state.contacts.filter(c => c.id !== linkedContact?.id)}
+                  onLink={cid => {
+                    if (linkedContact) updateContact(linkedContact.id, { companyId: undefined });
+                    updateContact(cid, { companyId: id });
+                    setShowVincularPessoa(false);
+                  }}
                   onClose={() => setShowVincularPessoa(false)}
                 />
               )}
