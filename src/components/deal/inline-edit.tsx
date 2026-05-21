@@ -40,7 +40,7 @@ export function InlineEdit({ value, onSave, placeholder = "-", type = "text", cl
 
   if (isEditing) {
     return (
-      <div className="flex items-center gap-1.5 w-full">
+      <div className="flex items-center gap-1">
         <input 
           ref={inputRef}
           type={type}
@@ -51,10 +51,14 @@ export function InlineEdit({ value, onSave, placeholder = "-", type = "text", cl
             if (e.key === "Enter") handleSave();
             if (e.key === "Escape") handleCancel();
           }}
-          className={`w-full ${isDate ? 'min-w-[160px] max-w-[180px]' : 'min-w-[60px] max-w-[140px]'} px-2 py-1 text-sm border-2 border-amber-400 rounded outline-none ${className}`}
+          className={`rounded border border-amber-300 px-2 py-0.5 text-sm text-zinc-900 outline-none focus:ring-2 focus:ring-amber-200 ${isDate ? 'w-[135px]' : 'w-24'} ${className}`}
         />
-        <button onClick={handleSave} className="text-green-500 hover:bg-green-50 p-1 rounded transition-colors"><Check size={14}/></button>
-        <button onClick={handleCancel} className="text-red-400 hover:bg-red-50 p-1 rounded transition-colors"><X size={14}/></button>
+        <button onClick={handleSave} className="text-green-500 hover:text-green-600 shrink-0">
+          <Check size={16}/>
+        </button>
+        <button onClick={handleCancel} className="text-zinc-400 hover:text-zinc-500 shrink-0">
+          <X size={16}/>
+        </button>
       </div>
     );
   }

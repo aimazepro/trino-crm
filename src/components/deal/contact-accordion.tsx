@@ -244,7 +244,7 @@ export function ContactAccordion({ contact, dealId }: ContactAccordionProps) {
                         <input 
                           value={tempEmailValue} 
                           onChange={ev => setTempEmailValue(ev.target.value)}
-                          className="w-full rounded-md border border-amber-300 px-2.5 py-1.5 text-xs outline-none focus:ring-2 focus:ring-amber-200"
+                          className="flex-1 min-w-0 rounded-md border border-amber-300 px-2.5 py-1.5 text-xs outline-none focus:ring-2 focus:ring-amber-200"
                           autoFocus
                           onKeyDown={ev => {
                             if (ev.key === "Enter") handleSaveEditedEmail(idx);
@@ -324,7 +324,7 @@ export function ContactAccordion({ contact, dealId }: ContactAccordionProps) {
                       value={newEmailValue} 
                       onChange={ev => setNewEmailValue(ev.target.value)}
                       placeholder="seu@email.com"
-                      className="w-full rounded-md border border-amber-300 px-2.5 py-1.5 text-xs outline-none focus:ring-2 focus:ring-amber-200"
+                      className="flex-1 min-w-0 rounded-md border border-amber-300 px-2.5 py-1.5 text-xs outline-none focus:ring-2 focus:ring-amber-200"
                       autoFocus
                       onKeyDown={ev => {
                         if (ev.key === "Enter") saveEmail();
@@ -387,7 +387,7 @@ export function ContactAccordion({ contact, dealId }: ContactAccordionProps) {
                         <input 
                           value={tempPhoneValue} 
                           onChange={ev => setTempPhoneValue(ev.target.value)}
-                          className="w-full rounded-md border border-amber-300 px-2.5 py-1.5 text-xs outline-none focus:ring-2 focus:ring-amber-200"
+                          className="flex-1 min-w-0 rounded-md border border-amber-300 px-2.5 py-1.5 text-xs outline-none focus:ring-2 focus:ring-amber-200"
                           autoFocus
                           onKeyDown={ev => {
                             if (ev.key === "Enter") handleSaveEditedPhone(idx);
@@ -468,7 +468,7 @@ export function ContactAccordion({ contact, dealId }: ContactAccordionProps) {
                       value={newPhoneValue} 
                       onChange={ev => setNewPhoneValue(ev.target.value)}
                       placeholder="(11) 99999-9999"
-                      className="w-full rounded-md border border-amber-300 px-2.5 py-1.5 text-xs outline-none focus:ring-2 focus:ring-amber-200"
+                      className="flex-1 min-w-0 rounded-md border border-amber-300 px-2.5 py-1.5 text-xs outline-none focus:ring-2 focus:ring-amber-200"
                       autoFocus
                       onKeyDown={ev => {
                         if (ev.key === "Enter") savePhone();
