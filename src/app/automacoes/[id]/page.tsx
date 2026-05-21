@@ -2,7 +2,7 @@
 
 import { useState, useEffect, useCallback, useRef } from "react";
 import { useParams, useRouter, useSearchParams } from "next/navigation";
-import { ArrowLeft, Trash2, Plus, ChevronDown, X, Tag, Settings, CheckCircle2 } from "lucide-react";
+import { ArrowLeft, Trash2, Plus, ChevronDown, X, Tag, Settings, CheckCircle2, ChevronRight, Zap } from "lucide-react";
 import { cn } from "@/lib/utils";
 import {
   useAutomacoes,
@@ -229,6 +229,15 @@ export default function AutomacaoEditorPage() {
     setSelection({ kind: "step", stepId: step.id });
   }
 
+  const toggleLabel = (labelId: string) => {
+    setAutomation((p) => {
+      const labelIds = p.labelIds.includes(labelId)
+        ? p.labelIds.filter((id) => id !== labelId)
+        : [...p.labelIds, labelId];
+      return { ...p, labelIds };
+    });
+  };
+
   function handleSave() {
     if (isNew || !automations.find((a) => a.id === automation.id)) {
       addAutomation({ ...automation, active: true });
@@ -236,33 +245,22 @@ export default function AutomacaoEditorPage() {
       updateAutomation(automation.id, automation);
     }
     setSaved(true);
-    setTimeout(() => router.push("/automacoes"), 400);
+    setTimeout(() => setSaved(false), 2000);
   }
 
-  function toggleLabel(labelId: string) {
-    setAutomation((p) => ({
-      ...p,
-      labelIds: p.labelIds.includes(labelId)
-        ? p.labelIds.filter((id) => id !== labelId)
-        : [...p.labelIds, labelId],
-    }));
-  }
-
-  const selectedStep =
-    selection?.kind === "step"
-      ? automation.steps.find((s) => s.id === selection.stepId) ?? null
-      : null;
-
+  // Count actions to label them with step numbers
   let actionIndex = 0;
+  const selectedStep = selection?.kind === "step"
+    ? automation.steps.find((s) => s.id === selection.stepId)
+    : null;
 
   return (
-    <div className="flex flex-col h-full bg-[#F4F4F5] overflow-hidden">
-
+    <div className="flex flex-col h-full bg-zinc-50 overflow-hidden">
       {/* ── Top bar ─────────────────────────────────────────────────────────── */}
-      <div className="flex items-center gap-4 px-6 py-3 bg-white border-b border-zinc-200 shrink-0">
+      <div className="flex items-center gap-4 px-8 pt-8 pb-5 bg-transparent shrink-0">
         <button
           onClick={() => router.push("/automacoes")}
-          className="p-1.5 rounded-lg text-zinc-400 hover:text-zinc-700 hover:bg-zinc-100 transition-colors"
+          className="p-1.5 rounded-lg text-zinc-400 hover:text-zinc-700 hover:bg-zinc-200/50 transition-colors cursor-pointer bg-white border border-zinc-200 shadow-sm"
         >
           <ArrowLeft className="h-5 w-5" />
         </button>
@@ -271,13 +269,13 @@ export default function AutomacaoEditorPage() {
           <input
             value={automation.name}
             onChange={(e) => updateField("name", e.target.value)}
-            className="text-[18px] font-bold text-zinc-900 bg-transparent border-none outline-none w-full placeholder:text-zinc-300"
+            className="text-[18px] font-black text-zinc-950 bg-transparent border-none outline-none w-full placeholder:text-zinc-300"
             placeholder="Nome da automação"
           />
           <input
             value={automation.description}
             onChange={(e) => updateField("description", e.target.value)}
-            className="text-[12px] text-zinc-400 bg-transparent border-none outline-none w-full placeholder:text-zinc-300"
+            className="text-[12px] text-zinc-400 bg-transparent border-none outline-none w-full placeholder:text-zinc-300 mt-0.5"
             placeholder="Descrição opcional"
           />
         </div>
@@ -286,13 +284,13 @@ export default function AutomacaoEditorPage() {
         <div className="relative" ref={labelPickerRef}>
           <button
             onClick={() => setLabelPickerOpen((v) => !v)}
-            className="flex items-center gap-1.5 text-[13px] font-medium text-zinc-500 hover:text-zinc-800 border border-zinc-200 rounded-lg px-3 py-1.5 bg-white hover:border-zinc-300 transition-colors"
+            className="flex items-center gap-1.5 text-[13px] font-semibold text-zinc-500 hover:text-zinc-800 border border-zinc-200 rounded-lg px-3 py-1.5 bg-white hover:border-zinc-350 transition-colors cursor-pointer shadow-sm"
           >
-            <Tag className="h-3.5 w-3.5" />
+            <Tag className="h-3.5 w-3.5 text-zinc-400" />
             {automation.labelIds.length > 0
               ? `${automation.labelIds.length} etiqueta${automation.labelIds.length > 1 ? "s" : ""}`
               : "+ Adicionar etiqueta"}
-            <ChevronDown className="h-3.5 w-3.5" />
+            <ChevronDown className="h-3.5 w-3.5 opacity-65" />
           </button>
 
           {labelPickerOpen && (
@@ -307,12 +305,12 @@ export default function AutomacaoEditorPage() {
                     <button
                       key={lbl.id}
                       onClick={() => toggleLabel(lbl.id)}
-                      className="w-full flex items-center gap-2 px-3 py-2 hover:bg-zinc-50 text-left"
+                      className="w-full flex items-center gap-2 px-3 py-2 hover:bg-zinc-50 text-left cursor-pointer"
                     >
                       <span className="w-2.5 h-2.5 rounded-full shrink-0" style={{ backgroundColor: lbl.color }} />
                       <span className="flex-1 text-[13px] font-medium text-zinc-800">{lbl.name}</span>
                       {automation.labelIds.includes(lbl.id) && (
-                        <CheckCircle2 className="h-4 w-4 text-amber-500" />
+                        <CheckCircle2 className="h-4 w-4 text-[#F1A80A]" />
                       )}
                     </button>
                   ))}
@@ -321,14 +319,14 @@ export default function AutomacaoEditorPage() {
               <div className="border-t border-zinc-100 flex items-center">
                 <button
                   onClick={() => { setLabelPickerOpen(false); router.push("/configuracoes/etiquetas-automacoes"); }}
-                  className="flex-1 flex items-center gap-1 px-3 py-2.5 text-[12px] font-semibold text-amber-600 hover:bg-amber-50"
+                  className="flex-1 flex items-center gap-1 px-3 py-2.5 text-[12px] font-bold text-[#F1A80A] hover:bg-amber-50 cursor-pointer"
                 >
                   <Plus className="h-3.5 w-3.5" /> Nova etiqueta
                 </button>
                 <div className="w-px h-6 bg-zinc-100" />
                 <button
                   onClick={() => { setLabelPickerOpen(false); router.push("/configuracoes/etiquetas-automacoes"); }}
-                  className="px-3 py-2.5 text-[12px] font-semibold text-zinc-500 hover:bg-zinc-50 flex items-center gap-1"
+                  className="px-3 py-2.5 text-[12px] font-bold text-zinc-500 hover:bg-zinc-50 flex items-center gap-1 cursor-pointer"
                 >
                   <Settings className="h-3.5 w-3.5" /> Gerenciar
                 </button>
@@ -340,8 +338,8 @@ export default function AutomacaoEditorPage() {
         <button
           onClick={handleSave}
           className={cn(
-            "px-5 py-2 rounded-lg text-[13px] font-bold transition-colors shrink-0",
-            saved ? "bg-emerald-500 text-white" : "bg-amber-500 hover:bg-amber-600 text-white"
+            "px-5 py-2 rounded-lg text-[13px] font-bold transition-colors shrink-0 cursor-pointer shadow-sm",
+            saved ? "bg-emerald-500 text-white" : "bg-[#F1A80A] hover:bg-[#D79405] text-white"
           )}
         >
           {saved ? "Salvo!" : "Salvar"}
@@ -364,16 +362,17 @@ export default function AutomacaoEditorPage() {
               selected={selection?.kind === "trigger"}
               onClick={(e) => { e.stopPropagation(); setSelection({ kind: "trigger" }); }}
             >
-              <div className="text-[10px] font-bold uppercase tracking-widest text-amber-500 mb-1">
-                Gatilho
+              <div className="text-[10px] font-black uppercase tracking-widest text-[#F1A80A] mb-1.5 flex items-center gap-1">
+                <Zap className="h-3.5 w-3.5 fill-[#F1A80A] text-[#F1A80A]" />
+                GATILHO
               </div>
               {automation.trigger ? (
                 <>
-                  <p className="text-[14px] font-semibold text-zinc-900">{TRIGGER_LABELS[automation.trigger]}</p>
-                  <p className="text-[12px] text-zinc-400 mt-0.5">{TRIGGER_DESCRIPTIONS[automation.trigger]}</p>
+                  <p className="text-[14px] font-bold text-zinc-950">{TRIGGER_LABELS[automation.trigger]}</p>
+                  <p className="text-[12px] text-zinc-400 mt-1 font-semibold">{TRIGGER_DESCRIPTIONS[automation.trigger]}</p>
                 </>
               ) : (
-                <p className="text-[13px] text-zinc-400">Selecionar gatilho...</p>
+                <p className="text-[13px] text-zinc-400 font-semibold">Selecionar gatilho...</p>
               )}
             </CanvasBlock>
 
@@ -397,8 +396,13 @@ export default function AutomacaoEditorPage() {
                       onDelete={(e) => { e.stopPropagation(); deleteStep(step.id); }}
                       onClick={(e) => { e.stopPropagation(); setSelection({ kind: "step", stepId: step.id }); }}
                     >
-                      <div className="text-[10px] font-bold uppercase tracking-widest text-blue-500 mb-1">Condição</div>
-                      <p className="text-[13px] text-zinc-700 font-medium">{conditionSummary(step)}</p>
+                      <div className="text-[10px] font-black uppercase tracking-widest text-blue-500 mb-1.5 flex items-center gap-1">
+                        <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" className="text-blue-500">
+                          <polygon points="22 3 2 3 10 12.46 10 19 14 21 14 12.46 22 3" />
+                        </svg>
+                        CONDICAO
+                      </div>
+                      <p className="text-[13px] text-zinc-800 font-semibold">{conditionSummary(step)}</p>
                     </CanvasBlock>
                   ) : (
                     /* ACTION BLOCK — expanded inline when selected */
@@ -505,9 +509,15 @@ interface CanvasBlockProps {
 
 function CanvasBlock({ variant, selected, actionNum, actionLabel, onClick, onDelete, children }: CanvasBlockProps) {
   const borders = {
-    trigger: selected ? "border-amber-400 bg-amber-50/30" : "border-amber-200 bg-white",
-    condition: selected ? "border-blue-400 bg-blue-50/20" : "border-zinc-200 bg-white",
-    action: selected ? "border-zinc-300 bg-white" : "border-zinc-200 bg-white",
+    trigger: selected
+      ? "border-dashed border-2 border-[#F1A80A] bg-[#FFF9EC]/40"
+      : "border-dashed border-2 border-amber-300/80 bg-[#FFF9EC]/20",
+    condition: selected
+      ? "border-2 border-blue-400 bg-blue-50/20"
+      : "border-2 border-blue-200 bg-white",
+    action: selected
+      ? "border-2 border-[#F1A80A] bg-[#FFF9EC]/10"
+      : "border-2 border-zinc-200 bg-white",
   }[variant];
 
   const isAction = variant === "action";
@@ -518,11 +528,11 @@ function CanvasBlock({ variant, selected, actionNum, actionLabel, onClick, onDel
       className={cn(
         "relative border-2 rounded-xl cursor-pointer transition-all shadow-sm hover:shadow-md",
         borders,
-        isAction ? "px-4 pt-3 pb-4" : "px-4 py-3.5"
+        isAction ? "px-4 pt-4 pb-4" : "px-5 py-4"
       )}
     >
       {isAction && actionNum !== undefined && (
-        <span className="absolute -top-2.5 -left-1.5 w-5 h-5 rounded-full bg-zinc-800 text-white text-[10px] font-bold flex items-center justify-center z-10">
+        <span className="absolute -top-2.5 -left-2 w-[22px] h-[22px] rounded-md bg-[#F1A80A] text-white text-[11px] font-black flex items-center justify-center z-10 shadow-sm">
           {actionNum}
         </span>
       )}
@@ -530,21 +540,33 @@ function CanvasBlock({ variant, selected, actionNum, actionLabel, onClick, onDel
       {onDelete && (
         <button
           onClick={onDelete}
-          className="absolute top-2 right-2 p-1 rounded text-zinc-300 hover:text-red-500 hover:bg-red-50 transition-colors z-10"
+          className="absolute top-3.5 right-3.5 p-1 rounded text-zinc-300 hover:text-red-500 hover:bg-red-50 transition-colors z-10 cursor-pointer"
         >
-          <Trash2 className="h-3.5 w-3.5" />
+          <Trash2 className="h-4 w-4" />
         </button>
       )}
 
       {/* Action header row */}
       {isAction && (
-        <div className="flex items-center gap-2 mb-0 pr-6">
-          <span className="text-[10px] font-bold uppercase tracking-widest text-amber-500">Ação</span>
-          <span className="text-[13px] font-semibold text-zinc-700">{actionLabel}</span>
+        <div className="flex items-center gap-2 mb-3.5 pr-6">
+          <svg width="10" height="10" viewBox="0 0 24 24" fill="currentColor" className="text-[#F1A80A] shrink-0">
+            <polygon points="5 3 19 12 5 21" />
+          </svg>
+          <span className="text-[10px] font-black uppercase tracking-widest text-[#F1A80A]">AÇÃO</span>
+          <span className="text-[13px] font-medium text-zinc-400">{actionLabel}</span>
         </div>
       )}
 
-      {children}
+      {variant === "trigger" ? (
+        <div className="flex items-center justify-between w-full">
+          <div className="flex-1">
+            {children}
+          </div>
+          <ChevronRight className="h-4 w-4 text-zinc-400 ml-2 shrink-0" />
+        </div>
+      ) : (
+        children
+      )}
     </div>
   );
 }
@@ -566,15 +588,15 @@ function FlowConnector({
       <div className="flex items-center gap-2">
         <button
           onClick={onAddCondition}
-          className="flex items-center gap-1 text-[11px] font-bold text-blue-600 bg-white hover:bg-blue-50 border border-blue-200 px-2.5 py-1 rounded-full transition-colors shadow-sm"
+          className="flex items-center gap-0.5 text-[10px] font-black text-blue-600 bg-blue-50 hover:bg-blue-100/60 border border-blue-150 px-2 py-0.5 rounded-full transition-colors shadow-sm cursor-pointer"
         >
-          <Plus className="h-3 w-3" /> SE
+          +SE
         </button>
         <button
           onClick={onAddAction}
-          className="flex items-center gap-1 text-[11px] font-bold text-amber-600 bg-white hover:bg-amber-50 border border-amber-200 px-2.5 py-1 rounded-full transition-colors shadow-sm"
+          className="flex items-center gap-0.5 text-[10px] font-black text-[#F1A80A] bg-[#FFF9EC] hover:bg-[#FFF9EC]/80 border border-amber-150 px-2 py-0.5 rounded-full transition-colors shadow-sm cursor-pointer"
         >
-          <Plus className="h-3 w-3" /> AÇÃO
+          +AÇÃO
         </button>
       </div>
       <div className="w-px h-3 bg-zinc-200" />
@@ -1177,31 +1199,36 @@ function NextStepPanel({ onAddCondition, onAddAction }: {
 }) {
   return (
     <div className="p-5">
-      <h3 className="text-[13px] font-bold text-zinc-900 mb-1">Próximo passo</h3>
+      <h3 className="text-[13px] font-bold text-zinc-950 mb-1">Próximo passo</h3>
       <p className="text-[12px] text-zinc-400 mb-4">Adicione uma condição ou ação ao fluxo.</p>
       <div className="space-y-2">
         <button
           onClick={onAddCondition}
-          className="w-full text-left flex items-center gap-3 px-4 py-3 rounded-xl border border-zinc-200 hover:border-blue-300 hover:bg-blue-50/50 transition-colors"
+          className="w-full text-left flex items-center gap-3 px-4 py-3 rounded-xl border border-zinc-200 hover:border-blue-300 hover:bg-blue-50/50 transition-colors cursor-pointer"
         >
-          <div className="w-8 h-8 rounded-lg bg-blue-100 flex items-center justify-center shrink-0">
-            <span className="text-blue-600 text-[11px] font-black">SE</span>
+          <div className="w-8 h-8 rounded-lg bg-blue-50 border border-blue-100 flex items-center justify-center shrink-0">
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" className="text-blue-500">
+              <polygon points="22 3 2 3 10 12.46 10 19 14 21 14 12.46 22 3" />
+            </svg>
           </div>
           <div>
-            <p className="text-[13px] font-semibold text-zinc-900">Condição</p>
-            <p className="text-[11px] text-zinc-400">Continuar apenas se as condições forem atendidas</p>
+            <p className="text-[13px] font-bold text-zinc-950">Condição</p>
+            <p className="text-[11px] text-zinc-400 mt-0.5">Continuar apenas se as condições forem atendidas</p>
           </div>
         </button>
         <button
           onClick={onAddAction}
-          className="w-full text-left flex items-center gap-3 px-4 py-3 rounded-xl border border-zinc-200 hover:border-amber-300 hover:bg-amber-50/50 transition-colors"
+          className="w-full text-left flex items-center gap-3 px-4 py-3 rounded-xl border border-zinc-200 hover:border-amber-300 hover:bg-[#FFF9EC]/50 transition-colors cursor-pointer"
         >
-          <div className="w-8 h-8 rounded-lg bg-amber-100 flex items-center justify-center shrink-0">
-            <span className="text-amber-600 text-[11px] font-black">▶</span>
+          <div className="w-8 h-8 rounded-lg bg-[#FFF9EC] border border-amber-100 flex items-center justify-center shrink-0">
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" className="text-[#F1A80A]">
+              <line x1="5" y1="12" x2="19" y2="12" />
+              <polyline points="12 5 19 12 12 19" />
+            </svg>
           </div>
           <div>
-            <p className="text-[13px] font-semibold text-zinc-900">Ação</p>
-            <p className="text-[11px] text-zinc-400">Executar uma ação no negócio</p>
+            <p className="text-[13px] font-bold text-zinc-950">Ação</p>
+            <p className="text-[11px] text-zinc-400 mt-0.5">Executar uma ação no negócio</p>
           </div>
         </button>
       </div>

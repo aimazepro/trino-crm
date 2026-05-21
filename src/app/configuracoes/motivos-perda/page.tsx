@@ -3,7 +3,7 @@
 import { useState } from "react";
 import { Plus, X } from "lucide-react";
 
-const INITIAL = ["Preço", "Concorrência", "Timing ruim", "Sem budget", "Produto não atende", "Sem resposta"];
+const INITIAL = ["Preço", "Concorrência", "Timing ruim", "Sem budget", "Produto não atende", "Sem resposta", "Não qualificado"];
 
 export default function MotivosPerdaPage() {
   const [items, setItems] = useState<string[]>(INITIAL);

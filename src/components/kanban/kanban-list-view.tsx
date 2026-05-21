@@ -6,13 +6,17 @@ import { cn } from "@/lib/utils";
 
 interface KanbanListViewProps {
   pipelineId: string;
+  statusFilter?: "Ativo" | "Ganho" | "Perdido";
 }
 
-export function KanbanListView({ pipelineId }: KanbanListViewProps) {
+export function KanbanListView({ pipelineId, statusFilter = "Ativo" }: KanbanListViewProps) {
   const { state } = useCrm();
 
   const pipeline = state.pipelines.find(p => p.id === pipelineId);
-  const deals = state.deals.filter(d => d.pipelineId === pipelineId);
+  const deals = state.deals.filter(d => 
+    d.pipelineId === pipelineId && 
+    d.status === statusFilter
+  );
 
   if (!pipeline) return null;
 

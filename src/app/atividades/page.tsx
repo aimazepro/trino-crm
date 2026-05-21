@@ -1,11 +1,11 @@
 "use client";
 
-import { useState, useMemo } from "react";
+import { useState, useMemo, useRef, useEffect } from "react";
 import {
   Plus, List, Calendar as CalendarIcon,
   CheckCircle, Edit2, Trash2, Phone, Users, Video, Mail,
   MessageCircle, Camera, Briefcase, ClipboardList, AlertCircle, ChevronDown,
-  ChevronLeft, ChevronRight, Filter,
+  ChevronLeft, ChevronRight, Filter, X,
 } from "lucide-react";
 import { useCrm } from "@/contexts/crm-context";
 import { Activity } from "@/lib/crm-types";
@@ -59,6 +59,10 @@ export default function AtividadesPage() {
   const [viewMode, setViewMode] = useState<ViewMode>("list");
   const [dateFilter, setDateFilter] = useState<DateFilter>("hoje");
   const [filterType, setFilterType] = useState("Todos");
+  const [showTypeDropdown, setShowTypeDropdown] = useState(false);
+  const [userFilter, setUserFilter] = useState<"Todos" | "Minhas">("Todos");
+  const [showUserDropdown, setShowUserDropdown] = useState(false);
+  const [selectedDay, setSelectedDay] = useState<Date | null>(null);
   const [currentDate, setCurrentDate] = useState(new Date());
   const [showModal, setShowModal] = useState(false);
   const [editingActivity, setEditingActivity] = useState<Activity | null>(null);
@@ -66,6 +70,22 @@ export default function AtividadesPage() {
   const [pendingDealId, setPendingDealId] = useState("");
   const [rangeStart, setRangeStart] = useState("");
   const [rangeEnd, setRangeEnd] = useState("");
+
+  const typeDropdownRef = useRef<HTMLDivElement>(null);
+  const userDropdownRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    const handleClickOutside = (event: MouseEvent) => {
+      if (typeDropdownRef.current && !typeDropdownRef.current.contains(event.target as Node)) {
+        setShowTypeDropdown(false);
+      }
+      if (userDropdownRef.current && !userDropdownRef.current.contains(event.target as Node)) {
+        setShowUserDropdown(false);
+      }
+    };
+    document.addEventListener("mousedown", handleClickOutside);
+    return () => document.removeEventListener("mousedown", handleClickOutside);
+  }, []);
 
   const allActivities: ActivityWithMeta[] = useMemo(() => {
     return state.deals.flatMap(deal =>
@@ -85,6 +105,11 @@ export default function AtividadesPage() {
 
       // Type filter
       if (filterType !== "Todos" && a.type !== filterType) return false;
+
+      // User filter
+      if (userFilter === "Minhas") {
+        // All loaded activities belong to the logged-in user (João Paulo Olivera) in this session
+      }
 
       switch (dateFilter) {
         case "hoje":
@@ -118,7 +143,7 @@ export default function AtividadesPage() {
           return true;
       }
     });
-  }, [allActivities, filterType, dateFilter, rangeStart, rangeEnd]);
+  }, [allActivities, filterType, userFilter, dateFilter, rangeStart, rangeEnd]);
 
   const grouped = useMemo(() => {
     const groups: Record<string, ActivityWithMeta[]> = {};
@@ -148,6 +173,48 @@ export default function AtividadesPage() {
     });
     return groups;
   }, [filtered, dateFilter]);
+
+  const selectedDayActs = useMemo(() => {
+    if (!selectedDay) return [];
+    return allActivities.filter(a => {
+      if (!isSameDay(new Date(a.date), selectedDay)) return false;
+      if (filterType !== "Todos" && a.type !== filterType) return false;
+      return true;
+    });
+  }, [allActivities, selectedDay, filterType]);
+
+  const formatSidebarDate = (date: Date) => {
+    const raw = format(date, "EEEE, d 'de' MMMM", { locale: ptBR });
+    return raw
+      .split(" ")
+      .map(word => {
+        if (word.toLowerCase() === "de") return "De";
+        return word
+          .split("-")
+          .map(subWord => subWord.charAt(0).toUpperCase() + subWord.slice(1))
+          .join("-");
+      })
+      .join(" ");
+  };
+
+  const formatMonthHeader = (date: Date) => {
+    const raw = format(date, "MMMM 'de' yyyy", { locale: ptBR });
+    return raw
+      .split(" ")
+      .map(word => {
+        if (word.toLowerCase() === "de") return "De";
+        return word.charAt(0).toUpperCase() + word.slice(1);
+      })
+      .join(" ");
+  };
+
+  const handleDayClick = (day: Date) => {
+    if (selectedDay && isSameDay(selectedDay, day)) {
+      setSelectedDay(null);
+    } else {
+      setSelectedDay(day);
+    }
+  };
 
   const handleSave = (data: { title: string; type: string; date: string; description: string; dealId: string }) => {
     if (editingActivity) {
@@ -186,7 +253,7 @@ export default function AtividadesPage() {
       <div className="flex items-center justify-between border-b border-zinc-100 bg-white px-6 py-3.5 shrink-0">
         <div>
           <h1 className="text-lg font-semibold text-zinc-900 leading-none mb-0.5">Atividades</h1>
-          <p className="text-[11px] font-medium text-zinc-400">{allActivities.length} {allActivities.length === 1 ? "atividade" : "atividades"}</p>
+          <p className="text-[11px] font-medium text-zinc-400">{filtered.length} {filtered.length === 1 ? "atividade" : "atividades"}</p>
         </div>
 
         <div className="flex items-center gap-2">
@@ -202,17 +269,93 @@ export default function AtividadesPage() {
               onClick={() => setViewMode("calendar")}
               className={cn("flex items-center px-3 py-1.5 transition-colors text-[12px] font-semibold gap-1.5", viewMode === "calendar" ? "bg-amber-500 text-white" : "bg-white text-zinc-500 hover:text-zinc-700")}
             >
-              <CalendarIcon size={13} /> Calendário
+              <CalendarIcon size={13} /> Calendario
             </button>
           </div>
 
-          <button className="flex items-center gap-1.5 rounded-lg border border-zinc-200 bg-white px-3 py-1.5 text-[12px] font-semibold text-zinc-600 hover:bg-zinc-50">
-            <Filter size={13} className="text-zinc-400" /> Todos <ChevronDown size={12} className="text-zinc-400" />
-          </button>
+          {/* Type Filter Dropdown */}
+          <div className="relative" ref={typeDropdownRef}>
+            <button
+              onClick={() => setShowTypeDropdown(!showTypeDropdown)}
+              className="flex items-center gap-1.5 rounded-lg border border-zinc-200 bg-white px-3 py-1.5 text-[12px] font-semibold text-zinc-600 hover:bg-zinc-50"
+            >
+              <Filter size={13} className="text-zinc-400" /> {filterType === "Todos" ? "Todos" : filterType} <ChevronDown size={12} className="text-zinc-400" />
+            </button>
+            {showTypeDropdown && (
+              <div className="absolute right-0 mt-1.5 w-48 bg-white border border-zinc-200 rounded-xl shadow-lg py-1 z-50">
+                <button
+                  onClick={() => { setFilterType("Todos"); setShowTypeDropdown(false); }}
+                  className={cn(
+                    "w-full text-left px-4 py-2 text-xs font-semibold flex items-center justify-between transition-colors",
+                    filterType === "Todos" ? "bg-amber-50/50 text-amber-700" : "text-zinc-700 hover:bg-zinc-50"
+                  )}
+                >
+                  <span className={cn(filterType === "Todos" && "text-amber-700")}>Todos</span>
+                  {filterType === "Todos" && <span className="text-amber-600 font-bold">✓</span>}
+                </button>
+                {Object.keys(TYPE_COLORS).map(type => {
+                  const Icon = TYPE_ICONS[type] || ClipboardList;
+                  const isSelected = filterType === type;
+                  return (
+                    <button
+                      key={type}
+                      onClick={() => { setFilterType(type); setShowTypeDropdown(false); }}
+                      className={cn(
+                        "w-full text-left px-4 py-2 text-xs font-medium flex items-center justify-between transition-colors",
+                        isSelected ? "bg-amber-50/50 text-amber-700 font-semibold" : "text-zinc-600 hover:bg-zinc-50"
+                      )}
+                    >
+                      <div className="flex items-center gap-2">
+                        <Icon size={13} className={isSelected ? "text-amber-600" : "text-zinc-400"} />
+                        <span className={cn(isSelected && "text-amber-700")}>{type}</span>
+                      </div>
+                      {isSelected && <span className="text-amber-600 font-bold">✓</span>}
+                    </button>
+                  );
+                })}
+              </div>
+            )}
+          </div>
 
-          <button className="flex items-center gap-1.5 rounded-lg border border-zinc-200 bg-white px-3 py-1.5 text-[12px] font-semibold text-zinc-600 hover:bg-zinc-50">
-            <Users size={13} className="text-zinc-400" /> Todos os usuários <ChevronDown size={12} className="text-zinc-400" />
-          </button>
+          {/* User Filter Dropdown */}
+          <div className="relative" ref={userDropdownRef}>
+            <button
+              onClick={() => setShowUserDropdown(!showUserDropdown)}
+              className="flex items-center gap-1.5 rounded-lg border border-zinc-200 bg-white px-3 py-1.5 text-[12px] font-semibold text-zinc-600 hover:bg-zinc-50"
+            >
+              <Users size={13} className="text-zinc-400" /> {userFilter === "Todos" ? "Todos os usuários" : "Minhas atividades"} <ChevronDown size={12} className="text-zinc-400" />
+            </button>
+            {showUserDropdown && (
+              <div className="absolute right-0 mt-1.5 w-52 bg-white border border-zinc-200 rounded-xl shadow-lg py-1 z-50">
+                <button
+                  onClick={() => { setUserFilter("Todos"); setShowUserDropdown(false); }}
+                  className={cn(
+                    "w-full text-left px-4 py-2.5 text-xs font-semibold flex items-center justify-between transition-colors",
+                    userFilter === "Todos" ? "bg-amber-50/50 text-amber-700" : "text-zinc-700 hover:bg-zinc-50"
+                  )}
+                >
+                  <div className="flex items-center gap-2">
+                    <Users size={13} className={userFilter === "Todos" ? "text-amber-600" : "text-zinc-400"} />
+                    <span className={cn(userFilter === "Todos" && "text-amber-700")}>Todos os usuários</span>
+                  </div>
+                  {userFilter === "Todos" && <span className="text-amber-600 font-bold">✓</span>}
+                </button>
+                <button
+                  onClick={() => { setUserFilter("Minhas"); setShowUserDropdown(false); }}
+                  className={cn(
+                    "w-full text-left px-4 py-2.5 text-xs font-medium flex items-center justify-between transition-colors",
+                    userFilter === "Minhas" ? "bg-amber-50/50 text-amber-700 font-semibold" : "text-zinc-600 hover:bg-zinc-50"
+                  )}
+                >
+                  <div className="flex items-center gap-2">
+                    <Users size={13} className={userFilter === "Minhas" ? "text-amber-600" : "text-zinc-400"} />
+                    <span className={cn(userFilter === "Minhas" && "text-amber-700")}>Minhas atividades</span>
+                  </div>
+                  {userFilter === "Minhas" && <span className="text-amber-600 font-bold">✓</span>}
+                </button>
+              </div>
+            )}
+          </div>
 
           <button
             onClick={() => { setEditingActivity(null); setShowModal(true); }}
@@ -223,26 +366,28 @@ export default function AtividadesPage() {
         </div>
       </div>
 
-      {/* Date Filter Tabs */}
-      <div className="bg-white border-b border-zinc-100 px-6 flex items-center gap-0 shrink-0">
-        {DATE_FILTERS.map(f => (
-          <button
-            key={f.key}
-            onClick={() => setDateFilter(f.key)}
-            className={cn(
-              "px-4 py-3 text-[13px] font-medium transition-colors whitespace-nowrap border-b-2 -mb-px",
-              dateFilter === f.key
-                ? "border-amber-500 text-amber-600 font-semibold"
-                : "border-transparent text-zinc-500 hover:text-zinc-800"
-            )}
-          >
-            {f.label}
-          </button>
-        ))}
-      </div>
+      {/* Date Filter Tabs - only in list view */}
+      {viewMode === "list" && (
+        <div className="bg-white border-b border-zinc-100 px-6 flex items-center gap-0 shrink-0">
+          {DATE_FILTERS.map(f => (
+            <button
+              key={f.key}
+              onClick={() => setDateFilter(f.key)}
+              className={cn(
+                "px-4 py-3 text-[13px] font-medium transition-colors whitespace-nowrap border-b-2 -mb-px",
+                dateFilter === f.key
+                  ? "border-amber-500 text-amber-600 font-semibold"
+                  : "border-transparent text-zinc-500 hover:text-zinc-800"
+              )}
+            >
+              {f.label}
+            </button>
+          ))}
+        </div>
+      )}
 
-      {/* Period date inputs */}
-      {dateFilter === "periodo" && (
+      {/* Period date inputs - only in list view */}
+      {viewMode === "list" && dateFilter === "periodo" && (
         <div className="bg-white px-6 py-3 flex items-center gap-3 border-b border-zinc-100 shrink-0">
           <input
             type="date"
@@ -352,50 +497,208 @@ export default function AtividadesPage() {
 
       {/* CALENDAR VIEW */}
       {viewMode === "calendar" && (
-        <div className="flex-1 flex flex-col min-h-0 m-6 bg-white border border-gray-100 rounded-3xl shadow-sm overflow-hidden">
-          <div className="flex items-center justify-between p-6 border-b border-gray-100">
-            <button onClick={() => setCurrentDate(subMonths(currentDate, 1))} className="p-2 hover:bg-gray-50 rounded-xl transition-colors">
-              <ChevronLeft size={20} className="text-gray-500" />
-            </button>
-            <h2 className="text-lg font-semibold text-gray-900 uppercase tracking-tight">
-              {format(currentDate, "MMMM 'de' yyyy", { locale: ptBR })}
-            </h2>
-            <button onClick={() => setCurrentDate(addMonths(currentDate, 1))} className="p-2 hover:bg-gray-50 rounded-xl transition-colors">
-              <ChevronRight size={20} className="text-gray-500" />
-            </button>
-          </div>
-          <div className="grid grid-cols-7 border-b border-gray-100 bg-gray-50/50">
-            {["DOM", "SEG", "TER", "QUA", "QUI", "SEX", "SÁB"].map(d => (
-              <div key={d} className="py-3 text-center text-[10px] font-semibold text-gray-400 uppercase tracking-widest">{d}</div>
-            ))}
-          </div>
-          <div className="grid grid-cols-7 flex-1 overflow-y-auto">
-            {calDays.map((day, idx) => {
-              const dayActs = allActivities.filter(a => isSameDay(new Date(a.date), day));
-              return (
-                <div key={idx} className={cn("min-h-[100px] p-2 border-b border-r border-gray-50 flex flex-col", !isSameMonth(day, currentDate) && "bg-gray-50/30 opacity-40")}>
-                  <span className={cn("w-7 h-7 flex items-center justify-center rounded-full text-xs font-semibold mb-1 self-start", isToday(day) ? "bg-amber-500 text-white" : "text-gray-700")}>
-                    {format(day, "d")}
-                  </span>
-                  <div className="space-y-1 overflow-hidden">
-                    {dayActs.slice(0, 3).map(a => {
-                      const colors = getColors(a.type);
-                      const isOverdue = !a.completed && isPast(new Date(a.date)) && !isToday(day);
-                      return (
-                        <button
-                          key={a.id}
-                          onClick={() => { setEditingActivity(a); setShowModal(true); }}
-                          className={cn("w-full text-left px-2 py-1 rounded-lg border text-[10px] font-medium truncate transition-all hover:scale-[1.02]", a.completed ? "line-through opacity-60 " + colors.chip : (isOverdue ? "bg-red-50 border-red-300 text-red-800" : colors.chip))}
-                        >
-                          {format(new Date(a.date), "HH:mm")} {a.title}
-                        </button>
-                      );
-                    })}
-                    {dayActs.length > 3 && <p className="text-[10px] text-gray-400 pl-1">+{dayActs.length - 3} mais</p>}
+        <div className="flex-1 overflow-hidden p-6 flex justify-center">
+          <div className="flex gap-6 w-full max-w-5xl h-full items-start">
+            {/* Calendar Card */}
+            <div className="flex-1 flex flex-col h-full bg-white border border-zinc-200/80 rounded-3xl shadow-sm overflow-hidden">
+              {/* Header */}
+              <div className="flex items-center justify-between p-5 border-b border-zinc-100">
+                <button
+                  onClick={() => setCurrentDate(subMonths(currentDate, 1))}
+                  className="p-2 hover:bg-zinc-50 rounded-xl transition-colors border border-zinc-100"
+                >
+                  <ChevronLeft size={16} className="text-zinc-500" />
+                </button>
+                <h2 className="text-sm font-bold text-zinc-800 tracking-wide uppercase">
+                  {formatMonthHeader(currentDate)}
+                </h2>
+                <button
+                  onClick={() => setCurrentDate(addMonths(currentDate, 1))}
+                  className="p-2 hover:bg-zinc-50 rounded-xl transition-colors border border-zinc-100"
+                >
+                  <ChevronRight size={16} className="text-zinc-500" />
+                </button>
+              </div>
+
+              {/* Day names */}
+              <div className="grid grid-cols-7 border-b border-zinc-100 bg-zinc-50/50">
+                {["DOM", "SEG", "TER", "QUA", "QUI", "SEX", "SÁB"].map(d => (
+                  <div key={d} className="py-2.5 text-center text-[10px] font-bold text-zinc-400 tracking-wider">{d}</div>
+                ))}
+              </div>
+
+              {/* Grid */}
+              <div className="grid grid-cols-7 flex-1 overflow-y-auto border-t border-l border-zinc-100/50">
+                {calDays.map((day, idx) => {
+                  const isCurrentMonth = isSameMonth(day, currentDate);
+                  const isSelected = selectedDay && isSameDay(day, selectedDay);
+                  
+                  // Filter activities for this specific day using the user/type filters
+                  const dayActs = allActivities.filter(a => {
+                    if (!isSameDay(new Date(a.date), day)) return false;
+                    if (filterType !== "Todos" && a.type !== filterType) return false;
+                    return true;
+                  });
+
+                  return (
+                    <div
+                      key={idx}
+                      onClick={() => isCurrentMonth && handleDayClick(day)}
+                      className={cn(
+                        "min-h-[110px] p-2 border-r border-b border-zinc-100 flex flex-col transition-all duration-200 select-none",
+                        isCurrentMonth ? "bg-white cursor-pointer" : "bg-zinc-50/40 cursor-default",
+                        isCurrentMonth && isSelected && "bg-[#FFFDF0] ring-1 ring-amber-400/30",
+                        isCurrentMonth && !isSelected && "hover:bg-zinc-50/60"
+                      )}
+                    >
+                      {isCurrentMonth && (
+                        <>
+                          <span
+                            className={cn(
+                              "w-6 h-6 flex items-center justify-center rounded-full text-[11px] font-bold mb-1.5 self-start transition-colors",
+                              isToday(day)
+                                ? "bg-amber-500 text-white shadow-sm"
+                                : isSelected
+                                  ? "text-amber-600 font-bold"
+                                  : "text-zinc-600"
+                            )}
+                          >
+                            {format(day, "d")}
+                          </span>
+                          
+                          <div className="space-y-1.5 flex-1 overflow-hidden">
+                            {dayActs.slice(0, 3).map(a => {
+                              const colors = getColors(a.type);
+                              return (
+                                <div
+                                  key={a.id}
+                                  className={cn(
+                                    "w-full flex items-center gap-1.5 px-2 py-1 rounded-full text-[9px] font-semibold truncate border border-transparent shadow-[0_1px_2px_rgba(0,0,0,0.01)]",
+                                    colors.badge,
+                                    a.completed && "opacity-50 line-through"
+                                  )}
+                                >
+                                  <span className={cn("w-1.5 h-1.5 rounded-full shrink-0", colors.dot)} />
+                                  <span className="truncate flex-1 text-left">
+                                    {format(new Date(a.date), "HH:mm")} {a.title}
+                                  </span>
+                                </div>
+                              );
+                            })}
+                            {dayActs.length > 3 && (
+                              <p className="text-[9px] font-bold text-zinc-400 pl-2">
+                                +{dayActs.length - 3} mais
+                              </p>
+                            )}
+                          </div>
+                        </>
+                      )}
+                    </div>
+                  );
+                })}
+              </div>
+            </div>
+
+            {/* Sidebar Panel */}
+            {selectedDay && (
+              <div className="w-[380px] h-full bg-white border border-zinc-200/80 rounded-3xl shadow-sm flex flex-col overflow-hidden shrink-0 animate-in slide-in-from-right duration-250">
+                <div className="flex items-center justify-between p-5 border-b border-zinc-100 bg-white">
+                  <div className="min-w-0 flex-1 pr-2">
+                    <h3 className="text-sm font-bold text-zinc-900 leading-tight truncate">
+                      {formatSidebarDate(selectedDay)}
+                    </h3>
+                    <p className="text-[10px] font-semibold text-zinc-400 mt-0.5">
+                      {selectedDayActs.length} {selectedDayActs.length === 1 ? "atividade" : "atividades"}
+                    </p>
                   </div>
+                  <button
+                    onClick={() => setSelectedDay(null)}
+                    className="p-1.5 hover:bg-zinc-100 rounded-lg text-zinc-400 hover:text-zinc-600 transition-colors border border-transparent"
+                  >
+                    <X size={15} />
+                  </button>
                 </div>
-              );
-            })}
+
+                <div className="flex-1 overflow-y-auto p-5 space-y-3 bg-zinc-50/50">
+                  {selectedDayActs.length === 0 ? (
+                    <div className="flex flex-col items-center justify-center py-24 text-center">
+                      <div className="w-12 h-12 rounded-2xl bg-zinc-100 flex items-center justify-center mb-3">
+                        <CheckCircle size={20} className="text-zinc-400" />
+                      </div>
+                      <p className="text-xs font-semibold text-zinc-400">Nenhuma atividade neste dia</p>
+                      <p className="text-[10px] text-zinc-300 mt-0.5 max-w-[200px]">Aproveite o seu dia ou adicione uma nova atividade.</p>
+                    </div>
+                  ) : (
+                    selectedDayActs.map(a => {
+                      const colors = getColors(a.type);
+                      return (
+                        <div
+                          key={a.id}
+                          className={cn(
+                            "p-3.5 bg-white rounded-2xl border border-zinc-100 shadow-[0_1px_3px_rgba(0,0,0,0.01)] transition-all group flex flex-col gap-2.5",
+                            a.completed && "opacity-60"
+                          )}
+                        >
+                          <div className="flex items-start justify-between gap-2">
+                            <div className="flex items-center gap-2">
+                              <button
+                                onClick={() => handleComplete(a)}
+                                className={cn(
+                                  "w-[18px] h-[18px] rounded-full border flex items-center justify-center shrink-0 transition-all",
+                                  a.completed ? "bg-green-500 border-green-500 text-white animate-scale-in" : "border-zinc-300 hover:border-amber-500 bg-white"
+                                )}
+                              >
+                                {a.completed && <CheckCircle size={10} />}
+                              </button>
+                              <span className={cn("text-[10px] px-2.5 py-0.5 rounded-full font-bold flex items-center gap-1.5", colors.badge)}>
+                                <span className={cn("w-1.5 h-1.5 rounded-full shrink-0", colors.dot)} />
+                                {a.type}
+                              </span>
+                            </div>
+
+                            <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
+                              <button
+                                onClick={() => { setEditingActivity(a); setShowModal(true); }}
+                                className="p-1 text-zinc-400 hover:text-amber-600 hover:bg-amber-50 rounded-md transition-colors"
+                              >
+                                <Edit2 size={12} />
+                              </button>
+                              <button
+                                onClick={() => deleteActivity(a.id)}
+                                className="p-1 text-zinc-400 hover:text-red-500 hover:bg-red-50 rounded-md transition-colors"
+                              >
+                                <Trash2 size={12} />
+                              </button>
+                            </div>
+                          </div>
+
+                          <div>
+                            <h4
+                              onClick={() => { setEditingActivity(a); setShowModal(true); }}
+                              className={cn(
+                                "text-xs font-semibold hover:text-amber-600 transition-colors cursor-pointer block leading-normal",
+                                a.completed ? "line-through text-zinc-400" : "text-zinc-800"
+                              )}
+                            >
+                              {format(new Date(a.date), "HH:mm")} — {a.title}
+                            </h4>
+                            <p className="text-[10px] text-amber-500 font-semibold mt-1">
+                              {a.dealTitle}
+                            </p>
+                          </div>
+
+                          {a.description && (
+                            <div className="text-[10px] text-zinc-500 bg-zinc-50 rounded-xl p-2.5 border border-zinc-100 whitespace-pre-wrap leading-relaxed">
+                              {a.description}
+                            </div>
+                          )}
+                        </div>
+                      );
+                    })
+                  )}
+                </div>
+              </div>
+            )}
           </div>
         </div>
       )}

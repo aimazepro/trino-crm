@@ -12,8 +12,10 @@ import {
   Target,
   Phone,
   Crosshair,
-  PhoneCall,
   LogOut,
+  BarChart3,
+  Mic,
+  ChevronLeft,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { createClient } from "@/lib/supabase/client";
@@ -38,9 +40,20 @@ export function Sidebar() {
     <aside className="flex h-screen shrink-0 flex-col bg-white border-r border-zinc-100/80 transition-[width] duration-200 ease-in-out overflow-hidden w-56">
 
       {/* Logo */}
-      <div className="flex h-14 items-center px-3 shrink-0">
-        <Link href="/">
-           <img src="/logo.png" alt="DMhub" className="h-7 object-contain" />
+      <div className="flex h-14 items-center px-4 shrink-0 border-b border-zinc-100">
+        <Link href="/" className="flex items-center gap-2">
+          {/* Logo Mark (yellow squircle) */}
+          <div className="w-8 h-8 rounded-lg bg-[#F1A80A] flex items-center justify-center shrink-0">
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+              <circle cx="12" cy="12" r="7" stroke="white" strokeWidth="2.5" />
+              <circle cx="12" cy="12" r="3" fill="white" />
+            </svg>
+          </div>
+          {/* Logo Text */}
+          <span className="text-[17px] font-black tracking-tight flex items-center">
+            <span className="text-[#F1A80A]">dm</span>
+            <span className="text-black font-semibold">[HUB]</span>
+          </span>
         </Link>
       </div>
 
@@ -140,7 +153,7 @@ export function Sidebar() {
           </span>
           <ul className="space-y-0.5">
             {[
-              { href: "/insights", label: "Métricas", icon: Target },
+              { href: "/insights", label: "Métricas", icon: BarChart3 },
               { href: "/ligacoes", label: "Ligações", icon: Phone },
               { href: "/metas", label: "Metas", icon: Target }
             ].map(item => {
@@ -172,7 +185,7 @@ export function Sidebar() {
             {[
               { href: "/prospeccao", label: "Prospecção", icon: Crosshair },
               { href: "/automacoes", label: "Automações", icon: Zap },
-              { href: "/analise-calls", label: "Análise de Calls", icon: PhoneCall }
+              { href: "/analise-calls", label: "Análise de Calls", icon: Mic }
             ].map(item => {
               const active = isActive(item.href);
               return (
@@ -207,6 +220,15 @@ export function Sidebar() {
                <span className="flex-1 whitespace-nowrap overflow-hidden">Configurações</span>
             </Link>
           </li>
+          <li className="mt-1">
+            <button
+              onClick={() => {}}
+              className="w-full flex items-center gap-3 rounded-xl px-3 py-2 text-[13px] font-medium text-zinc-500 hover:bg-zinc-50 hover:text-zinc-800 transition-all duration-150 text-left"
+            >
+              <ChevronLeft className="h-[18px] w-[18px] shrink-0 text-zinc-400" />
+              <span className="flex-1 whitespace-nowrap overflow-hidden">Recolher</span>
+            </button>
+          </li>
         </ul>
       </nav>
 
@@ -216,9 +238,11 @@ export function Sidebar() {
           onClick={handleLogout}
           className="w-full flex items-center gap-2.5 rounded-xl px-2 py-2 hover:bg-red-50 transition-colors cursor-pointer group"
         >
-          <div className="w-7 h-7 rounded-full bg-violet-500 text-white flex items-center justify-center font-bold text-[11px] shrink-0">
-            J
-          </div>
+          <img
+            src="/avatar_joao.png"
+            alt="João Paulo Olivera"
+            className="w-7 h-7 rounded-full object-cover shrink-0"
+          />
           <div className="flex-1 min-w-0 text-left">
             <p className="text-[12px] font-bold text-zinc-800 truncate">João Paulo Olivera</p>
             <p className="text-[10px] font-medium text-zinc-400 truncate">Administrador</p>

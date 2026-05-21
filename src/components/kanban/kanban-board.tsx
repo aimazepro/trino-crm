@@ -12,9 +12,10 @@ import { cn } from "@/lib/utils";
 interface KanbanBoardProps {
   pipelineId: string;
   onNewDeal?: (stageId?: string) => void;
+  statusFilter?: "Ativo" | "Ganho" | "Perdido";
 }
 
-export function KanbanBoard({ pipelineId, onNewDeal }: KanbanBoardProps) {
+export function KanbanBoard({ pipelineId, onNewDeal, statusFilter = "Ativo" }: KanbanBoardProps) {
   const { state, moveDeal, markDealStatus } = useCrm();
   const [isDragging, setIsDragging] = useState(false);
   const [lossModalDealId, setLossModalDealId] = useState<string | null>(null);
@@ -25,11 +26,11 @@ export function KanbanBoard({ pipelineId, onNewDeal }: KanbanBoardProps) {
 
   // Render cards logic mapped by stage
   const dealsByStage = pipeline.stages.reduce((acc, stage) => {
-    // Only active deals in this pipeline and this stage
+    // Filter deals in this pipeline, stage, and matching status filter
     acc[stage.id] = state.deals.filter(d => 
       d.pipelineId === pipelineId && 
       d.stageId === stage.id && 
-      d.status === "Ativo"
+      d.status === statusFilter
     );
     return acc;
   }, {} as Record<string, typeof state.deals>);
@@ -138,10 +139,20 @@ export function KanbanBoard({ pipelineId, onNewDeal }: KanbanBoardProps) {
                                     )}
                                     onClick={() => window.location.href = `/negocios/${deal.id}`}
                                   >
-                                     <div className="flex justify-between items-start mb-2">
+                                     <div className="flex justify-between items-start mb-2 gap-2">
                                        <h4 className="font-semibold text-gray-900 text-[13px] group-hover:text-amber-600 transition-colors line-clamp-1 leading-snug">
                                          {deal.title}
                                        </h4>
+                                       {deal.status === "Ganho" && (
+                                         <span className="bg-emerald-50 text-emerald-600 text-[9px] font-extrabold px-1.5 py-0.5 rounded-md tracking-wider shrink-0">
+                                           GANHO
+                                         </span>
+                                       )}
+                                       {deal.status === "Perdido" && (
+                                         <span className="bg-red-50 text-red-600 text-[9px] font-extrabold px-1.5 py-0.5 rounded-md tracking-wider shrink-0">
+                                           PERDIDO
+                                         </span>
+                                       )}
                                      </div>
                                      
                                      {contact ? (
@@ -174,7 +185,9 @@ export function KanbanBoard({ pipelineId, onNewDeal }: KanbanBoardProps) {
                                              {isOverdue ? `ATRASADA: ${nextActivity.type.toUpperCase()}` : `${formatActivityDate(nextActivity.date)}: ${nextActivity.type}`}
                                           </div>
                                        ) : (
-                                          <div className="flex items-center gap-1 text-gray-300">
+                                          <div className="flex items-center gap-1 text-amber-500 font-semibold">
+                                            <AlertTriangle size={12} className="shrink-0" />
+                                            <span>Sem atividade</span>
                                           </div>
                                        )}
                                        <div className="text-gray-300 font-medium">{deal.daysInStage}d</div>
@@ -206,8 +219,8 @@ export function KanbanBoard({ pipelineId, onNewDeal }: KanbanBoardProps) {
 
         {/* Global Bottom Dropzones - Visible only when dragging */}
         <div className={cn(
-          "fixed bottom-0 left-64 right-0 h-28 bg-white border-t border-gray-200 shadow-[0_-10px_40px_rgba(0,0,0,0.05)] transform transition-transform duration-300 flex z-50",
-          isDragging ? "translate-y-0" : "translate-y-full"
+          "fixed bottom-0 left-64 right-0 h-28 bg-white border-t border-gray-200 shadow-[0_-10px_40px_rgba(0,0,0,0.05)] transition-opacity duration-300 flex z-50",
+          isDragging ? "opacity-100 pointer-events-auto" : "opacity-0 pointer-events-none"
         )}>
            <Droppable droppableId="zone_perdido">
              {(provided, snapshot) => (

@@ -10,12 +10,14 @@ import { KanbanBoard } from "@/components/kanban/kanban-board";
 import { KanbanListView } from "@/components/kanban/kanban-list-view";
 import { NewDealModal } from "@/components/pipeline/new-deal-modal";
 import { cn } from "@/lib/utils";
+import { LeadStatus } from "@/lib/crm-types";
 
 export default function KanbanPage() {
   const router = useRouter();
   const { state, loading } = useCrm();
   const [activePipelineId, setActivePipelineId] = useState<string>("");
   const [viewMode, setViewMode] = useState<"kanban" | "list">("kanban");
+  const [statusFilter, setStatusFilter] = useState<LeadStatus>("Ativo");
 
   // Modals
   const [showNewPipelineModal, setShowNewPipelineModal] = useState(false);
@@ -103,18 +105,42 @@ export default function KanbanPage() {
             </div>
 
             {/* Stage Filters */}
-            <button className="flex items-center gap-1.5 rounded-lg border px-3 py-1.5 text-sm font-medium transition-colors border-zinc-300 bg-zinc-100 text-zinc-800">
-               <Eye size={14} /> 
-               Ativos
-            </button>
-            <button className="flex items-center gap-1.5 rounded-lg border px-3 py-1.5 text-sm font-medium transition-colors border-zinc-200 text-zinc-500 hover:bg-zinc-50">
-               <Trophy size={14} /> 
-               Ganhos
-            </button>
-            <button className="flex items-center gap-1.5 rounded-lg border px-3 py-1.5 text-sm font-medium transition-colors border-zinc-200 text-zinc-500 hover:bg-zinc-50">
-               <XCircle size={14} /> 
-               Perdidos
-            </button>
+            <button
+               onClick={() => setStatusFilter("Ativo")}
+               className={cn(
+                 "flex items-center gap-1.5 rounded-lg border px-3 py-1.5 text-sm font-medium transition-colors",
+                 statusFilter === "Ativo"
+                   ? "border-zinc-300 bg-zinc-100 text-zinc-800"
+                   : "border-zinc-200 text-zinc-500 hover:bg-zinc-50 bg-white"
+               )}
+             >
+                <Eye size={14} /> 
+                Ativos
+             </button>
+             <button
+               onClick={() => setStatusFilter("Ganho")}
+               className={cn(
+                 "flex items-center gap-1.5 rounded-lg border px-3 py-1.5 text-sm font-medium transition-colors",
+                 statusFilter === "Ganho"
+                   ? "border-zinc-300 bg-zinc-100 text-zinc-800"
+                   : "border-zinc-200 text-zinc-500 hover:bg-zinc-50 bg-white"
+               )}
+             >
+                <Trophy size={14} /> 
+                Ganhos
+             </button>
+             <button
+               onClick={() => setStatusFilter("Perdido")}
+               className={cn(
+                 "flex items-center gap-1.5 rounded-lg border px-3 py-1.5 text-sm font-medium transition-colors",
+                 statusFilter === "Perdido"
+                   ? "border-zinc-300 bg-zinc-100 text-zinc-800"
+                   : "border-zinc-200 text-zinc-500 hover:bg-zinc-50 bg-white"
+               )}
+             >
+                <XCircle size={14} /> 
+                Perdidos
+             </button>
 
             {/* Exportar */}
             <button disabled className="flex items-center gap-1.5 rounded-lg border border-zinc-200 px-3 py-1.5 text-sm font-medium text-zinc-500 hover:bg-zinc-50 transition-colors disabled:opacity-50">
@@ -145,11 +171,11 @@ export default function KanbanPage() {
       <div className="flex-1 overflow-hidden relative">
          {viewMode === "kanban" ? (
            <div className="h-full overflow-x-auto overflow-y-hidden hide-scrollbar py-6 px-8">
-              <KanbanBoard pipelineId={activePipelineId} onNewDeal={openNewDealModal} />
+              <KanbanBoard pipelineId={activePipelineId} onNewDeal={openNewDealModal} statusFilter={statusFilter} />
            </div>
          ) : (
            <div className="p-6">
-             <KanbanListView pipelineId={activePipelineId} />
+             <KanbanListView pipelineId={activePipelineId} statusFilter={statusFilter} />
            </div>
          )}
       </div>
