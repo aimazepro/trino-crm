@@ -28,16 +28,18 @@ function EditableField({ label, value, onSave }: { label: string; value: string;
     <div className="py-2.5 border-b border-zinc-100 last:border-0">
       <p className="text-xs text-zinc-400 mb-1">{label}</p>
       {editing ? (
-        <div className="flex items-center gap-1.5">
+        <div className="space-y-1.5">
           <input
             ref={ref}
             value={val}
             onChange={e => setVal(e.target.value)}
             onKeyDown={e => { if (e.key === "Enter") commit(); if (e.key === "Escape") { setVal(value); setEditing(false); } }}
-            className="flex-1 text-sm border-b-2 border-amber-400 outline-none bg-transparent py-0.5 text-zinc-900"
+            className="w-full rounded-md border border-amber-300 px-2.5 py-1.5 text-sm outline-none focus:ring-2 focus:ring-amber-200 text-zinc-900 bg-white"
           />
-          <button onClick={commit} className="text-green-500 p-0.5 hover:bg-green-50 rounded"><CheckCircle className="h-3.5 w-3.5" /></button>
-          <button onClick={() => { setVal(value); setEditing(false); }} className="text-red-400 p-0.5 hover:bg-red-50 rounded"><X className="h-3.5 w-3.5" /></button>
+          <div className="flex justify-end gap-1.5">
+            <button onClick={() => { setVal(value); setEditing(false); }} className="px-2.5 py-1 rounded text-xs text-zinc-500 hover:bg-zinc-100 border border-zinc-200">Cancelar</button>
+            <button onClick={commit} className="px-2.5 py-1 rounded text-xs text-white bg-green-600 hover:bg-green-700 font-medium">Salvar</button>
+          </div>
         </div>
       ) : (
         <div className="flex items-center gap-1 group w-full">
@@ -56,41 +58,39 @@ function EditableField({ label, value, onSave }: { label: string; value: string;
 }
 
 // ── Contact search ─────────────────────────────────────────────────────────────
-function ContactSearch({ allContacts, onLink }: { allContacts: { id: string; name: string }[]; onLink: (id: string) => void }) {
+function ContactSearch({ allContacts, onLink, onClose }: { allContacts: { id: string; name: string }[]; onLink: (id: string) => void; onClose: () => void }) {
   const [query, setQuery] = useState("");
-  const [open, setOpen] = useState(false);
-  const filtered = query.trim() ? allContacts.filter(c => c.name.toLowerCase().includes(query.toLowerCase())) : [];
-  const ref = useRef<HTMLDivElement>(null);
-  useEffect(() => {
-    const h = (e: MouseEvent) => { if (ref.current && !ref.current.contains(e.target as Node)) setOpen(false); };
-    document.addEventListener("mousedown", h);
-    return () => document.removeEventListener("mousedown", h);
-  }, []);
+  const inputRef = useRef<HTMLInputElement>(null);
+  useEffect(() => { inputRef.current?.focus(); }, []);
+  const filtered = query.trim()
+    ? allContacts.filter(c => c.name.toLowerCase().includes(query.toLowerCase())).slice(0, 5)
+    : [];
 
   return (
-    <div ref={ref} className="relative mt-2">
-      <div className="flex items-center gap-2 rounded-lg border border-zinc-200 px-3 py-1.5 bg-white">
+    <div className="mt-2 rounded-xl border border-zinc-200 bg-white overflow-hidden">
+      <div className="flex items-center gap-2 px-3 py-2 border-b border-zinc-100">
         <Search className="h-3.5 w-3.5 text-zinc-400 shrink-0" />
         <input
+          ref={inputRef}
           value={query}
-          onChange={e => { setQuery(e.target.value); setOpen(true); }}
-          onFocus={() => setOpen(true)}
-          placeholder="Buscar pessoa para vincular..."
-          className="flex-1 text-xs outline-none bg-transparent text-zinc-700 placeholder:text-zinc-400"
+          onChange={e => setQuery(e.target.value)}
+          placeholder="Buscar contato..."
+          className="flex-1 text-sm outline-none bg-transparent text-zinc-700 placeholder:text-zinc-400"
         />
       </div>
-      {open && query.trim() && (
-        <div className="absolute z-50 top-full mt-1 left-0 right-0 bg-white border border-zinc-200 rounded-xl shadow-xl overflow-hidden">
-          {filtered.slice(0, 5).map(c => (
-            <button key={c.id} onMouseDown={() => { onLink(c.id); setQuery(""); setOpen(false); }}
-              className="w-full flex items-center gap-2.5 px-3 py-2.5 hover:bg-amber-50 text-left text-sm font-medium text-zinc-900 transition-colors">
-              <div className="w-5 h-5 rounded-full bg-zinc-100 text-zinc-600 text-[10px] font-bold flex items-center justify-center shrink-0">{c.name.charAt(0)}</div>
-              {c.name}
-            </button>
-          ))}
-          {filtered.length === 0 && <div className="px-3 py-2.5 text-xs text-zinc-400">Nenhum resultado</div>}
-        </div>
+      {filtered.map(c => (
+        <button key={c.id} onClick={() => onLink(c.id)}
+          className="w-full flex items-center gap-2.5 px-3 py-2.5 hover:bg-amber-50 text-left text-sm font-medium text-zinc-900 transition-colors border-b border-zinc-50 last:border-0">
+          <div className="w-6 h-6 rounded-full bg-zinc-100 text-zinc-600 text-[10px] font-bold flex items-center justify-center shrink-0">{c.name.charAt(0)}</div>
+          {c.name}
+        </button>
+      ))}
+      {query.trim() && filtered.length === 0 && (
+        <div className="px-3 py-2.5 text-xs text-zinc-400">Nenhum resultado</div>
       )}
+      <button onClick={onClose} className="w-full text-left px-3 py-2 text-xs text-zinc-400 hover:text-zinc-600 transition-colors">
+        Cancelar
+      </button>
     </div>
   );
 }
@@ -235,6 +235,7 @@ export default function EmpresaPage({ params }: { params: Promise<{ id: string }
                 <ContactSearch
                   allContacts={state.contacts.filter(c => c.companyId !== id)}
                   onLink={cid => { updateContact(cid, { companyId: id }); setShowVincularPessoa(false); }}
+                  onClose={() => setShowVincularPessoa(false)}
                 />
               )}
             </div>
