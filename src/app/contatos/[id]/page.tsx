@@ -8,6 +8,7 @@ import {
   ArrowLeft, Mail, Plus, Phone, Briefcase, Building2,
   History, ArrowRight, CheckCircle, X, AlertCircle, Users, Pen,
 } from "lucide-react";
+import { UseEmailTemplateModal } from "@/components/email/use-email-template-modal";
 import { cn } from "@/lib/utils";
 import { format, isPast, isToday } from "date-fns";
 import { ptBR } from "date-fns/locale";
@@ -188,6 +189,7 @@ export default function ContatoPage({ params }: { params: Promise<{ id: string }
   const contact = state.contacts.find(c => c.id === id);
   const deals = state.deals.filter(d => d.contactId === id);
   const [activeTab, setActiveTab] = useState<Tab>("negocios");
+  const [showTemplateModal, setShowTemplateModal] = useState(false);
 
   const timeline = useMemo(() => {
     const items: { id: string; type: string; title: string; sub: string; dealName: string; dealId: string; date: string }[] = [];
@@ -232,6 +234,7 @@ export default function ContatoPage({ params }: { params: Promise<{ id: string }
   };
 
   return (
+    <>
     <div className="flex h-full flex-col">
 
       {/* Header — identical structure to list page */}
@@ -258,7 +261,7 @@ export default function ContatoPage({ params }: { params: Promise<{ id: string }
 
           {/* Template button */}
           <div className="flex justify-end">
-            <button className="flex items-center gap-1.5 rounded-xl bg-zinc-100 px-3 py-1.5 text-xs font-medium text-zinc-600 hover:bg-zinc-200 transition-colors">
+            <button onClick={() => setShowTemplateModal(true)} className="flex items-center gap-1.5 rounded-xl bg-zinc-100 px-3 py-1.5 text-xs font-medium text-zinc-600 hover:bg-zinc-200 transition-colors">
               <Mail className="h-3 w-3" aria-hidden="true" /> Usar template de email
             </button>
           </div>
@@ -472,5 +475,7 @@ export default function ContatoPage({ params }: { params: Promise<{ id: string }
         </div>
       </div>
     </div>
+    {showTemplateModal && <UseEmailTemplateModal onClose={() => setShowTemplateModal(false)} />}
+    </>
   );
 }

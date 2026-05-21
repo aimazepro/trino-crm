@@ -62,12 +62,24 @@ function extractVars(text: string): string[] {
   return [...new Set(matches)];
 }
 
+const LS_KEY = "trino_crm_email_templates";
+
+export function loadEmailTemplates(): Template[] {
+  if (typeof window === "undefined") return [];
+  try { return JSON.parse(localStorage.getItem(LS_KEY) || "[]"); } catch { return []; }
+}
+
 export default function TemplatesEmailPage() {
-  const [templates, setTemplates] = useState<Template[]>([]);
+  const [templates, setTemplates] = useState<Template[]>(() => loadEmailTemplates());
   const [showModal, setShowModal] = useState(false);
   const [previewTemplate, setPreviewTemplate] = useState<Template | null>(null);
   const [copiedPreview, setCopiedPreview] = useState(false);
   const [form, setForm] = useState({ model: "", name: "", subject: "", body: "" });
+
+  const persist = (list: Template[]) => {
+    setTemplates(list);
+    localStorage.setItem(LS_KEY, JSON.stringify(list));
+  };
 
   const handleModelSelect = (value: string) => {
     const found = MODEL_OPTIONS.find(m => m.value === value);
@@ -80,12 +92,12 @@ export default function TemplatesEmailPage() {
 
   const handleSave = () => {
     if (!form.name.trim()) return;
-    setTemplates([...templates, { id: Date.now().toString(), name: form.name, subject: form.subject, body: form.body }]);
+    persist([...templates, { id: Date.now().toString(), name: form.name, subject: form.subject, body: form.body }]);
     setForm({ model: "", name: "", subject: "", body: "" });
     setShowModal(false);
   };
 
-  const handleDelete = (id: string) => setTemplates(templates.filter(t => t.id !== id));
+  const handleDelete = (id: string) => persist(templates.filter(t => t.id !== id));
 
   const handleCopyPreview = () => {
     if (!previewTemplate) return;
