@@ -43,12 +43,7 @@ export function KanbanBoard({ pipelineId, onNewDeal, statusFilter = "Ativo" }: K
   const fmt = (v: number) =>
     new Intl.NumberFormat("pt-BR", { style: "currency", currency: "BRL" }).format(v);
 
-  const formatActivityDate = (dateInput: string) => {
-    const d = new Date(dateInput);
-    if (isToday(d)) return `Hoje ${format(d, "HH:mm")}`;
-    if (isTomorrow(d)) return `Amanhã ${format(d, "HH:mm")}`;
-    return format(d, "dd/MM HH:mm");
-  };
+
 
   return (
     <>
@@ -106,7 +101,8 @@ export function KanbanBoard({ pipelineId, onNewDeal, statusFilter = "Ativo" }: K
                           ? pendingActivities.sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime())[0]
                           : null;
                         const isActivityToday = nextActivity ? isToday(new Date(nextActivity.date)) : false;
-                        const isOverdue = nextActivity ? (isPast(new Date(nextActivity.date)) && !isActivityToday) : false;
+                        const isActivityTomorrow = nextActivity ? isTomorrow(new Date(nextActivity.date)) : false;
+                        const isPastTime = nextActivity ? isPast(new Date(nextActivity.date)) : false;
 
                         return (
                           <Draggable key={deal.id} draggableId={deal.id} index={index}>
@@ -160,16 +156,28 @@ export function KanbanBoard({ pipelineId, onNewDeal, statusFilter = "Ativo" }: K
 
                                 <div className="mt-3 flex items-center justify-between gap-2">
                                   {nextActivity ? (
-                                    <div className={cn(
-                                      "flex items-center gap-1 text-[11px]",
-                                      isOverdue ? "text-red-500" : isActivityToday ? "text-amber-500" : "text-zinc-400"
-                                    )}>
-                                      {isOverdue && <TriangleAlert className="h-3 w-3" aria-hidden="true" />}
-                                      <span>
-                                        {isOverdue
-                                          ? `Atrasada: ${nextActivity.type}`
-                                          : formatActivityDate(nextActivity.date)}
-                                      </span>
+                                    <div className="flex-1 min-w-0">
+                                      <div className={cn(
+                                        "flex items-center justify-between rounded-lg px-2.5 py-1.5 text-xs font-medium transition-all duration-200",
+                                        isPastTime
+                                          ? "bg-red-50 text-red-600"
+                                          : isActivityToday
+                                          ? "bg-emerald-50 text-emerald-600"
+                                          : "bg-zinc-50 text-zinc-500"
+                                      )}>
+                                        <span className="truncate">
+                                          {isActivityToday
+                                            ? `Hoje: ${nextActivity.type}`
+                                            : isActivityTomorrow
+                                            ? `Amanhã: ${nextActivity.type}`
+                                            : `${format(new Date(nextActivity.date), "dd/MM HH:mm")}: ${nextActivity.type}`}
+                                        </span>
+                                        {(isActivityToday || isActivityTomorrow) && (
+                                          <span className="shrink-0 ml-1">
+                                            {format(new Date(nextActivity.date), "HH:mm")}
+                                          </span>
+                                        )}
+                                      </div>
                                     </div>
                                   ) : (
                                     <div className="flex items-center gap-1 text-[11px] text-amber-500">
