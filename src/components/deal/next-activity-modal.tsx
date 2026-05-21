@@ -47,7 +47,7 @@ export function NextActivityModal({ dealId, onClose, onSave }: NextActivityModal
 
   return (
     <div className="fixed inset-0 z-[120] flex items-center justify-center p-4 bg-gray-900/50 backdrop-blur-sm animate-in fade-in duration-200">
-      <div className="bg-white rounded-2xl shadow-2xl w-full max-w-[500px] p-6 animate-in zoom-in-95 duration-200 flex flex-col max-h-[90vh]">
+      <div className="bg-white rounded-2xl w-full max-w-[500px] p-6 animate-in zoom-in-95 duration-200 flex flex-col max-h-[90vh]">
 
         {/* Header */}
         <div className="flex items-start justify-between mb-1 shrink-0">
@@ -141,14 +141,14 @@ export function NextActivityModal({ dealId, onClose, onSave }: NextActivityModal
         <div className="mt-6 flex gap-3 shrink-0">
           <button
             onClick={onClose}
-            className="flex-1 py-3 bg-white border border-gray-200 text-gray-700 font-bold rounded-xl transition-colors hover:bg-gray-50 shadow-sm"
+            className="flex-1 py-3 bg-white border border-gray-200 text-gray-700 font-bold rounded-xl transition-colors hover:bg-gray-50"
           >
             Pular
           </button>
           <button
             onClick={handleCreate}
             disabled={!title.trim() || !date}
-            className="flex-1 py-3 bg-[#F8AB00] hover:bg-[#E59E00] text-white font-bold rounded-xl transition-colors shadow-sm disabled:opacity-50 disabled:cursor-not-allowed"
+            className="flex-1 py-3 bg-[#F8AB00] hover:bg-[#E59E00] text-white font-bold rounded-xl transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
           >
             Criar atividade
           </button>

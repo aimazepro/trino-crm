@@ -7,7 +7,7 @@ import { ptBR } from "date-fns/locale";
 import { useCrm } from "@/contexts/crm-context";
 import { ActivityTab } from "./activity-tab";
 import { AppointmentsTab } from "./appointments-tab";
-import { ArrowRight, MessageCircleOff, Settings, Paperclip, Mic, LayoutTemplate } from "lucide-react";
+import { ArrowRight, MessageCircleOff, Settings, Paperclip, Mic, LayoutTemplate, PhoneOff } from "lucide-react";
 import { cn } from "@/lib/utils";
 
 interface DealTabsProps {
@@ -19,7 +19,7 @@ const TABS = ["Atividades", "Agendamentos", "Notas", "Histórico", "WhatsApp"];
 export function DealTabs({ dealId }: DealTabsProps) {
   const { state, addDealNote } = useCrm();
   const deal = state.deals.find(d => d.id === dealId);
-  const contact = deal ? state.contacts.find(c => c.id === deal.contactId) : null;
+  const contact = deal && deal.contactId ? state.contacts.find(c => c.id === deal.contactId) : null;
   
   const [activeTab, setActiveTab] = useState("Atividades");
   const [noteContent, setNoteContent] = useState("");
@@ -88,7 +88,7 @@ export function DealTabs({ dealId }: DealTabsProps) {
           <div className="max-w-3xl space-y-6">
             <div>
                <h4 className="text-xs font-bold text-gray-400 uppercase tracking-widest mb-3">Notas</h4>
-               <div className="bg-white border text-sm text-gray-500 font-medium border-gray-200 rounded-2xl overflow-hidden focus-within:ring-2 focus-within:ring-amber-500/20 focus-within:border-amber-500 transition-all shadow-sm">
+               <div className="bg-white border text-sm text-gray-500 font-medium border-gray-200 rounded-2xl overflow-hidden focus-within:ring-2 focus-within:ring-amber-500/20 focus-within:border-amber-500 transition-all">
                  <textarea 
                    value={noteContent}
                    onChange={e => setNoteContent(e.target.value)}
@@ -99,7 +99,7 @@ export function DealTabs({ dealId }: DealTabsProps) {
                    <button 
                      onClick={handleSaveNote}
                      disabled={!noteContent.trim()}
-                     className="px-4 py-1.5 bg-amber-500 text-white font-bold text-xs rounded-lg disabled:opacity-50 disabled:cursor-not-allowed hover:bg-amber-600 transition-colors shadow-sm"
+                     className="px-4 py-1.5 bg-amber-500 text-white font-bold text-xs rounded-lg disabled:opacity-50 disabled:cursor-not-allowed hover:bg-amber-600 transition-colors"
                    >
                      Salvar
                    </button>
@@ -109,7 +109,7 @@ export function DealTabs({ dealId }: DealTabsProps) {
 
             <div className="space-y-4">
                {deal.notes.map(note => (
-                 <div key={note.id} className="bg-white p-5 rounded-2xl shadow-sm border border-gray-100">
+                 <div key={note.id} className="bg-white p-5 rounded-2xl border border-gray-100">
                     <p className="text-sm text-gray-700 whitespace-pre-wrap">{note.content}</p>
                     <div className="mt-4 text-[11px] font-bold text-gray-400 uppercase tracking-wider">
                       {new Date(note.createdAt).toLocaleString('pt-BR', { dateStyle: 'medium', timeStyle: 'short' })}
@@ -128,7 +128,7 @@ export function DealTabs({ dealId }: DealTabsProps) {
             <div className="space-y-6 pl-4 border-l-2 border-gray-100 ml-4 py-2">
               {deal.history.map((log, index) => (
                 <div key={log.id} className="relative">
-                   <div className="absolute -left-[27px] top-0 w-8 h-8 bg-blue-50 text-blue-500 rounded-full flex items-center justify-center border-4 border-white shadow-sm">
+                   <div className="absolute -left-[27px] top-0 w-8 h-8 bg-blue-50 text-blue-500 rounded-full flex items-center justify-center border-4 border-white">
                      <ArrowRight size={14} className="opacity-70" />
                    </div>
                    <div className="pl-6">
@@ -149,11 +149,19 @@ export function DealTabs({ dealId }: DealTabsProps) {
 
         {/* WhatsApp Tab */}
         {activeTab === "WhatsApp" && (
-          <div className="h-full min-h-[400px] flex flex-col bg-[#F0F2F5] rounded-xl overflow-hidden border border-gray-200/60 shadow-inner">
-             {state.whatsappConnected ? (
+          <div className="h-full min-h-[400px] flex flex-col bg-[#F0F2F5] rounded-xl overflow-hidden border border-gray-200/60">
+             {(!contact || !contact.phones || contact.phones.length === 0) ? (
+               <div className="flex flex-col items-center justify-center h-full m-auto w-full p-8 text-center">
+                  <div className="w-16 h-16 rounded-full bg-white flex items-center justify-center mb-4 border border-gray-200">
+                     <PhoneOff size={24} className="text-gray-300" />
+                  </div>
+                  <h3 className="text-base font-bold text-gray-900 mb-1">Contato sem telefone</h3>
+                  <p className="text-xs text-gray-500 font-medium max-w-xs">Adicione um número de telefone ao contato para iniciar uma conversa.</p>
+               </div>
+             ) : state.whatsappConnected ? (
                <>
                  {/* WhatsApp Header */}
-                 <div className="bg-white px-6 py-3 flex items-center justify-between border-b border-gray-200 shrink-0 shadow-sm z-10 w-full relative">
+                 <div className="bg-white px-6 py-3 flex items-center justify-between border-b border-gray-200 shrink-0 w-full relative z-10">
                     <div className="flex items-center gap-3">
                        <div className="w-10 h-10 rounded-full bg-green-50 text-[#25D366] flex items-center justify-center shrink-0">
                          <MessageCircleOff size={20} className="hidden" />
@@ -192,7 +200,7 @@ export function DealTabs({ dealId }: DealTabsProps) {
                       <LayoutTemplate size={14} /> Templates
                     </button>
                     
-                    <div className="flex-1 bg-white border border-gray-200 rounded-xl px-4 py-2.5 flex items-center shadow-sm">
+                    <div className="flex-1 bg-white border border-gray-200 rounded-xl px-4 py-2.5 flex items-center">
                       <input 
                          placeholder="Digite uma mensagem..."
                          className="w-full text-sm outline-none bg-transparent"
@@ -206,12 +214,12 @@ export function DealTabs({ dealId }: DealTabsProps) {
                </>
              ) : (
                <div className="flex flex-col items-center justify-center h-full m-auto w-full">
-                 <div className="w-16 h-16 rounded-full bg-white flex items-center justify-center mb-6 border border-gray-200 shadow-sm">
+                 <div className="w-16 h-16 rounded-full bg-white flex items-center justify-center mb-6 border border-gray-200">
                     <MessageCircleOff size={24} className="text-gray-300" />
                  </div>
                  <h3 className="text-lg font-bold text-gray-900 mb-2">WhatsApp nao conectado</h3>
                  <p className="text-sm text-gray-500 mb-6 font-medium">Conecte seu WhatsApp nas configuracoes</p>
-                 <button className="flex items-center gap-2 px-6 py-2.5 bg-[#25D366] text-white font-bold rounded-xl shadow-sm hover:opacity-90 transition-opacity">
+                 <button className="flex items-center gap-2 px-6 py-2.5 bg-[#25D366] text-white font-bold rounded-xl hover:opacity-90 transition-opacity">
                    <Settings size={16} /> Configurar WhatsApp
                  </button>
                </div>

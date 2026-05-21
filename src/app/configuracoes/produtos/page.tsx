@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { Plus, Search, Edit2, Trash2, Package, X } from "lucide-react";
 
 type Product = {
@@ -22,21 +22,40 @@ export default function ProdutosConfigPage() {
   const [showModal, setShowModal] = useState(false);
   const [form, setForm] = useState({ name: "", description: "", price: "", code: "", unit: "Selecionar unidade" });
 
+  // Load from localStorage on mount
+  useEffect(() => {
+    const saved = localStorage.getItem("crm_catalog_products");
+    if (saved) {
+      try {
+        setProducts(JSON.parse(saved));
+      } catch (e) {
+        console.error(e);
+      }
+    }
+  }, []);
+
   const handleSave = () => {
     if (!form.name.trim()) return;
-    setProducts([...products, {
+    const newProducts = [...products, {
       id: Date.now().toString(),
       name: form.name,
       code: form.code || null,
       price: parseFloat(form.price) || 0,
       unit: form.unit === "Selecionar unidade" ? "-" : form.unit,
       active: true,
-    }]);
+    }];
+    setProducts(newProducts);
+    localStorage.setItem("crm_catalog_products", JSON.stringify(newProducts));
     setForm({ name: "", description: "", price: "", code: "", unit: "Selecionar unidade" });
     setShowModal(false);
   };
 
-  const handleDelete = (id: string) => setProducts(products.filter(p => p.id !== id));
+  const handleDelete = (id: string) => {
+    const newProducts = products.filter(p => p.id !== id);
+    setProducts(newProducts);
+    localStorage.setItem("crm_catalog_products", JSON.stringify(newProducts));
+  };
+
 
   const filtered = products.filter(p => p.name.toLowerCase().includes(search.toLowerCase()));
 

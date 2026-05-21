@@ -36,6 +36,8 @@ export function InlineEdit({ value, onSave, placeholder = "-", type = "text", cl
     setIsEditing(false);
   };
 
+  const isDate = type === "date";
+
   if (isEditing) {
     return (
       <div className="flex items-center gap-1.5 w-full">
@@ -49,12 +51,20 @@ export function InlineEdit({ value, onSave, placeholder = "-", type = "text", cl
             if (e.key === "Enter") handleSave();
             if (e.key === "Escape") handleCancel();
           }}
-          className={`w-full min-w-[60px] max-w-[140px] px-2 py-1 text-sm border-2 border-amber-400 rounded outline-none shadow-sm ${className}`}
+          className={`w-full ${isDate ? 'min-w-[160px] max-w-[180px]' : 'min-w-[60px] max-w-[140px]'} px-2 py-1 text-sm border-2 border-amber-400 rounded outline-none ${className}`}
         />
         <button onClick={handleSave} className="text-green-500 hover:bg-green-50 p-1 rounded transition-colors"><Check size={14}/></button>
         <button onClick={handleCancel} className="text-red-400 hover:bg-red-50 p-1 rounded transition-colors"><X size={14}/></button>
       </div>
     );
+  }
+
+  let displayValue = value || placeholder;
+  if (value && type === "date") {
+    const parts = value.split("-");
+    if (parts.length === 3) {
+      displayValue = `${parts[2]}/${parts[1]}/${parts[0]}`;
+    }
   }
 
   return (
@@ -63,7 +73,7 @@ export function InlineEdit({ value, onSave, placeholder = "-", type = "text", cl
       onClick={() => setIsEditing(true)}
     >
       <span className={`truncate text-sm ${!value ? "text-gray-400" : "text-gray-900"} ${className}`}>
-        {value || placeholder}
+        {displayValue}
       </span>
       <span className="opacity-0 group-hover:opacity-100 text-gray-300 ml-2 shrink-0">
         <Edit2 size={12} />

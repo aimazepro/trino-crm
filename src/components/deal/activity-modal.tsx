@@ -61,7 +61,7 @@ function DealSearch({ deals, selectedId, onSelect }: { deals: { id: string; titl
         />
       </div>
       {open && (
-        <div className="absolute z-50 top-full mt-1 w-full bg-white border border-gray-200 rounded-xl shadow-lg overflow-hidden max-h-48 overflow-y-auto">
+        <div className="absolute z-50 top-full mt-1 w-full bg-white border border-gray-200 rounded-xl overflow-hidden max-h-48 overflow-y-auto">
           {filtered.length === 0 ? (
             <div className="px-4 py-3 text-sm text-gray-400">Nenhum negócio encontrado</div>
           ) : filtered.map(d => (
@@ -113,7 +113,7 @@ export function ActivityModal({ activity, onClose, onSave, deals = [], defaultDe
 
   return (
     <div className="fixed inset-0 z-[110] flex items-center justify-center p-4 bg-gray-900/40 backdrop-blur-sm animate-in fade-in duration-200">
-      <div className="bg-white rounded-2xl shadow-2xl w-full max-w-[460px] animate-in zoom-in-95 duration-200 flex flex-col max-h-[90vh]">
+      <div className="bg-white rounded-2xl w-full max-w-[460px] animate-in zoom-in-95 duration-200 flex flex-col max-h-[90vh]">
 
         {/* Header */}
         <div className="flex items-center justify-between px-6 pt-6 pb-4 shrink-0">

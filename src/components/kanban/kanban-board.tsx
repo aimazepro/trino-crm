@@ -5,7 +5,7 @@ import { DragDropContext, Droppable, Draggable, DropResult } from "@hello-pangea
 import { useCrm } from "@/contexts/crm-context";
 import { isToday, isTomorrow, isPast, format } from "date-fns";
 import { ptBR } from "date-fns/locale";
-import { MoreHorizontal, Calendar, DollarSign, Building, ChevronRight, AlertTriangle, XCircle, Trophy, Plus } from "lucide-react";
+import { MoreHorizontal, Calendar, DollarSign, Building, ChevronRight, AlertTriangle, XCircle, Trophy, Plus, User } from "lucide-react";
 import { LossReasonModal } from "@/components/deal/loss-reason-modal";
 import { cn } from "@/lib/utils";
 
@@ -155,16 +155,19 @@ export function KanbanBoard({ pipelineId, onNewDeal, statusFilter = "Ativo" }: K
                                        )}
                                      </div>
                                      
-                                     {contact ? (
-                                       <div className="flex items-center gap-1.5 text-[11px] font-medium text-gray-400 mb-1 truncate">
-                                         <span className="truncate">{contact.name}</span>
-                                       </div>
-                                     ) : company ? (
-                                       <div className="flex items-center gap-1.5 text-[11px] font-medium text-gray-400 mb-1 truncate">
-                                         <Building size={12} className="text-gray-300 shrink-0" />
-                                         <span className="truncate">{company.name}</span>
-                                       </div>
-                                     ) : null}
+                                     {contact && (
+                                        <div className="flex items-center gap-1.5 text-[11px] font-medium text-gray-400 mb-1 truncate">
+                                          <User size={12} className="text-gray-300 shrink-0" />
+                                          <span className="truncate">{contact.name}</span>
+                                        </div>
+                                      )}
+                                      
+                                      {company && (
+                                        <div className="flex items-center gap-1.5 text-[11px] font-medium text-gray-400 mb-1 truncate">
+                                          <Building size={12} className="text-gray-300 shrink-0" />
+                                          <span className="truncate">{company.name}</span>
+                                        </div>
+                                      )}
 
                                      <div className="flex items-center justify-between text-[13px] font-semibold text-gray-900 mb-4">
                                        {deal.value > 0 ? (

@@ -60,6 +60,7 @@ function transformCompany(row: any): Company {
     website: row.website ?? undefined, segment: row.segment ?? undefined,
     size: row.size ?? undefined, city: row.city ?? undefined,
     state: row.state ?? undefined, cnpj: row.cnpj ?? undefined,
+    parentCompanyId: row.parent_company_id ?? undefined,
   };
 }
 
@@ -112,8 +113,8 @@ function dealToDb(fields: Partial<Deal>): Record<string, unknown> {
   const db: Record<string, unknown> = {};
   if (fields.title !== undefined) db.title = fields.title;
   if (fields.value !== undefined) db.value = fields.value;
-  if (fields.contactId !== undefined) db.contact_id = fields.contactId;
-  if (fields.companyId !== undefined) db.company_id = fields.companyId ?? null;
+  if ("contactId" in fields) db.contact_id = fields.contactId ?? null;
+  if ("companyId" in fields) db.company_id = fields.companyId ?? null;
   if (fields.pipelineId !== undefined) db.pipeline_id = fields.pipelineId;
   if (fields.stageId !== undefined) db.stage_id = fields.stageId;
   if (fields.status !== undefined) db.status = fields.status;
@@ -270,6 +271,20 @@ export function CrmProvider({ children }: { children: ReactNode }) {
         if (fields.labels!.length > 0) {
           await supabase.from("deal_labels").insert(
             fields.labels!.map((lid) => ({ deal_id: dealId, label_id: lid }))
+          );
+        }
+      });
+    }
+    if (fields.products !== undefined) {
+      supabase.from("deal_products").delete().eq("deal_id", dealId).then(async () => {
+        if (fields.products!.length > 0) {
+          await supabase.from("deal_products").insert(
+            fields.products!.map((p) => ({
+              deal_id: dealId,
+              name: p.name,
+              quantity: p.quantity,
+              price: p.price
+            }))
           );
         }
       });
@@ -437,6 +452,7 @@ export function CrmProvider({ children }: { children: ReactNode }) {
     if (fields.city !== undefined) db.city = fields.city ?? null;
     if (fields.state !== undefined) db.state = fields.state ?? null;
     if (fields.cnpj !== undefined) db.cnpj = fields.cnpj ?? null;
+    if (fields.parentCompanyId !== undefined) db.parent_company_id = fields.parentCompanyId ?? null;
     if (Object.keys(db).length > 0) {
       supabase.from("companies").update(db).eq("id", companyId)
         .then(({ error }) => { if (error) console.error("[CRM] updateCompany failed:", error); });
@@ -448,7 +464,7 @@ export function CrmProvider({ children }: { children: ReactNode }) {
     const { data, error } = await supabase.from("companies").insert({
       user_id: userId, name: company.name, website: company.website ?? null, segment: company.segment ?? null,
       size: company.size ?? null, city: company.city ?? null, state: company.state ?? null,
-      cnpj: company.cnpj ?? null,
+      cnpj: company.cnpj ?? null, parent_company_id: company.parentCompanyId ?? null,
     }).select().single();
     if (error || !data) {
       console.error("[CRM] addCompany failed:", error);

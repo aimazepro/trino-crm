@@ -8,7 +8,7 @@ import { cn } from "@/lib/utils";
 
 export function AppointmentsTab({ deal }: { deal: Deal }) {
   const { addAppointment, state } = useCrm();
-  const contact = state.contacts.find(c => c.id === deal.contactId);
+  const contact = deal.contactId ? state.contacts.find(c => c.id === deal.contactId) : undefined;
   const [isAdding, setIsAdding] = useState(false);
   
   const [attendant, setAttendant] = useState("");
@@ -54,7 +54,7 @@ export function AppointmentsTab({ deal }: { deal: Deal }) {
       </div>
 
       {isAdding && (
-         <div className="bg-white border border-blue-100 rounded-xl p-5 shadow-sm space-y-4">
+         <div className="bg-white border border-blue-100 rounded-xl p-5 space-y-4">
             <h5 className="font-bold text-sm text-gray-900">Agendar Evento</h5>
             
             <div className="space-y-3">
@@ -102,7 +102,7 @@ export function AppointmentsTab({ deal }: { deal: Deal }) {
                <button 
                  onClick={saveAppointment} 
                  disabled={!procedure.trim() || !date}
-                 className="text-sm px-6 py-2 bg-blue-500 text-white font-bold rounded-lg shadow-sm hover:bg-blue-600 disabled:opacity-50 disabled:cursor-not-allowed transition-all"
+                 className="text-sm px-6 py-2 bg-blue-500 text-white font-bold rounded-lg hover:bg-blue-600 disabled:opacity-50 disabled:cursor-not-allowed transition-all"
                >Salvar Agendamento</button>
             </div>
          </div>
@@ -118,7 +118,7 @@ export function AppointmentsTab({ deal }: { deal: Deal }) {
       ) : (
          <div className="space-y-3">
            {deal.appointments.map(a => (
-              <div key={a.id} className={cn("p-4 border rounded-xl shadow-sm transition-all", a.status === "Cancelled" ? "bg-red-50/50 border-red-100 opacity-70" : "bg-white border-blue-100 border-l-4 border-l-blue-500")}>
+              <div key={a.id} className={cn("p-4 border rounded-xl transition-all", a.status === "Cancelled" ? "bg-red-50/50 border-red-100 opacity-70" : "bg-white border-blue-100 border-l-4 border-l-blue-500")}>
                  <div className="flex items-start justify-between">
                     <div>
                        <div className="flex items-center gap-2">

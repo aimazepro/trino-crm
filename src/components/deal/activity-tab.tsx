@@ -84,7 +84,7 @@ export function ActivityTab({ deal }: { deal: Deal }) {
         <h4 className="text-xs font-bold text-gray-400 uppercase tracking-widest">Atividades</h4>
         <button
           onClick={startAdding}
-          className="text-xs font-bold text-white bg-amber-500 hover:bg-amber-600 px-4 py-2 rounded-xl shadow-sm transition-colors flex items-center gap-1.5 focus:outline-none focus:ring-2 focus:ring-amber-500/20"
+          className="text-xs font-bold text-white bg-amber-500 hover:bg-amber-600 px-4 py-2 rounded-xl transition-colors flex items-center gap-1.5 focus:outline-none focus:ring-2 focus:ring-amber-500/20"
         >
           + Adicionar
         </button>
@@ -107,12 +107,12 @@ export function ActivityTab({ deal }: { deal: Deal }) {
               <div
                 key={a.id}
                 className={cn(
-                  "flex items-center justify-between p-4 border rounded-xl shadow-sm transition-all group",
+                  "flex items-center justify-between p-4 border rounded-xl transition-all group",
                   a.completed
                     ? "bg-gray-50/70 border-gray-100 opacity-60"
                     : isOverdue 
                       ? "bg-red-50/30 border-red-100 hover:border-red-200" 
-                      : "bg-white border-gray-100 hover:border-amber-200 hover:shadow-md"
+                      : "bg-white border-gray-100 hover:border-amber-200"
                 )}
               >
                 <div className="flex items-center gap-3 flex-1 min-w-0">

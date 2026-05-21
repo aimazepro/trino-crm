@@ -8,6 +8,7 @@ import {
   ArrowLeft, Briefcase, Clock, ArrowRight, CheckCircle,
   Plus, Search, X, Globe, Users, ChevronRight, AlertCircle
 } from "lucide-react";
+import { Company } from "@/lib/crm-types";
 import { cn } from "@/lib/utils";
 import { format, isPast, isToday } from "date-fns";
 import { ptBR } from "date-fns/locale";
@@ -130,6 +131,59 @@ function ContactSearch({
           ))}
           {filtered.length === 0 && (
             <div className="px-3 py-2.5 text-xs text-gray-400">Nenhum resultado</div>
+          )}
+        </div>
+      )}
+    </div>
+  );
+}
+
+function ParentCompanySearch({
+  companies,
+  onLink,
+}: {
+  companies: Company[];
+  onLink: (id: string) => void;
+}) {
+  const [query, setQuery] = useState("");
+  const [open, setOpen] = useState(false);
+  const filtered = query.trim()
+    ? companies.filter(c => c.name.toLowerCase().includes(query.toLowerCase()))
+    : companies;
+  const ref = useRef<HTMLDivElement>(null);
+  
+  useEffect(() => {
+    const h = (e: MouseEvent) => { if (ref.current && !ref.current.contains(e.target as Node)) setOpen(false); };
+    document.addEventListener("mousedown", h);
+    return () => document.removeEventListener("mousedown", h);
+  }, []);
+
+  return (
+    <div ref={ref} className="relative">
+      <div className="flex items-center gap-2 border border-gray-100 rounded-xl px-3 py-1.5 bg-white shadow-sm">
+        <Search size={12} className="text-gray-400 shrink-0" />
+        <input
+          value={query}
+          onChange={e => { setQuery(e.target.value); setOpen(true); }}
+          onFocus={() => setOpen(true)}
+          placeholder="Vincular empresa mãe..."
+          className="flex-1 text-xs outline-none bg-transparent text-gray-700 placeholder:text-gray-300"
+        />
+      </div>
+      {open && (
+        <div className="absolute z-50 top-full mt-1 left-0 right-0 bg-white border border-gray-200 rounded-xl shadow-xl overflow-hidden max-h-48 overflow-y-auto">
+          {filtered.slice(0, 5).map(c => (
+            <button
+              key={c.id}
+              onMouseDown={() => { onLink(c.id); setQuery(""); setOpen(false); }}
+              className="w-full flex items-center gap-2.5 px-3 py-2 hover:bg-amber-50 text-left text-xs font-semibold text-gray-900 transition-colors"
+            >
+              <div className="w-5 h-5 rounded bg-orange-100 text-orange-600 text-[10px] font-black flex items-center justify-center shrink-0">{c.name.charAt(0)}</div>
+              {c.name}
+            </button>
+          ))}
+          {filtered.length === 0 && (
+            <div className="px-3 py-2 text-[10px] text-gray-400">Nenhum resultado</div>
           )}
         </div>
       )}
@@ -356,9 +410,40 @@ export default function EmpresaPage({ params }: { params: Promise<{ id: string }
           {/* Empresa Mãe */}
           <div className="p-5 border-b border-gray-50">
             <p className="text-[10px] font-black text-gray-400 uppercase tracking-widest mb-3">Empresa Mãe</p>
-            <button className="flex items-center gap-1.5 text-sm text-gray-400 hover:text-amber-600 transition-colors font-medium">
-              <Plus size={14} /> Vincular empresa mãe
-            </button>
+            {(() => {
+              const parentCompany = company.parentCompanyId
+                ? state.companies.find(c => c.id === company.parentCompanyId)
+                : null;
+
+              if (parentCompany) {
+                return (
+                  <div className="flex items-center justify-between bg-gray-50 border border-gray-100 rounded-xl px-3 py-2">
+                    <Link
+                      href={`/empresas/${parentCompany.id}`}
+                      className="flex items-center gap-2 text-xs font-bold text-gray-700 hover:text-amber-600 transition-colors truncate"
+                    >
+                      <div className="w-5 h-5 rounded bg-orange-100 text-orange-600 text-[10px] font-black flex items-center justify-center shrink-0">
+                        {parentCompany.name.charAt(0).toUpperCase()}
+                      </div>
+                      <span className="truncate">{parentCompany.name}</span>
+                    </Link>
+                    <button
+                      onClick={() => updateCompany(id, { parentCompanyId: undefined })}
+                      className="text-gray-400 hover:text-red-500 transition-colors p-0.5"
+                    >
+                      <X size={14} />
+                    </button>
+                  </div>
+                );
+              }
+
+              return (
+                <ParentCompanySearch
+                  companies={state.companies.filter(c => c.id !== company.id)}
+                  onLink={(parentCid) => updateCompany(id, { parentCompanyId: parentCid })}
+                />
+              );
+            })()}
           </div>
 
           {/* INFORMAÇÕES */}

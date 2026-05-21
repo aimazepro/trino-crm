@@ -71,7 +71,7 @@ export function KanbanListView({ pipelineId, statusFilter = "Ativo" }: KanbanLis
                {deals.map(deal => {
                  const stage = pipeline.stages.find(s => s.id === deal.stageId);
                  const company = state.companies.find(c => c.id === deal.companyId);
-                 const contact = state.contacts.find(c => c.id === deal.contactId);
+                 const contact = deal.contactId ? state.contacts.find(c => c.id === deal.contactId) : undefined;
 
                  return (
                    <tr key={deal.id} className="hover:bg-gray-50/50 transition-colors group cursor-pointer" onClick={() => window.location.href = `/negocios/${deal.id}`}>

@@ -76,7 +76,7 @@ export interface Deal {
   id: string;
   title: string;
   value: number;
-  contactId: string;
+  contactId?: string;
   companyId?: string;
   pipelineId: string;
   stageId: string; 

@@ -108,8 +108,8 @@ export default function DashboardPage() {
     new Intl.NumberFormat("pt-BR", { style: "currency", currency: "BRL" }).format(v);
 
   // ── Drawer content helpers ────────────────────────────────────────────────────
-  function getDealContact(contactId: string) {
-    return state.contacts.find((c) => c.id === contactId);
+  function getDealContact(contactId?: string) {
+    return contactId ? state.contacts.find((c) => c.id === contactId) : null;
   }
   function getDealCompany(companyId?: string) {
     return companyId ? state.companies.find((c) => c.id === companyId) : null;

@@ -35,7 +35,7 @@ export function LossReasonModal({ onConfirm, onCancel }: LossReasonModalProps) {
 
   return (
     <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-gray-900/40 backdrop-blur-sm animate-in fade-in">
-      <div className="bg-white rounded-2xl shadow-2xl w-full max-w-[480px] p-6 flex flex-col max-h-full animate-in zoom-in-95" onClick={e => e.stopPropagation()}>
+      <div className="bg-white rounded-2xl w-full max-w-[480px] p-6 flex flex-col max-h-full animate-in zoom-in-95" onClick={e => e.stopPropagation()}>
         
         {/* Header */}
         <div className="shrink-0 mb-4">
@@ -73,7 +73,7 @@ export function LossReasonModal({ onConfirm, onCancel }: LossReasonModalProps) {
               value={description}
               onChange={e => setDescription(e.target.value)}
               placeholder="Descreva o motivo (obrigatório quando 'Outros')"
-              className="w-full h-28 border border-gray-200 rounded-xl p-4 text-[14px] outline-none focus:border-amber-500 resize-none shadow-sm placeholder:text-gray-400"
+              className="w-full h-28 border border-gray-200 rounded-xl p-4 text-[14px] outline-none focus:border-amber-500 resize-none placeholder:text-gray-400"
             />
           </div>
         </div>
@@ -82,7 +82,7 @@ export function LossReasonModal({ onConfirm, onCancel }: LossReasonModalProps) {
         <div className="flex gap-3 mt-6 shrink-0">
           <button 
             onClick={onCancel}
-            className="flex-1 py-3 bg-white border border-gray-200 hover:bg-gray-50 text-gray-700 font-bold rounded-xl transition-colors shadow-sm text-sm cursor-pointer"
+            className="flex-1 py-3 bg-white border border-gray-200 hover:bg-gray-50 text-gray-700 font-bold rounded-xl transition-colors text-sm cursor-pointer"
           >
             Cancelar
           </button>
@@ -90,7 +90,7 @@ export function LossReasonModal({ onConfirm, onCancel }: LossReasonModalProps) {
             onClick={handleConfirm}
             disabled={isDisabled}
             className={cn(
-              "flex-1 py-3 font-bold rounded-xl transition-colors shadow-sm text-sm",
+              "flex-1 py-3 font-bold rounded-xl transition-colors text-sm",
               isDisabled 
                 ? "bg-zinc-200 text-zinc-400 cursor-not-allowed" 
                 : "bg-red-500 hover:bg-red-655 text-white cursor-pointer"
