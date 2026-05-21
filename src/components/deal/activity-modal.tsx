@@ -1,14 +1,14 @@
 "use client";
 
 import { useState, useEffect, useRef } from "react";
-import { X, Phone, Users, Video, Mail, MessageCircle, Camera, Briefcase, ClipboardList, Search } from "lucide-react";
+import { X, Phone, Users, Video, Mail, MessageCircle, Camera, Briefcase, ClipboardList, Search, UserPlus, Plus } from "lucide-react";
 import { Activity } from "@/lib/crm-types";
 import { cn } from "@/lib/utils";
 
 interface ActivityModalProps {
   activity?: Activity;
   onClose: () => void;
-  onSave: (data: { title: string; type: string; date: string; description: string; dealId: string }) => void;
+  onSave: (data: { title: string; type: string; date: string; description: string; dealId: string; guests: string[] }) => void;
   deals?: { id: string; title: string }[];
   defaultDealId?: string;
   userName?: string;
@@ -85,6 +85,16 @@ export function ActivityModal({ activity, onClose, onSave, deals = [], defaultDe
   const [datetime, setDatetime] = useState("");
   const [notes, setNotes] = useState(activity?.description || "");
   const [dealId, setDealId] = useState(defaultDealId || activity?.dealId || "");
+  const [guests, setGuests] = useState<string[]>(activity?.guests || []);
+  const [guestInput, setGuestInput] = useState("");
+
+  const showGuests = type === "Reunião" || type === "Videochamada";
+
+  const addGuest = () => {
+    const email = guestInput.trim();
+    if (email && !guests.includes(email)) setGuests(prev => [...prev, email]);
+    setGuestInput("");
+  };
 
   useEffect(() => {
     if (activity?.date) {
@@ -106,7 +116,7 @@ export function ActivityModal({ activity, onClose, onSave, deals = [], defaultDe
 
   const handleSubmit = () => {
     if (!title.trim() || !datetime) return;
-    onSave({ title, type, date: new Date(datetime).toISOString(), description: notes, dealId });
+    onSave({ title, type, date: new Date(datetime).toISOString(), description: notes, dealId, guests });
   };
 
   const showDealSearch = !defaultDealId;
@@ -167,6 +177,43 @@ export function ActivityModal({ activity, onClose, onSave, deals = [], defaultDe
               className="w-full border border-gray-200 rounded-xl px-4 py-2.5 text-sm outline-none focus:border-amber-400 transition-colors text-gray-800"
             />
           </div>
+
+          {/* Convidados — Reunião / Videochamada only */}
+          {showGuests && (
+            <div>
+              <label className="text-sm font-semibold text-gray-700 flex items-center gap-1.5 mb-1.5">
+                <UserPlus size={14} className="text-gray-400" /> Convidados
+              </label>
+              <div className="flex gap-2">
+                <input
+                  type="email"
+                  value={guestInput}
+                  onChange={e => setGuestInput(e.target.value)}
+                  onKeyDown={e => { if (e.key === "Enter") { e.preventDefault(); addGuest(); } }}
+                  placeholder="Digite o email e pressione Enter"
+                  className="flex-1 border border-gray-200 rounded-xl px-4 py-2.5 text-sm outline-none focus:border-amber-400 transition-colors text-gray-800 placeholder:text-gray-400"
+                />
+                <button
+                  type="button"
+                  onClick={addGuest}
+                  className="border border-gray-200 rounded-xl px-3 py-2.5 text-gray-500 hover:border-amber-300 hover:text-amber-500 hover:bg-amber-50 transition-colors"
+                >
+                  <Plus size={16} />
+                </button>
+              </div>
+              {guests.length > 0 && (
+                <div className="flex flex-wrap gap-1.5 mt-2">
+                  {guests.map(g => (
+                    <span key={g} className="flex items-center gap-1 bg-amber-50 border border-amber-200 text-amber-700 text-xs px-2.5 py-1 rounded-full">
+                      {g}
+                      <button onClick={() => setGuests(prev => prev.filter(x => x !== g))} className="hover:text-red-500 transition-colors"><X size={11} /></button>
+                    </span>
+                  ))}
+                </div>
+              )}
+              <p className="text-[11px] text-gray-400 mt-1.5">Adicione emails para enviar convite automático via Google Calendar</p>
+            </div>
+          )}
 
           {/* Negócio */}
           {showDealSearch && (

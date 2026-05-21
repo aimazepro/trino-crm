@@ -140,12 +140,12 @@ export default function AtividadesPage() {
     else setSelectedDay(day);
   };
 
-  const handleSave = (data: { title: string; type: string; date: string; description: string; dealId: string }) => {
+  const handleSave = (data: { title: string; type: string; date: string; description: string; dealId: string; guests: string[] }) => {
     if (editingActivity) {
-      updateActivity(editingActivity.id, { title: data.title, date: data.date, type: data.type, description: data.description });
+      updateActivity(editingActivity.id, { title: data.title, date: data.date, type: data.type, description: data.description, guests: data.guests });
     } else {
       const targetDealId = data.dealId || state.deals.find(d => d.status === "Ativo")?.id || state.deals[0]?.id;
-      if (targetDealId) addActivity({ dealId: targetDealId, title: data.title, date: data.date, type: data.type, description: data.description });
+      if (targetDealId) addActivity({ dealId: targetDealId, title: data.title, date: data.date, type: data.type, description: data.description, guests: data.guests });
     }
     setShowModal(false);
     setEditingActivity(null);

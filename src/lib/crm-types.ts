@@ -66,10 +66,11 @@ export interface Activity {
   dealId: string;
   title: string;
   description?: string;
-  date: string; 
-  type: string; 
+  date: string;
+  type: string;
   completed: boolean;
   createdAt: string;
+  guests?: string[];
 }
 
 export interface Deal {
