@@ -463,6 +463,7 @@ export default function AutomacaoEditorPage() {
             <ConditionPanel
               step={selectedStep}
               onChange={(fn) => updateStep(selectedStep.id, fn)}
+              pipelines={crmState.pipelines}
             />
           )}
 
@@ -1047,11 +1048,15 @@ function ActionTypePanel({ value, onChange }: { value: ActionType; onChange: (t:
 // Right panel: Condition
 // ─────────────────────────────────────────────────────────────────────────────
 
-function ConditionPanel({ step, onChange }: {
+function ConditionPanel({ step, onChange, pipelines }: {
   step: AutomationStep;
   onChange: (fn: (s: AutomationStep) => AutomationStep) => void;
+  pipelines: Pipeline[];
 }) {
   const rules = step.condition?.rules ?? [];
+
+  // Collect all stages across all pipelines for "stage" field
+  const allStages = pipelines.flatMap((p) => p.stages.map((s) => ({ ...s, pipelineName: p.name })));
 
   function updateRule(idx: number, patch: Partial<AutomationConditionRule>) {
     onChange((s) => ({
@@ -1074,6 +1079,45 @@ function ConditionPanel({ step, onChange }: {
     }));
   }
 
+  function renderValueInput(rule: AutomationConditionRule, idx: number) {
+    if (rule.field === "pipeline") {
+      return (
+        <Select value={rule.value} onChange={(v) => updateRule(idx, { value: v })}>
+          <option value="">Selecionar funil...</option>
+          {pipelines.map((p) => <option key={p.id} value={p.name}>{p.name}</option>)}
+        </Select>
+      );
+    }
+    if (rule.field === "stage") {
+      return (
+        <Select value={rule.value} onChange={(v) => updateRule(idx, { value: v })}>
+          <option value="">Selecionar etapa...</option>
+          {allStages.map((s) => (
+            <option key={s.id} value={s.name}>{s.name} ({s.pipelineName})</option>
+          ))}
+        </Select>
+      );
+    }
+    if (rule.field === "status") {
+      return (
+        <Select value={rule.value} onChange={(v) => updateRule(idx, { value: v })}>
+          <option value="">Selecionar status...</option>
+          <option value="Ativo">Ativo</option>
+          <option value="Ganho">Ganho</option>
+          <option value="Perdido">Perdido</option>
+        </Select>
+      );
+    }
+    return (
+      <input
+        value={rule.value}
+        onChange={(e) => updateRule(idx, { value: e.target.value })}
+        placeholder="Valor..."
+        className="w-full px-3 py-2 text-[13px] border border-zinc-200 rounded-lg outline-none focus:border-blue-400"
+      />
+    );
+  }
+
   return (
     <div className="p-5">
       <h3 className="text-[13px] font-bold text-zinc-900 mb-1">Condição</h3>
@@ -1090,19 +1134,17 @@ function ConditionPanel({ step, onChange }: {
             )}
             <div className="flex items-start gap-1.5">
               <div className="flex-1 space-y-1.5">
-                <Select value={rule.field} onChange={(v) => updateRule(idx, { field: v as AutomationConditionField })}>
+                <Select
+                  value={rule.field}
+                  onChange={(v) => updateRule(idx, { field: v as AutomationConditionField, value: "" })}
+                >
                   <option value="">Campo...</option>
                   {CONDITION_FIELDS.map((f) => <option key={f} value={f}>{CONDITION_FIELD_LABELS[f]}</option>)}
                 </Select>
                 <Select value={rule.operator} onChange={(v) => updateRule(idx, { operator: v as AutomationConditionOperator })}>
                   {CONDITION_OPERATORS.map((op) => <option key={op.value} value={op.value}>{op.label}</option>)}
                 </Select>
-                <input
-                  value={rule.value}
-                  onChange={(e) => updateRule(idx, { value: e.target.value })}
-                  placeholder="Valor..."
-                  className="w-full px-3 py-2 text-[13px] border border-zinc-200 rounded-lg outline-none focus:border-blue-400"
-                />
+                {renderValueInput(rule, idx)}
               </div>
               {rules.length > 1 && (
                 <button onClick={() => removeRule(idx)} className="mt-1 p-1.5 rounded text-zinc-300 hover:text-red-500 transition-colors">
@@ -1113,7 +1155,7 @@ function ConditionPanel({ step, onChange }: {
           </div>
         ))}
       </div>
-      <button onClick={addRule} className="mt-3 text-[12px] font-semibold text-blue-600 hover:text-blue-700 flex items-center gap-1">
+      <button onClick={addRule} className="mt-3 text-[12px] font-semibold text-amber-600 hover:text-amber-700 flex items-center gap-1">
         <Plus className="h-3.5 w-3.5" /> Adicionar regra
       </button>
       <div className="flex justify-center mt-3">
