@@ -15,6 +15,8 @@ interface CrmContextType {
   markDealStatus: (dealId: string, status: "Ganho" | "Perdido" | "Ativo", reason?: string) => void;
   updateDealFields: (dealId: string, fields: Partial<Deal>) => void;
   addDealNote: (dealId: string, content: string) => void;
+  deleteDealNote: (dealId: string, noteId: string) => void;
+  updateDealNote: (dealId: string, noteId: string, content: string) => void;
   addDealHistory: (dealId: string, description: string, subtext: string) => void;
   addDeal: (deal: Deal) => Promise<string | null>;
   deleteDeal: (dealId: string) => void;
@@ -302,6 +304,24 @@ export function CrmProvider({ children }: { children: ReactNode }) {
       .then(({ error }) => { if (error) console.error("[CRM] addDealNote failed:", error); });
   };
 
+  const deleteDealNote = (dealId: string, noteId: string) => {
+    setState(prev => ({
+      ...prev,
+      deals: prev.deals.map(d => d.id === dealId ? { ...d, notes: d.notes.filter(n => n.id !== noteId) } : d),
+    }));
+    supabase.from("deal_notes").delete().eq("id", noteId)
+      .then(({ error }) => { if (error) console.error("[CRM] deleteDealNote failed:", error); });
+  };
+
+  const updateDealNote = (dealId: string, noteId: string, content: string) => {
+    setState(prev => ({
+      ...prev,
+      deals: prev.deals.map(d => d.id === dealId ? { ...d, notes: d.notes.map(n => n.id === noteId ? { ...n, content } : n) } : d),
+    }));
+    supabase.from("deal_notes").update({ content }).eq("id", noteId)
+      .then(({ error }) => { if (error) console.error("[CRM] updateDealNote failed:", error); });
+  };
+
   const addDealHistory = (dealId: string, description: string, subtext: string) => {
     const log: HistoryLog = { id: `hist_${Date.now()}`, description, subtext, createdAt: new Date().toISOString() };
     setState((prev) => ({
@@ -547,7 +567,7 @@ export function CrmProvider({ children }: { children: ReactNode }) {
   return (
     <CrmContext.Provider value={{
       state, loading,
-      moveDeal, markDealStatus, updateDealFields, addDealNote, addDealHistory, addDeal, deleteDeal,
+      moveDeal, markDealStatus, updateDealFields, addDealNote, deleteDealNote, updateDealNote, addDealHistory, addDeal, deleteDeal,
       addPipeline, deletePipeline, updatePipeline,
       updateContact, addContact, updateCompany, addCompany, addLabel,
       addAppointment, addActivity, updateActivity, deleteActivity,

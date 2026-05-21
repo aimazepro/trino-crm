@@ -6,7 +6,7 @@ import { formatDistanceToNow } from "date-fns";
 import { ptBR } from "date-fns/locale";
 import { useCrm } from "@/contexts/crm-context";
 import { ActivityTab } from "./activity-tab";
-import { ArrowRight, MessageCircleOff, Settings, Paperclip, Mic, LayoutTemplate, PhoneOff, WifiOff, Mail, History, Phone, MessageCircle, FileText } from "lucide-react";
+import { ArrowRight, MessageCircleOff, Settings, Paperclip, Mic, LayoutTemplate, PhoneOff, WifiOff, Mail, History, Phone, MessageCircle, FileText, Pencil, Trash2, X, Check } from "lucide-react";
 import Link from "next/link";
 import { cn } from "@/lib/utils";
 
@@ -29,12 +29,14 @@ const TAB_ACTIVE_COLOR: Record<string, string> = {
 };
 
 export function DealTabs({ dealId }: DealTabsProps) {
-  const { state, addDealNote } = useCrm();
+  const { state, addDealNote, deleteDealNote, updateDealNote } = useCrm();
   const deal = state.deals.find(d => d.id === dealId);
   const contact = deal && deal.contactId ? state.contacts.find(c => c.id === deal.contactId) : null;
   
   const [activeTab, setActiveTab] = useState("Atividades");
   const [noteContent, setNoteContent] = useState("");
+  const [editingNoteId, setEditingNoteId] = useState<string | null>(null);
+  const [editingNoteContent, setEditingNoteContent] = useState("");
 
   const searchParams = useSearchParams();
   const router = useRouter();
@@ -119,7 +121,7 @@ export function DealTabs({ dealId }: DealTabsProps) {
           <div className="space-y-4">
             <div className="mb-4">
               <h2 className="text-xs font-medium text-zinc-400 tracking-wide mb-3">NOTAS</h2>
-              <div className="rounded-xl bg-white overflow-hidden">
+              <div className="rounded-xl bg-white overflow-hidden border border-zinc-100">
                 <textarea
                   value={noteContent}
                   onChange={e => setNoteContent(e.target.value)}
@@ -141,11 +143,66 @@ export function DealTabs({ dealId }: DealTabsProps) {
 
             <div className="space-y-3">
               {deal.notes.map(note => (
-                <div key={note.id} className="rounded-xl bg-white p-4">
-                  <p className="text-sm text-zinc-800 whitespace-pre-wrap">{note.content}</p>
-                  <p className="text-xs text-zinc-400 mt-2">
-                    {new Date(note.createdAt).toLocaleString('pt-BR', { dateStyle: 'medium', timeStyle: 'short' })}
-                  </p>
+                <div key={note.id} className="rounded-xl bg-white p-4 group border border-zinc-100">
+                  {editingNoteId === note.id ? (
+                    <>
+                      <textarea
+                        value={editingNoteContent}
+                        onChange={e => setEditingNoteContent(e.target.value)}
+                        rows={3}
+                        className="w-full resize-none text-sm text-zinc-900 outline-none border border-zinc-200 rounded-lg px-3 py-2 focus:border-amber-400"
+                        autoFocus
+                      />
+                      <div className="flex items-center gap-2 mt-2">
+                        <button
+                          onClick={() => { updateDealNote(dealId, note.id, editingNoteContent); setEditingNoteId(null); }}
+                          className="flex items-center gap-1 rounded-md bg-amber-400 hover:bg-amber-500 px-2.5 py-1 text-xs font-semibold text-white transition-colors"
+                        >
+                          <Check className="h-3 w-3" /> Salvar
+                        </button>
+                        <button
+                          onClick={() => setEditingNoteId(null)}
+                          className="flex items-center gap-1 rounded-md border border-zinc-200 px-2.5 py-1 text-xs text-zinc-500 hover:bg-zinc-50 transition-colors"
+                        >
+                          <X className="h-3 w-3" /> Cancelar
+                        </button>
+                      </div>
+                    </>
+                  ) : (
+                    <>
+                      <div className="flex items-start justify-between gap-2">
+                        <p className="text-sm text-zinc-800 whitespace-pre-wrap flex-1">{note.content}</p>
+                        <div className="shrink-0 flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-all">
+                          <button
+                            onClick={() => { setEditingNoteId(note.id); setEditingNoteContent(note.content); }}
+                            className="text-zinc-300 hover:text-blue-500 transition-colors"
+                            title="Editar"
+                          >
+                            <Pencil className="h-3.5 w-3.5" />
+                          </button>
+                          <button
+                            onClick={() => deleteDealNote(dealId, note.id)}
+                            className="text-zinc-300 hover:text-red-400 transition-colors"
+                            title="Excluir"
+                          >
+                            <Trash2 className="h-3.5 w-3.5" />
+                          </button>
+                        </div>
+                      </div>
+                      <p className="text-xs text-zinc-400 mt-2">
+                        {new Date(note.createdAt).toLocaleString('pt-BR', { dateStyle: 'medium', timeStyle: 'short' })}
+                      </p>
+                      <div className="mt-3">
+                        <div className="flex items-center gap-2 rounded-lg border border-dashed border-zinc-200 bg-zinc-50 px-3 py-2">
+                          <button type="button" className="flex items-center gap-1.5 rounded-md bg-white px-2.5 py-1 text-xs font-medium text-zinc-700 border border-zinc-200 hover:bg-zinc-50 transition-colors">
+                            <Paperclip className="h-3.5 w-3.5" /> Anexar
+                          </button>
+                          <span className="text-xs text-zinc-500">ou arraste</span>
+                          <input type="file" multiple className="hidden" />
+                        </div>
+                      </div>
+                    </>
+                  )}
                 </div>
               ))}
             </div>

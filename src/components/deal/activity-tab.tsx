@@ -1,13 +1,13 @@
 "use client";
 
 import { useState } from "react";
-import { ListTodo, CheckCircle, Trash2, Pencil, AlertCircle, Phone, Mail, Video, Users, MessageCircle, Hash, ChevronDown, Plus, Calendar, Play } from "lucide-react";
+import { ListTodo, Trash2, Pencil, AlertCircle, Phone, Mail, Video, Users, MessageCircle, Hash, ChevronDown, Plus, Calendar, Play } from "lucide-react";
 import { useCrm } from "@/contexts/crm-context";
 import { Deal, Activity } from "@/lib/crm-types";
 import { ActivityModal } from "./activity-modal";
 import { NextActivityModal } from "./next-activity-modal";
 import { cn } from "@/lib/utils";
-import { isPast, isToday } from "date-fns";
+import { isPast, isToday, isTomorrow } from "date-fns";
 
 const TYPE_ICONS: Record<string, React.ReactNode> = {
   "Ligação":      <Phone className="h-4 w-4" />,
@@ -101,15 +101,18 @@ export function ActivityTab({ deal }: { deal: Deal }) {
       ) : (
         <div className="space-y-2">
           {sorted.map(a => {
-            const isOverdue = !a.completed && isPast(new Date(a.date)) && !isToday(new Date(a.date));
+            const d = new Date(a.date);
+            const isOverdue = !a.completed && isPast(d) && !isToday(d);
+            const isToday_ = !a.completed && isToday(d);
+            const isTomorrow_ = !a.completed && isTomorrow(d);
             return (
               <div key={a.id}>
                 <div className={cn(
                   "flex items-start gap-3 rounded-xl p-3.5 transition-colors",
-                  a.completed ? "bg-zinc-50 opacity-70" : isOverdue ? "bg-red-50" : "bg-zinc-50"
+                  a.completed ? "bg-zinc-50 opacity-70" : isOverdue ? "bg-red-50" : "bg-white"
                 )}>
-                  <div className="shrink-0 rounded-full p-2 bg-zinc-100 text-zinc-400">
-                    {isOverdue ? <AlertCircle className="h-4 w-4 text-red-400" /> : getIcon(a.type)}
+                  <div className={cn("shrink-0 rounded-full p-2 bg-zinc-100", a.completed ? "text-zinc-400" : isOverdue ? "text-red-400" : "text-zinc-600")}>
+                    {isOverdue ? <AlertCircle className="h-4 w-4" /> : getIcon(a.type)}
                   </div>
                   <div className="flex-1 min-w-0">
                     <p className={cn(
@@ -117,29 +120,19 @@ export function ActivityTab({ deal }: { deal: Deal }) {
                       a.completed ? "line-through text-zinc-500" : isOverdue ? "text-red-700" : "text-zinc-800"
                     )}>
                       {a.title}
-                      {isOverdue && <span className="ml-2 text-[9px] uppercase font-black text-red-500 px-1.5 py-0.5 bg-red-100 rounded-full tracking-wider">Atrasada</span>}
                     </p>
                     {a.description && (
                       <p className="text-xs mt-0.5 whitespace-pre-wrap break-words text-zinc-400">{a.description}</p>
                     )}
                     <p className="text-xs mt-1 flex items-center gap-1.5 text-zinc-400">
                       <Calendar className="h-3 w-3" />
-                      {new Date(a.date).toLocaleString("pt-BR", { dateStyle: "short", timeStyle: "short" })}
+                      {d.toLocaleString("pt-BR", { dateStyle: "short", timeStyle: "short" })}
+                      {isOverdue && <span className="font-semibold text-xs px-1.5 py-0.5 rounded bg-red-50 text-red-500">Atrasada</span>}
+                      {isToday_ && <span className="font-semibold text-xs px-1.5 py-0.5 rounded bg-green-50 text-green-600">Hoje</span>}
+                      {isTomorrow_ && <span className="font-semibold text-xs px-1.5 py-0.5 rounded bg-amber-50 text-amber-500">Amanhã</span>}
                     </p>
                   </div>
                   <div className="flex items-center gap-1.5 shrink-0">
-                    <button
-                      onClick={() => handleComplete(a)}
-                      className={cn(
-                        "rounded-md border p-1 transition-colors",
-                        a.completed
-                          ? "border-green-200 text-green-500 bg-green-50"
-                          : "border-zinc-200 text-zinc-400 hover:border-amber-300 hover:text-amber-500 hover:bg-amber-50"
-                      )}
-                      title={a.completed ? "Reabrir" : "Concluir"}
-                    >
-                      <CheckCircle className="h-3.5 w-3.5" />
-                    </button>
                     <button
                       onClick={() => handleEdit(a)}
                       className="rounded-md border border-zinc-200 p-1 text-zinc-400 hover:border-amber-300 hover:text-amber-500 hover:bg-amber-50 transition-colors"
@@ -152,6 +145,14 @@ export function ActivityTab({ deal }: { deal: Deal }) {
                     >
                       <Trash2 className="h-3.5 w-3.5" />
                     </button>
+                    {!a.completed && (
+                      <button
+                        onClick={() => handleComplete(a)}
+                        className="rounded-md border border-zinc-200 px-2 py-1 text-xs text-zinc-500 hover:border-green-300 hover:text-green-600 hover:bg-green-50 transition-colors"
+                      >
+                        Concluir
+                      </button>
+                    )}
                   </div>
                 </div>
               </div>
