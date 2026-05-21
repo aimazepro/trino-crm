@@ -17,7 +17,13 @@ export default function KanbanPage() {
   const router = useRouter();
   const { state, loading } = useCrm();
   const [activePipelineId, setActivePipelineId] = useState<string>("");
-  const [viewMode, setViewMode] = useState<"kanban" | "list">("kanban");
+  const [viewMode, setViewMode] = useState<"kanban" | "list">(() => {
+    if (typeof window !== "undefined") {
+      const saved = localStorage.getItem("trino_crm_view_mode");
+      if (saved === "list" || saved === "kanban") return saved;
+    }
+    return "kanban";
+  });
   const [statusFilter, setStatusFilter] = useState<LeadStatus>("Ativo");
 
   // Modals
@@ -109,15 +115,15 @@ export default function KanbanPage() {
             
             {/* View Mode */}
             <div className="flex items-center rounded-lg border border-zinc-200 overflow-hidden">
-               <button 
-                 onClick={() => setViewMode("kanban")}
+               <button
+                 onClick={() => { setViewMode("kanban"); localStorage.setItem("trino_crm_view_mode", "kanban"); }}
                  className={cn("flex items-center justify-center px-2.5 py-1.5 border-r border-zinc-200 transition-colors", viewMode === "kanban" ? "bg-zinc-100 text-zinc-800" : "bg-white text-zinc-400 hover:text-zinc-600")}
                  title="Visualização kanban"
                >
                  <LayoutGrid size={16} />
                </button>
-               <button 
-                 onClick={() => setViewMode("list")}
+               <button
+                 onClick={() => { setViewMode("list"); localStorage.setItem("trino_crm_view_mode", "list"); }}
                  className={cn("flex items-center justify-center px-2.5 py-1.5 transition-colors", viewMode === "list" ? "bg-zinc-100 text-zinc-800" : "bg-white text-zinc-400 hover:text-zinc-600")}
                  title="Visualização em lista"
                >

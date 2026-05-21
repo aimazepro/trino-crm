@@ -247,7 +247,7 @@ export function KanbanListView({ pipelineId, columns = DEFAULT_COLUMNS }: Kanban
         <select
           value={activePipelineId}
           onChange={e => { setActivePipelineId(e.target.value); setStageFilter(""); }}
-          className="rounded-lg border border-zinc-200 px-3 py-1.5 text-sm text-zinc-700 outline-none focus:ring-2 focus:ring-zinc-300 bg-white cursor-pointer"
+          className="appearance-none rounded-lg border border-zinc-200 px-3 py-1.5 text-sm text-zinc-700 outline-none focus:ring-2 focus:ring-zinc-300 bg-white cursor-pointer"
         >
           {state.pipelines.map(p => (
             <option key={p.id} value={p.id}>{p.name}</option>
@@ -258,7 +258,7 @@ export function KanbanListView({ pipelineId, columns = DEFAULT_COLUMNS }: Kanban
         <select
           value={stageFilter}
           onChange={e => setStageFilter(e.target.value)}
-          className="rounded-lg border border-zinc-200 px-3 py-1.5 text-sm text-zinc-700 outline-none focus:ring-2 focus:ring-zinc-300 bg-white cursor-pointer"
+          className="appearance-none rounded-lg border border-zinc-200 px-3 py-1.5 text-sm text-zinc-700 outline-none focus:ring-2 focus:ring-zinc-300 bg-white cursor-pointer"
         >
           <option value="">Todas as etapas</option>
           {pipeline.stages.map(s => (
@@ -270,7 +270,7 @@ export function KanbanListView({ pipelineId, columns = DEFAULT_COLUMNS }: Kanban
         <select
           value={statusLocalFilter}
           onChange={e => setStatusLocalFilter(e.target.value)}
-          className="rounded-lg border border-zinc-200 px-3 py-1.5 text-sm text-zinc-700 outline-none focus:ring-2 focus:ring-zinc-300 bg-white cursor-pointer"
+          className="appearance-none rounded-lg border border-zinc-200 px-3 py-1.5 text-sm text-zinc-700 outline-none focus:ring-2 focus:ring-zinc-300 bg-white cursor-pointer"
         >
           <option value="todos">Todos os status</option>
           <option value="aberto">Abertos</option>
