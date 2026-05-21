@@ -1,13 +1,13 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect, useCallback } from "react";
 import { Plus, MessageCircle, X, Trash2, Check } from "lucide-react";
+import { createClient } from "@/lib/supabase/client";
 
 type Template = { id: string; name: string; message: string };
 
 const VARS = ["{{nome_contato}}", "{{nome_empresa}}", "{{nome_negócio}}", "{{nome_vendedor}}"];
 
-// Extract {{variables}} from text
 function extractVars(text: string): string[] {
   const matches = text.match(/\{\{[^}]+\}\}/g) || [];
   return [...new Set(matches)];
@@ -16,16 +16,25 @@ function extractVars(text: string): string[] {
 function TemplateCard({
   template,
   onDelete,
+  onUpdate,
 }: {
   template: Template;
   onDelete: () => void;
+  onUpdate: (name: string, message: string) => Promise<void>;
 }) {
   const [editing, setEditing] = useState(false);
+  const [saving, setSaving] = useState(false);
   const [editForm, setEditForm] = useState({ name: template.name, message: template.message });
 
   const vars = extractVars(template.message);
-
   const insertVar = (v: string) => setEditForm(f => ({ ...f, message: f.message + v }));
+
+  const handleSaveEdit = async () => {
+    setSaving(true);
+    await onUpdate(editForm.name, editForm.message);
+    setSaving(false);
+    setEditing(false);
+  };
 
   if (editing) {
     return (
@@ -69,10 +78,11 @@ function TemplateCard({
             Cancelar
           </button>
           <button
-            onClick={() => setEditing(false)}
-            className="flex items-center gap-1.5 px-3 py-1.5 text-[12px] font-bold bg-amber-500 text-white rounded-lg hover:bg-amber-600"
+            onClick={handleSaveEdit}
+            disabled={saving}
+            className="flex items-center gap-1.5 px-3 py-1.5 text-[12px] font-bold bg-amber-500 text-white rounded-lg hover:bg-amber-600 disabled:opacity-50"
           >
-            <Check size={12} /> Salvar
+            <Check size={12} /> {saving ? "Salvando..." : "Salvar"}
           </button>
         </div>
       </div>
@@ -118,17 +128,67 @@ function TemplateCard({
 }
 
 export default function TemplatesWhatsAppPage() {
+  const supabase = createClient();
   const [templates, setTemplates] = useState<Template[]>([]);
+  const [loading, setLoading] = useState(true);
   const [showModal, setShowModal] = useState(false);
+  const [saving, setSaving] = useState(false);
   const [form, setForm] = useState({ name: "", message: "" });
+
+  const loadTemplates = useCallback(async () => {
+    setLoading(true);
+    const { data: { user } } = await supabase.auth.getUser();
+    if (!user) { setLoading(false); return; }
+
+    const { data } = await supabase
+      .from("whatsapp_templates")
+      .select("*")
+      .eq("user_id", user.id)
+      .order("created_at");
+
+    setTemplates(data ?? []);
+    setLoading(false);
+  }, [supabase]);
+
+  useEffect(() => { loadTemplates(); }, [loadTemplates]);
 
   const insertVar = (v: string) => setForm(f => ({ ...f, message: f.message + v }));
 
-  const handleSave = () => {
+  const handleSave = async () => {
     if (!form.name.trim()) return;
-    setTemplates([...templates, { id: Date.now().toString(), ...form }]);
+    setSaving(true);
+    const { data: { user } } = await supabase.auth.getUser();
+    if (!user) { setSaving(false); return; }
+
+    const { data, error } = await supabase.from("whatsapp_templates").insert({
+      user_id: user.id,
+      name: form.name.trim(),
+      message: form.message.trim(),
+    }).select().single();
+
+    setSaving(false);
+    if (!error && data) {
+      setTemplates(prev => [...prev, data]);
+    }
     setForm({ name: "", message: "" });
     setShowModal(false);
+  };
+
+  const handleDelete = async (id: string) => {
+    await supabase.from("whatsapp_templates").delete().eq("id", id);
+    setTemplates(prev => prev.filter(t => t.id !== id));
+  };
+
+  const handleUpdate = async (id: string, name: string, message: string) => {
+    const { data } = await supabase
+      .from("whatsapp_templates")
+      .update({ name, message })
+      .eq("id", id)
+      .select()
+      .single();
+    if (data) {
+      setTemplates(prev => prev.map(t => t.id === id ? data : t));
+    }
   };
 
   return (
@@ -147,7 +207,11 @@ export default function TemplatesWhatsAppPage() {
       </div>
 
       <div className="flex-1 p-8">
-        {templates.length === 0 ? (
+        {loading ? (
+          <div className="flex items-center justify-center py-20">
+            <div className="h-6 w-6 animate-spin rounded-full border-2 border-amber-400 border-t-transparent" />
+          </div>
+        ) : templates.length === 0 ? (
           <div className="max-w-3xl bg-white border border-zinc-200 rounded-xl shadow-sm py-20 flex flex-col items-center justify-center">
             <div className="w-14 h-14 bg-green-50 rounded-2xl flex items-center justify-center mb-4">
               <MessageCircle size={26} className="text-green-400" />
@@ -161,7 +225,8 @@ export default function TemplatesWhatsAppPage() {
               <TemplateCard
                 key={t.id}
                 template={t}
-                onDelete={() => setTemplates(templates.filter(x => x.id !== t.id))}
+                onDelete={() => handleDelete(t.id)}
+                onUpdate={(name, message) => handleUpdate(t.id, name, message)}
               />
             ))}
           </div>
@@ -213,7 +278,13 @@ export default function TemplatesWhatsAppPage() {
 
             <div className="flex items-center justify-end gap-3 px-6 py-4 border-t border-zinc-100">
               <button onClick={() => setShowModal(false)} className="px-4 py-2 text-[13px] font-bold text-zinc-600 bg-zinc-100 rounded-lg hover:bg-zinc-200">Cancelar</button>
-              <button onClick={handleSave} className="px-5 py-2 bg-amber-500 text-white text-[13px] font-bold rounded-lg hover:bg-amber-600 shadow-sm">OK</button>
+              <button
+                onClick={handleSave}
+                disabled={!form.name.trim() || saving}
+                className="px-5 py-2 bg-amber-500 text-white text-[13px] font-bold rounded-lg hover:bg-amber-600 shadow-sm disabled:opacity-50"
+              >
+                {saving ? "Criando..." : "OK"}
+              </button>
             </div>
           </div>
         </div>

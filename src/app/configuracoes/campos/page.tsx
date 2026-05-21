@@ -1,8 +1,9 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect, useCallback } from "react";
 import { Plus, X, GripVertical } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { createClient } from "@/lib/supabase/client";
 
 type FieldType = "Texto" | "Número" | "Data" | "Seleção" | "Booleano" | "Moeda" | "Email" | "Telefone" | "URL";
 
@@ -14,54 +15,54 @@ type Field = {
   system: boolean;
 };
 
+const SYSTEM_FIELDS: Record<string, Field[]> = {
+  negocios: [
+    { id: "n1", name: "Nome", type: "Texto", required: true, system: true },
+    { id: "n2", name: "Fase", type: "Seleção", required: false, system: true },
+    { id: "n3", name: "Valor", type: "Moeda", required: false, system: true },
+    { id: "n4", name: "Etiqueta", type: "Seleção", required: false, system: true },
+    { id: "n5", name: "Criador", type: "Texto", required: false, system: true },
+    { id: "n6", name: "Responsável", type: "Texto", required: false, system: true },
+    { id: "n7", name: "Empresa", type: "Texto", required: false, system: true },
+    { id: "n8", name: "Contato", type: "Texto", required: false, system: true },
+    { id: "n9", name: "Perdido por", type: "Seleção", required: false, system: true },
+    { id: "n10", name: "Observações", type: "Texto", required: false, system: true },
+    { id: "n11", name: "Criado em", type: "Data", required: false, system: true },
+  ],
+  pessoas: [
+    { id: "c1", name: "Nome", type: "Texto", required: true, system: true },
+    { id: "c2", name: "Email", type: "Email", required: false, system: true },
+    { id: "c3", name: "Telefone", type: "Telefone", required: false, system: true },
+    { id: "c4", name: "Cargo", type: "Texto", required: false, system: true },
+    { id: "c5", name: "Empresa", type: "Texto", required: false, system: true },
+    { id: "c6", name: "Etiqueta", type: "Seleção", required: false, system: true },
+    { id: "c7", name: "Responsável", type: "Texto", required: false, system: true },
+    { id: "c8", name: "Observações", type: "Texto", required: false, system: true },
+    { id: "c9", name: "Criado em", type: "Data", required: false, system: true },
+  ],
+  empresas: [
+    { id: "e1", name: "Nome", type: "Texto", required: true, system: true },
+    { id: "e2", name: "Telefone", type: "Telefone", required: false, system: true },
+    { id: "e3", name: "Email", type: "Email", required: false, system: true },
+    { id: "e4", name: "Cargo", type: "Texto", required: false, system: true },
+    { id: "e5", name: "Etiqueta", type: "Seleção", required: false, system: true },
+    { id: "e6", name: "Responsável", type: "Texto", required: false, system: true },
+    { id: "e7", name: "Observações", type: "Texto", required: false, system: true },
+    { id: "e8", name: "Negócios", type: "Número", required: false, system: true },
+    { id: "e9", name: "Criado em", type: "Data", required: false, system: true },
+  ],
+};
+
+const TAB_TO_ENTITY: Record<string, string> = {
+  negocios: "deal",
+  pessoas: "contact",
+  empresas: "company",
+};
+
 const TABS = [
-  {
-    id: "negocios",
-    label: "Negócios",
-    fields: [
-      { id: "n1", name: "Nome", type: "Texto" as FieldType, required: true, system: true },
-      { id: "n2", name: "Fase", type: "Seleção" as FieldType, required: false, system: true },
-      { id: "n3", name: "Valor", type: "Moeda" as FieldType, required: false, system: true },
-      { id: "n4", name: "Etiqueta", type: "Seleção" as FieldType, required: false, system: true },
-      { id: "n5", name: "Criador", type: "Texto" as FieldType, required: false, system: true },
-      { id: "n6", name: "Responsável", type: "Texto" as FieldType, required: false, system: true },
-      { id: "n7", name: "Empresa", type: "Texto" as FieldType, required: false, system: true },
-      { id: "n8", name: "Contato", type: "Texto" as FieldType, required: false, system: true },
-      { id: "n9", name: "Perdido por", type: "Seleção" as FieldType, required: false, system: true },
-      { id: "n10", name: "Observações", type: "Texto" as FieldType, required: false, system: true },
-      { id: "n11", name: "Criado em", type: "Data" as FieldType, required: false, system: true },
-    ],
-  },
-  {
-    id: "pessoas",
-    label: "Pessoas",
-    fields: [
-      { id: "c1", name: "Nome", type: "Texto" as FieldType, required: true, system: true },
-      { id: "c2", name: "Email", type: "Email" as FieldType, required: false, system: true },
-      { id: "c3", name: "Telefone", type: "Telefone" as FieldType, required: false, system: true },
-      { id: "c4", name: "Cargo", type: "Texto" as FieldType, required: false, system: true },
-      { id: "c5", name: "Empresa", type: "Texto" as FieldType, required: false, system: true },
-      { id: "c6", name: "Etiqueta", type: "Seleção" as FieldType, required: false, system: true },
-      { id: "c7", name: "Responsável", type: "Texto" as FieldType, required: false, system: true },
-      { id: "c8", name: "Observações", type: "Texto" as FieldType, required: false, system: true },
-      { id: "c9", name: "Criado em", type: "Data" as FieldType, required: false, system: true },
-    ],
-  },
-  {
-    id: "empresas",
-    label: "Empresas",
-    fields: [
-      { id: "e1", name: "Nome", type: "Texto" as FieldType, required: true, system: true },
-      { id: "e2", name: "Telefone", type: "Telefone" as FieldType, required: false, system: true },
-      { id: "e3", name: "Email", type: "Email" as FieldType, required: false, system: true },
-      { id: "e4", name: "Cargo", type: "Texto" as FieldType, required: false, system: true },
-      { id: "e5", name: "Etiqueta", type: "Seleção" as FieldType, required: false, system: true },
-      { id: "e6", name: "Responsável", type: "Texto" as FieldType, required: false, system: true },
-      { id: "e7", name: "Observações", type: "Texto" as FieldType, required: false, system: true },
-      { id: "e8", name: "Negócios", type: "Número" as FieldType, required: false, system: true },
-      { id: "e9", name: "Criado em", type: "Data" as FieldType, required: false, system: true },
-    ],
-  },
+  { id: "negocios", label: "Negócios" },
+  { id: "pessoas", label: "Pessoas" },
+  { id: "empresas", label: "Empresas" },
 ];
 
 const FIELD_TYPES: FieldType[] = ["Texto", "Número", "Data", "Seleção", "Booleano", "Moeda", "Email", "Telefone", "URL"];
@@ -73,39 +74,84 @@ const TAB_ENTITY_LABEL: Record<string, string> = {
 };
 
 export default function CamposPage() {
+  const supabase = createClient();
   const [activeTab, setActiveTab] = useState("negocios");
-  const [fieldsByTab, setFieldsByTab] = useState<Record<string, Field[]>>(
-    Object.fromEntries(TABS.map(t => [t.id, t.fields]))
-  );
+  const [customFields, setCustomFields] = useState<Record<string, Field[]>>({ negocios: [], pessoas: [], empresas: [] });
+  const [loading, setLoading] = useState(true);
   const [showGroupModal, setShowGroupModal] = useState(false);
   const [showFieldModal, setShowFieldModal] = useState(false);
+  const [saving, setSaving] = useState(false);
   const [fieldForm, setFieldForm] = useState({ name: "", type: "Texto" as FieldType, group: "Desagrupado", required: false });
   const [groupForm, setGroupForm] = useState({ name: "" });
 
-  const currentFields = fieldsByTab[activeTab] || [];
+  const loadCustomFields = useCallback(async () => {
+    setLoading(true);
+    const { data: { user } } = await supabase.auth.getUser();
+    if (!user) { setLoading(false); return; }
 
-  const handleAddField = () => {
+    const { data } = await supabase
+      .from("custom_fields")
+      .select("*")
+      .eq("user_id", user.id)
+      .order("sort_order");
+
+    const grouped: Record<string, Field[]> = { negocios: [], pessoas: [], empresas: [] };
+    for (const row of data ?? []) {
+      const tab = Object.keys(TAB_TO_ENTITY).find(k => TAB_TO_ENTITY[k] === row.entity);
+      if (tab) {
+        grouped[tab].push({
+          id: row.id,
+          name: row.label,
+          type: row.field_type as FieldType,
+          required: row.required ?? false,
+          system: false,
+        });
+      }
+    }
+    setCustomFields(grouped);
+    setLoading(false);
+  }, [supabase]);
+
+  useEffect(() => { loadCustomFields(); }, [loadCustomFields]);
+
+  const currentFields = [...(SYSTEM_FIELDS[activeTab] ?? []), ...(customFields[activeTab] ?? [])];
+
+  const handleAddField = async () => {
     if (!fieldForm.name.trim()) return;
-    const newField: Field = {
-      id: Date.now().toString(),
-      name: fieldForm.name,
-      type: fieldForm.type,
+    setSaving(true);
+    const { data: { user } } = await supabase.auth.getUser();
+    if (!user) { setSaving(false); return; }
+
+    const entity = TAB_TO_ENTITY[activeTab];
+    const sortOrder = (customFields[activeTab] ?? []).length;
+
+    const { data, error } = await supabase.from("custom_fields").insert({
+      user_id: user.id,
+      entity,
+      label: fieldForm.name.trim(),
+      field_type: fieldForm.type.toLowerCase(),
       required: fieldForm.required,
-      system: false,
-    };
-    setFieldsByTab(prev => ({ ...prev, [activeTab]: [...prev[activeTab], newField] }));
+      field_group: fieldForm.group,
+      sort_order: sortOrder,
+    }).select().single();
+
+    setSaving(false);
+    if (!error && data) {
+      const newField: Field = { id: data.id, name: data.label, type: data.field_type as FieldType, required: data.required, system: false };
+      setCustomFields(prev => ({ ...prev, [activeTab]: [...prev[activeTab], newField] }));
+    }
     setFieldForm({ name: "", type: "Texto", group: "Desagrupado", required: false });
     setShowFieldModal(false);
   };
 
-  const handleRemoveField = (id: string) => {
-    setFieldsByTab(prev => ({ ...prev, [activeTab]: prev[activeTab].filter(f => f.id !== id) }));
+  const handleRemoveField = async (id: string) => {
+    await supabase.from("custom_fields").delete().eq("id", id);
+    setCustomFields(prev => ({ ...prev, [activeTab]: prev[activeTab].filter(f => f.id !== id) }));
   };
 
   return (
     <div className="flex flex-col min-h-full bg-[#F4F4F5]">
 
-      {/* Header */}
       <div className="flex items-center justify-between border-b border-zinc-200 px-8 py-5 shrink-0 bg-white">
         <h1 className="text-xl font-bold text-zinc-900 tracking-tight">Campos de dados</h1>
         <div className="flex items-center gap-2">
@@ -127,7 +173,6 @@ export default function CamposPage() {
       <div className="flex-1 p-8">
         <div className="max-w-3xl bg-white border border-zinc-200 rounded-xl shadow-sm overflow-hidden">
 
-          {/* Tabs */}
           <div className="flex border-b border-zinc-200 px-4 pt-1">
             {TABS.map(tab => (
               <button
@@ -145,7 +190,6 @@ export default function CamposPage() {
             ))}
           </div>
 
-          {/* Table header */}
           <div className="grid grid-cols-[32px_1fr_140px_110px] border-b border-zinc-100 bg-zinc-50/50">
             <div className="px-3 py-2.5" />
             <div className="px-4 py-2.5 text-[11px] font-bold text-zinc-400 uppercase tracking-wider">NOME DO CAMPO</div>
@@ -153,47 +197,52 @@ export default function CamposPage() {
             <div className="px-4 py-2.5 text-[11px] font-bold text-zinc-400 uppercase tracking-wider">OBRIGATÓRIO</div>
           </div>
 
-          {/* Section label */}
           <div className="px-4 py-2 bg-zinc-50 border-b border-zinc-100">
             <span className="text-[10px] font-bold text-zinc-400 uppercase tracking-wider">CAMPOS PADRÃO</span>
           </div>
 
-          {/* Fields list */}
-          <div className="divide-y divide-zinc-100">
-            {currentFields.map(field => (
-              <div key={field.id} className="grid grid-cols-[32px_1fr_140px_110px] items-center group hover:bg-zinc-50/50 transition-colors">
-                <div className="flex items-center justify-center py-3">
-                  <GripVertical size={14} className="text-zinc-300 group-hover:text-zinc-400" />
+          {loading ? (
+            <div className="flex items-center justify-center py-8">
+              <div className="h-5 w-5 animate-spin rounded-full border-2 border-amber-400 border-t-transparent" />
+            </div>
+          ) : (
+            <div className="divide-y divide-zinc-100">
+              {currentFields.map(field => (
+                <div key={field.id} className="grid grid-cols-[32px_1fr_140px_110px] items-center group hover:bg-zinc-50/50 transition-colors">
+                  <div className="flex items-center justify-center py-3">
+                    <GripVertical size={14} className="text-zinc-300 group-hover:text-zinc-400" />
+                  </div>
+                  <div className="px-4 py-3 flex items-center gap-2">
+                    <span className="text-[13px] font-semibold text-zinc-800">{field.name}</span>
+                    {!field.system && (
+                      <span className="text-[10px] font-bold text-amber-600 bg-amber-50 px-1.5 py-0.5 rounded">Custom</span>
+                    )}
+                  </div>
+                  <div className="px-4 py-3">
+                    <span className="text-[12px] font-medium text-zinc-400">{field.type}</span>
+                  </div>
+                  <div className="px-4 py-3 flex items-center justify-center gap-1">
+                    {field.required ? (
+                      <span className="text-[11px] font-bold text-amber-600 bg-amber-50 px-1.5 py-0.5 rounded">Sim</span>
+                    ) : (
+                      <span className="text-[11px] font-medium text-zinc-300">—</span>
+                    )}
+                    {!field.system && (
+                      <button
+                        onClick={() => handleRemoveField(field.id)}
+                        className="p-0.5 text-zinc-300 hover:text-red-500 opacity-0 group-hover:opacity-100 transition-all rounded ml-1"
+                      >
+                        <X size={12} />
+                      </button>
+                    )}
+                  </div>
                 </div>
-                <div className="px-4 py-3">
-                  <span className="text-[13px] font-semibold text-zinc-800">{field.name}</span>
-                </div>
-                <div className="px-4 py-3">
-                  <span className="text-[12px] font-medium text-zinc-400">{field.type}</span>
-                </div>
-                <div className="px-4 py-3 flex items-center justify-center gap-1">
-                  {field.required ? (
-                    <span className="text-[11px] font-bold text-amber-600 bg-amber-50 px-1.5 py-0.5 rounded">Sim</span>
-                  ) : (
-                    <span className="text-[11px] font-medium text-zinc-300">—</span>
-                  )}
-                  {!field.system && (
-                    <button
-                      onClick={() => handleRemoveField(field.id)}
-                      className="p-0.5 text-zinc-300 hover:text-red-500 opacity-0 group-hover:opacity-100 transition-all rounded ml-1"
-                    >
-                      <X size={12} />
-                    </button>
-                  )}
-                </div>
-              </div>
-            ))}
-          </div>
-
+              ))}
+            </div>
+          )}
         </div>
       </div>
 
-      {/* Modal Novo Grupo */}
       {showGroupModal && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40" onClick={() => setShowGroupModal(false)}>
           <div className="bg-white rounded-2xl shadow-2xl w-full max-w-sm mx-4 p-6" onClick={e => e.stopPropagation()}>
@@ -223,7 +272,6 @@ export default function CamposPage() {
         </div>
       )}
 
-      {/* Modal Novo Campo */}
       {showFieldModal && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40" onClick={() => setShowFieldModal(false)}>
           <div className="bg-white rounded-2xl shadow-2xl w-full max-w-sm mx-4 p-6" onClick={e => e.stopPropagation()}>
@@ -281,7 +329,13 @@ export default function CamposPage() {
             </div>
             <div className="flex items-center justify-end gap-3 mt-6">
               <button onClick={() => setShowFieldModal(false)} className="px-4 py-2 text-[13px] font-bold text-zinc-600 bg-zinc-100 rounded-lg hover:bg-zinc-200">Cancelar</button>
-              <button onClick={handleAddField} className="px-5 py-2 bg-amber-500 text-white text-[13px] font-bold rounded-lg hover:bg-amber-600 shadow-sm">Adicionar</button>
+              <button
+                onClick={handleAddField}
+                disabled={!fieldForm.name.trim() || saving}
+                className="px-5 py-2 bg-amber-500 text-white text-[13px] font-bold rounded-lg hover:bg-amber-600 shadow-sm disabled:opacity-50"
+              >
+                {saving ? "Adicionando..." : "Adicionar"}
+              </button>
             </div>
           </div>
         </div>

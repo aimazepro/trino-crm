@@ -1,68 +1,81 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useCallback } from "react";
 import { Plus, Search, Edit2, Trash2, Package, X } from "lucide-react";
+import { createClient } from "@/lib/supabase/client";
 
 type Product = {
   id: string;
   name: string;
-  code: string | null;
+  description: string | null;
+  sku: string | null;
   price: number;
-  unit: string;
+  unit: string | null;
   active: boolean;
 };
 
 const UNITS = ["Selecionar unidade", "Unidade", "Hora", "Mês", "Licença", "Projeto", "Outro"];
 
-const MOCK: Product[] = [];
-
 export default function ProdutosConfigPage() {
-  const [products, setProducts] = useState<Product[]>(MOCK);
+  const supabase = createClient();
+  const [products, setProducts] = useState<Product[]>([]);
+  const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState("");
   const [showModal, setShowModal] = useState(false);
+  const [saving, setSaving] = useState(false);
   const [form, setForm] = useState({ name: "", description: "", price: "", code: "", unit: "Selecionar unidade" });
 
-  // Load from localStorage on mount
-  useEffect(() => {
-    const saved = localStorage.getItem("crm_catalog_products");
-    if (saved) {
-      try {
-        setProducts(JSON.parse(saved));
-      } catch (e) {
-        console.error(e);
-      }
-    }
-  }, []);
+  const loadProducts = useCallback(async () => {
+    setLoading(true);
+    const { data: { user } } = await supabase.auth.getUser();
+    if (!user) { setLoading(false); return; }
 
-  const handleSave = () => {
+    const { data } = await supabase
+      .from("products")
+      .select("*")
+      .eq("user_id", user.id)
+      .order("created_at");
+
+    setProducts(data ?? []);
+    setLoading(false);
+  }, [supabase]);
+
+  useEffect(() => { loadProducts(); }, [loadProducts]);
+
+  const handleSave = async () => {
     if (!form.name.trim()) return;
-    const newProducts = [...products, {
-      id: Date.now().toString(),
-      name: form.name,
-      code: form.code || null,
+    setSaving(true);
+    const { data: { user } } = await supabase.auth.getUser();
+    if (!user) { setSaving(false); return; }
+
+    const { data, error } = await supabase.from("products").insert({
+      user_id: user.id,
+      name: form.name.trim(),
+      description: form.description.trim() || null,
+      sku: form.code.trim() || null,
       price: parseFloat(form.price) || 0,
-      unit: form.unit === "Selecionar unidade" ? "-" : form.unit,
+      unit: form.unit === "Selecionar unidade" ? null : form.unit,
       active: true,
-    }];
-    setProducts(newProducts);
-    localStorage.setItem("crm_catalog_products", JSON.stringify(newProducts));
+    }).select().single();
+
+    setSaving(false);
+    if (!error && data) {
+      setProducts(prev => [...prev, data]);
+    }
     setForm({ name: "", description: "", price: "", code: "", unit: "Selecionar unidade" });
     setShowModal(false);
   };
 
-  const handleDelete = (id: string) => {
-    const newProducts = products.filter(p => p.id !== id);
-    setProducts(newProducts);
-    localStorage.setItem("crm_catalog_products", JSON.stringify(newProducts));
+  const handleDelete = async (id: string) => {
+    await supabase.from("products").delete().eq("id", id);
+    setProducts(prev => prev.filter(p => p.id !== id));
   };
-
 
   const filtered = products.filter(p => p.name.toLowerCase().includes(search.toLowerCase()));
 
   return (
     <div className="flex flex-col min-h-full bg-[#F4F4F5]">
 
-      {/* Header */}
       <div className="flex items-center justify-between border-b border-zinc-200 px-8 py-5 shrink-0 bg-white">
         <div>
           <h1 className="text-xl font-bold text-zinc-900 tracking-tight">Catálogo de Produtos</h1>
@@ -79,7 +92,6 @@ export default function ProdutosConfigPage() {
       <div className="flex-1 p-8">
         <div className="max-w-4xl space-y-4">
 
-          {/* Search */}
           <div className="relative w-64">
             <Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-zinc-400" />
             <input
@@ -91,8 +103,11 @@ export default function ProdutosConfigPage() {
             />
           </div>
 
-          {/* Content */}
-          {filtered.length === 0 ? (
+          {loading ? (
+            <div className="flex items-center justify-center py-16">
+              <div className="h-6 w-6 animate-spin rounded-full border-2 border-amber-400 border-t-transparent" />
+            </div>
+          ) : filtered.length === 0 ? (
             <div className="bg-white border border-zinc-200 rounded-xl shadow-sm py-16 flex flex-col items-center justify-center">
               <Package size={36} className="text-zinc-300 mb-3" />
               <p className="text-[14px] font-semibold text-zinc-500 mb-1">Nenhum produto cadastrado</p>
@@ -120,11 +135,11 @@ export default function ProdutosConfigPage() {
                   {filtered.map(p => (
                     <tr key={p.id} className="hover:bg-zinc-50/50 transition-colors group">
                       <td className="px-6 py-3 text-[13px] font-semibold text-zinc-900">{p.name}</td>
-                      <td className="px-6 py-3 text-[13px] font-medium text-zinc-400">{p.code || "—"}</td>
+                      <td className="px-6 py-3 text-[13px] font-medium text-zinc-400">{p.sku || "—"}</td>
                       <td className="px-6 py-3 text-[13px] font-medium text-zinc-700">
-                        R$ {p.price.toLocaleString("pt-BR", { minimumFractionDigits: 2 })}
+                        R$ {Number(p.price).toLocaleString("pt-BR", { minimumFractionDigits: 2 })}
                       </td>
-                      <td className="px-6 py-3 text-[13px] font-medium text-zinc-600">{p.unit}</td>
+                      <td className="px-6 py-3 text-[13px] font-medium text-zinc-600">{p.unit || "—"}</td>
                       <td className="px-6 py-3">
                         <span className="text-[11px] font-bold text-green-700 bg-green-50 px-2.5 py-1 rounded-full">
                           {p.active ? "Ativo" : "Inativo"}
@@ -149,7 +164,6 @@ export default function ProdutosConfigPage() {
         </div>
       </div>
 
-      {/* Modal Novo Produto */}
       {showModal && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40" onClick={() => setShowModal(false)}>
           <div className="bg-white rounded-2xl shadow-2xl w-full max-w-md mx-4 p-6" onClick={e => e.stopPropagation()}>
@@ -195,7 +209,7 @@ export default function ProdutosConfigPage() {
                   />
                 </div>
                 <div className="space-y-1.5">
-                  <label className="text-[13px] font-bold text-zinc-700">Código</label>
+                  <label className="text-[13px] font-bold text-zinc-700">Código / SKU</label>
                   <input
                     type="text"
                     placeholder="SKU-001"
@@ -222,8 +236,12 @@ export default function ProdutosConfigPage() {
               <button onClick={() => setShowModal(false)} className="px-4 py-2 text-[13px] font-bold text-zinc-600 bg-zinc-100 rounded-lg hover:bg-zinc-200">
                 Cancelar
               </button>
-              <button onClick={handleSave} className="px-5 py-2 bg-amber-500 text-white text-[13px] font-bold rounded-lg hover:bg-amber-600 shadow-sm">
-                Criar Produto
+              <button
+                onClick={handleSave}
+                disabled={!form.name.trim() || saving}
+                className="px-5 py-2 bg-amber-500 text-white text-[13px] font-bold rounded-lg hover:bg-amber-600 shadow-sm disabled:opacity-50"
+              >
+                {saving ? "Criando..." : "Criar Produto"}
               </button>
             </div>
           </div>

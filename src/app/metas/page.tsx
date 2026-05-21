@@ -1,9 +1,10 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useCallback } from "react";
 import { Plus, Target, TrendingUp, Trophy, DollarSign, Activity, X, ArrowRight, ArrowLeft, Trash2 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useRouter } from "next/navigation";
+import { createClient } from "@/lib/supabase/client";
 
 type GoalType = "Negócios Adicionados" | "Negócios em Andamento" | "Negócios Ganhos" | "Receita" | "Atividades";
 
@@ -15,32 +16,22 @@ const GOAL_TYPES = [
   { id: "Atividades", title: "Atividades", desc: "Quantidade de atividades concluídas", icon: Activity },
 ];
 
+const PERIOD_LABELS: Record<string, string> = {
+  WEEKLY: "Semanal",
+  MONTHLY: "Mensal",
+  QUARTERLY: "Trimestral",
+};
+
 export default function MetasPage() {
   const router = useRouter();
+  const supabase = createClient();
   const [goals, setGoals] = useState<any[]>([]);
-  const [isLoaded, setIsLoaded] = useState(false);
-
-  useEffect(() => {
-    const savedGoals = localStorage.getItem("dmhub_goals");
-    if (savedGoals) {
-      setGoals(JSON.parse(savedGoals));
-    } else {
-      const initial = [{ id: "ligacoes", title: "ligacoes", subtitle: "Negócios Ganhos | Trimestral", current: 0, target: 100, progress: 0 }];
-      setGoals(initial);
-      localStorage.setItem("dmhub_goals", JSON.stringify(initial));
-    }
-    setIsLoaded(true);
-  }, []);
-
-  useEffect(() => {
-    if (isLoaded) {
-      localStorage.setItem("dmhub_goals", JSON.stringify(goals));
-    }
-  }, [goals, isLoaded]);
+  const [loading, setLoading] = useState(true);
 
   const [showModal, setShowModal] = useState(false);
   const [showDeleteModal, setShowDeleteModal] = useState(false);
   const [goalToDelete, setGoalToDelete] = useState<string | null>(null);
+  const [saving, setSaving] = useState(false);
   const [step, setStep] = useState(1);
   const [selectedType, setSelectedType] = useState<GoalType | "">("Negócios Ganhos");
 
@@ -49,16 +40,31 @@ export default function MetasPage() {
     metric: "COUNT",
     period: "MONTHLY",
     target: "10",
-    pipeline: "",
-    responsible: "",
     startDate: "",
     endDate: "",
   });
 
+  const loadGoals = useCallback(async () => {
+    setLoading(true);
+    const { data: { user } } = await supabase.auth.getUser();
+    if (!user) { setLoading(false); return; }
+
+    const { data } = await supabase
+      .from("goals")
+      .select("*")
+      .eq("user_id", user.id)
+      .order("created_at");
+
+    setGoals(data ?? []);
+    setLoading(false);
+  }, [supabase]);
+
+  useEffect(() => { loadGoals(); }, [loadGoals]);
+
   const openModal = () => {
     setStep(1);
     setSelectedType("Negócios Ganhos");
-    setFormData({ name: "Negócios Ganhos", metric: "COUNT", period: "MONTHLY", target: "10", pipeline: "", responsible: "", startDate: "", endDate: "" });
+    setFormData({ name: "Negócios Ganhos", metric: "COUNT", period: "MONTHLY", target: "10", startDate: "", endDate: "" });
     setShowModal(true);
   };
 
@@ -69,24 +75,33 @@ export default function MetasPage() {
     }
   };
 
-  const handleCreateGoal = () => {
-    const periodLabel = formData.period === "WEEKLY" ? "Semanal" : formData.period === "MONTHLY" ? "Mensal" : "Trimestral";
-    const newGoal = {
-      id: Date.now().toString(),
+  const handleCreateGoal = async () => {
+    setSaving(true);
+    const { data: { user } } = await supabase.auth.getUser();
+    if (!user) { setSaving(false); return; }
+
+    const { data, error } = await supabase.from("goals").insert({
+      user_id: user.id,
       title: formData.name || selectedType,
-      subtitle: `${selectedType} | ${periodLabel}`,
-      current: 0,
-      target: parseInt(formData.target) || 0,
-      progress: 0,
-    };
-    setGoals(prev => [...prev, newGoal]);
+      goal_type: selectedType,
+      metric: formData.metric,
+      period: formData.period,
+      target_value: parseFloat(formData.target) || 0,
+      start_date: formData.startDate || null,
+      end_date: formData.endDate || null,
+    }).select().single();
+
+    setSaving(false);
+    if (!error && data) {
+      setGoals(prev => [...prev, data]);
+    }
     setShowModal(false);
   };
 
-  const handleDeleteGoal = () => {
-    if (goalToDelete) {
-      setGoals(prev => prev.filter(g => g.id !== goalToDelete));
-    }
+  const handleDeleteGoal = async () => {
+    if (!goalToDelete) return;
+    await supabase.from("goals").delete().eq("id", goalToDelete);
+    setGoals(prev => prev.filter(g => g.id !== goalToDelete));
     setShowDeleteModal(false);
     setGoalToDelete(null);
   };
@@ -108,7 +123,11 @@ export default function MetasPage() {
           </button>
         </div>
 
-        {goals.length === 0 ? (
+        {loading ? (
+          <div className="flex items-center justify-center min-h-[40vh]">
+            <div className="h-6 w-6 animate-spin rounded-full border-2 border-amber-400 border-t-transparent" />
+          </div>
+        ) : goals.length === 0 ? (
           <div className="flex flex-col items-center justify-center min-h-[60vh] max-w-md mx-auto text-center">
             <div className="w-16 h-16 bg-amber-50 rounded-2xl flex items-center justify-center mb-6 shadow-sm border border-amber-100">
               <Target size={32} className="text-amber-500" strokeWidth={2} />
@@ -139,7 +158,7 @@ export default function MetasPage() {
                     </div>
                     <div>
                       <p className="text-sm font-semibold text-zinc-900">{goal.title}</p>
-                      <p className="text-xs text-zinc-400">{goal.subtitle}</p>
+                      <p className="text-xs text-zinc-400">{goal.goal_type} | {PERIOD_LABELS[goal.period] ?? goal.period}</p>
                     </div>
                   </div>
                   <button
@@ -152,15 +171,15 @@ export default function MetasPage() {
                 </div>
                 <div>
                   <div className="flex items-end justify-between mb-2">
-                    <span className="text-xl font-bold text-zinc-900">{goal.current}</span>
-                    <span className="text-xs text-zinc-400">de {goal.target}</span>
+                    <span className="text-xl font-bold text-zinc-900">0</span>
+                    <span className="text-xs text-zinc-400">de {Number(goal.target_value).toLocaleString("pt-BR")}</span>
                   </div>
                   <div className="h-2 w-full rounded-full bg-zinc-100">
-                    <div className="h-2 rounded-full transition-all bg-amber-500" style={{ width: `${goal.progress}%` }} />
+                    <div className="h-2 rounded-full transition-all bg-amber-500" style={{ width: "0%" }} />
                   </div>
                   <div className="flex items-center justify-between mt-1.5">
                     <span className="text-xs text-zinc-400">Em andamento</span>
-                    <span className="text-xs font-bold text-amber-600">{goal.progress}%</span>
+                    <span className="text-xs font-bold text-amber-600">0%</span>
                   </div>
                 </div>
               </div>
@@ -275,29 +294,6 @@ export default function MetasPage() {
                       className="w-full rounded-lg border border-zinc-200 px-3 py-2 text-sm text-zinc-900 focus:outline-none focus:ring-2 focus:ring-amber-400"
                     />
                   </div>
-                  <div>
-                    <label className="block text-xs font-medium text-zinc-600 mb-1.5">Pipeline (opcional)</label>
-                    <select
-                      value={formData.pipeline}
-                      onChange={(e) => setFormData(prev => ({ ...prev, pipeline: e.target.value }))}
-                      className="w-full rounded-lg border border-zinc-200 px-3 py-2 text-sm text-zinc-900 focus:outline-none focus:ring-2 focus:ring-amber-400"
-                    >
-                      <option value="">Todos os pipelines</option>
-                      <option value="Vendas B2B">Vendas B2B</option>
-                      <option value="Parcerias">Parcerias</option>
-                    </select>
-                  </div>
-                  <div>
-                    <label className="block text-xs font-medium text-zinc-600 mb-1.5">Responsável (opcional)</label>
-                    <select
-                      value={formData.responsible}
-                      onChange={(e) => setFormData(prev => ({ ...prev, responsible: e.target.value }))}
-                      className="w-full rounded-lg border border-zinc-200 px-3 py-2 text-sm text-zinc-900 focus:outline-none focus:ring-2 focus:ring-amber-400"
-                    >
-                      <option value="">Todos os usuários</option>
-                      <option value="João Paulo">João Paulo Oliveira</option>
-                    </select>
-                  </div>
                   <div className="grid grid-cols-2 gap-3">
                     <div>
                       <label className="block text-xs font-medium text-zinc-600 mb-1.5">Data início (opcional)</label>
@@ -327,10 +323,10 @@ export default function MetasPage() {
                     </button>
                     <button
                       onClick={handleCreateGoal}
-                      disabled={!formData.name || !formData.target}
+                      disabled={!formData.name || !formData.target || saving}
                       className="px-5 py-2 text-sm font-medium text-white bg-gradient-to-r from-amber-500 to-amber-400 rounded-lg hover:from-amber-600 hover:to-amber-500 shadow-sm hover:shadow-md disabled:opacity-50 transition-colors"
                     >
-                      Criar Meta
+                      {saving ? "Criando..." : "Criar Meta"}
                     </button>
                   </div>
                 </div>

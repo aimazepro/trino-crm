@@ -3,23 +3,31 @@
 import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import { Mail, X, ExternalLink } from "lucide-react";
+import { createClient } from "@/lib/supabase/client";
 
 type Template = { id: string; name: string; subject: string; body: string };
 
-const LS_KEY = "trino_crm_email_templates";
-
 export function UseEmailTemplateModal({ onClose }: { onClose: () => void }) {
   const router = useRouter();
+  const supabase = createClient();
   const [templates, setTemplates] = useState<Template[]>([]);
 
   useEffect(() => {
-    try { setTemplates(JSON.parse(localStorage.getItem(LS_KEY) || "[]")); } catch { /* ignore */ }
-  }, []);
+    (async () => {
+      const { data: { user } } = await supabase.auth.getUser();
+      if (!user) return;
+      const { data } = await supabase
+        .from("email_templates")
+        .select("id, name, subject, body")
+        .eq("user_id", user.id)
+        .order("created_at");
+      setTemplates(data ?? []);
+    })();
+  }, [supabase]);
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/20">
       <div className="bg-white rounded-2xl shadow-xl w-full max-w-md mx-4 overflow-hidden">
-        {/* Header */}
         <div className="flex items-center justify-between px-6 py-4 border-b border-zinc-100">
           <div className="flex items-center gap-2 text-zinc-800 font-semibold text-base">
             <Mail className="h-4 w-4 text-amber-500" />
@@ -30,7 +38,6 @@ export function UseEmailTemplateModal({ onClose }: { onClose: () => void }) {
           </button>
         </div>
 
-        {/* Body */}
         <div className="p-6">
           {templates.length === 0 ? (
             <div className="flex flex-col items-center py-6 text-center gap-3">

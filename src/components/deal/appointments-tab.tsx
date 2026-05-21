@@ -1,13 +1,13 @@
 "use client";
 
 import { useState } from "react";
-import { Calendar, Trash2, Edit2, Play, Users, Video } from "lucide-react";
+import { Calendar, Trash2, Users, Video, Check, X } from "lucide-react";
 import { useCrm } from "@/contexts/crm-context";
-import { Deal, Appointment } from "@/lib/crm-types";
+import { Deal } from "@/lib/crm-types";
 import { cn } from "@/lib/utils";
 
 export function AppointmentsTab({ deal }: { deal: Deal }) {
-  const { addAppointment, state } = useCrm();
+  const { addAppointment, updateAppointment, deleteAppointment, state } = useCrm();
   const contact = deal.contactId ? state.contacts.find(c => c.id === deal.contactId) : undefined;
   const [isAdding, setIsAdding] = useState(false);
   
@@ -118,16 +118,17 @@ export function AppointmentsTab({ deal }: { deal: Deal }) {
       ) : (
          <div className="space-y-3">
            {deal.appointments.map(a => (
-              <div key={a.id} className={cn("p-4 border rounded-xl transition-all", a.status === "Cancelled" ? "bg-red-50/50 border-red-100 opacity-70" : "bg-white border-blue-100 border-l-4 border-l-blue-500")}>
+              <div key={a.id} className={cn("p-4 border rounded-xl transition-all", a.status === "Cancelled" ? "bg-red-50/50 border-red-100 opacity-70" : a.status === "Done" ? "bg-green-50/50 border-green-100" : "bg-white border-blue-100 border-l-4 border-l-blue-500")}>
                  <div className="flex items-start justify-between">
-                    <div>
+                    <div className="flex-1">
                        <div className="flex items-center gap-2">
-                         <h5 className={cn("font-bold text-sm", a.status === "Cancelled" ? "text-red-700 line-through" : "text-gray-900")}>
+                         <h5 className={cn("font-bold text-sm", a.status === "Cancelled" ? "text-red-700 line-through" : a.status === "Done" ? "text-green-700" : "text-gray-900")}>
                            {a.procedure}
                          </h5>
                          {a.status === "Cancelled" && <span className="text-[10px] bg-red-100 text-red-600 px-1.5 rounded font-bold uppercase tracking-wider">Cancelado</span>}
+                         {a.status === "Done" && <span className="text-[10px] bg-green-100 text-green-700 px-1.5 rounded font-bold uppercase tracking-wider">Concluído</span>}
                        </div>
-                       
+
                        <div className="flex items-center gap-4 mt-2 text-xs font-medium text-gray-500">
                          <span className="flex items-center gap-1.5"><Calendar size={12}/> {new Date(a.date).toLocaleString('pt-BR', { dateStyle: 'short', timeStyle: 'short' })}</span>
                          {a.attendant && <span className="flex items-center gap-1.5"><Users size={12}/> {a.attendant}</span>}
@@ -140,6 +141,21 @@ export function AppointmentsTab({ deal }: { deal: Deal }) {
                              </a>
                           </div>
                        )}
+                    </div>
+                    <div className="flex items-center gap-1 shrink-0">
+                       {a.status === "Scheduled" && (
+                         <>
+                           <button onClick={() => updateAppointment(a.id, { status: "Done" })} title="Marcar como concluído" className="p-1.5 text-gray-400 hover:text-green-600 hover:bg-green-50 rounded transition-colors">
+                             <Check size={14} />
+                           </button>
+                           <button onClick={() => updateAppointment(a.id, { status: "Cancelled" })} title="Cancelar" className="p-1.5 text-gray-400 hover:text-red-600 hover:bg-red-50 rounded transition-colors">
+                             <X size={14} />
+                           </button>
+                         </>
+                       )}
+                       <button onClick={() => { if (confirm("Excluir agendamento?")) deleteAppointment(a.id); }} title="Excluir" className="p-1.5 text-gray-400 hover:text-red-600 hover:bg-red-50 rounded transition-colors">
+                         <Trash2 size={14} />
+                       </button>
                     </div>
                  </div>
               </div>

@@ -1,7 +1,8 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { Plus, Phone, X, Trash2, Edit2 } from "lucide-react";
+import { createClient } from "@/lib/supabase/client";
 
 type Script = { id: string; name: string; content: string };
 
@@ -11,12 +12,33 @@ export default function ScriptsPage() {
   const [scripts, setScripts] = useState<Script[]>([]);
   const [showModal, setShowModal] = useState(false);
   const [form, setForm] = useState({ name: "", content: "" });
+  const supabase = createClient();
 
-  const handleSave = () => {
+  useEffect(() => {
+    async function load() {
+      const { data: { user } } = await supabase.auth.getUser();
+      if (!user) return;
+      const { data } = await supabase.from("scripts").select("id, name, content").eq("user_id", user.id).order("created_at");
+      setScripts(data ?? []);
+    }
+    load();
+  }, [supabase]);
+
+  const handleSave = async () => {
     if (!form.name.trim()) return;
-    setScripts([...scripts, { id: Date.now().toString(), ...form }]);
+    const { data: { user } } = await supabase.auth.getUser();
+    if (!user) return;
+    const { data } = await supabase.from("scripts").insert({
+      user_id: user.id, name: form.name, content: form.content,
+    }).select("id, name, content").single();
+    if (data) setScripts([...scripts, data]);
     setForm({ name: "", content: "" });
     setShowModal(false);
+  };
+
+  const handleDelete = async (id: string) => {
+    setScripts(scripts.filter(x => x.id !== id));
+    await supabase.from("scripts").delete().eq("id", id);
   };
 
   return (
@@ -49,7 +71,7 @@ export default function ScriptsPage() {
                 </div>
                 <div className="flex items-center gap-2 opacity-0 group-hover:opacity-100 transition-all shrink-0 ml-3">
                   <button className="p-1.5 text-zinc-400 hover:text-amber-600 hover:bg-amber-50 rounded-lg"><Edit2 size={13} /></button>
-                  <button onClick={() => setScripts(scripts.filter(x => x.id !== s.id))} className="p-1.5 text-zinc-400 hover:text-red-500 hover:bg-red-50 rounded-lg"><Trash2 size={13} /></button>
+                  <button onClick={() => handleDelete(s.id)} className="p-1.5 text-zinc-400 hover:text-red-500 hover:bg-red-50 rounded-lg"><Trash2 size={13} /></button>
                 </div>
               </div>
             ))}

@@ -80,15 +80,16 @@ export interface Deal {
   contactId?: string;
   companyId?: string;
   pipelineId: string;
-  stageId: string; 
+  stageId: string;
   status: LeadStatus;
-  lossReason?: string; 
-  expectedCloseDate?: string; 
+  lossReason?: string;
+  expectedCloseDate?: string;
   probability?: number;
-  source?: string; 
-  labels: string[]; 
-  daysInStage: number; 
-  createdAt?: string; 
+  source?: string;
+  ownerId?: string;
+  labels: string[];
+  daysInStage: number;
+  createdAt?: string;
   
   notes: Note[];
   history: HistoryLog[];

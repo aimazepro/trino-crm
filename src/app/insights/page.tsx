@@ -224,14 +224,6 @@ const COLORS = [
   { name: "Red", value: "#ef4444" }
 ];
 
-const MOCK_DEALS = [
-  { id: "deal_mock_1", title: "sdfdf", value: 0, stageName: "Entrada de Leads", pipelineName: "Prospeccao", ownerName: "João Paulo Olivera", createdAt: "2026-05-21T12:28:00.000Z", status: "-" },
-  { id: "deal_mock_2", title: "teste 02", value: 0, stageName: "Formulário Preenchido", pipelineName: "Inbound", ownerName: "João Paulo Olivera", createdAt: "2026-05-21T11:51:00.000Z", status: "-" },
-  { id: "deal_mock_3", title: "adsa", value: 0, stageName: "Reunião Realizada", pipelineName: "Negociação", ownerName: "João Paulo Olivera", createdAt: "2026-05-20T21:08:00.000Z", status: "-" },
-  { id: "deal_mock_4", title: "sds", value: 0, stageName: "MQL Cadastrado", pipelineName: "Social Selling", ownerName: "João Paulo Olivera", createdAt: "2026-05-20T21:07:00.000Z", status: "-" },
-  { id: "deal_mock_5", title: "Ivone estética", value: 2500, stageName: "Formulário Preenchido", pipelineName: "Inbound", ownerName: "João Paulo Olivera", createdAt: "2026-05-20T21:07:00.000Z", status: "-" },
-  { id: "deal_mock_6", title: "teste", value: 0, stageName: "Entrada de Leads", pipelineName: "Prospeccao", ownerName: "João Paulo Olivera", createdAt: "2026-05-20T21:07:00.000Z", status: "-" }
-];
 
 export default function InsightsPage() {
   const { state } = useCrm();
@@ -550,7 +542,7 @@ export default function InsightsPage() {
         };
       });
     }
-    return MOCK_DEALS;
+    return [];
   }, [state.deals, state.pipelines]);
 
   // Dynamic counts for cards

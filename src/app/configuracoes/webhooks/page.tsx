@@ -1,14 +1,15 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { Plus, Webhook, Trash2, X, Zap } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { createClient } from "@/lib/supabase/client";
 
 type WebhookItem = {
   id: string;
   url: string;
   events: string[];
-  secret: string;
+  secret: string | null;
   active: boolean;
 };
 
@@ -24,22 +25,32 @@ export default function WebhooksPage() {
   const [webhooks, setWebhooks] = useState<WebhookItem[]>([]);
   const [showModal, setShowModal] = useState(false);
   const [form, setForm] = useState({ url: "", events: new Set<string>(), secret: "" });
+  const supabase = createClient();
+
+  useEffect(() => {
+    async function load() {
+      const { data: { user } } = await supabase.auth.getUser();
+      if (!user) return;
+      const { data } = await supabase.from("webhooks").select("id, url, events, secret, active").eq("user_id", user.id).order("created_at");
+      setWebhooks(data ?? []);
+    }
+    load();
+  }, [supabase]);
 
   const toggleEvent = (key: string) => {
     const next = new Set(form.events);
-    next.has(key) ? next.delete(key) : next.add(key);
+    if (next.has(key)) next.delete(key); else next.add(key);
     setForm({ ...form, events: next });
   };
 
-  const handleSave = () => {
+  const handleSave = async () => {
     if (!form.url.trim() || form.events.size === 0) return;
-    setWebhooks([...webhooks, {
-      id: Date.now().toString(),
-      url: form.url,
-      events: Array.from(form.events),
-      secret: form.secret,
-      active: true,
-    }]);
+    const { data: { user } } = await supabase.auth.getUser();
+    if (!user) return;
+    const { data } = await supabase.from("webhooks").insert({
+      user_id: user.id, url: form.url, events: Array.from(form.events), secret: form.secret || null, active: true,
+    }).select("id, url, events, secret, active").single();
+    if (data) setWebhooks([...webhooks, data]);
     setForm({ url: "", events: new Set(), secret: "" });
     setShowModal(false);
   };
@@ -49,7 +60,10 @@ export default function WebhooksPage() {
     setShowModal(true);
   };
 
-  const handleDelete = (id: string) => setWebhooks(webhooks.filter(w => w.id !== id));
+  const handleDelete = async (id: string) => {
+    setWebhooks(webhooks.filter(w => w.id !== id));
+    await supabase.from("webhooks").delete().eq("id", id);
+  };
 
   const getEvent = (key: string) => EVENTS.find(e => e.key === key);
 
@@ -79,7 +93,6 @@ export default function WebhooksPage() {
             </div>
           ) : (
             <div className="bg-white border border-zinc-200 rounded-xl shadow-sm overflow-hidden">
-              {/* Table header */}
               <div className="grid grid-cols-[1fr_200px_90px_80px] border-b border-zinc-200 bg-zinc-50/50">
                 <div className="px-5 py-3 text-[11px] font-bold text-zinc-400 uppercase tracking-wider">URL</div>
                 <div className="px-4 py-3 text-[11px] font-bold text-zinc-400 uppercase tracking-wider">EVENTOS</div>
@@ -105,7 +118,9 @@ export default function WebhooksPage() {
                       </div>
                     </div>
                     <div className="px-4 py-3.5">
-                      <span className="text-[11px] font-bold text-green-600 bg-green-50 px-2 py-0.5 rounded-full">Ativo</span>
+                      <span className={cn("text-[11px] font-bold px-2 py-0.5 rounded-full", wh.active ? "text-green-600 bg-green-50" : "text-zinc-400 bg-zinc-100")}>
+                        {wh.active ? "Ativo" : "Inativo"}
+                      </span>
                     </div>
                     <div className="px-4 py-3.5 flex items-center gap-1.5 opacity-0 group-hover:opacity-100 transition-all">
                       <button
@@ -129,7 +144,6 @@ export default function WebhooksPage() {
         </div>
       </div>
 
-      {/* Modal */}
       {showModal && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4" onClick={() => setShowModal(false)}>
           <div className="bg-white rounded-2xl shadow-2xl w-full max-w-md flex flex-col" onClick={e => e.stopPropagation()}>

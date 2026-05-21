@@ -1,7 +1,8 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect, useCallback } from "react";
 import { Plus, Mail, X, Trash2, Edit2, Eye, Copy, Bold, Italic, Underline, Check } from "lucide-react";
+import { createClient } from "@/lib/supabase/client";
 
 type Template = {
   id: string;
@@ -56,30 +57,37 @@ const MODEL_OPTIONS = [
   },
 ];
 
-// Extract {{variables}} from text
 function extractVars(text: string): string[] {
   const matches = text.match(/\{\{[^}]+\}\}/g) || [];
   return [...new Set(matches)];
 }
 
-const LS_KEY = "trino_crm_email_templates";
-
-export function loadEmailTemplates(): Template[] {
-  if (typeof window === "undefined") return [];
-  try { return JSON.parse(localStorage.getItem(LS_KEY) || "[]"); } catch { return []; }
-}
-
 export default function TemplatesEmailPage() {
-  const [templates, setTemplates] = useState<Template[]>(() => loadEmailTemplates());
+  const supabase = createClient();
+  const [templates, setTemplates] = useState<Template[]>([]);
+  const [loading, setLoading] = useState(true);
   const [showModal, setShowModal] = useState(false);
+  const [saving, setSaving] = useState(false);
   const [previewTemplate, setPreviewTemplate] = useState<Template | null>(null);
   const [copiedPreview, setCopiedPreview] = useState(false);
   const [form, setForm] = useState({ model: "", name: "", subject: "", body: "" });
 
-  const persist = (list: Template[]) => {
-    setTemplates(list);
-    localStorage.setItem(LS_KEY, JSON.stringify(list));
-  };
+  const loadTemplates = useCallback(async () => {
+    setLoading(true);
+    const { data: { user } } = await supabase.auth.getUser();
+    if (!user) { setLoading(false); return; }
+
+    const { data } = await supabase
+      .from("email_templates")
+      .select("*")
+      .eq("user_id", user.id)
+      .order("created_at");
+
+    setTemplates(data ?? []);
+    setLoading(false);
+  }, [supabase]);
+
+  useEffect(() => { loadTemplates(); }, [loadTemplates]);
 
   const handleModelSelect = (value: string) => {
     const found = MODEL_OPTIONS.find(m => m.value === value);
@@ -90,14 +98,31 @@ export default function TemplatesEmailPage() {
     }
   };
 
-  const handleSave = () => {
+  const handleSave = async () => {
     if (!form.name.trim()) return;
-    persist([...templates, { id: Date.now().toString(), name: form.name, subject: form.subject, body: form.body }]);
+    setSaving(true);
+    const { data: { user } } = await supabase.auth.getUser();
+    if (!user) { setSaving(false); return; }
+
+    const { data, error } = await supabase.from("email_templates").insert({
+      user_id: user.id,
+      name: form.name.trim(),
+      subject: form.subject.trim(),
+      body: form.body.trim(),
+    }).select().single();
+
+    setSaving(false);
+    if (!error && data) {
+      setTemplates(prev => [...prev, data]);
+    }
     setForm({ model: "", name: "", subject: "", body: "" });
     setShowModal(false);
   };
 
-  const handleDelete = (id: string) => persist(templates.filter(t => t.id !== id));
+  const handleDelete = async (id: string) => {
+    await supabase.from("email_templates").delete().eq("id", id);
+    setTemplates(prev => prev.filter(t => t.id !== id));
+  };
 
   const handleCopyPreview = () => {
     if (!previewTemplate) return;
@@ -114,7 +139,6 @@ export default function TemplatesEmailPage() {
   return (
     <div className="flex flex-col min-h-full bg-[#F4F4F5]">
 
-      {/* Header */}
       <div className="flex items-center justify-between border-b border-zinc-200 px-8 py-5 shrink-0 bg-white">
         <div className="flex items-center gap-3">
           <Mail size={20} className="text-amber-500" />
@@ -132,7 +156,11 @@ export default function TemplatesEmailPage() {
       </div>
 
       <div className="flex-1 p-8">
-        {templates.length === 0 ? (
+        {loading ? (
+          <div className="flex items-center justify-center py-20">
+            <div className="h-6 w-6 animate-spin rounded-full border-2 border-amber-400 border-t-transparent" />
+          </div>
+        ) : templates.length === 0 ? (
           <div className="max-w-3xl bg-white border border-zinc-200 rounded-xl shadow-sm py-20 flex flex-col items-center justify-center">
             <div className="w-14 h-14 bg-amber-50 rounded-2xl flex items-center justify-center mb-4">
               <Mail size={26} className="text-amber-400" />
@@ -189,7 +217,6 @@ export default function TemplatesEmailPage() {
         )}
       </div>
 
-      {/* Create/Edit Modal */}
       {showModal && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4" onClick={() => setShowModal(false)}>
           <div className="bg-white rounded-2xl shadow-2xl w-full max-w-lg flex flex-col max-h-[90vh]" onClick={e => e.stopPropagation()}>
@@ -253,7 +280,6 @@ export default function TemplatesEmailPage() {
                     className="w-full px-4 py-3 text-[13px] font-medium text-zinc-700 outline-none resize-none bg-white"
                   />
                 </div>
-                {/* Variable chips preview */}
                 {extractVars(form.subject + " " + form.body).length > 0 && (
                   <div className="flex flex-wrap gap-1.5 mt-1">
                     <span className="text-[11px] font-medium text-zinc-400">Variáveis detectadas:</span>
@@ -267,13 +293,18 @@ export default function TemplatesEmailPage() {
 
             <div className="flex items-center justify-end gap-3 px-6 py-4 border-t border-zinc-100 shrink-0">
               <button onClick={() => setShowModal(false)} className="px-4 py-2 text-[13px] font-bold text-zinc-600 bg-zinc-100 rounded-lg hover:bg-zinc-200">Cancelar</button>
-              <button onClick={handleSave} className="px-5 py-2 bg-amber-500 text-white text-[13px] font-bold rounded-lg hover:bg-amber-600 shadow-sm">Criar Template</button>
+              <button
+                onClick={handleSave}
+                disabled={!form.name.trim() || saving}
+                className="px-5 py-2 bg-amber-500 text-white text-[13px] font-bold rounded-lg hover:bg-amber-600 shadow-sm disabled:opacity-50"
+              >
+                {saving ? "Criando..." : "Criar Template"}
+              </button>
             </div>
           </div>
         </div>
       )}
 
-      {/* Preview Modal */}
       {previewTemplate && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4" onClick={() => setPreviewTemplate(null)}>
           <div className="bg-white rounded-2xl shadow-2xl w-full max-w-lg flex flex-col max-h-[80vh]" onClick={e => e.stopPropagation()}>

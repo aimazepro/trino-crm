@@ -29,6 +29,8 @@ interface CrmContextType {
   addCompany: (company: Company) => Promise<string | null>;
   addLabel: (label: Label) => Promise<string | null>;
   addAppointment: (appointment: Omit<Appointment, "id" | "createdAt" | "status">) => void;
+  updateAppointment: (appointmentId: string, fields: Partial<Appointment>) => void;
+  deleteAppointment: (appointmentId: string) => void;
   addActivity: (activity: Omit<Activity, "id" | "createdAt" | "completed">) => void;
   updateActivity: (activityId: string, fields: Partial<Activity>) => void;
   deleteActivity: (activityId: string) => void;
@@ -83,6 +85,7 @@ function transformDeal(row: any): Deal {
     status: row.status, lossReason: row.loss_reason ?? undefined,
     expectedCloseDate: row.expected_close_date ?? undefined,
     probability: row.probability ?? undefined, source: row.source ?? undefined,
+    ownerId: row.owner_id ?? undefined,
     daysInStage: row.days_in_stage,
     createdAt: row.created_at,
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -103,6 +106,7 @@ function transformDeal(row: any): Deal {
     activities: ((row.activities ?? []) as any[]).map((a): Activity => ({
       id: a.id, dealId: a.deal_id, title: a.title, description: a.description ?? undefined,
       date: a.date, type: a.type, completed: a.completed, createdAt: a.created_at,
+      guests: a.guests ?? [],
     })),
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     appointments: ((row.appointments ?? []) as any[]).map((a): Appointment => ({
@@ -125,6 +129,7 @@ function dealToDb(fields: Partial<Deal>): Record<string, unknown> {
   if (fields.expectedCloseDate !== undefined) db.expected_close_date = fields.expectedCloseDate ?? null;
   if (fields.probability !== undefined) db.probability = fields.probability ?? null;
   if (fields.source !== undefined) db.source = fields.source ?? null;
+  if ("ownerId" in fields) db.owner_id = fields.ownerId ?? null;
   if (fields.daysInStage !== undefined) db.days_in_stage = fields.daysInStage;
   return db;
 }
@@ -176,7 +181,7 @@ export function CrmProvider({ children }: { children: ReactNode }) {
       if (pipelines.length === 0 && user && !_pipelinesSeedDone) {
         _pipelinesSeedDone = true;
         const DEFAULT_PIPELINES = [
-          { name: "Prospeccao", stages: ["Entrada de Leads", "Tentando contato", "Contato realizado com a empresa", "Contato realizado com o decisor", "Reunião Agendada"] },
+          { name: "Prospecção", stages: ["Entrada de Leads", "Tentando contato", "Contato realizado com a empresa", "Contato realizado com o decisor", "Reunião Agendada"] },
           { name: "Inbound", stages: ["Formulário Preenchido", "Qualificado pelo formulário", "Tentando contato", "Contato realizado", "Reunião Agendada"] },
           { name: "Social Selling", stages: ["MQL Cadastrado", "Tentando contato", "Contato realizado", "Conversa Significativa", "Reunião Agendada"] },
           { name: "Negociação", stages: ["Reunião Realizada", "Proposta Agendada", "Proposta Apresentada", "Negociação", "Contrato"] },
@@ -300,8 +305,25 @@ export function CrmProvider({ children }: { children: ReactNode }) {
       ...prev,
       deals: prev.deals.map((d) => d.id === dealId ? { ...d, notes: [tempNote, ...d.notes] } : d),
     }));
-    supabase.from("deal_notes").insert({ deal_id: dealId, content })
-      .then(({ error }) => { if (error) console.error("[CRM] addDealNote failed:", error); });
+    supabase.from("deal_notes").insert({ deal_id: dealId, content }).select().single()
+      .then(({ data, error }) => {
+        if (error) {
+          console.error("[CRM] addDealNote failed:", error);
+          setState((prev) => ({
+            ...prev,
+            deals: prev.deals.map((d) => d.id === dealId ? { ...d, notes: d.notes.filter((n) => n.id !== tempNote.id) } : d),
+          }));
+          return;
+        }
+        if (data) {
+          setState((prev) => ({
+            ...prev,
+            deals: prev.deals.map((d) => d.id === dealId
+              ? { ...d, notes: d.notes.map((n) => n.id === tempNote.id ? { ...n, id: data.id, createdAt: data.created_at } : n) }
+              : d),
+          }));
+        }
+      });
   };
 
   const deleteDealNote = (dealId: string, noteId: string) => {
@@ -348,8 +370,15 @@ export function CrmProvider({ children }: { children: ReactNode }) {
     if (deal.labels.length > 0) {
       await supabase.from("deal_labels").insert(deal.labels.map((lid) => ({ deal_id: data.id, label_id: lid })));
     }
-    const firstLog: HistoryLog = { id: `h_${Date.now()}`, description: "Negócio criado", subtext: "Criado manualmente", createdAt: new Date().toISOString() };
-    await supabase.from("deal_history").insert({ deal_id: data.id, description: firstLog.description, subtext: firstLog.subtext });
+    const { data: histRow } = await supabase.from("deal_history").insert({
+      deal_id: data.id, description: "Negócio criado", subtext: "Criado manualmente",
+    }).select().single();
+    const firstLog: HistoryLog = {
+      id: histRow?.id ?? `h_${Date.now()}`,
+      description: "Negócio criado",
+      subtext: "Criado manualmente",
+      createdAt: histRow?.created_at ?? new Date().toISOString(),
+    };
 
     const newDeal: Deal = { ...deal, id: data.id, history: [firstLog], notes: [], products: [], activities: [], appointments: [] };
     setState((prev) => ({ ...prev, deals: [...prev.deals, newDeal] }));
@@ -515,7 +544,53 @@ export function CrmProvider({ children }: { children: ReactNode }) {
     supabase.from("appointments").insert({
       deal_id: appointment.dealId, attendant: appointment.attendant,
       procedure: appointment.procedure, link: appointment.link ?? null, date: appointment.date,
-    }).then(({ error }) => { if (error) console.error("[CRM] addAppointment failed:", error); });
+    }).select().single().then(({ data, error }) => {
+      if (error) {
+        console.error("[CRM] addAppointment failed:", error);
+        setState((prev) => ({
+          ...prev,
+          deals: prev.deals.map((d) => d.id === appointment.dealId
+            ? { ...d, appointments: d.appointments.filter((a) => a.id !== newApt.id) } : d),
+        }));
+        return;
+      }
+      if (data) {
+        setState((prev) => ({
+          ...prev,
+          deals: prev.deals.map((d) => d.id === appointment.dealId
+            ? { ...d, appointments: d.appointments.map((a) => a.id === newApt.id ? { ...a, id: data.id, createdAt: data.created_at } : a) }
+            : d),
+        }));
+      }
+    });
+  };
+
+  const updateAppointment = (appointmentId: string, fields: Partial<Appointment>) => {
+    setState((prev) => ({
+      ...prev,
+      deals: prev.deals.map((d) => ({
+        ...d, appointments: d.appointments.map((a) => a.id === appointmentId ? { ...a, ...fields } : a),
+      })),
+    }));
+    const db: Record<string, unknown> = {};
+    if (fields.attendant !== undefined) db.attendant = fields.attendant;
+    if (fields.procedure !== undefined) db.procedure = fields.procedure;
+    if (fields.link !== undefined) db.link = fields.link ?? null;
+    if (fields.date !== undefined) db.date = fields.date;
+    if (fields.status !== undefined) db.status = fields.status;
+    if (Object.keys(db).length > 0) {
+      supabase.from("appointments").update(db).eq("id", appointmentId)
+        .then(({ error }) => { if (error) console.error("[CRM] updateAppointment failed:", error); });
+    }
+  };
+
+  const deleteAppointment = (appointmentId: string) => {
+    setState((prev) => ({
+      ...prev,
+      deals: prev.deals.map((d) => ({ ...d, appointments: d.appointments.filter((a) => a.id !== appointmentId) })),
+    }));
+    supabase.from("appointments").delete().eq("id", appointmentId)
+      .then(({ error }) => { if (error) console.error("[CRM] deleteAppointment failed:", error); });
   };
 
   const addActivity = (activity: Omit<Activity, "id" | "createdAt" | "completed">) => {
@@ -529,7 +604,26 @@ export function CrmProvider({ children }: { children: ReactNode }) {
       supabase.from("activities").insert({
         deal_id: activity.dealId, user_id: userId, title: activity.title,
         description: activity.description ?? null, date: activity.date, type: activity.type,
-      }).then(({ error }) => { if (error) console.error("[CRM] addActivity failed:", error); });
+        guests: activity.guests ?? [],
+      }).select().single().then(({ data, error }) => {
+        if (error) {
+          console.error("[CRM] addActivity failed:", error);
+          setState((prev) => ({
+            ...prev,
+            deals: prev.deals.map((d) => d.id === activity.dealId
+              ? { ...d, activities: d.activities.filter((a) => a.id !== newAct.id) } : d),
+          }));
+          return;
+        }
+        if (data) {
+          setState((prev) => ({
+            ...prev,
+            deals: prev.deals.map((d) => d.id === activity.dealId
+              ? { ...d, activities: d.activities.map((a) => a.id === newAct.id ? { ...a, id: data.id, createdAt: data.created_at } : a) }
+              : d),
+          }));
+        }
+      });
     }
     if (deal && userId) {
       runAutomations("activity_created", deal, { userId, pipelines: state.pipelines });
@@ -549,6 +643,7 @@ export function CrmProvider({ children }: { children: ReactNode }) {
     if (fields.date !== undefined) db.date = fields.date;
     if (fields.type !== undefined) db.type = fields.type;
     if (fields.completed !== undefined) db.completed = fields.completed;
+    if (fields.guests !== undefined) db.guests = fields.guests;
     if (Object.keys(db).length > 0) {
       supabase.from("activities").update(db).eq("id", activityId)
         .then(({ error }) => { if (error) console.error("[CRM] updateActivity failed:", error); });
@@ -570,7 +665,8 @@ export function CrmProvider({ children }: { children: ReactNode }) {
       moveDeal, markDealStatus, updateDealFields, addDealNote, deleteDealNote, updateDealNote, addDealHistory, addDeal, deleteDeal,
       addPipeline, deletePipeline, updatePipeline,
       updateContact, addContact, updateCompany, addCompany, addLabel,
-      addAppointment, addActivity, updateActivity, deleteActivity,
+      addAppointment, updateAppointment, deleteAppointment,
+      addActivity, updateActivity, deleteActivity,
     }}>
       {children}
     </CrmContext.Provider>

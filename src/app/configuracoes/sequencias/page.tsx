@@ -1,8 +1,9 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect, useCallback } from "react";
 import { Plus, X, Edit2, Trash2 } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { createClient } from "@/lib/supabase/client";
 
 type StepType = "Email" | "Ligação" | "WhatsApp" | "Tarefa" | "Reunião" | "Visita" | "Outros";
 
@@ -17,9 +18,9 @@ type Sequence = {
   id: string;
   name: string;
   description: string;
-  skipWeekends: boolean;
-  steps: Step[];
+  skip_weekends: boolean;
   tags: string[];
+  sequence_steps?: { id: string; step_type: string; day_offset: number; note: string; sort_order: number }[];
 };
 
 const STEP_TYPES: StepType[] = ["Email", "Ligação", "WhatsApp", "Tarefa", "Reunião", "Visita", "Outros"];
@@ -36,13 +37,11 @@ const STEP_TYPE_COLORS: Record<StepType, string> = {
 
 const TAG_COLORS = ["bg-green-100 text-green-700", "bg-blue-100 text-blue-700", "bg-amber-100 text-amber-700", "bg-purple-100 text-purple-700"];
 
-// Build a mini calendar preview for the right panel
 function CalendarPreview({ steps, skipWeekends }: { steps: Step[]; skipWeekends: boolean }) {
-  const today = new Date(2026, 3, 16); // fixed reference
+  const today = new Date(2026, 3, 16);
   const daysInMonth = new Date(today.getFullYear(), today.getMonth() + 1, 0).getDate();
   const firstDayOfWeek = new Date(today.getFullYear(), today.getMonth(), 1).getDay();
 
-  // Map step days to actual calendar days
   const stepDayMap: Record<number, Step[]> = {};
   steps.forEach(step => {
     let targetDay = today.getDate() + step.day - 1;
@@ -84,10 +83,7 @@ function CalendarPreview({ steps, skipWeekends }: { steps: Step[]; skipWeekends:
                 isToday ? "bg-amber-50" : stepsOnDay.length > 0 ? "bg-zinc-50" : ""
               )}
             >
-              <span className={cn(
-                "text-[11px] font-bold leading-none mb-0.5",
-                isToday ? "text-amber-600" : "text-zinc-600"
-              )}>
+              <span className={cn("text-[11px] font-bold leading-none mb-0.5", isToday ? "text-amber-600" : "text-zinc-600")}>
                 {day}
               </span>
               {stepsOnDay.slice(0, 2).map((step, si) => (
@@ -100,23 +96,41 @@ function CalendarPreview({ steps, skipWeekends }: { steps: Step[]; skipWeekends:
         })}
       </div>
       {steps.length === 0 && (
-        <p className="text-[12px] font-medium text-zinc-400 mt-4 text-center">
-          Adicione passos para ver o preview
-        </p>
+        <p className="text-[12px] font-medium text-zinc-400 mt-4 text-center">Adicione passos para ver o preview</p>
       )}
     </div>
   );
 }
 
 export default function SequenciasPage() {
+  const supabase = createClient();
   const [sequences, setSequences] = useState<Sequence[]>([]);
+  const [loading, setLoading] = useState(true);
   const [showModal, setShowModal] = useState(false);
+  const [saving, setSaving] = useState(false);
   const [form, setForm] = useState({ name: "", description: "", skipWeekends: false });
   const [steps, setSteps] = useState<Step[]>([]);
 
+  const loadSequences = useCallback(async () => {
+    setLoading(true);
+    const { data: { user } } = await supabase.auth.getUser();
+    if (!user) { setLoading(false); return; }
+
+    const { data } = await supabase
+      .from("sequences")
+      .select("*, sequence_steps(*)")
+      .eq("user_id", user.id)
+      .order("created_at");
+
+    setSequences(data ?? []);
+    setLoading(false);
+  }, [supabase]);
+
+  useEffect(() => { loadSequences(); }, [loadSequences]);
+
   const addStep = () => {
     const newDay = steps.length > 0 ? Math.max(...steps.map(s => s.day)) + 1 : 1;
-    setSteps([...steps, { id: Date.now().toString(), type: "Email", day: newDay, note: "" }]);
+    setSteps([...steps, { id: crypto.randomUUID(), type: "Email", day: newDay, note: "" }]);
   };
 
   const removeStep = (id: string) => setSteps(steps.filter(s => s.id !== id));
@@ -125,23 +139,47 @@ export default function SequenciasPage() {
     setSteps(steps.map(s => s.id === id ? { ...s, ...changes } : s));
   };
 
-  const handleSave = () => {
+  const handleSave = async () => {
     if (!form.name.trim()) return;
+    setSaving(true);
+    const { data: { user } } = await supabase.auth.getUser();
+    if (!user) { setSaving(false); return; }
+
     const tags = [...new Set(steps.map(s => s.type))].slice(0, 3);
-    setSequences([...sequences, {
-      id: Date.now().toString(),
-      name: form.name,
-      description: form.description,
-      skipWeekends: form.skipWeekends,
-      steps,
+
+    const { data: seq, error } = await supabase.from("sequences").insert({
+      user_id: user.id,
+      name: form.name.trim(),
+      description: form.description.trim(),
+      skip_weekends: form.skipWeekends,
       tags,
-    }]);
+    }).select().single();
+
+    if (error || !seq) { setSaving(false); return; }
+
+    if (steps.length > 0) {
+      await supabase.from("sequence_steps").insert(
+        steps.map((step, idx) => ({
+          sequence_id: seq.id,
+          step_type: step.type,
+          day_offset: step.day,
+          note: step.note,
+          sort_order: idx,
+        }))
+      );
+    }
+
+    await loadSequences();
+    setSaving(false);
     setForm({ name: "", description: "", skipWeekends: false });
     setSteps([]);
     setShowModal(false);
   };
 
-  const handleDelete = (id: string) => setSequences(sequences.filter(s => s.id !== id));
+  const handleDelete = async (id: string) => {
+    await supabase.from("sequences").delete().eq("id", id);
+    setSequences(prev => prev.filter(s => s.id !== id));
+  };
 
   const openModal = () => {
     setForm({ name: "", description: "", skipWeekends: false });
@@ -152,7 +190,6 @@ export default function SequenciasPage() {
   return (
     <div className="flex flex-col min-h-full bg-[#F4F4F5]">
 
-      {/* Header */}
       <div className="flex items-center justify-between border-b border-zinc-200 px-8 py-5 shrink-0 bg-white">
         <div>
           <h1 className="text-xl font-bold text-zinc-900 tracking-tight">Sequências de Atividades</h1>
@@ -168,47 +205,56 @@ export default function SequenciasPage() {
 
       <div className="flex-1 p-8">
         <div className="max-w-3xl">
-          {sequences.length === 0 ? (
+          {loading ? (
+            <div className="flex items-center justify-center py-16">
+              <div className="h-6 w-6 animate-spin rounded-full border-2 border-amber-400 border-t-transparent" />
+            </div>
+          ) : sequences.length === 0 ? (
             <div className="bg-white border border-zinc-200 rounded-xl shadow-sm py-16 text-center">
               <p className="text-[14px] font-medium text-zinc-400">Nenhuma sequência criada ainda.</p>
             </div>
           ) : (
             <div className="space-y-3">
-              {sequences.map((seq) => (
-                <div key={seq.id} className="bg-white border border-zinc-200 rounded-xl px-5 py-4 shadow-sm flex items-center justify-between group">
-                  <div className="flex items-center gap-3">
-                    <span className="text-[14px] font-bold text-zinc-900">{seq.name}</span>
-                    <div className="flex gap-1.5">
-                      {seq.tags.map((tag, i) => (
-                        <span key={tag} className={cn("text-[11px] font-bold px-2 py-0.5 rounded-full", TAG_COLORS[i % TAG_COLORS.length])}>
-                          {tag}
-                        </span>
-                      ))}
+              {sequences.map((seq) => {
+                const stepCount = seq.sequence_steps?.length ?? 0;
+                const tags = seq.tags ?? [];
+                return (
+                  <div key={seq.id} className="bg-white border border-zinc-200 rounded-xl px-5 py-4 shadow-sm flex items-center justify-between group">
+                    <div className="flex items-center gap-3">
+                      <span className="text-[14px] font-bold text-zinc-900">{seq.name}</span>
+                      <div className="flex gap-1.5">
+                        {tags.map((tag, i) => (
+                          <span key={tag} className={cn("text-[11px] font-bold px-2 py-0.5 rounded-full", TAG_COLORS[i % TAG_COLORS.length])}>
+                            {tag}
+                          </span>
+                        ))}
+                      </div>
+                      {stepCount > 0 && (
+                        <span className="text-[11px] font-medium text-zinc-400">{stepCount} passo{stepCount !== 1 ? "s" : ""}</span>
+                      )}
+                    </div>
+                    <div className="flex items-center gap-2 opacity-0 group-hover:opacity-100 transition-all">
+                      <button className="flex items-center gap-1.5 text-[12px] font-bold text-zinc-500 hover:text-amber-600 px-2 py-1 rounded-lg hover:bg-amber-50 transition-colors">
+                        <Edit2 size={13} /> Editar
+                      </button>
+                      <button onClick={() => handleDelete(seq.id)} className="p-1.5 text-zinc-400 hover:text-red-500 hover:bg-red-50 rounded-lg transition-colors">
+                        <Trash2 size={13} />
+                      </button>
                     </div>
                   </div>
-                  <div className="flex items-center gap-2 opacity-0 group-hover:opacity-100 transition-all">
-                    <button className="flex items-center gap-1.5 text-[12px] font-bold text-zinc-500 hover:text-amber-600 px-2 py-1 rounded-lg hover:bg-amber-50 transition-colors">
-                      <Edit2 size={13} /> Editar
-                    </button>
-                    <button onClick={() => handleDelete(seq.id)} className="p-1.5 text-zinc-400 hover:text-red-500 hover:bg-red-50 rounded-lg transition-colors">
-                      <Trash2 size={13} />
-                    </button>
-                  </div>
-                </div>
-              ))}
+                );
+              })}
             </div>
           )}
         </div>
       </div>
 
-      {/* Modal Nova Sequência - Two-column layout */}
       {showModal && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4" onClick={() => setShowModal(false)}>
           <div
             className="bg-white rounded-2xl shadow-2xl w-full max-w-3xl mx-auto flex flex-col max-h-[90vh]"
             onClick={e => e.stopPropagation()}
           >
-            {/* Modal header */}
             <div className="flex items-center justify-between px-6 py-5 border-b border-zinc-100 shrink-0">
               <h2 className="text-base font-bold text-zinc-900">Nova Sequência</h2>
               <button onClick={() => setShowModal(false)} className="p-1 text-zinc-400 hover:text-zinc-700 rounded-lg hover:bg-zinc-100">
@@ -216,10 +262,7 @@ export default function SequenciasPage() {
               </button>
             </div>
 
-            {/* Modal body — two columns */}
             <div className="flex-1 overflow-hidden flex min-h-0">
-
-              {/* Left column: form + steps */}
               <div className="flex-1 overflow-y-auto px-6 py-5 space-y-4 border-r border-zinc-100">
 
                 <div className="space-y-1.5">
@@ -257,7 +300,6 @@ export default function SequenciasPage() {
                   </div>
                 </label>
 
-                {/* Steps */}
                 <div>
                   <label className="text-[11px] font-bold text-zinc-500 uppercase tracking-wider block mb-3">PASSOS</label>
 
@@ -315,19 +357,21 @@ export default function SequenciasPage() {
                 </div>
               </div>
 
-              {/* Right column: calendar preview */}
               <div className="w-[220px] shrink-0 px-4 py-5 bg-zinc-50/50 overflow-y-auto">
                 <CalendarPreview steps={steps} skipWeekends={form.skipWeekends} />
               </div>
             </div>
 
-            {/* Modal footer */}
             <div className="flex items-center justify-end gap-3 px-6 py-4 border-t border-zinc-100 shrink-0">
               <button onClick={() => setShowModal(false)} className="px-4 py-2 text-[13px] font-bold text-zinc-600 bg-zinc-100 rounded-lg hover:bg-zinc-200">
                 Cancelar
               </button>
-              <button onClick={handleSave} className="px-5 py-2 bg-amber-500 text-white text-[13px] font-bold rounded-lg hover:bg-amber-600 shadow-sm">
-                Salvar
+              <button
+                onClick={handleSave}
+                disabled={!form.name.trim() || saving}
+                className="px-5 py-2 bg-amber-500 text-white text-[13px] font-bold rounded-lg hover:bg-amber-600 shadow-sm disabled:opacity-50"
+              >
+                {saving ? "Salvando..." : "Salvar"}
               </button>
             </div>
           </div>
