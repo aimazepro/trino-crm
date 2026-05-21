@@ -9,7 +9,6 @@ import {
   Zap,
   CheckCircle2,
   Settings,
-  Building2,
   Target,
   Phone,
   Crosshair,
@@ -25,9 +24,11 @@ export function Sidebar() {
   const isActive = (href: string) =>
     href === "/" ? pathname === "/dashboard" || pathname === "/" : pathname.startsWith(href);
 
+  const contatosActive = pathname.startsWith("/contatos") || pathname.startsWith("/empresas");
+
   return (
     <aside className="flex h-screen shrink-0 flex-col bg-white border-r border-zinc-100/80 transition-[width] duration-200 ease-in-out overflow-hidden w-56">
-      
+
       {/* Logo */}
       <div className="flex h-14 items-center px-3 shrink-0">
         <Link href="/">
@@ -46,14 +47,69 @@ export function Sidebar() {
             {[
               { href: "/", label: "Meu Painel", icon: LayoutDashboard },
               { href: "/negocios", label: "Negócios", icon: Briefcase },
-              { href: "/contatos", label: "Contatos", icon: Users },
-              { href: "/empresas", label: "Empresas", icon: Building2 },
+            ].map(item => {
+              const active = isActive(item.href);
+              return (
+                <li key={item.href}>
+                  <Link
+                    href={item.href}
+                    className={cn(
+                      "flex items-center gap-3 rounded-xl px-3 py-2 text-[13px] font-medium transition-all duration-150",
+                      active ? "bg-zinc-100 text-zinc-900" : "text-zinc-500 hover:bg-zinc-50 hover:text-zinc-800"
+                    )}
+                  >
+                    <item.icon className={cn("h-[18px] w-[18px] shrink-0", active ? "text-zinc-700" : "text-zinc-400")} />
+                    <span className="flex-1 whitespace-nowrap overflow-hidden">{item.label}</span>
+                  </Link>
+                </li>
+              )
+            })}
+
+            {/* Contatos com sub-itens */}
+            <li>
+              <Link
+                href="/contatos"
+                className={cn(
+                  "flex items-center gap-3 rounded-xl px-3 py-2 text-[13px] font-medium transition-all duration-150",
+                  contatosActive ? "bg-zinc-100 text-zinc-900" : "text-zinc-500 hover:bg-zinc-50 hover:text-zinc-800"
+                )}
+              >
+                <Users className={cn("h-[18px] w-[18px] shrink-0", contatosActive ? "text-zinc-700" : "text-zinc-400")} />
+                <span className="flex-1 whitespace-nowrap overflow-hidden">Contatos</span>
+              </Link>
+              <ul className="ml-8 mt-0.5 space-y-0.5">
+                <li>
+                  <Link
+                    href="/contatos"
+                    className={cn(
+                      "block rounded-lg px-3 py-1.5 text-[12px] font-medium transition-all duration-150",
+                      pathname.startsWith("/contatos") && !pathname.startsWith("/contatos/") ? "text-amber-600 font-semibold" : pathname.startsWith("/contatos/") ? "text-amber-600 font-semibold" : "text-zinc-400 hover:text-zinc-700"
+                    )}
+                  >
+                    Pessoas
+                  </Link>
+                </li>
+                <li>
+                  <Link
+                    href="/empresas"
+                    className={cn(
+                      "block rounded-lg px-3 py-1.5 text-[12px] font-medium transition-all duration-150",
+                      pathname.startsWith("/empresas") ? "text-amber-600 font-semibold" : "text-zinc-400 hover:text-zinc-700"
+                    )}
+                  >
+                    Empresas
+                  </Link>
+                </li>
+              </ul>
+            </li>
+
+            {[
               { href: "/atividades", label: "Atividades", icon: CheckCircle2 }
             ].map(item => {
               const active = isActive(item.href);
               return (
                 <li key={item.href}>
-                  <Link 
+                  <Link
                     href={item.href}
                     className={cn(
                       "flex items-center gap-3 rounded-xl px-3 py-2 text-[13px] font-medium transition-all duration-150",

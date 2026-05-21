@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useEffect } from "react";
+import { useRouter } from "next/navigation";
 import { Search, LayoutGrid, List, Eye, Trophy, XCircle, Download, Plus, Settings as SettingsIcon, HelpCircle, Bell, Filter } from "lucide-react";
 import { useCrm } from "@/contexts/crm-context";
 import { PipelineSelector } from "@/components/kanban/pipeline-selector";
@@ -8,20 +9,19 @@ import { PipelineModal } from "@/components/kanban/pipeline-modal";
 import { KanbanBoard } from "@/components/kanban/kanban-board";
 import { KanbanListView } from "@/components/kanban/kanban-list-view";
 import { NewDealModal } from "@/components/pipeline/new-deal-modal";
-import { ColumnsModal } from "@/components/kanban/columns-modal";
 import { cn } from "@/lib/utils";
 
 export default function KanbanPage() {
+  const router = useRouter();
   const { state, loading } = useCrm();
   const [activePipelineId, setActivePipelineId] = useState<string>("");
   const [viewMode, setViewMode] = useState<"kanban" | "list">("kanban");
-  
+
   // Modals
   const [showNewPipelineModal, setShowNewPipelineModal] = useState(false);
   const [editPipelineId, setEditPipelineId] = useState<string | null>(null);
   const [showNewDealModal, setShowNewDealModal] = useState(false);
   const [initialStageId, setInitialStageId] = useState<string | undefined>(undefined);
-  const [showColumnsModal, setShowColumnsModal] = useState(false);
 
   const openNewDealModal = (stageId?: string) => {
      setInitialStageId(stageId);
@@ -132,8 +132,8 @@ export default function KanbanPage() {
             </button>
 
             {/* Configs */}
-            <button 
-              onClick={() => setShowColumnsModal(true)} 
+            <button
+              onClick={() => router.push("/negocios/configuracoes")}
               className="rounded-lg border border-zinc-200 p-1.5 text-zinc-400 hover:bg-zinc-50 transition-colors"
             >
               <SettingsIcon size={16} />
@@ -178,9 +178,6 @@ export default function KanbanPage() {
         />
       )}
 
-      {showColumnsModal && (
-        <ColumnsModal onClose={() => setShowColumnsModal(false)} />
-      )}
     </div>
   );
 }
