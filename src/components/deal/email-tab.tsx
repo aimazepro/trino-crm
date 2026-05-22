@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useEffect, useCallback, useRef } from "react";
-import { Mail, Send, Eye, FileText, X, Bold, Italic, Underline, List, ListOrdered, Link2, Braces, ChevronDown, Reply, ArrowDownLeft, SendHorizonal } from "lucide-react";
+import { Mail, RefreshCw, Send, Eye, FileText, X, Bold, Italic, Underline, List, ListOrdered, Link2, Braces, ChevronDown, Reply, ArrowDownLeft, SendHorizonal } from "lucide-react";
 import Link from "next/link";
 import { cn } from "@/lib/utils";
 
@@ -74,6 +74,7 @@ export function EmailTab({ contactId, contactEmail, contactName, dealId, gmailAc
   const [emails, setEmails] = useState<Email[]>([]);
   const [templates, setTemplates] = useState<EmailTemplate[]>([]);
   const [loading, setLoading] = useState(true);
+  const [syncing, setSyncing] = useState(false);
   const [composing, setComposing] = useState(false);
   const [subject, setSubject] = useState("");
   const [sending, setSending] = useState(false);
@@ -114,6 +115,17 @@ export function EmailTab({ contactId, contactEmail, contactName, dealId, gmailAc
     const interval = setInterval(fetchEmails, 30_000);
     return () => clearInterval(interval);
   }, [fetchEmails, fetchTemplates, contactEmail, contactId, dealId]);
+
+  const handleSync = async () => {
+    setSyncing(true);
+    await fetch("/api/gmail/sync", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ contactEmail, contactId, dealId }),
+    });
+    await fetchEmails();
+    setSyncing(false);
+  };
 
   const markOpened = async (emailId: string) => {
     await fetch("/api/gmail/mark-opened", {
@@ -209,6 +221,15 @@ export function EmailTab({ contactId, contactEmail, contactName, dealId, gmailAc
             <p className="text-[11px] text-zinc-400">{gmailAccountEmail}</p>
           </div>
           <div className="flex items-center gap-2">
+            <button
+              onClick={handleSync}
+              disabled={syncing}
+              className="flex items-center gap-1.5 px-3 py-1.5 text-xs text-zinc-500 hover:text-zinc-700 hover:bg-zinc-50 rounded-lg transition-colors"
+              title="Sincronizar emails do Gmail"
+            >
+              <RefreshCw className={cn("h-3.5 w-3.5", syncing && "animate-spin")} />
+              Sincronizar
+            </button>
             <button
               onClick={() => { setReplyTo(null); setComposing(true); }}
               className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium text-white bg-blue-600 hover:bg-blue-700 rounded-lg transition-colors"
