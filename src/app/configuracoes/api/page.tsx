@@ -125,7 +125,7 @@ export default function ApiKeysPage() {
     setSaving(true);
 
     // Generate key locally
-    const raw = `dmh_${crypto.randomUUID().replace(/-/g, "")}`;
+    const raw = `trn_${crypto.randomUUID().replace(/-/g, "")}`;
     const keyHash = await hashKey(raw);
     const keyPrefix = raw.slice(0, 12);
 
