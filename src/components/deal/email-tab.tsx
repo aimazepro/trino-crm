@@ -54,6 +54,22 @@ function getSenderName(fromEmail: string, myEmail: string) {
   return fromEmail.split("@")[0];
 }
 
+function decodeHtml(html: string) {
+  return html
+    .replace(/&amp;/g, "&")
+    .replace(/&lt;/g, "<")
+    .replace(/&gt;/g, ">")
+    .replace(/&quot;/g, '"')
+    .replace(/&#39;/g, "'")
+    .replace(/&nbsp;/g, " ");
+}
+
+const VARIABLES = [
+  { label: "Nome do contato", value: "{{contact_name}}" },
+  { label: "Email do contato", value: "{{contact_email}}" },
+  { label: "Seu nome", value: "{{owner_name}}" },
+];
+
 export function EmailTab({ contactId, contactEmail, contactName, dealId, gmailAccountEmail }: EmailTabProps) {
   const [emails, setEmails] = useState<Email[]>([]);
   const [templates, setTemplates] = useState<EmailTemplate[]>([]);
@@ -88,6 +104,9 @@ export function EmailTab({ contactId, contactEmail, contactName, dealId, gmailAc
   useEffect(() => {
     fetchEmails();
     fetchTemplates();
+    // poll every 30s to update open tracking
+    const interval = setInterval(fetchEmails, 30_000);
+    return () => clearInterval(interval);
   }, [fetchEmails, fetchTemplates]);
 
   const handleSync = async () => {
@@ -119,6 +138,8 @@ export function EmailTab({ contactId, contactEmail, contactName, dealId, gmailAc
         bodyHtml: html,
         contactId,
         dealId,
+        contactName,
+        contactEmail,
       }),
     });
 
@@ -244,24 +265,32 @@ export function EmailTab({ contactId, contactEmail, contactName, dealId, gmailAc
                       <Link2 className="h-3.5 w-3.5" />
                     </button>
                     <div className="w-px h-4 bg-zinc-200 mx-0.5" />
-                    <div className="relative">
+                    <div className="relative group/vars">
                       <button
                         type="button"
-                        onClick={() => {
-                          const vars = [
-                            { label: "Nome do contato", value: `{{contact_name}}` },
-                            { label: "Email do contato", value: `{{contact_email}}` },
-                          ];
-                          const picked = vars[0];
-                          document.execCommand("insertText", false, picked.value);
-                          editorRef.current?.focus();
-                        }}
                         className="flex items-center gap-0.5 rounded p-1 text-zinc-400 hover:bg-zinc-200 hover:text-zinc-700 transition-colors"
-                        title="Inserir variavel"
+                        title="Inserir variável"
                       >
                         <Braces className="h-3.5 w-3.5" />
                         <ChevronDown className="h-2.5 w-2.5" />
                       </button>
+                      <div className="hidden group-hover/vars:block absolute left-0 top-full z-30 w-44 bg-white rounded-lg shadow-lg border border-zinc-200 py-1">
+                        {VARIABLES.map(v => (
+                          <button
+                            key={v.value}
+                            type="button"
+                            onMouseDown={e => {
+                              e.preventDefault();
+                              document.execCommand("insertText", false, v.value);
+                              editorRef.current?.focus();
+                            }}
+                            className="w-full text-left px-3 py-1.5 text-xs text-zinc-700 hover:bg-zinc-50"
+                          >
+                            <span className="font-mono text-blue-600 mr-1">{v.value}</span>
+                            <span className="text-zinc-400">{v.label}</span>
+                          </button>
+                        ))}
+                      </div>
                     </div>
                   </div>
                   <div>
@@ -377,7 +406,7 @@ export function EmailTab({ contactId, contactEmail, contactName, dealId, gmailAc
                           )}
                         </div>
                         <p className="text-xs text-zinc-500 truncate mt-0.5">
-                          {email.body_html.replace(/<[^>]+>/g, "").slice(0, 100)}
+                          {decodeHtml(email.body_html.replace(/<[^>]+>/g, "")).slice(0, 100)}
                         </p>
                       </div>
                       <span className="text-[10px] text-zinc-400 shrink-0 mt-1">

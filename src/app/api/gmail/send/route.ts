@@ -68,10 +68,21 @@ export async function POST(req: NextRequest) {
   const { data: { user } } = await supabase.auth.getUser();
   if (!user) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
 
-  const { to, subject, bodyHtml, contactId, dealId } = await req.json();
-  if (!to || !subject || !bodyHtml || !contactId) {
+  const { to, subject: rawSubject, bodyHtml: rawBody, contactId, dealId, contactName, contactEmail: contactEmailVar } = await req.json();
+  if (!to || !rawSubject || !rawBody || !contactId) {
     return NextResponse.json({ error: "Missing fields" }, { status: 400 });
   }
+
+  const ownerName = user.user_metadata?.full_name ?? user.user_metadata?.name ?? user.email ?? "";
+
+  const replaceVars = (text: string) =>
+    text
+      .replace(/\{\{contact_name\}\}/g, contactName ?? "")
+      .replace(/\{\{contact_email\}\}/g, contactEmailVar ?? to)
+      .replace(/\{\{owner_name\}\}/g, ownerName);
+
+  const subject = replaceVars(rawSubject);
+  const bodyHtml = replaceVars(rawBody);
 
   const accessToken = await getValidToken(user.id);
   if (!accessToken) return NextResponse.json({ error: "Gmail not connected" }, { status: 400 });
