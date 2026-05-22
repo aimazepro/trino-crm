@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useEffect, useCallback, useRef } from "react";
-import { Mail, RefreshCw, Send, Eye, FileText, X, Bold, Italic, Underline, List, ListOrdered, Link2, Braces, ChevronDown, Reply } from "lucide-react";
+import { Mail, RefreshCw, Send, Eye, FileText, X, Bold, Italic, Underline, List, ListOrdered, Link2, Braces, ChevronDown, Reply, ArrowDownLeft, SendHorizonal } from "lucide-react";
 import Link from "next/link";
 import { cn } from "@/lib/utils";
 
@@ -393,16 +393,18 @@ export function EmailTab({ contactId, contactEmail, contactName, dealId, gmailAc
                       <div className="flex-1 min-w-0">
                         <div className="flex items-center gap-2">
                           <p className="text-sm font-medium text-zinc-900 truncate">{email.subject}</p>
-                          {email.direction === "sent" && (
-                            opened ? (
-                              <span className="shrink-0 flex items-center gap-1 text-[10px] font-medium text-green-700 bg-green-100 rounded-full px-2 py-0.5 border border-green-200">
-                                <Eye className="h-3 w-3" /> Visualizado
-                              </span>
-                            ) : (
-                              <span className="shrink-0 flex items-center gap-1 text-[10px] font-medium text-red-600 bg-red-50 rounded-full px-2 py-0.5 border border-red-200">
-                                <Mail className="h-3 w-3" /> Nao visualizado
-                              </span>
-                            )
+                          {email.direction === "received" ? (
+                            <span className="shrink-0 flex items-center gap-1 text-[10px] font-medium text-blue-600 bg-blue-50 rounded-full px-2 py-0.5 border border-blue-200">
+                              <ArrowDownLeft className="h-3 w-3" /> Recebido
+                            </span>
+                          ) : opened ? (
+                            <span className="shrink-0 flex items-center gap-1 text-[10px] font-medium text-green-700 bg-green-100 rounded-full px-2 py-0.5 border border-green-200">
+                              <Eye className="h-3 w-3" /> Visualizado
+                            </span>
+                          ) : (
+                            <span className="shrink-0 flex items-center gap-1 text-[10px] font-medium text-zinc-500 bg-zinc-100 rounded-full px-2 py-0.5 border border-zinc-200">
+                              <SendHorizonal className="h-3 w-3" /> Enviado
+                            </span>
                           )}
                         </div>
                         <p className="text-xs text-zinc-500 truncate mt-0.5">
@@ -427,16 +429,19 @@ export function EmailTab({ contactId, contactEmail, contactName, dealId, gmailAc
                             <span className="text-xs font-medium text-zinc-700">
                               {email.direction === "sent" ? "Você" : senderName}
                             </span>
-                            {email.direction === "sent" && (
-                              opened ? (
-                                <span className="flex items-center gap-1 text-[10px] font-medium text-green-700 bg-green-100 rounded-full px-2 py-0.5 border border-green-200">
-                                  <Eye className="h-3 w-3" /> Visualizado
-                                </span>
-                              ) : (
-                                <span className="flex items-center gap-1 text-[10px] font-medium text-red-600 bg-red-50 rounded-full px-2 py-0.5 border border-red-200">
-                                  <Mail className="h-3 w-3" /> Nao visualizado
-                                </span>
-                              )
+                            {email.direction === "received" ? (
+                              <span className="flex items-center gap-1 text-[10px] font-medium text-blue-600 bg-blue-50 rounded-full px-2 py-0.5 border border-blue-200">
+                                <ArrowDownLeft className="h-3 w-3" /> Recebido
+                              </span>
+                            ) : opened ? (
+                              <span className="flex items-center gap-1 text-[10px] font-medium text-green-700 bg-green-100 rounded-full px-2 py-0.5 border border-green-200"
+                                title={`Visualizado em ${new Date(email.opened_at!).toLocaleString("pt-BR")}`}>
+                                <Eye className="h-3 w-3" /> Visualizado
+                              </span>
+                            ) : (
+                              <span className="flex items-center gap-1 text-[10px] font-medium text-zinc-500 bg-zinc-100 rounded-full px-2 py-0.5 border border-zinc-200">
+                                <SendHorizonal className="h-3 w-3" /> Enviado
+                              </span>
                             )}
                             <span className="text-[10px] text-zinc-400 ml-auto">
                               {new Date(email.created_at).toLocaleString("pt-BR", {
