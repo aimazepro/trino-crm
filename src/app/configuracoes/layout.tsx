@@ -2,48 +2,42 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import {
-  User, CreditCard, Building2, Users, LayoutTemplate, DownloadCloud,
-  Package, FileX, Copy, ListTree, Mail, MessageCircle, FileText,
-  MessageSquare, Phone, Calendar, Blocks, Tag
-} from "lucide-react";
 import { cn } from "@/lib/utils";
 
 const SECTIONS = [
   {
     title: "MINHA CONTA",
     items: [
-      { label: "Perfil", href: "/configuracoes", icon: User },
-      { label: "Planos e Faturamento", href: "/configuracoes/planos", icon: CreditCard },
+      { label: "Perfil", href: "/configuracoes/perfil" },
+      { label: "Planos e Faturamento", href: "/configuracoes/billing" },
     ]
   },
   {
     title: "WORKSPACE",
     items: [
-      { label: "Empresa", href: "/configuracoes/empresa", icon: Building2 },
-      { label: "Usuários", href: "/configuracoes/usuarios", icon: Users },
-      { label: "Campos de dados", href: "/configuracoes/campos", icon: LayoutTemplate },
-      { label: "Importar dados", href: "/configuracoes/importacao", icon: DownloadCloud },
-      { label: "Produtos", href: "/configuracoes/produtos", icon: Package },
-      { label: "Motivos de Perda", href: "/configuracoes/motivos-perda", icon: FileX },
-      { label: "Duplicatas", href: "/configuracoes/duplicatas", icon: Copy },
-      { label: "Sequências", href: "/configuracoes/sequencias", icon: ListTree },
-      { label: "Templates de Email", href: "/configuracoes/templates-email", icon: Mail },
-      { label: "Templates WhatsApp", href: "/configuracoes/templates-whatsapp", icon: MessageCircle },
-      { label: "Scripts de Ligação", href: "/configuracoes/scripts", icon: FileText },
-      { label: "Etiquetas de Automações", href: "/configuracoes/etiquetas-automacoes", icon: Tag },
+      { label: "Empresa", href: "/configuracoes/empresa" },
+      { label: "Usuários", href: "/configuracoes/usuarios" },
+      { label: "Campos de dados", href: "/configuracoes/campos" },
+      { label: "Importar dados", href: "/configuracoes/importar" },
+      { label: "Produtos", href: "/configuracoes/produtos" },
+      { label: "Motivos de Perda", href: "/configuracoes/motivos-perda" },
+      { label: "Tipos de Atividade", href: "/configuracoes/tipos-atividade" },
+      { label: "Duplicatas", href: "/configuracoes/duplicatas" },
+      { label: "Sequências", href: "/configuracoes/sequencias" },
+      { label: "Templates de Email", href: "/configuracoes/email-templates" },
+      { label: "Templates WhatsApp", href: "/configuracoes/whatsapp-templates" },
+      { label: "Scripts de Ligação", href: "/configuracoes/scripts-ligacao" },
     ]
   },
   {
     title: "INTEGRAÇÕES",
     items: [
-      { label: "WhatsApp", href: "/configuracoes/whatsapp", icon: MessageSquare },
-      { label: "Gmail", href: "/configuracoes/gmail", icon: Mail },
-      { label: "Telefone", href: "/configuracoes/telefone", icon: Phone },
-      { label: "Calendário", href: "/configuracoes/calendario", icon: Calendar },
-      { label: "Integrações", href: "/configuracoes/integracoes", icon: Blocks },
-      { label: "API", href: "/configuracoes/api", icon: FileText },
-      { label: "Webhooks", href: "/configuracoes/webhooks", icon: ListTree },
+      { label: "WhatsApp", href: "/configuracoes/whatsapp" },
+      { label: "Gmail", href: "/configuracoes/gmail" },
+      { label: "Telefone", href: "/configuracoes/telefone" },
+      { label: "Calendário", href: "/configuracoes/calendario" },
+      { label: "API e Integrações", href: "/configuracoes/api" },
+      { label: "Webhooks", href: "/configuracoes/webhooks" },
     ]
   }
 ];
@@ -52,51 +46,39 @@ export default function ConfiguracoesLayout({ children }: { children: React.Reac
   const pathname = usePathname();
 
   return (
-    <div className="flex h-full w-full overflow-hidden bg-[#F4F4F5]">
-      
-      {/* Sidebar de Configurações */}
-      <div className="w-64 flex-shrink-0 bg-white border-r border-zinc-200 overflow-y-auto custom-scrollbar">
-        <div className="p-6 pb-2 border-b border-zinc-100 flex items-center h-[60px]">
-          <h2 className="text-lg font-bold tracking-tight text-zinc-900">Configurações</h2>
-        </div>
-
-        <div className="px-4 py-6 space-y-8">
-          {SECTIONS.map((section, idx) => (
-            <div key={idx}>
-              <h3 className="text-[11px] font-bold uppercase tracking-wider text-zinc-400 mb-3 px-3">
-                {section.title}
-              </h3>
-              <nav className="space-y-1">
-                {section.items.map((item) => {
-                  const isActive = pathname === item.href;
-                  return (
+    <div className="flex h-full">
+      <aside className="w-56 shrink-0 bg-zinc-50/50 overflow-y-auto py-8 px-4 space-y-8 border-r border-zinc-100">
+        {SECTIONS.map((section, idx) => (
+          <div key={idx}>
+            <p className="text-xs font-medium text-zinc-400 tracking-wide uppercase px-3 mb-2">
+              {section.title}
+            </p>
+            <ul className="space-y-0.5">
+              {section.items.map((item) => {
+                const isActive = pathname === item.href;
+                return (
+                  <li key={item.href}>
                     <Link
-                      key={item.href}
                       href={item.href}
                       className={cn(
-                        "flex items-center gap-3 px-3 py-2 rounded-lg text-[13px] font-semibold transition-colors group",
-                        isActive 
-                          ? "bg-amber-50 text-amber-600" 
-                          : "text-zinc-600 hover:bg-zinc-50 hover:text-zinc-900"
+                        "block rounded-xl px-3 py-2.5 text-sm font-medium transition-colors",
+                        isActive
+                          ? "bg-white text-amber-600 shadow-sm"
+                          : "text-zinc-500 hover:bg-white/70 hover:text-zinc-900"
                       )}
                     >
-                      {isActive && <div className="absolute left-0 w-1 h-5 bg-amber-500 rounded-r-full" />}
-                      <item.icon size={16} className={cn("flex-shrink-0", isActive ? "text-amber-500" : "text-zinc-400 group-hover:text-zinc-600")} strokeWidth={isActive ? 2.5 : 2} />
-                      <span className="truncate">{item.label}</span>
+                      {item.label}
                     </Link>
-                  );
-                })}
-              </nav>
-            </div>
-          ))}
-        </div>
-      </div>
-
-      {/* Conteúdo Dinâmico */}
-      <div className="flex-1 overflow-y-auto bg-[#F4F4F5] custom-scrollbar">
+                  </li>
+                );
+              })}
+            </ul>
+          </div>
+        ))}
+      </aside>
+      <main className="flex-1 overflow-y-auto bg-zinc-50/30">
         {children}
-      </div>
-
+      </main>
     </div>
   );
 }

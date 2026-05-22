@@ -13,7 +13,7 @@ export default function ConfiguracoesNotFound() {
         Navegue pelo menu lateral para acessar as áreas já disponíveis.
       </p>
       <Link 
-        href="/configuracoes" 
+        href="/configuracoes/perfil" 
         className="px-6 py-2.5 bg-gray-100 font-medium text-gray-700 rounded-xl hover:bg-gray-200 transition-colors"
       >
         Voltar para Perfil

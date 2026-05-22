@@ -43,7 +43,7 @@ export function UseEmailTemplateModal({ onClose }: { onClose: () => void }) {
             <div className="flex flex-col items-center py-6 text-center gap-3">
               <p className="text-sm text-zinc-400">Nenhum template criado ainda.</p>
               <button
-                onClick={() => { onClose(); router.push("/configuracoes/templates-email"); }}
+                onClick={() => { onClose(); router.push("/configuracoes/email-templates"); }}
                 className="text-sm text-amber-500 hover:text-amber-600 hover:underline inline-flex items-center gap-1"
               >
                 Criar templates nas configurações
