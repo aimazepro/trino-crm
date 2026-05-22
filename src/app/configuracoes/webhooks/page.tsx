@@ -276,18 +276,22 @@ export default function WebhooksPage() {
     }
 
     try {
-      // Trigger a real background request to the webhook URL
-      await fetch(wh.url, {
+      // Trigger a real server-side request to the webhook URL via the proxy
+      await fetch("/api/webhooks/trigger", {
         method: "POST",
-        mode: "no-cors",
         headers: {
           "Content-Type": "application/json",
-          "x-crm-event": eventCode,
         },
-        body: JSON.stringify(payload),
+        body: JSON.stringify({
+          url: wh.url,
+          event: eventCode,
+          payload: payload,
+          secret: wh.secret,
+          webhookId: wh.id.startsWith("temp_") ? undefined : wh.id,
+        }),
       });
     } catch (e) {
-      console.warn("Test webhook request failed/blocked by CORS: ", e);
+      console.warn("Test webhook request failed: ", e);
     }
 
     setTestingId(null);

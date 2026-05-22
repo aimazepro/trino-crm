@@ -213,6 +213,154 @@ export function CrmProvider({ children }: { children: ReactNode }) {
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
+  // Helper to trigger webhooks on CRM actions
+  const triggerWebhooks = async (eventKey: string, payloadData: any) => {
+    if (!userId) return;
+
+    try {
+      const { data: activeWebhooks } = await supabase
+        .from("webhooks")
+        .select("id, url, events, secret")
+        .eq("user_id", userId)
+        .eq("active", true);
+
+      if (!activeWebhooks || activeWebhooks.length === 0) return;
+
+      const webhooksToTrigger = activeWebhooks.filter((wh) =>
+        wh.events.includes(eventKey)
+      );
+
+      if (webhooksToTrigger.length === 0) return;
+
+      const eventCode = eventKey.toUpperCase();
+
+      // Build payload based on eventKey
+      let payload: any = null;
+
+      if (eventKey === "deal_created" || eventKey === "deal_won" || eventKey === "deal_lost") {
+        const deal = payloadData as Deal;
+        const stage = state.pipelines.flatMap((p) => p.stages).find((s) => s.id === deal.stageId);
+        const pipeline = state.pipelines.find((p) => p.id === deal.pipelineId);
+        const contact = state.contacts.find((c) => c.id === deal.contactId);
+        const company = state.companies.find((c) => c.id === deal.companyId);
+
+        payload = {
+          event: eventCode,
+          timestamp: new Date().toISOString(),
+          payload: {
+            id: deal.id,
+            number: null,
+            title: deal.title,
+            value: String(deal.value),
+            expectedCloseAt: deal.expectedCloseDate || null,
+            stageId: deal.stageId,
+            pipelineId: deal.pipelineId,
+            accountId: deal.companyId || null,
+            contactId: deal.contactId || null,
+            ownerId: deal.ownerId || userId || null,
+            workspaceId: "workspace_default",
+            won: deal.status === "Ganho" ? true : (deal.status === "Perdido" ? false : null),
+            lostAt: deal.status === "Perdido" ? new Date().toISOString() : null,
+            lostReason: deal.lossReason || null,
+            lostReasonId: null,
+            lostReasonNote: deal.lossReason || null,
+            closedAt: (deal.status === "Ganho" || deal.status === "Perdido") ? new Date().toISOString() : null,
+            stageEnteredAt: new Date().toISOString(),
+            labels: deal.labels || [],
+            probability: deal.probability || 0,
+            version: 0,
+            createdAt: deal.createdAt || new Date().toISOString(),
+            updatedAt: new Date().toISOString(),
+            deletedAt: null,
+            deletedBy: null,
+            stage: stage ? {
+              id: stage.id,
+              name: stage.name,
+              color: "#a1a1aa",
+              order: stage.order,
+              stagnationDays: stage.maxDays || 7,
+              pipelineId: deal.pipelineId,
+              createdAt: new Date().toISOString()
+            } : null,
+            pipeline: pipeline ? {
+              name: pipeline.name
+            } : null,
+            contact: contact ? {
+              id: contact.id,
+              name: contact.name,
+              phone: contact.phones?.[0]?.value || null,
+              email: contact.emails?.[0]?.value || null
+            } : null,
+            account: company ? {
+              id: company.id,
+              name: company.name
+            } : null
+          }
+        };
+      } else if (eventKey === "contact_created") {
+        const contact = payloadData as Contact;
+        payload = {
+          event: eventCode,
+          timestamp: new Date().toISOString(),
+          payload: {
+            id: contact.id,
+            name: contact.name,
+            email: contact.emails?.[0]?.value || null,
+            phone: contact.phones?.[0]?.value || null,
+            jobTitle: contact.role || null,
+            ownerId: userId,
+            workspaceId: "workspace_default",
+            createdAt: new Date().toISOString(),
+            updatedAt: new Date().toISOString()
+          }
+        };
+      } else if (eventKey === "activity_created") {
+        const activity = payloadData as Activity;
+        const deal = state.deals.find((d) => d.id === activity.dealId);
+        payload = {
+          event: eventCode,
+          timestamp: new Date().toISOString(),
+          payload: {
+            id: activity.id,
+            title: activity.title,
+            type: activity.type,
+            dueDate: activity.date,
+            done: activity.completed || false,
+            dealId: activity.dealId || null,
+            contactId: deal ? (deal.contactId || null) : null,
+            ownerId: userId,
+            workspaceId: "workspace_default",
+            createdAt: activity.createdAt || new Date().toISOString(),
+            updatedAt: new Date().toISOString()
+          }
+        };
+      }
+
+      if (!payload) return;
+
+      // Trigger each webhook in parallel background fetch
+      webhooksToTrigger.forEach((wh) => {
+        fetch("/api/webhooks/trigger", {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+          },
+          body: JSON.stringify({
+            url: wh.url,
+            event: eventCode,
+            payload: payload,
+            secret: wh.secret,
+            webhookId: wh.id,
+          }),
+        }).catch((err) => {
+          console.error(`Failed to trigger webhook ${wh.url}:`, err);
+        });
+      });
+    } catch (err) {
+      console.error("Error executing triggerWebhooks:", err);
+    }
+  };
+
   const moveDeal = (dealId: string, newStageId: string) => {
     const deal = state.deals.find((d) => d.id === dealId);
     setState((prev) => {
@@ -256,7 +404,9 @@ export function CrmProvider({ children }: { children: ReactNode }) {
       .then(({ error }) => { if (error) console.error("[CRM] markDealStatus failed:", error); });
     if (deal && userId && (status === "Ganho" || status === "Perdido")) {
       const trigger = status === "Ganho" ? "deal_won" : "deal_lost";
-      runAutomations(trigger, { ...deal, status, lossReason: reason }, { userId, pipelines: state.pipelines });
+      const updatedDeal = { ...deal, status, lossReason: reason };
+      runAutomations(trigger, updatedDeal, { userId, pipelines: state.pipelines });
+      triggerWebhooks(trigger, updatedDeal);
     }
   };
 
@@ -383,6 +533,7 @@ export function CrmProvider({ children }: { children: ReactNode }) {
     const newDeal: Deal = { ...deal, id: data.id, history: [firstLog], notes: [], products: [], activities: [], appointments: [] };
     setState((prev) => ({ ...prev, deals: [...prev.deals, newDeal] }));
     runAutomations("deal_created", newDeal, { userId, pipelines: state.pipelines });
+    triggerWebhooks("deal_created", newDeal);
     return data.id;
   };
 
@@ -485,7 +636,9 @@ export function CrmProvider({ children }: { children: ReactNode }) {
       alert(`Erro ao criar contato: ${error?.message ?? "desconhecido"}`);
       return null;
     }
-    setState((prev) => ({ ...prev, contacts: [...prev.contacts, { ...contact, id: data.id }] }));
+    const newContact = { ...contact, id: data.id };
+    setState((prev) => ({ ...prev, contacts: [...prev.contacts, newContact] }));
+    triggerWebhooks("contact_created", newContact);
     return data.id;
   };
 
@@ -616,12 +769,18 @@ export function CrmProvider({ children }: { children: ReactNode }) {
           return;
         }
         if (data) {
+          const savedAct: Activity = {
+            ...newAct,
+            id: data.id,
+            createdAt: data.created_at
+          };
           setState((prev) => ({
             ...prev,
             deals: prev.deals.map((d) => d.id === activity.dealId
-              ? { ...d, activities: d.activities.map((a) => a.id === newAct.id ? { ...a, id: data.id, createdAt: data.created_at } : a) }
+              ? { ...d, activities: d.activities.map((a) => a.id === newAct.id ? savedAct : a) }
               : d),
           }));
+          triggerWebhooks("activity_created", savedAct);
         }
       });
     }
