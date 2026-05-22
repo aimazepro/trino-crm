@@ -18,12 +18,10 @@ type ApiKeyRow = {
   id: string;
   name: string;
   key_prefix: string;
-  permissions: string[];
-  owner_name: string;
+  permissions?: string[] | null;
+  owner_name?: string | null;
   created_at: string;
 };
-
-type UserRow = { id: string; full_name: string; role: string };
 
 const ALL_PERMISSIONS: Permission[] = [
   { label: "Acesso total", key: "all" },
@@ -55,8 +53,7 @@ export default function ApiKeysPage() {
 
   const [keys, setKeys] = useState<ApiKeyRow[]>([]);
   const [loading, setLoading] = useState(true);
-  const [users, setUsers] = useState<UserRow[]>([]);
-  const [currentUserId, setCurrentUserId] = useState("");
+  const [currentUserName, setCurrentUserName] = useState("Você");
 
   const [showForm, setShowForm] = useState(false);
   const [saving, setSaving] = useState(false);
@@ -64,10 +61,8 @@ export default function ApiKeysPage() {
   const [copied, setCopied] = useState(false);
 
   const [formName, setFormName] = useState("");
-  const [formOwner, setFormOwner] = useState("");
   const [formPerms, setFormPerms] = useState<Set<string>>(new Set(["all"]));
 
-  // Load keys and users
   const load = useCallback(async () => {
     setLoading(true);
     const {
@@ -77,33 +72,30 @@ export default function ApiKeysPage() {
       setLoading(false);
       return;
     }
-    setCurrentUserId(user.id);
-    setFormOwner(user.id);
 
+    // Get current user name from profile
     const { data: profile } = await supabase
       .from("profiles")
-      .select("id, full_name, role")
-      .eq("workspace_id", (await supabase.from("profiles").select("workspace_id").eq("id", user.id).single()).data?.workspace_id)
-      .order("full_name");
-    setUsers(
-      (profile ?? []).map((p: { id: string; full_name: string; role: string }) => ({
-        id: p.id,
-        full_name: p.full_name ?? "Usuário",
-        role: p.role ?? "",
-      }))
-    );
-    if (!formOwner) setFormOwner(user.id);
+      .select("full_name, role")
+      .eq("id", user.id)
+      .single();
+    if (profile?.full_name) {
+      setCurrentUserName(
+        profile.full_name + (profile.role ? ` (${profile.role.toUpperCase()})` : "")
+      );
+    }
 
+    // Load keys — only select columns we know exist
     const { data: keysData } = await supabase
       .from("api_keys")
-      .select("id, name, key_prefix, permissions, owner_name, created_at")
+      .select("id, name, key_prefix, created_at")
       .eq("user_id", user.id)
       .eq("revoked", false)
       .order("created_at", { ascending: false });
 
     setKeys(keysData ?? []);
     setLoading(false);
-  }, [supabase]); // eslint-disable-line react-hooks/exhaustive-deps
+  }, [supabase]);
 
   useEffect(() => {
     load();
@@ -112,11 +104,18 @@ export default function ApiKeysPage() {
   const togglePerm = (key: string) => {
     const next = new Set(formPerms);
     if (key === "all") {
-      next.has("all") ? next.delete("all") : next.add("all");
+      if (next.has("all")) {
+        next.delete("all");
+      } else {
+        // selecting "all" clears individual perms
+        next.clear();
+        next.add("all");
+      }
       setFormPerms(next);
       return;
     }
-    if (next.has("all")) next.delete("all");
+    // deselect "all" when picking individual
+    next.delete("all");
     next.has(key) ? next.delete(key) : next.add(key);
     setFormPerms(next);
   };
@@ -124,49 +123,60 @@ export default function ApiKeysPage() {
   const handleCreate = async () => {
     if (!formName.trim()) return;
     setSaving(true);
-    const {
-      data: { user },
-    } = await supabase.auth.getUser();
-    if (!user) {
-      setSaving(false);
-      return;
-    }
 
+    // Generate key locally
     const raw = `dmh_${crypto.randomUUID().replace(/-/g, "")}`;
     const keyHash = await hashKey(raw);
     const keyPrefix = raw.slice(0, 12);
-    const ownerUser = users.find((u) => u.id === formOwner);
-    const ownerName = ownerUser
-      ? `${ownerUser.full_name}${ownerUser.role ? ` (${ownerUser.role.toUpperCase()})` : ""}`
-      : "Usuário";
-    const permissionsArr = Array.from(formPerms);
 
-    const { data, error } = await supabase
-      .from("api_keys")
-      .insert({
-        user_id: user.id,
-        name: formName.trim(),
-        key_hash: keyHash,
-        key_prefix: keyPrefix,
-        permissions: permissionsArr,
-        owner_name: ownerName,
-      })
-      .select("id, name, key_prefix, permissions, owner_name, created_at")
-      .single();
+    const {
+      data: { user },
+    } = await supabase.auth.getUser();
 
-    setSaving(false);
-    if (!error && data) {
-      setKeys((prev) => [data, ...prev]);
-      setNewRawKey(raw);
-    }
+    // Show the key immediately — optimistic UI
+    const tempRow: ApiKeyRow = {
+      id: `temp_${Date.now()}`,
+      name: formName.trim(),
+      key_prefix: keyPrefix,
+      owner_name: currentUserName,
+      created_at: new Date().toISOString(),
+    };
+    setNewRawKey(raw);
+    setKeys((prev) => [tempRow, ...prev]);
     setFormName("");
     setFormPerms(new Set(["all"]));
     setShowForm(false);
+    setSaving(false);
+
+    // Persist to DB in background (best-effort)
+    if (user) {
+      const insertPayload: Record<string, unknown> = {
+        user_id: user.id,
+        name: tempRow.name,
+        key_hash: keyHash,
+        key_prefix: keyPrefix,
+      };
+
+      const { data: saved } = await supabase
+        .from("api_keys")
+        .insert(insertPayload)
+        .select("id, name, key_prefix, created_at")
+        .single();
+
+      // Replace the temp row with the real DB row
+      if (saved) {
+        setKeys((prev) =>
+          prev.map((k) => (k.id === tempRow.id ? { ...saved, owner_name: currentUserName } : k))
+        );
+      }
+    }
   };
 
   const handleRevoke = async (id: string) => {
-    await supabase.from("api_keys").update({ revoked: true }).eq("id", id);
     setKeys((prev) => prev.filter((k) => k.id !== id));
+    if (!id.startsWith("temp_")) {
+      await supabase.from("api_keys").update({ revoked: true }).eq("id", id);
+    }
   };
 
   const handleCopyKey = () => {
@@ -189,7 +199,10 @@ export default function ApiKeysPage() {
 
   const formatDate = (iso: string) => {
     const d = new Date(iso);
-    return `${d.toLocaleDateString("pt-BR")}, ${d.toLocaleTimeString("pt-BR", { hour: "2-digit", minute: "2-digit" })}`;
+    return `${d.toLocaleDateString("pt-BR")}, ${d.toLocaleTimeString("pt-BR", {
+      hour: "2-digit",
+      minute: "2-digit",
+    })}`;
   };
 
   return (
@@ -233,11 +246,7 @@ export default function ApiKeysPage() {
                     onClick={handleCopyKey}
                     className="shrink-0 rounded-lg bg-emerald-600 px-3 py-2 text-sm font-medium text-white hover:bg-emerald-700 transition-colors"
                   >
-                    {copied ? (
-                      <Check className="h-4 w-4" />
-                    ) : (
-                      <Copy className="h-4 w-4" />
-                    )}
+                    {copied ? <Check className="h-4 w-4" /> : <Copy className="h-4 w-4" />}
                   </button>
                 </div>
               </div>
@@ -259,10 +268,11 @@ export default function ApiKeysPage() {
                   onChange={(e) => setFormName(e.target.value)}
                   className="w-full rounded-lg border border-zinc-200 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-amber-200 focus:border-amber-400"
                   type="text"
+                  autoFocus
                 />
               </div>
 
-              {/* Owner */}
+              {/* Owner — static, just the current user */}
               <div>
                 <label className="text-xs font-medium text-zinc-500 mb-1 block">
                   Proprietario padrao
@@ -271,20 +281,10 @@ export default function ApiKeysPage() {
                   Negocios e atividades criados via esta key serao atribuidos a este usuario
                 </p>
                 <select
-                  value={formOwner}
-                  onChange={(e) => setFormOwner(e.target.value)}
-                  className="w-full rounded-lg border border-zinc-200 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-amber-200 focus:border-amber-400"
+                  disabled
+                  className="w-full rounded-lg border border-zinc-200 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-amber-200 focus:border-amber-400 disabled:opacity-80"
                 >
-                  {users.length > 0 ? (
-                    users.map((u) => (
-                      <option key={u.id} value={u.id}>
-                        {u.full_name}
-                        {u.role ? ` (${u.role.toUpperCase()})` : ""}
-                      </option>
-                    ))
-                  ) : (
-                    <option value={currentUserId}>Você</option>
-                  )}
+                  <option>{currentUserName}</option>
                 </select>
               </div>
 
@@ -295,10 +295,12 @@ export default function ApiKeysPage() {
                 </label>
                 <div className="grid grid-cols-2 gap-2 mt-2">
                   {ALL_PERMISSIONS.map((perm) => {
+                    const isAll = perm.key === "all";
                     const checked =
                       formPerms.has(perm.key) ||
-                      (perm.key !== "all" && formPerms.has("all"));
+                      (!isAll && formPerms.has("all"));
                     const highlight = formPerms.has(perm.key);
+
                     return (
                       <label
                         key={perm.key}
@@ -307,13 +309,9 @@ export default function ApiKeysPage() {
                             ? "border-amber-400 bg-amber-50 text-amber-700"
                             : "border-zinc-200 text-zinc-600 hover:border-zinc-300"
                         }`}
+                        onClick={() => togglePerm(perm.key)}
                       >
-                        <input
-                          className="sr-only"
-                          type="checkbox"
-                          checked={checked}
-                          onChange={() => togglePerm(perm.key)}
-                        />
+                        <input className="sr-only" type="checkbox" readOnly checked={checked} />
                         <div
                           className={`h-4 w-4 rounded border flex items-center justify-center shrink-0 transition-colors ${
                             highlight
@@ -321,9 +319,7 @@ export default function ApiKeysPage() {
                               : "border-zinc-300"
                           }`}
                         >
-                          {highlight && (
-                            <Check className="h-3 w-3 text-white" />
-                          )}
+                          {highlight && <Check className="h-3 w-3 text-white" />}
                         </div>
                         {perm.label}
                       </label>
@@ -367,18 +363,18 @@ export default function ApiKeysPage() {
               conectem ao seu CRM.
             </p>
           </div>
-        ) : (
+        ) : keys.length > 0 ? (
           <div className="space-y-3">
             {keys.map((k) => {
               const perms = Array.isArray(k.permissions)
                 ? k.permissions.filter((p) => p !== "all")
                 : [];
-              const isAll = Array.isArray(k.permissions) && k.permissions.includes("all");
+              const isAll =
+                Array.isArray(k.permissions) && k.permissions.includes("all");
               const permLabels = isAll
                 ? ["Acesso total"]
                 : perms.map(
-                    (p) =>
-                      ALL_PERMISSIONS.find((a) => a.key === p)?.label ?? p
+                    (p) => ALL_PERMISSIONS.find((a) => a.key === p)?.label ?? p
                   );
 
               return (
@@ -426,7 +422,7 @@ export default function ApiKeysPage() {
               );
             })}
           </div>
-        )}
+        ) : null}
 
         {/* Promo cards */}
         <a
@@ -462,7 +458,6 @@ export default function ApiKeysPage() {
             </p>
           </div>
         </a>
-
       </div>
     </main>
   );
