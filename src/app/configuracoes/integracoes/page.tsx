@@ -1,8 +1,10 @@
 "use client";
 
-import { useState } from "react";
-import { Copy, Trash2, ChevronDown, ChevronRight, Blocks } from "lucide-react";
+import { useState, useEffect } from "react";
+import { useSearchParams } from "next/navigation";
+import { Copy, Trash2, ChevronDown, ChevronRight, Blocks, Mail, CheckCircle2, XCircle } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { createClient } from "@/lib/supabase/client";
 
 type Integration = {
   id: string;
@@ -39,6 +41,26 @@ export default function IntegracoesPage() {
   const [form, setForm] = useState({ funnel: FUNNELS[0], stage: STAGES[0], owner: OWNERS[0] });
   const [openAccordion, setOpenAccordion] = useState<string | null>(null);
   const [copied, setCopied] = useState<string | null>(null);
+  const [gmailIntegration, setGmailIntegration] = useState<{ account_email: string } | null>(null);
+  const [gmailLoading, setGmailLoading] = useState(true);
+  const searchParams = useSearchParams();
+
+  useEffect(() => {
+    const supabase = createClient();
+    supabase.auth.getUser().then(({ data: { user } }) => {
+      if (!user) { setGmailLoading(false); return; }
+      supabase
+        .from("integrations")
+        .select("account_email, active")
+        .eq("user_id", user.id)
+        .eq("provider", "gmail")
+        .maybeSingle()
+        .then(({ data }) => {
+          setGmailIntegration(data);
+          setGmailLoading(false);
+        });
+    });
+  }, [searchParams]);
 
   const handleCreate = () => {
     const url = `https://api.dmhub.ai/webhook/${Date.now().toString(36)}`;
@@ -96,6 +118,50 @@ export default function IntegracoesPage() {
               ))}
             </div>
           )}
+
+          {/* Gmail */}
+          <div className="bg-white border border-zinc-200 rounded-xl shadow-sm overflow-hidden">
+            <div className="px-6 py-4 border-b border-zinc-100 flex items-center justify-between">
+              <div className="flex items-center gap-2">
+                <Mail size={16} className="text-zinc-500" />
+                <p className="text-[13px] font-bold text-zinc-700">Gmail</p>
+              </div>
+              {!gmailLoading && (
+                gmailIntegration ? (
+                  <span className="flex items-center gap-1.5 text-[12px] font-semibold text-green-600">
+                    <CheckCircle2 size={13} /> Conectado
+                  </span>
+                ) : (
+                  <span className="flex items-center gap-1.5 text-[12px] font-medium text-zinc-400">
+                    <XCircle size={13} /> Não conectado
+                  </span>
+                )
+              )}
+            </div>
+            <div className="px-6 py-4 flex items-center justify-between">
+              {gmailIntegration ? (
+                <p className="text-[13px] text-zinc-500">{gmailIntegration.account_email}</p>
+              ) : (
+                <p className="text-[13px] text-zinc-500">Conecte sua conta Gmail para enviar emails pelo CRM.</p>
+              )}
+              <a
+                href="/api/auth/gmail"
+                className="px-4 py-2 bg-amber-500 text-white text-[13px] font-bold rounded-lg hover:bg-amber-600 transition-colors shadow-sm"
+              >
+                {gmailIntegration ? "Reconectar" : "Conectar Gmail"}
+              </a>
+            </div>
+            {searchParams.get("gmail") === "success" && (
+              <div className="mx-6 mb-4 px-4 py-2 bg-green-50 border border-green-200 rounded-lg text-[13px] text-green-700 font-medium">
+                Gmail conectado com sucesso!
+              </div>
+            )}
+            {searchParams.get("gmail") === "error" && (
+              <div className="mx-6 mb-4 px-4 py-2 bg-red-50 border border-red-200 rounded-lg text-[13px] text-red-700 font-medium">
+                Erro ao conectar Gmail. Tente novamente.
+              </div>
+            )}
+          </div>
 
           {/* Builder */}
           <div className="bg-white border border-zinc-200 rounded-xl shadow-sm overflow-hidden">
