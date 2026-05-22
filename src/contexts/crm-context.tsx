@@ -64,7 +64,6 @@ function transformCompany(row: any): Company {
     website: row.website ?? undefined, segment: row.segment ?? undefined,
     size: row.size ?? undefined, city: row.city ?? undefined,
     state: row.state ?? undefined, cnpj: row.cnpj ?? undefined,
-    cnpj: row.cnpj ?? undefined,
   };
 }
 
