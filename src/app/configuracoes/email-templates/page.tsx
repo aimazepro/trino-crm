@@ -77,10 +77,12 @@ const MODEL_OPTIONS = [
 
 const AVAILABLE_VARIABLES = [
   { key: "contact_name", label: "Nome do Contato" },
-  { key: "owner_name", label: "Nome do Vendedor" },
   { key: "company_name", label: "Nome da Empresa" },
   { key: "deal_title", label: "Nome do Negócio" },
   { key: "deal_value", label: "Valor do Negócio" },
+  { key: "owner_name", label: "Nome do Vendedor" },
+  { key: "contact_email", label: "Email do Contato" },
+  { key: "contact_phone", label: "Telefone do Contato" },
 ];
 
 function extractVars(text: string): string[] {
@@ -630,6 +632,24 @@ export default function TemplatesEmailPage() {
                     />
                   </div>
                 </div>
+              </div>
+
+              {/* Variables detector section exactly matching mockup */}
+              <div>
+                <p className="text-xs font-medium text-zinc-600 mb-2">Variaveis detectadas:</p>
+                <div className="flex flex-wrap gap-1.5">
+                  {extractVars(form.subject + " " + form.body).map(v => (
+                    <span key={v} className="rounded bg-blue-50 px-2 py-1 text-xs font-mono text-blue-600">
+                      {v}
+                    </span>
+                  ))}
+                  {extractVars(form.subject + " " + form.body).length === 0 && (
+                    <span className="text-xs text-zinc-400 italic">Nenhuma variavel detectada</span>
+                  )}
+                </div>
+                <p className="text-xs text-zinc-400 mt-2">
+                  Variaveis disponiveis: {"{{contact_name}}, {{company_name}}, {{deal_title}}, {{deal_value}}, {{owner_name}}, {{contact_email}}, {{contact_phone}}"}
+                </p>
               </div>
             </div>
 
