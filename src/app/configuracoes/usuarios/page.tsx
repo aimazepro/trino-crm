@@ -241,7 +241,7 @@ export default function UsuariosPage() {
           </span>
           <button
             onClick={() => setShowModal(true)}
-            className="flex items-center gap-2 bg-gradient-to-r from-amber-500 to-amber-400 text-white px-4 py-2.5 rounded-xl text-[13px] font-bold hover:from-amber-600 hover:to-amber-500 transition-all duration-150 shadow-sm"
+            className="flex items-center gap-2 bg-gradient-to-r from-amber-500 to-amber-400 text-white px-4 py-2.5 rounded-xl text-[13px] font-bold hover:from-amber-600 hover:to-amber-500 transition-all duration-150"
           >
             <Plus size={15} /> Convidar usuário
           </button>
@@ -301,7 +301,7 @@ export default function UsuariosPage() {
                                 )}
                               >
                                 <span className={cn(
-                                  "pointer-events-none inline-block h-4 w-4 transform rounded-full bg-white shadow transition duration-200",
+                                  "pointer-events-none inline-block h-4 w-4 transform rounded-full bg-white border border-zinc-200 transition duration-200",
                                   toggles[perm.label]?.gerente ? "translate-x-4" : "translate-x-0"
                                 )} />
                               </button>
@@ -319,7 +319,7 @@ export default function UsuariosPage() {
                                 )}
                               >
                                 <span className={cn(
-                                  "pointer-events-none inline-block h-4 w-4 transform rounded-full bg-white shadow transition duration-200",
+                                  "pointer-events-none inline-block h-4 w-4 transform rounded-full bg-white border border-zinc-200 transition duration-200",
                                   toggles[perm.label]?.vendedor ? "translate-x-4" : "translate-x-0"
                                 )} />
                               </button>
@@ -399,10 +399,10 @@ export default function UsuariosPage() {
                             <img
                               src="https://img.clerk.com/eyJ0eXBlIjoicHJveHkiLCJzcmMiOiJodHRwczovL2ltYWdlcy5jbGVyay5kZXYvb2F1dGhfZ29vZ2xlL2ltZ18zRTBpS2dTU0NQVllBTEZKNDhOUldaZkh4RE0ifQ?width=80"
                               alt="João Paulo Olivera"
-                              className="w-9 h-9 rounded-full object-cover border-2 border-white ring-1 ring-zinc-200/50 shadow-sm shrink-0"
+                              className="w-9 h-9 rounded-full object-cover border-2 border-white ring-1 ring-zinc-200/50 shrink-0"
                             />
                           ) : (
-                            <div className="w-9 h-9 rounded-full bg-zinc-50 border border-zinc-200/80 text-zinc-600 flex items-center justify-center font-bold text-xs shrink-0 shadow-sm">
+                            <div className="w-9 h-9 rounded-full bg-zinc-50 border border-zinc-200/80 text-zinc-600 flex items-center justify-center font-bold text-xs shrink-0">
                               {(m.name ?? m.email).substring(0, 2).toUpperCase()}
                             </div>
                           )}
@@ -458,7 +458,7 @@ export default function UsuariosPage() {
                             <select
                               value={m.role}
                               onChange={(e) => handleUpdateRole(m.id, e.target.value)}
-                              className="text-xs bg-white border border-zinc-200 rounded-xl px-2.5 py-1.5 outline-none font-medium text-zinc-700 focus:border-amber-500 transition-all cursor-pointer shadow-sm hover:bg-zinc-50/50"
+                              className="text-xs bg-white border border-zinc-200 rounded-xl px-2.5 py-1.5 outline-none font-medium text-zinc-700 focus:border-amber-500 transition-all cursor-pointer hover:bg-zinc-50/50"
                             >
                               <option value="Vendedor">Vendedor</option>
                               <option value="Gerente">Gerente</option>
@@ -467,7 +467,7 @@ export default function UsuariosPage() {
 
                             <button
                               onClick={() => handleUpdateStatus(m.id, "blocked")}
-                              className="text-xs text-zinc-500 hover:text-red-600 font-medium px-2.5 py-1.5 rounded-xl border border-zinc-200 hover:border-red-200 hover:bg-red-50/30 transition-all shadow-sm"
+                              className="text-xs text-zinc-500 hover:text-red-600 font-medium px-2.5 py-1.5 rounded-xl border border-zinc-200 hover:border-red-200 hover:bg-red-50/30 transition-all"
                               title="Bloquear usuário"
                             >
                               Bloquear
@@ -501,7 +501,7 @@ export default function UsuariosPage() {
                       {/* Usuário */}
                       <td className="px-6 py-4">
                         <div className="flex items-center gap-3">
-                          <div className="w-9 h-9 rounded-full bg-zinc-50 border border-zinc-200 text-zinc-400 flex items-center justify-center font-bold text-xs shrink-0 shadow-sm">
+                          <div className="w-9 h-9 rounded-full bg-zinc-50 border border-zinc-200 text-zinc-400 flex items-center justify-center font-bold text-xs shrink-0">
                             {(m.name ?? m.email).substring(0, 2).toUpperCase()}
                           </div>
                           <div>
@@ -539,7 +539,7 @@ export default function UsuariosPage() {
                         <div className="flex items-center justify-end gap-2.5">
                           <button
                             onClick={() => handleUpdateStatus(m.id, "active")}
-                            className="text-xs text-emerald-600 hover:text-emerald-700 font-medium px-2.5 py-1.5 rounded-xl border border-emerald-200 hover:bg-emerald-50/30 transition-all shadow-sm"
+                            className="text-xs text-emerald-600 hover:text-emerald-700 font-medium px-2.5 py-1.5 rounded-xl border border-emerald-200 hover:bg-emerald-50/30 transition-all"
                             title="Desbloquear e reativar usuário"
                           >
                             Reativar
@@ -574,7 +574,7 @@ export default function UsuariosPage() {
       {/* Invite Modal */}
       {showModal && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40" onClick={() => setShowModal(false)}>
-          <div className="bg-white rounded-2xl shadow-2xl w-full max-w-md mx-4 p-6" onClick={e => e.stopPropagation()}>
+          <div className="bg-white rounded-2xl border border-zinc-200 w-full max-w-md mx-4 p-6" onClick={e => e.stopPropagation()}>
             <div className="flex items-start justify-between mb-2">
               <div>
                 <h2 className="text-base font-bold text-zinc-900">Convidar usuário</h2>
@@ -621,7 +621,7 @@ export default function UsuariosPage() {
               <button
                 onClick={handleInvite}
                 disabled={!inviteEmail.trim() || inviting}
-                className="px-5 py-2 bg-gradient-to-r from-amber-500 to-amber-400 text-white text-[13px] font-bold rounded-lg hover:from-amber-600 hover:to-amber-500 transition-colors shadow-sm disabled:opacity-50"
+                className="px-5 py-2 bg-gradient-to-r from-amber-500 to-amber-400 text-white text-[13px] font-bold rounded-lg hover:from-amber-600 hover:to-amber-500 transition-colors disabled:opacity-50"
               >
                 {inviting ? "Convidando..." : "Enviar convite"}
               </button>

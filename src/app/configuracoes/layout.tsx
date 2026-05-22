@@ -63,7 +63,7 @@ export default function ConfiguracoesLayout({ children }: { children: React.Reac
                       className={cn(
                         "block rounded-xl px-3 py-2.5 text-sm font-medium transition-colors",
                         isActive
-                          ? "bg-white text-amber-600 shadow-sm"
+                          ? "bg-white text-amber-600"
                           : "text-zinc-500 hover:bg-white/70 hover:text-zinc-900"
                       )}
                     >
