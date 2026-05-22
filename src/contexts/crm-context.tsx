@@ -214,15 +214,17 @@ export function CrmProvider({ children }: { children: ReactNode }) {
 
   const moveDeal = (dealId: string, newStageId: string) => {
     const deal = state.deals.find((d) => d.id === dealId);
+    const allStages = state.pipelines.flatMap((p) => p.stages);
+    const oldStage = allStages.find((s) => s.id === deal?.stageId);
+    const newStage = allStages.find((s) => s.id === newStageId);
+    const description = "Etapa alterada";
+    const subtext = `De ${oldStage?.name ?? "?"} para ${newStage?.name ?? "?"}`;
+
     setState((prev) => {
-      const allStages = prev.pipelines.flatMap((p) => p.stages);
       const deals = prev.deals.map((d) => {
         if (d.id !== dealId) return d;
-        const oldStage = allStages.find((s) => s.id === d.stageId);
-        const newStage = allStages.find((s) => s.id === newStageId);
         const log: HistoryLog = {
-          id: `log_${Date.now()}`, description: "Etapa alterada",
-          subtext: `De ${oldStage?.name ?? "?"} para ${newStage?.name ?? "?"}`,
+          id: `log_${Date.now()}`, description, subtext,
           createdAt: new Date().toISOString(),
         };
         return { ...d, stageId: newStageId, daysInStage: 0, history: [log, ...d.history] };
@@ -231,6 +233,8 @@ export function CrmProvider({ children }: { children: ReactNode }) {
     });
     supabase.from("deals").update({ stage_id: newStageId, days_in_stage: 0 }).eq("id", dealId)
       .then(({ error }) => { if (error) console.error("[CRM] moveDeal failed:", error); });
+    supabase.from("deal_history").insert({ deal_id: dealId, description, subtext })
+      .then(({ error }) => { if (error) console.error("[CRM] moveDeal history insert failed:", error); });
     if (deal && userId) {
       runAutomations("stage_changed", { ...deal, stageId: newStageId }, { userId, pipelines: state.pipelines });
     }
@@ -238,14 +242,17 @@ export function CrmProvider({ children }: { children: ReactNode }) {
 
   const markDealStatus = (dealId: string, status: "Ganho" | "Perdido" | "Ativo", reason?: string) => {
     const deal = state.deals.find((d) => d.id === dealId);
+    const description = status === "Ativo" ? "Negócio reaberto" : `Negócio marcado como ${status}`;
+    const subtext = reason ? `Motivo: ${reason}` : "";
+
     setState((prev) => ({
       ...prev,
       deals: prev.deals.map((d) => {
         if (d.id !== dealId) return d;
         const log: HistoryLog = {
           id: `log_${Date.now()}`,
-          description: status === "Ativo" ? "Negócio reaberto" : `Negócio marcado como ${status}`,
-          subtext: reason ? `Motivo: ${reason}` : "",
+          description,
+          subtext,
           createdAt: new Date().toISOString(),
         };
         return { ...d, status, lossReason: reason, history: [log, ...d.history] };
@@ -253,6 +260,8 @@ export function CrmProvider({ children }: { children: ReactNode }) {
     }));
     supabase.from("deals").update({ status, loss_reason: reason ?? null }).eq("id", dealId)
       .then(({ error }) => { if (error) console.error("[CRM] markDealStatus failed:", error); });
+    supabase.from("deal_history").insert({ deal_id: dealId, description, subtext })
+      .then(({ error }) => { if (error) console.error("[CRM] markDealStatus history insert failed:", error); });
     if (deal && userId && (status === "Ganho" || status === "Perdido")) {
       const trigger = status === "Ganho" ? "deal_won" : "deal_lost";
       const updatedDeal = { ...deal, status, lossReason: reason };
