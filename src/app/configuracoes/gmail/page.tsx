@@ -19,7 +19,7 @@ import { createClient } from "@/lib/supabase/client";
 
 // In production, this should be your backend OAuth initiation route.
 // e.g. /api/auth/google?redirect=/configuracoes/gmail
-const GOOGLE_OAUTH_URL = "/api/auth/google";
+const GOOGLE_OAUTH_URL = "/api/auth/gmail";
 
 type GmailProfile = {
   email: string;

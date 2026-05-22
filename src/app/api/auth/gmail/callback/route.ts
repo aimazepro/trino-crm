@@ -89,6 +89,6 @@ export async function GET(req: NextRequest) {
   );
 
   return NextResponse.redirect(
-    new URL("/configuracoes/integracoes?gmail=success", req.url)
+    new URL(`/configuracoes/gmail?gmail_connected=1&email=${encodeURIComponent(profile.email)}`, req.url)
   );
 }
