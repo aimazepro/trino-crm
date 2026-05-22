@@ -20,6 +20,15 @@ const EVENTS = [
   { key: "activity_created", label: "Atividade criada", code: "ACTIVITY_CREATED" },
 ];
 
+const isValidUrl = (str: string) => {
+  try {
+    const url = new URL(str);
+    return url.protocol === "http:" || url.protocol === "https:";
+  } catch (_) {
+    return false;
+  }
+};
+
 export default function WebhooksPage() {
   const [webhooks, setWebhooks] = useState<WebhookItem[]>([]);
   const [showModal, setShowModal] = useState(false);
@@ -30,6 +39,7 @@ export default function WebhooksPage() {
   const [formEvents, setFormEvents] = useState<Set<string>>(new Set());
   const [formSecret, setFormSecret] = useState("");
   const [saving, setSaving] = useState(false);
+  const [testingId, setTestingId] = useState<string | null>(null);
 
   const supabase = createClient();
 
@@ -69,7 +79,7 @@ export default function WebhooksPage() {
   };
 
   const handleCreate = async () => {
-    if (!formUrl.trim() || formEvents.size === 0) return;
+    if (!isValidUrl(formUrl) || formEvents.size === 0) return;
     setSaving(true);
 
     const {
@@ -101,6 +111,7 @@ export default function WebhooksPage() {
     setWebhooks((prev) => [...prev, tempItem]);
     setShowModal(false);
     setToast("Webhook criado.");
+    setTimeout(() => setToast(null), 4000);
 
     // Reset Form
     setFormUrl("");
@@ -142,6 +153,35 @@ export default function WebhooksPage() {
     }
   };
 
+  const handleTest = async (wh: WebhookItem) => {
+    setTestingId(wh.id);
+    try {
+      // Trigger a real background request to the webhook URL
+      await fetch(wh.url, {
+        method: "POST",
+        mode: "no-cors",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          event: wh.events[0] || "test_event",
+          created_at: new Date().toISOString(),
+          is_test: true,
+          data: {
+            message: "Este e um teste de webhook do Trino CRM",
+            crm_url: typeof window !== "undefined" ? window.location.origin : "",
+          },
+        }),
+      });
+    } catch (e) {
+      console.warn("Test webhook request failed or blocked by CORS: ", e);
+    }
+
+    setTestingId(null);
+    setToast("Teste enviado!");
+    setTimeout(() => setToast(null), 4000);
+  };
+
   const getEventLabel = (key: string) => {
     return EVENTS.find((e) => e.key === key)?.label ?? key;
   };
@@ -151,7 +191,7 @@ export default function WebhooksPage() {
       <div className="p-8 max-w-4xl mx-auto space-y-6">
         {/* Success Toast */}
         {toast && (
-          <div className="fixed bottom-6 right-6 z-50 bg-zinc-900 text-white text-sm px-4 py-3 rounded-lg shadow-lg flex items-center gap-3">
+          <div className="fixed bottom-6 right-6 z-50 bg-zinc-900 text-white text-sm px-4 py-3 rounded-lg shadow-lg flex items-center gap-3 animate-fade-in-up">
             <CircleCheck className="h-4 w-4 text-green-400 shrink-0" />
             <span>{toast}</span>
             <button
@@ -252,11 +292,12 @@ export default function WebhooksPage() {
                     <td className="px-4 py-3">
                       <div className="flex items-center gap-2 justify-end">
                         <button
-                          disabled
+                          onClick={() => handleTest(wh)}
+                          disabled={testingId === wh.id}
                           className="flex items-center gap-1.5 text-xs font-medium text-zinc-600 border border-zinc-200 hover:bg-zinc-50 px-2.5 py-1.5 rounded-lg transition-colors disabled:opacity-50"
                         >
                           <Zap className="h-3 w-3" />
-                          Testar
+                          {testingId === wh.id ? "Testando..." : "Testar"}
                         </button>
                         <button
                           onClick={() => handleDelete(wh.id)}
@@ -361,7 +402,7 @@ export default function WebhooksPage() {
               </button>
               <button
                 onClick={handleCreate}
-                disabled={saving || !formUrl.trim() || formEvents.size === 0}
+                disabled={saving || !isValidUrl(formUrl) || formEvents.size === 0}
                 className="px-4 py-2 text-sm font-medium bg-gradient-to-r from-amber-500 to-amber-400 hover:from-amber-600 hover:to-amber-500 shadow-sm hover:shadow-md text-white rounded-lg disabled:opacity-60 transition-colors"
               >
                 Criar
