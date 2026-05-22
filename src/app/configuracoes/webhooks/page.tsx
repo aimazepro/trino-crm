@@ -20,6 +20,111 @@ const EVENTS = [
   { key: "activity_created", label: "Atividade criada", code: "ACTIVITY_CREATED" },
 ];
 
+const MOCK_PAYLOADS: Record<string, any> = {
+  deal_created: {
+    event: "DEAL_CREATED",
+    timestamp: new Date().toISOString(),
+    payload: {
+      id: "cmpga01qo019yhyn4ra8slrc4",
+      number: 7,
+      title: "negocio teste",
+      value: "1000",
+      expectedCloseAt: null,
+      stageId: "cmpeq9xeh0nhlhyn4e2ehxqe7",
+      pipelineId: "cmpeq9xed0nhkhyn40h9g2hjf",
+      accountId: "cmpg7azex016shyn4n2ak798q",
+      contactId: "cmpg7azos0170hyn4selcbb26",
+      ownerId: "user_3E0iKg8G9xU4ld6q6nryL8WNQ4z",
+      workspaceId: "cmpeq9xe30nhihyn45v70us45",
+      won: null,
+      lostAt: null,
+      lostReason: null,
+      lostReasonId: null,
+      lostReasonNote: null,
+      closedAt: null,
+      stageEnteredAt: new Date().toISOString(),
+      labels: [],
+      probability: 0,
+      version: 0,
+      createdAt: new Date().toISOString(),
+      updatedAt: new Date().toISOString(),
+      deletedAt: null,
+      deletedBy: null,
+      stage: {
+        id: "cmpeq9xeh0nhlhyn4e2ehxqe7",
+        name: "Entrada de Leads",
+        color: "#a1a1aa",
+        order: 0,
+        stagnationDays: 7,
+        pipelineId: "cmpeq9xed0nhkhyn40h9g2hjf",
+        createdAt: "2026-05-21T00:03:48.171Z",
+      },
+      pipeline: {
+        name: "Prospeccao",
+      },
+      contact: {
+        id: "cmpg7azos0170hyn4selcbb26",
+        name: "Pedro Lima",
+        phone: null,
+        email: "pedro@gamma.com",
+      },
+      account: {
+        id: "cmpg7azex016shyn4n2ak798q",
+        name: "Beta Ltda",
+      },
+    },
+  },
+  deal_won: {
+    event: "DEAL_WON",
+    timestamp: new Date().toISOString(),
+    payload: {
+      id: "cmpg7azcw016nhyn4d9k766sw",
+    },
+  },
+  deal_lost: {
+    event: "DEAL_LOST",
+    timestamp: new Date().toISOString(),
+    payload: {
+      id: "cmpga01qo019yhyn4ra8slrc4",
+      lostReason: "Preço",
+      lostReasonId: "cmpeqafr60nighyn4v46ui7iu",
+      lostReasonNote: "dsd",
+    },
+  },
+  contact_created: {
+    event: "CONTACT_CREATED",
+    timestamp: new Date().toISOString(),
+    payload: {
+      id: "cmpg7azos0170hyn4selcbb26",
+      name: "Pedro Lima",
+      email: "pedro@gamma.com",
+      phone: "+55 11 99999-9999",
+      jobTitle: "Gerente Comercial",
+      ownerId: "user_3E0iKg8G9xU4ld6q6nryL8WNQ4z",
+      workspaceId: "cmpeq9xe30nhihyn45v70us45",
+      createdAt: new Date().toISOString(),
+      updatedAt: new Date().toISOString(),
+    },
+  },
+  activity_created: {
+    event: "ACTIVITY_CREATED",
+    timestamp: new Date().toISOString(),
+    payload: {
+      id: "cmpg7actx0180hyn4act1bb26",
+      title: "Apresentação do CRM",
+      type: "reuniao",
+      dueDate: new Date(Date.now() + 86400000).toISOString(),
+      done: false,
+      dealId: "cmpga01qo019yhyn4ra8slrc4",
+      contactId: "cmpg7azos0170hyn4selcbb26",
+      ownerId: "user_3E0iKg8G9xU4ld6q6nryL8WNQ4z",
+      workspaceId: "cmpeq9xe30nhihyn45v70us45",
+      createdAt: new Date().toISOString(),
+      updatedAt: new Date().toISOString(),
+    },
+  },
+};
+
 const isValidUrl = (str: string) => {
   try {
     const url = new URL(str);
@@ -155,6 +260,21 @@ export default function WebhooksPage() {
 
   const handleTest = async (wh: WebhookItem) => {
     setTestingId(wh.id);
+    const firstEvent = wh.events[0] || "deal_created";
+    const eventCode = EVENTS.find((e) => e.key === firstEvent)?.code || "DEAL_CREATED";
+    const mockPayload = MOCK_PAYLOADS[firstEvent] || MOCK_PAYLOADS.deal_created;
+
+    // Refresh dynamic fields of payload
+    const payload = {
+      ...mockPayload,
+      timestamp: new Date().toISOString(),
+    };
+    if (payload.payload) {
+      if (payload.payload.createdAt) payload.payload.createdAt = new Date().toISOString();
+      if (payload.payload.updatedAt) payload.payload.updatedAt = new Date().toISOString();
+      if (payload.payload.stageEnteredAt) payload.payload.stageEnteredAt = new Date().toISOString();
+    }
+
     try {
       // Trigger a real background request to the webhook URL
       await fetch(wh.url, {
@@ -162,19 +282,12 @@ export default function WebhooksPage() {
         mode: "no-cors",
         headers: {
           "Content-Type": "application/json",
+          "x-crm-event": eventCode,
         },
-        body: JSON.stringify({
-          event: wh.events[0] || "test_event",
-          created_at: new Date().toISOString(),
-          is_test: true,
-          data: {
-            message: "Este e um teste de webhook do Trino CRM",
-            crm_url: typeof window !== "undefined" ? window.location.origin : "",
-          },
-        }),
+        body: JSON.stringify(payload),
       });
     } catch (e) {
-      console.warn("Test webhook request failed or blocked by CORS: ", e);
+      console.warn("Test webhook request failed/blocked by CORS: ", e);
     }
 
     setTestingId(null);
