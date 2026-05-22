@@ -104,7 +104,8 @@ export async function POST(req: NextRequest) {
 
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const row = emailRow as any;
-  const trackUrl = `${process.env.NEXT_PUBLIC_APP_URL}/api/track/${row.track_id}`;
+  const appUrl = (process.env.NEXT_PUBLIC_APP_URL ?? "https://trino-crm.vercel.app").replace(/\/$/, "");
+  const trackUrl = `${appUrl}/api/track/${row.track_id}`;
   const pixel = `<img src="${trackUrl}" width="1" height="1" style="display:none" />`;
   const trackedHtml = bodyHtml + pixel;
 
@@ -118,14 +119,22 @@ export async function POST(req: NextRequest) {
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const fromEmail = (intData as any)?.account_email ?? "";
 
+  // RFC 2047 encode subject for non-ASCII characters
+  const encodedSubject = /[^\x20-\x7E]/.test(subject)
+    ? `=?UTF-8?B?${Buffer.from(subject, "utf-8").toString("base64")}?=`
+    : subject;
+
+  const bodyB64 = Buffer.from(trackedHtml, "utf-8").toString("base64");
+
   const mime = [
     `From: ${fromEmail}`,
     `To: ${to}`,
-    `Subject: ${subject}`,
+    `Subject: ${encodedSubject}`,
     "MIME-Version: 1.0",
     'Content-Type: text/html; charset="UTF-8"',
+    "Content-Transfer-Encoding: base64",
     "",
-    trackedHtml,
+    bodyB64,
   ].join("\r\n");
 
   const encoded = Buffer.from(mime).toString("base64url");
