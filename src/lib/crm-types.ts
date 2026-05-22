@@ -110,6 +110,17 @@ export interface Pipeline {
   stages: PipelineStage[];
 }
 
+export interface CrmNotification {
+  id: string;
+  userId: string;
+  type: "activity" | "deal_status" | "email_open";
+  title: string;
+  subtext: string;
+  href: string;
+  read: boolean;
+  createdAt: string;
+}
+
 export interface CrmState {
   pipelines: Pipeline[];
   deals: Deal[];
@@ -118,6 +129,7 @@ export interface CrmState {
   labels: Label[];
   whatsappConnected?: boolean;
   gmailConnected?: boolean;
+  notifications: CrmNotification[];
 }
 
 // ── Automações ──────────────────────────────────────────────────────────────
