@@ -1,10 +1,14 @@
 "use client";
 
 import { useState, useRef, useEffect } from "react";
-import { Search, Bell, HelpCircle, Menu, Briefcase, Users, Building2, X } from "lucide-react";
+import {
+  Search, Bell, HelpCircle, Menu, Briefcase, Users, Building2, X,
+  Check, Clock, Trophy, MailOpen, CircleX, TriangleAlert
+} from "lucide-react";
 import { useCrm } from "@/contexts/crm-context";
 import { useRouter } from "next/navigation";
 import { cn } from "@/lib/utils";
+import type { CrmNotification } from "@/lib/crm-types";
 
 function SearchOverlay({ onClose }: { onClose: () => void }) {
   const { state } = useCrm();
@@ -117,7 +121,13 @@ function SearchOverlay({ onClose }: { onClose: () => void }) {
 }
 
 export function Topbar() {
+  const router = useRouter();
   const [showSearch, setShowSearch] = useState(false);
+  const [isNotifOpen, setIsNotifOpen] = useState(false);
+  const [toastNotif, setToastNotif] = useState<CrmNotification | null>(null);
+
+  const { state, markNotificationAsRead, markAllNotificationsAsRead } = useCrm();
+  const notifRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
     const handler = (e: KeyboardEvent) => {
@@ -126,6 +136,31 @@ export function Topbar() {
     document.addEventListener("keydown", handler);
     return () => document.removeEventListener("keydown", handler);
   }, []);
+
+  useEffect(() => {
+    const clickHandler = (e: MouseEvent) => {
+      if (notifRef.current && !notifRef.current.contains(e.target as Node)) {
+        setIsNotifOpen(false);
+      }
+    };
+    document.addEventListener("mousedown", clickHandler);
+    return () => document.removeEventListener("mousedown", clickHandler);
+  }, []);
+
+  useEffect(() => {
+    const handleNewNotif = (e: Event) => {
+      const notif = (e as CustomEvent).detail as CrmNotification;
+      setToastNotif(notif);
+      const timer = setTimeout(() => {
+        setToastNotif(null);
+      }, 4000);
+      return () => clearTimeout(timer);
+    };
+    window.addEventListener("new-notification", handleNewNotif);
+    return () => window.removeEventListener("new-notification", handleNewNotif);
+  }, []);
+
+  const unreadCount = state.notifications?.filter(n => !n.read).length ?? 0;
 
   return (
     <>
@@ -153,16 +188,176 @@ export function Topbar() {
               <HelpCircle className="h-5 w-5" />
             </button>
           </div>
-          <div className="relative">
-            <button title="Notificações" className="relative rounded-md p-2 text-muted-foreground hover:bg-muted hover:text-foreground transition-colors">
+          
+          {/* Notifications Dropdown Wrapper */}
+          <div className="relative" ref={notifRef}>
+            <button
+              title="Notificacoes"
+              onClick={() => setIsNotifOpen(!isNotifOpen)}
+              className={cn(
+                "relative flex h-9 w-9 items-center justify-center rounded-lg text-zinc-400 hover:bg-zinc-100 hover:text-zinc-700 transition-colors",
+                isNotifOpen && "bg-zinc-100 text-zinc-700"
+              )}
+            >
               <Bell className="h-5 w-5" />
-              <span className="absolute top-1.5 right-1.5 flex h-4 w-4 items-center justify-center rounded-full bg-red-500 text-[9px] font-bold text-white leading-none">6</span>
+              {unreadCount > 0 && (
+                <span className="absolute top-1 right-1 flex h-4 w-4 items-center justify-center rounded-full bg-red-500 text-[9px] font-bold text-white leading-none">
+                  {unreadCount > 9 ? "9+" : unreadCount}
+                </span>
+              )}
             </button>
+
+            {/* Notification Dropdown Menu */}
+            {isNotifOpen && (
+              <div className="absolute top-full right-0 mt-2 w-80 rounded-xl border border-zinc-200 bg-white shadow-xl z-50 overflow-hidden animate-in fade-in slide-in-from-top-2 duration-150">
+                <div className="flex items-center justify-between px-4 py-3 border-b border-zinc-100">
+                  <p className="text-xs font-semibold text-zinc-700 uppercase tracking-widest">Notificacoes</p>
+                  <button
+                    onClick={() => markAllNotificationsAsRead()}
+                    className="flex items-center gap-1 text-xs text-amber-500 hover:text-amber-600 font-medium transition-colors"
+                  >
+                    <Check className="h-3 w-3" /> Marcar todas como lidas
+                  </button>
+                </div>
+                
+                <div className="max-h-96 overflow-y-auto divide-y divide-zinc-50">
+                  {state.notifications && state.notifications.length > 0 ? (
+                    state.notifications.map((notif) => {
+                      let iconBg = "bg-amber-50";
+                      let iconColor = "text-amber-500";
+                      let IconComp = Clock;
+
+                      if (notif.type === "activity") {
+                        if (notif.subtext.includes("atrasado")) {
+                          iconBg = "bg-red-50";
+                          iconColor = "text-red-500";
+                          IconComp = TriangleAlert;
+                        } else {
+                          iconBg = "bg-amber-50";
+                          iconColor = "text-amber-500";
+                          IconComp = Clock;
+                        }
+                      } else if (notif.type === "deal_status") {
+                        if (notif.subtext.toLowerCase().includes("perdido")) {
+                          iconBg = "bg-red-50";
+                          iconColor = "text-red-400";
+                          IconComp = CircleX;
+                        } else {
+                          iconBg = "bg-green-50";
+                          iconColor = "text-green-500";
+                          IconComp = Trophy;
+                        }
+                      } else if (notif.type === "email_open") {
+                        iconBg = "bg-blue-50";
+                        iconColor = "text-blue-600";
+                        IconComp = MailOpen;
+                      }
+
+                      return (
+                        <a
+                          key={notif.id}
+                          href={notif.href}
+                          onClick={(e) => {
+                            e.preventDefault();
+                            markNotificationAsRead(notif.id);
+                            router.push(notif.href);
+                            setIsNotifOpen(false);
+                          }}
+                          className={cn(
+                            "flex items-start gap-3 px-4 py-3 hover:bg-zinc-50 transition-colors",
+                            !notif.read && "bg-amber-50/40"
+                          )}
+                        >
+                          <div className={cn("mt-0.5 flex h-7 w-7 shrink-0 items-center justify-center rounded-lg", iconBg)}>
+                            <IconComp className={cn("h-3.5 w-3.5", iconColor)} />
+                          </div>
+                          
+                          <div className="flex-1 min-w-0">
+                            <div className="flex items-center gap-2">
+                              <p className="text-sm font-medium text-zinc-900 truncate">{notif.title}</p>
+                              {notif.type === "email_open" && (
+                                <span className="shrink-0 rounded-full bg-blue-100 px-1.5 py-0.5 text-[9px] font-semibold text-blue-700">
+                                  Email aberto
+                                </span>
+                              )}
+                            </div>
+                            <p className="text-xs text-zinc-400 mt-0.5 truncate">{notif.subtext}</p>
+                          </div>
+                          
+                          {!notif.read && (
+                            <span className="mt-2 h-1.5 w-1.5 shrink-0 rounded-full bg-amber-500"></span>
+                          )}
+                        </a>
+                      );
+                    })
+                  ) : (
+                    <div className="p-8 text-center text-xs text-zinc-400">
+                      Nenhuma notificação por enquanto.
+                    </div>
+                  )}
+                </div>
+                
+                <div className="border-t border-zinc-100 px-4 py-2.5">
+                  <a
+                    href="/atividades"
+                    onClick={(e) => {
+                      e.preventDefault();
+                      router.push("/atividades");
+                      setIsNotifOpen(false);
+                    }}
+                    className="text-xs font-medium text-amber-500 hover:text-amber-600 transition-colors animate-in"
+                  >
+                    Ver todas as atividades
+                  </a>
+                </div>
+              </div>
+            )}
           </div>
         </div>
       </header>
 
       {showSearch && <SearchOverlay onClose={() => setShowSearch(false)} />}
+
+      {/* Real-time Toast notification */}
+      {toastNotif && (
+        <div
+          onClick={() => {
+            markNotificationAsRead(toastNotif.id);
+            router.push(toastNotif.href);
+            setToastNotif(null);
+          }}
+          className="fixed top-4 right-4 z-[300] flex max-w-sm w-full items-start gap-3 rounded-xl border border-zinc-200 bg-white p-4 shadow-2xl transition-all duration-300 animate-in slide-in-from-top-5 cursor-pointer hover:bg-zinc-50"
+        >
+          <div className={cn(
+            "mt-0.5 flex h-8 w-8 shrink-0 items-center justify-center rounded-lg",
+            toastNotif.type === "activity" ? "bg-amber-50" : toastNotif.type === "email_open" ? "bg-blue-50" : "bg-green-50"
+          )}>
+            {toastNotif.type === "activity" && <Clock className="h-4 w-4 text-amber-500" />}
+            {toastNotif.type === "deal_status" && (
+              toastNotif.subtext.toLowerCase().includes("perdido") ? (
+                <CircleX className="h-4 w-4 text-red-500" />
+              ) : (
+                <Trophy className="h-4 w-4 text-green-500" />
+              )
+            )}
+            {toastNotif.type === "email_open" && <MailOpen className="h-4 w-4 text-blue-600" />}
+          </div>
+          <div className="flex-1 min-w-0">
+            <p className="text-xs font-semibold text-zinc-400 uppercase tracking-wider">Nova Notificação</p>
+            <p className="text-sm font-semibold text-zinc-900 truncate mt-0.5">{toastNotif.title}</p>
+            <p className="text-xs text-zinc-500 truncate mt-0.5">{toastNotif.subtext}</p>
+          </div>
+          <button
+            onClick={(e) => {
+              e.stopPropagation();
+              setToastNotif(null);
+            }}
+            className="text-zinc-400 hover:text-zinc-600"
+          >
+            <X size={14} />
+          </button>
+        </div>
+      )}
     </>
   );
 }

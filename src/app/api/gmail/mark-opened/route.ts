@@ -31,12 +31,29 @@ export async function POST(req: NextRequest) {
     process.env.SUPABASE_SERVICE_ROLE_KEY!
   );
 
-  await admin
+  const { data: emailData } = await admin
     .from("emails")
     .update({ opened_at: new Date().toISOString() })
     .eq("id", emailId)
     .eq("user_id", user.id)
-    .is("opened_at", null);
+    .is("opened_at", null)
+    .select("user_id, to_email, subject, deal_id")
+    .maybeSingle();
+
+  if (emailData) {
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const row = emailData as any;
+    await admin
+      .from("notifications")
+      .insert({
+        user_id: row.user_id,
+        type: "email_open",
+        title: `${row.to_email || "Destinatário"} abriu seu email`,
+        subtext: row.subject || "",
+        href: row.deal_id ? `/negocios/${row.deal_id}?tab=gmail` : "/atividades",
+        read: false
+      });
+  }
 
   return NextResponse.json({ success: true });
 }

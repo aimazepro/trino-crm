@@ -26,7 +26,7 @@ export async function GET(
 
   const { data } = await admin
     .from("emails")
-    .select("id, created_at, opened_at")
+    .select("id, created_at, opened_at, user_id, to_email, subject, deal_id")
     .eq("track_id", trackId)
     .maybeSingle();
 
@@ -40,6 +40,17 @@ export async function GET(
         .from("emails")
         .update({ opened_at: new Date().toISOString() })
         .eq("id", row.id);
+
+      await admin
+        .from("notifications")
+        .insert({
+          user_id: row.user_id,
+          type: "email_open",
+          title: `${row.to_email || "Destinatário"} abriu seu email`,
+          subtext: row.subject || "",
+          href: row.deal_id ? `/negocios/${row.deal_id}?tab=gmail` : "/atividades",
+          read: false
+        });
     }
   }
 

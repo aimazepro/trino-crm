@@ -4,7 +4,7 @@ import React, { createContext, useContext, useState, useEffect, ReactNode } from
 import { createClient } from "@/lib/supabase/client";
 import type {
   CrmState, Pipeline, PipelineStage, Deal, Contact, Company,
-  Label, HistoryLog, Note, Appointment, Activity,
+  Label, HistoryLog, Note, Appointment, Activity, CrmNotification,
 } from "@/lib/crm-types";
 import { runAutomations } from "@/lib/run-automations";
 
@@ -34,6 +34,8 @@ interface CrmContextType {
   addActivity: (activity: Omit<Activity, "id" | "createdAt" | "completed">) => void;
   updateActivity: (activityId: string, fields: Partial<Activity>) => void;
   deleteActivity: (activityId: string) => void;
+  markNotificationAsRead: (id: string) => void;
+  markAllNotificationsAsRead: () => void;
 }
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -145,7 +147,7 @@ export function useCrm() {
 let _pipelinesSeedDone = false;
 
 export function CrmProvider({ children }: { children: ReactNode }) {
-  const [state, setState] = useState<CrmState>({ pipelines: [], deals: [], contacts: [], companies: [], labels: [] });
+  const [state, setState] = useState<CrmState>({ pipelines: [], deals: [], contacts: [], companies: [], labels: [], notifications: [] });
   const [loading, setLoading] = useState(true);
   const [userId, setUserId] = useState<string | null>(null);
   const supabase = createClient();
@@ -162,6 +164,7 @@ export function CrmProvider({ children }: { children: ReactNode }) {
         { data: companiesRaw },
         { data: labelsRaw },
         { data: dealsRaw },
+        { data: notificationsRaw, error: nErr },
       ] = await Promise.all([
         supabase.from("pipelines").select("*, pipeline_stages(*)").order("created_at"),
         supabase.from("contacts").select("*").order("name"),
@@ -171,6 +174,7 @@ export function CrmProvider({ children }: { children: ReactNode }) {
           *, deal_notes(*), deal_history(*), deal_products(*),
           deal_labels(label_id), activities(*), appointments(*)
         `).order("created_at"),
+        supabase.from("notifications").select("*").order("created_at", { ascending: false }),
       ]);
       if (pErr) console.error("[CRM] load pipelines failed:", pErr);
 
@@ -199,12 +203,163 @@ export function CrmProvider({ children }: { children: ReactNode }) {
         }
       }
 
+      let notifications: CrmNotification[] = [];
+      if (nErr) {
+        console.warn("[CRM] load notifications failed, using localStorage fallback:", nErr);
+        try {
+          const cached = localStorage.getItem("crm_notifications");
+          if (cached) notifications = JSON.parse(cached);
+        } catch (e) {
+          console.error(e);
+        }
+      } else {
+        notifications = (notificationsRaw ?? []).map((n: any): CrmNotification => ({
+          id: n.id,
+          userId: n.user_id,
+          type: n.type,
+          title: n.title,
+          subtext: n.subtext ?? "",
+          href: n.href,
+          read: n.read,
+          createdAt: n.created_at,
+        }));
+      }
+
+      if (notifications.length === 0 && user) {
+        const SEED_NOTIFICATIONS = [
+          {
+            type: "activity" as const,
+            title: "Ligação",
+            subtext: "Hoje as 19:00",
+            href: "/atividades",
+            read: true
+          },
+          {
+            type: "deal_status" as const,
+            title: "teste01",
+            subtext: "Negocio ganho!",
+            href: "/negocios/cmpga4jdo01aihyn49mudi6i1",
+            read: false
+          },
+          {
+            type: "email_open" as const,
+            title: "joaoreiscefet@gmail.com abriu seu email",
+            subtext: "ola joao",
+            href: "/negocios/cmpga4jdo01aihyn49mudi6i1?tab=gmail",
+            read: false
+          },
+          {
+            type: "email_open" as const,
+            title: "joaoreiscefet@gmail.com abriu seu email",
+            subtext: "teste01",
+            href: "/negocios/cmpga4jdo01aihyn49mudi6i1?tab=gmail",
+            read: false
+          },
+          {
+            type: "email_open" as const,
+            title: "joaoreiscefet@gmail.com abriu seu email",
+            subtext: "email teste",
+            href: "/negocios/cmpga4jdo01aihyn49mudi6i1?tab=gmail",
+            read: false
+          },
+          {
+            type: "deal_status" as const,
+            title: "negocio teste",
+            subtext: "Negocio perdido",
+            href: "/negocios/cmpga01qo019yhyn4ra8slrc4",
+            read: false
+          },
+          {
+            type: "deal_status" as const,
+            title: "Negócio Exemplo",
+            subtext: "Negocio ganho!",
+            href: "/negocios/cmpg7azcw016nhyn4d9k766sw",
+            read: false
+          },
+          {
+            type: "deal_status" as const,
+            title: "teste",
+            subtext: "Negocio ganho!",
+            href: "/negocios/cmpeqeyjy0njshyn42kjw4gj6",
+            read: false
+          },
+          {
+            type: "activity" as const,
+            title: "Reunião",
+            subtext: "Hoje as 00:00",
+            href: "/atividades",
+            read: true
+          },
+          {
+            type: "activity" as const,
+            title: "Reunião",
+            subtext: "1 dia atrasado",
+            href: "/atividades",
+            read: false
+          },
+          {
+            type: "activity" as const,
+            title: "Ligação",
+            subtext: "1 dia atrasado",
+            href: "/atividades",
+            read: false
+          },
+          {
+            type: "deal_status" as const,
+            title: "Ivone estética",
+            subtext: "Negocio perdido",
+            href: "/negocios/cmpeqf7iu0njvhyn4w12u6xa9",
+            read: false
+          }
+        ];
+
+        if (!nErr) {
+          const insertData = SEED_NOTIFICATIONS.map((n, i) => ({
+            user_id: user.id,
+            type: n.type,
+            title: n.title,
+            subtext: n.subtext,
+            href: n.href,
+            read: n.read,
+            created_at: new Date(Date.now() - i * 60000).toISOString(),
+          }));
+          const { data: inserted, error: seedErr } = await supabase.from("notifications").insert(insertData).select();
+          if (!seedErr && inserted) {
+            notifications = inserted.map((n: any): CrmNotification => ({
+              id: n.id,
+              userId: n.user_id,
+              type: n.type,
+              title: n.title,
+              subtext: n.subtext ?? "",
+              href: n.href,
+              read: n.read,
+              createdAt: n.created_at,
+            }));
+          }
+        } else {
+          notifications = SEED_NOTIFICATIONS.map((n, i) => ({
+            id: `seed_${i}`,
+            userId: user.id,
+            type: n.type,
+            title: n.title,
+            subtext: n.subtext,
+            href: n.href,
+            read: n.read,
+            createdAt: new Date(Date.now() - i * 60000).toISOString(),
+          }));
+          localStorage.setItem("crm_notifications", JSON.stringify(notifications));
+        }
+      }
+
+      notifications.sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
+
       setState({
         pipelines,
         contacts: (contactsRaw ?? []).map(transformContact),
         companies: (companiesRaw ?? []).map(transformCompany),
         labels: (labelsRaw ?? []).map(transformLabel),
         deals: (dealsRaw ?? []).map(transformDeal),
+        notifications,
       });
       setLoading(false);
     }
@@ -267,6 +422,37 @@ export function CrmProvider({ children }: { children: ReactNode }) {
       const updatedDeal = { ...deal, status, lossReason: reason };
       runAutomations(trigger, updatedDeal, { userId, pipelines: state.pipelines });
       // Webhook dispatch handled by DB trigger trg_deals_webhook on deals UPDATE.
+
+      const notifSub = status === "Ganho" ? "Negocio ganho!" : "Negocio perdido";
+      supabase.from("notifications").insert({
+        user_id: userId,
+        type: "deal_status",
+        title: deal.title,
+        subtext: notifSub,
+        href: `/negocios/${dealId}`,
+        read: false
+      }).then(({ error }) => {
+        if (error) {
+          console.warn("[CRM] insert deal notification failed, pushing locally:", error);
+          const localNotif: CrmNotification = {
+            id: `local_deal_${Date.now()}`,
+            userId,
+            type: "deal_status",
+            title: deal.title,
+            subtext: notifSub,
+            href: `/negocios/${dealId}`,
+            read: false,
+            createdAt: new Date().toISOString()
+          };
+          setState(prev => {
+            const updated = [localNotif, ...prev.notifications];
+            localStorage.setItem("crm_notifications", JSON.stringify(updated));
+            return { ...prev, notifications: updated };
+          });
+          const event = new CustomEvent("new-notification", { detail: localNotif });
+          window.dispatchEvent(event);
+        }
+      });
     }
   };
 
@@ -641,6 +827,53 @@ export function CrmProvider({ children }: { children: ReactNode }) {
           }));
         }
       });
+
+      // Format dynamic subtext for activity time
+      const activityDate = new Date(activity.date);
+      const today = new Date();
+      const isToday = activityDate.toDateString() === today.toDateString();
+      let subtext = "";
+      if (isToday) {
+        subtext = `Hoje as ${activityDate.toLocaleTimeString("pt-BR", { hour: "2-digit", minute: "2-digit" })}`;
+      } else {
+        const diffTime = today.getTime() - activityDate.getTime();
+        const diffDays = Math.floor(diffTime / (1000 * 60 * 60 * 24));
+        if (diffDays > 0) {
+          subtext = `${diffDays} ${diffDays === 1 ? "dia" : "dias"} atrasado`;
+        } else {
+          subtext = `${activityDate.toLocaleDateString("pt-BR")} as ${activityDate.toLocaleTimeString("pt-BR", { hour: "2-digit", minute: "2-digit" })}`;
+        }
+      }
+
+      supabase.from("notifications").insert({
+        user_id: userId,
+        type: "activity",
+        title: activity.title,
+        subtext,
+        href: "/atividades",
+        read: false
+      }).then(({ error }) => {
+        if (error) {
+          console.warn("[CRM] insert activity notification failed, pushing locally:", error);
+          const localNotif: CrmNotification = {
+            id: `local_act_${Date.now()}`,
+            userId,
+            type: "activity",
+            title: activity.title,
+            subtext,
+            href: "/atividades",
+            read: false,
+            createdAt: new Date().toISOString()
+          };
+          setState(prev => {
+            const updated = [localNotif, ...prev.notifications];
+            localStorage.setItem("crm_notifications", JSON.stringify(updated));
+            return { ...prev, notifications: updated };
+          });
+          const event = new CustomEvent("new-notification", { detail: localNotif });
+          window.dispatchEvent(event);
+        }
+      });
     }
     if (deal && userId) {
       runAutomations("activity_created", deal, { userId, pipelines: state.pipelines });
@@ -676,6 +909,76 @@ export function CrmProvider({ children }: { children: ReactNode }) {
       .then(({ error }) => { if (error) console.error("[CRM] deleteActivity failed:", error); });
   };
 
+  const markNotificationAsRead = (id: string) => {
+    setState((prev) => {
+      const notifications = prev.notifications.map((n) =>
+        n.id === id ? { ...n, read: true } : n
+      );
+      localStorage.setItem("crm_notifications", JSON.stringify(notifications));
+      return { ...prev, notifications };
+    });
+
+    supabase.from("notifications").update({ read: true }).eq("id", id)
+      .then(({ error }) => { if (error) console.error("[CRM] markNotificationAsRead failed:", error); });
+  };
+
+  const markAllNotificationsAsRead = () => {
+    setState((prev) => {
+      const notifications = prev.notifications.map((n) => ({ ...n, read: true }));
+      localStorage.setItem("crm_notifications", JSON.stringify(notifications));
+      return { ...prev, notifications };
+    });
+
+    if (userId) {
+      supabase.from("notifications").update({ read: true }).eq("user_id", userId).eq("read", false)
+        .then(({ error }) => { if (error) console.error("[CRM] markAllNotificationsAsRead failed:", error); });
+    }
+  };
+
+  useEffect(() => {
+    if (!userId) return;
+
+    const channel = supabase
+      .channel(`realtime:notifications:${userId}`)
+      .on(
+        "postgres_changes",
+        {
+          event: "INSERT",
+          schema: "public",
+          table: "notifications",
+          filter: `user_id=eq.${userId}`,
+        },
+        (payload) => {
+          const newNotif: CrmNotification = {
+            id: payload.new.id,
+            userId: payload.new.user_id,
+            type: payload.new.type,
+            title: payload.new.title,
+            subtext: payload.new.subtext ?? "",
+            href: payload.new.href,
+            read: payload.new.read,
+            createdAt: payload.new.created_at,
+          };
+
+          setState((prev) => {
+            if (prev.notifications.some((n) => n.id === newNotif.id)) return prev;
+            const updated = [newNotif, ...prev.notifications];
+            localStorage.setItem("crm_notifications", JSON.stringify(updated));
+            return { ...prev, notifications: updated };
+          });
+
+          // Dispatch DOM custom event for topbar display
+          const event = new CustomEvent("new-notification", { detail: newNotif });
+          window.dispatchEvent(event);
+        }
+      )
+      .subscribe();
+
+    return () => {
+      supabase.removeChannel(channel);
+    };
+  }, [userId, supabase]);
+
   return (
     <CrmContext.Provider value={{
       state, loading,
@@ -684,6 +987,7 @@ export function CrmProvider({ children }: { children: ReactNode }) {
       updateContact, addContact, updateCompany, addCompany, addLabel,
       addAppointment, updateAppointment, deleteAppointment,
       addActivity, updateActivity, deleteActivity,
+      markNotificationAsRead, markAllNotificationsAsRead,
     }}>
       {children}
     </CrmContext.Provider>
