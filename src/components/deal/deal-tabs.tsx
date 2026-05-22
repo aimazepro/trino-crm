@@ -5,6 +5,7 @@ import { useSearchParams, useRouter, usePathname } from "next/navigation";
 import { formatDistanceToNow } from "date-fns";
 import { ptBR } from "date-fns/locale";
 import { useCrm } from "@/contexts/crm-context";
+import { createClient } from "@/lib/supabase/client";
 import { ActivityTab } from "./activity-tab";
 import { ArrowRight, MessageCircleOff, Settings, Paperclip, Mic, LayoutTemplate, PhoneOff, WifiOff, Mail, History, Phone, MessageCircle, FileText, Pencil, Trash2, X, Check } from "lucide-react";
 import Link from "next/link";
@@ -34,6 +35,17 @@ export function DealTabs({ dealId }: DealTabsProps) {
   const contact = deal && deal.contactId ? state.contacts.find(c => c.id === deal.contactId) : null;
   
   const [activeTab, setActiveTab] = useState("Atividades");
+  const [gmailConnected, setGmailConnected] = useState(false);
+
+  useEffect(() => {
+    const supabase = createClient();
+    supabase.auth.getUser().then(({ data: { user } }) => {
+      if (!user) return;
+      supabase.from("integrations").select("id").eq("user_id", user.id).eq("provider", "gmail").eq("active", true).maybeSingle().then(({ data }) => {
+        setGmailConnected(!!data);
+      });
+    });
+  }, []);
   const [noteContent, setNoteContent] = useState("");
   const [editingNoteId, setEditingNoteId] = useState<string | null>(null);
   const [editingNoteContent, setEditingNoteContent] = useState("");
@@ -248,7 +260,7 @@ export function DealTabs({ dealId }: DealTabsProps) {
                   <p className="text-sm font-medium text-zinc-700">Contato sem email</p>
                   <p className="text-xs text-zinc-500 mt-1">Adicione um email ao contato para enviar mensagens</p>
                 </>
-              ) : state.gmailConnected ? (
+              ) : gmailConnected ? (
                 <>
                   <div className="h-12 w-12 rounded-full bg-blue-50 flex items-center justify-center mb-3">
                     <Mail className="h-6 w-6 text-blue-500" />
