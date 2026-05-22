@@ -16,7 +16,9 @@ import {
   Mail, 
   Phone, 
   Link as LinkIcon,
-  Trash2 
+  Trash2,
+  Pencil,
+  Check
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { createClient } from "@/lib/supabase/client";
@@ -39,43 +41,44 @@ type Field = {
   type: FieldType;
   required: boolean;
   system: boolean;
+  group: string;
 };
 
 const SYSTEM_FIELDS: Record<string, Field[]> = {
   negocios: [
-    { id: "n1", name: "Titulo", type: "Texto", required: false, system: true },
-    { id: "n2", name: "Valor", type: "Moeda", required: false, system: true },
-    { id: "n3", name: "Etapa", type: "Seleção", required: false, system: true },
-    { id: "n4", name: "Pipeline", type: "Seleção", required: false, system: true },
-    { id: "n5", name: "Empresa", type: "Texto", required: false, system: true },
-    { id: "n6", name: "Contato", type: "Texto", required: false, system: true },
-    { id: "n7", name: "Probabilidade", type: "Número", required: false, system: true },
-    { id: "n8", name: "Etiquetas", type: "Multi-seleção", required: false, system: true },
-    { id: "n9", name: "Data prevista", type: "Data", required: false, system: true },
-    { id: "n10", name: "Status", type: "Seleção", required: false, system: true },
-    { id: "n11", name: "Criado em", type: "Data", required: false, system: true },
+    { id: "n1", name: "Titulo", type: "Texto", required: false, system: true, group: "Campos padrao" },
+    { id: "n2", name: "Valor", type: "Moeda", required: false, system: true, group: "Campos padrao" },
+    { id: "n3", name: "Etapa", type: "Seleção", required: false, system: true, group: "Campos padrao" },
+    { id: "n4", name: "Pipeline", type: "Seleção", required: false, system: true, group: "Campos padrao" },
+    { id: "n5", name: "Empresa", type: "Texto", required: false, system: true, group: "Campos padrao" },
+    { id: "n6", name: "Contato", type: "Texto", required: false, system: true, group: "Campos padrao" },
+    { id: "n7", name: "Probabilidade", type: "Número", required: false, system: true, group: "Campos padrao" },
+    { id: "n8", name: "Etiquetas", type: "Multi-seleção", required: false, system: true, group: "Campos padrao" },
+    { id: "n9", name: "Data prevista", type: "Data", required: false, system: true, group: "Campos padrao" },
+    { id: "n10", name: "Status", type: "Seleção", required: false, system: true, group: "Campos padrao" },
+    { id: "n11", name: "Criado em", type: "Data", required: false, system: true, group: "Campos padrao" },
   ],
   pessoas: [
-    { id: "c1", name: "Nome", type: "Texto", required: true, system: true },
-    { id: "c2", name: "Email", type: "Email", required: false, system: true },
-    { id: "c3", name: "Telefone", type: "Telefone", required: false, system: true },
-    { id: "c4", name: "Cargo", type: "Texto", required: false, system: true },
-    { id: "c5", name: "Empresa", type: "Texto", required: false, system: true },
-    { id: "c6", name: "Etiqueta", type: "Seleção", required: false, system: true },
-    { id: "c7", name: "Responsável", type: "Texto", required: false, system: true },
-    { id: "c8", name: "Observações", type: "Texto", required: false, system: true },
-    { id: "c9", name: "Criado em", type: "Data", required: false, system: true },
+    { id: "c1", name: "Nome", type: "Texto", required: true, system: true, group: "Campos padrao" },
+    { id: "c2", name: "Email", type: "Email", required: false, system: true, group: "Campos padrao" },
+    { id: "c3", name: "Telefone", type: "Telefone", required: false, system: true, group: "Campos padrao" },
+    { id: "c4", name: "Cargo", type: "Texto", required: false, system: true, group: "Campos padrao" },
+    { id: "c5", name: "Empresa", type: "Texto", required: false, system: true, group: "Campos padrao" },
+    { id: "c6", name: "Etiqueta", type: "Seleção", required: false, system: true, group: "Campos padrao" },
+    { id: "c7", name: "Responsável", type: "Texto", required: false, system: true, group: "Campos padrao" },
+    { id: "c8", name: "Observações", type: "Texto", required: false, system: true, group: "Campos padrao" },
+    { id: "c9", name: "Criado em", type: "Data", required: false, system: true, group: "Campos padrao" },
   ],
   empresas: [
-    { id: "e1", name: "Nome", type: "Texto", required: true, system: true },
-    { id: "e2", name: "Telefone", type: "Telefone", required: false, system: true },
-    { id: "e3", name: "Email", type: "Email", required: false, system: true },
-    { id: "e4", name: "Cargo", type: "Texto", required: false, system: true },
-    { id: "e5", name: "Etiqueta", type: "Seleção", required: false, system: true },
-    { id: "e6", name: "Responsável", type: "Texto", required: false, system: true },
-    { id: "e7", name: "Observações", type: "Texto", required: false, system: true },
-    { id: "e8", name: "Negócios", type: "Número", required: false, system: true },
-    { id: "e9", name: "Criado em", type: "Data", required: false, system: true },
+    { id: "e1", name: "Nome", type: "Texto", required: true, system: true, group: "Campos padrao" },
+    { id: "e2", name: "Telefone", type: "Telefone", required: false, system: true, group: "Campos padrao" },
+    { id: "e3", name: "Email", type: "Email", required: false, system: true, group: "Campos padrao" },
+    { id: "e4", name: "Cargo", type: "Texto", required: false, system: true, group: "Campos padrao" },
+    { id: "e5", name: "Etiqueta", type: "Seleção", required: false, system: true, group: "Campos padrao" },
+    { id: "e6", name: "Responsável", type: "Texto", required: false, system: true, group: "Campos padrao" },
+    { id: "e7", name: "Observações", type: "Texto", required: false, system: true, group: "Campos padrao" },
+    { id: "e8", name: "Negócios", type: "Número", required: false, system: true, group: "Campos padrao" },
+    { id: "e9", name: "Criado em", type: "Data", required: false, system: true, group: "Campos padrao" },
   ],
 };
 
@@ -160,10 +163,21 @@ export default function CamposPage() {
     pessoas: [],
     empresas: []
   });
+  
+  // Track all user-created groups per tab
+  const [groups, setGroups] = useState<Record<string, string[]>>({
+    negocios: ["Desagrupado"],
+    pessoas: ["Desagrupado"],
+    empresas: ["Desagrupado"]
+  });
+
   const [loading, setLoading] = useState(true);
   const [showGroupModal, setShowGroupModal] = useState(false);
   const [showFieldModal, setShowFieldModal] = useState(false);
   const [saving, setSaving] = useState(false);
+  
+  const [editingField, setEditingField] = useState<Field | null>(null);
+
   const [fieldForm, setFieldForm] = useState({
     name: "",
     type: "Texto" as FieldType,
@@ -172,8 +186,17 @@ export default function CamposPage() {
   });
   const [groupForm, setGroupForm] = useState({ name: "" });
 
-  const [standardExpanded, setStandardExpanded] = useState(true);
-  const [customExpanded, setCustomExpanded] = useState(true);
+  const [expandedGroups, setExpandedGroups] = useState<Record<string, boolean>>({
+    "Campos padrao": true
+  });
+
+  const toggleGroup = (groupName: string) => {
+    setExpandedGroups(prev => ({ ...prev, [groupName]: prev[groupName] === undefined ? false : !prev[groupName] }));
+  };
+
+  const isGroupExpanded = (groupName: string) => {
+    return expandedGroups[groupName] !== false;
+  };
 
   const loadCustomFields = useCallback(async () => {
     setLoading(true);
@@ -189,26 +212,81 @@ export default function CamposPage() {
       .eq("user_id", user.id)
       .order("sort_order");
 
+    let savedGroups: Record<string, string[]> = { negocios: [], pessoas: [], empresas: [] };
+    try {
+      const stored = localStorage.getItem(`custom_groups_${user.id}`);
+      if (stored) {
+        savedGroups = JSON.parse(stored);
+      }
+    } catch (e) {}
+
+    const allGroups: Record<string, string[]> = {
+      negocios: savedGroups.negocios?.length ? savedGroups.negocios : ["Desagrupado"],
+      pessoas: savedGroups.pessoas?.length ? savedGroups.pessoas : ["Desagrupado"],
+      empresas: savedGroups.empresas?.length ? savedGroups.empresas : ["Desagrupado"]
+    };
+
     const grouped: Record<string, Field[]> = { negocios: [], pessoas: [], empresas: [] };
+    
     for (const row of data ?? []) {
       const tab = Object.keys(TAB_TO_ENTITY).find(k => TAB_TO_ENTITY[k] === row.entity);
       if (tab) {
+        const fieldGroup = row.field_group || "Desagrupado";
+        if (!allGroups[tab].includes(fieldGroup)) {
+          allGroups[tab].push(fieldGroup);
+        }
         grouped[tab].push({
           id: row.id,
           name: row.label,
           type: normalizeFieldType(row.field_type),
           required: row.required ?? false,
           system: false,
+          group: fieldGroup
         });
       }
     }
+    
+    localStorage.setItem(`custom_groups_${user.id}`, JSON.stringify(allGroups));
+    
     setCustomFields(grouped);
+    setGroups(allGroups);
     setLoading(false);
   }, [supabase]);
 
   useEffect(() => {
     loadCustomFields();
   }, [loadCustomFields]);
+
+  const handleAddGroup = async () => {
+    if (!groupForm.name.trim()) return;
+    const { data: { user } } = await supabase.auth.getUser();
+    if (!user) return;
+
+    const groupName = groupForm.name.trim();
+    setGroups(prev => {
+      const newGroups = { ...prev };
+      if (!newGroups[activeTab].includes(groupName)) {
+        newGroups[activeTab] = [...newGroups[activeTab], groupName];
+        localStorage.setItem(`custom_groups_${user.id}`, JSON.stringify(newGroups));
+      }
+      return newGroups;
+    });
+
+    setGroupForm({ name: "" });
+    setShowGroupModal(false);
+  };
+
+  const handleDeleteGroup = async (groupName: string) => {
+    const { data: { user } } = await supabase.auth.getUser();
+    if (!user) return;
+    
+    setGroups(prev => {
+      const newGroups = { ...prev };
+      newGroups[activeTab] = newGroups[activeTab].filter(g => g !== groupName);
+      localStorage.setItem(`custom_groups_${user.id}`, JSON.stringify(newGroups));
+      return newGroups;
+    });
+  };
 
   const handleAddField = async () => {
     if (!fieldForm.name.trim()) return;
@@ -239,7 +317,8 @@ export default function CamposPage() {
         name: data.label,
         type: normalizeFieldType(data.field_type),
         required: data.required,
-        system: false
+        system: false,
+        group: data.field_group || "Desagrupado"
       };
       setCustomFields(prev => ({
         ...prev,
@@ -250,6 +329,35 @@ export default function CamposPage() {
     setShowFieldModal(false);
   };
 
+  const handleUpdateField = async () => {
+    if (!editingField || !fieldForm.name.trim()) return;
+    setSaving(true);
+    
+    const { error } = await supabase.from("custom_fields").update({
+      label: fieldForm.name.trim(),
+      field_type: fieldForm.type.toLowerCase(),
+      required: fieldForm.required,
+      field_group: fieldForm.group,
+    }).eq("id", editingField.id);
+
+    setSaving(false);
+    if (!error) {
+      setCustomFields(prev => ({
+        ...prev,
+        [activeTab]: prev[activeTab].map(f => f.id === editingField.id ? {
+          ...f,
+          name: fieldForm.name.trim(),
+          type: fieldForm.type,
+          required: fieldForm.required,
+          group: fieldForm.group
+        } : f)
+      }));
+    }
+    
+    setEditingField(null);
+    setFieldForm({ name: "", type: "Texto", group: "Desagrupado", required: false });
+  };
+
   const handleRemoveField = async (id: string) => {
     await supabase.from("custom_fields").delete().eq("id", id);
     setCustomFields(prev => ({
@@ -258,8 +366,19 @@ export default function CamposPage() {
     }));
   };
 
+  const openEditModal = (field: Field) => {
+    setEditingField(field);
+    setFieldForm({
+      name: field.name,
+      type: field.type,
+      group: field.group,
+      required: field.required
+    });
+  };
+
   const standardFields = SYSTEM_FIELDS[activeTab] ?? [];
   const userFields = customFields[activeTab] ?? [];
+  const currentTabGroups = groups[activeTab] ?? ["Desagrupado"];
 
   return (
     <div className="p-8 max-w-3xl">
@@ -280,7 +399,11 @@ export default function CamposPage() {
             Grupo
           </button>
           <button
-            onClick={() => setShowFieldModal(true)}
+            onClick={() => {
+              setEditingField(null);
+              setFieldForm({ name: "", type: "Texto", group: "Desagrupado", required: false });
+              setShowFieldModal(true);
+            }}
             className="flex items-center gap-2 rounded-lg bg-gradient-to-r from-amber-500 to-amber-400 px-4 py-2 text-sm font-semibold text-white hover:from-amber-600 hover:to-amber-500 transition-colors"
           >
             <Plus className="h-4 w-4" />
@@ -308,20 +431,22 @@ export default function CamposPage() {
       </div>
 
       {/* Accordions */}
-      <div className="space-y-5">
+      <div className="space-y-6">
         {/* Standard Fields */}
         <div>
-          <button 
-            onClick={() => setStandardExpanded(!standardExpanded)}
-            className="flex items-center gap-2 mb-2 group outline-none"
-          >
-            <ChevronDown className={cn("h-3.5 w-3.5 text-zinc-400 transition-transform", !standardExpanded && "-rotate-90")} />
-            <span className="text-xs font-medium tracking-wide text-zinc-400 uppercase">Campos padrao</span>
-            <span className="text-xs text-zinc-300">{standardFields.length}</span>
-          </button>
+          <div className="flex items-center justify-between mb-2">
+            <button 
+              onClick={() => toggleGroup("Campos padrao")}
+              className="flex items-center gap-2 group outline-none"
+            >
+              <ChevronDown className={cn("h-3.5 w-3.5 text-zinc-400 transition-transform", !isGroupExpanded("Campos padrao") && "-rotate-90")} />
+              <span className="text-xs font-medium tracking-wide text-zinc-400 uppercase">Campos padrao</span>
+              <span className="text-xs text-zinc-300">{standardFields.length}</span>
+            </button>
+          </div>
 
-          {standardExpanded && (
-            <div className="rounded-xl bg-white overflow-hidden border border-zinc-100">
+          {isGroupExpanded("Campos padrao") && (
+            <div className="rounded-xl bg-white overflow-hidden border border-zinc-100 shadow-none">
               <table className="w-full text-sm">
                 <thead>
                   <tr className="border-b border-zinc-50">
@@ -341,18 +466,7 @@ export default function CamposPage() {
                       <td className="px-4 py-3 font-medium text-zinc-900">{field.name}</td>
                       <td className="px-4 py-3 text-zinc-500">{field.type}</td>
                       <td className="px-4 py-3 text-center">
-                        <span className="inline-flex items-center justify-center">
-                          <span className={cn(
-                            "h-4 w-4 inline-block rounded border transition-colors",
-                            field.required ? "bg-amber-500 border-amber-600" : "border-zinc-200"
-                          )}>
-                            {field.required && (
-                              <svg className="w-3 h-3 text-white mx-auto" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="3" d="M5 13l4 4L19 7" />
-                              </svg>
-                            )}
-                          </span>
-                        </span>
+                        {field.required && <Check className="h-4 w-4 text-amber-500 inline" />}
                       </td>
                       <td className="px-4 py-3">
                         <div className="flex items-center justify-end">
@@ -367,92 +481,106 @@ export default function CamposPage() {
           )}
         </div>
 
-        {/* Custom Fields */}
-        <div>
-          <button 
-            onClick={() => setCustomExpanded(!customExpanded)}
-            className="flex items-center gap-2 mb-2 group outline-none"
-          >
-            <ChevronDown className={cn("h-3.5 w-3.5 text-zinc-400 transition-transform", !customExpanded && "-rotate-90")} />
-            <span className="text-xs font-medium tracking-wide text-zinc-400 uppercase">Campos personalizados</span>
-            <span className="text-xs text-zinc-300">{userFields.length}</span>
-          </button>
+        {/* Custom Field Groups */}
+        {loading ? (
+          <div className="flex items-center justify-center py-8">
+            <div className="h-5 w-5 animate-spin rounded-full border-2 border-amber-400 border-t-transparent" />
+          </div>
+        ) : (
+          currentTabGroups.map(groupName => {
+            const groupFields = userFields.filter(f => f.group === groupName);
+            // Dont show 'Desagrupado' if it's empty and there are other groups
+            if (groupName === "Desagrupado" && groupFields.length === 0 && currentTabGroups.length > 1) {
+              return null;
+            }
 
-          {customExpanded && (
-            loading ? (
-              <div className="flex items-center justify-center py-8 bg-white border border-zinc-100 rounded-xl">
-                <div className="h-5 w-5 animate-spin rounded-full border-2 border-amber-400 border-t-transparent" />
+            return (
+              <div key={groupName}>
+                <div className="flex items-center justify-between mb-2">
+                  <button 
+                    onClick={() => toggleGroup(groupName)}
+                    className="flex items-center gap-2 group outline-none"
+                  >
+                    <ChevronDown className={cn("h-3.5 w-3.5 text-zinc-400 transition-transform", !isGroupExpanded(groupName) && "-rotate-90")} />
+                    <span className="text-xs font-medium tracking-wide text-zinc-400 uppercase">{groupName}</span>
+                    <span className="text-xs text-zinc-300">{groupFields.length}</span>
+                  </button>
+                  {groupName !== "Desagrupado" && (
+                    <div className="flex items-center gap-1">
+                      <button 
+                        onClick={() => handleDeleteGroup(groupName)}
+                        className="text-zinc-300 hover:text-red-400 transition-colors"
+                        title="Excluir grupo"
+                      >
+                        <Trash2 className="h-3.5 w-3.5" />
+                      </button>
+                    </div>
+                  )}
+                </div>
+
+                {isGroupExpanded(groupName) && (
+                  groupFields.length > 0 ? (
+                    <div className="rounded-xl bg-white overflow-hidden border border-zinc-100 shadow-none">
+                      <table className="w-full text-sm">
+                        <thead>
+                          <tr className="border-b border-zinc-50">
+                            <th className="text-left px-4 py-2.5 text-xs font-medium text-zinc-400 uppercase tracking-wide w-8"></th>
+                            <th className="text-left px-4 py-2.5 text-xs font-medium text-zinc-400 uppercase tracking-wide">Nome do campo</th>
+                            <th className="text-left px-4 py-2.5 text-xs font-medium text-zinc-400 uppercase tracking-wide">Tipo</th>
+                            <th className="text-center px-4 py-2.5 text-xs font-medium text-zinc-400 uppercase tracking-wide">Obrigatorio</th>
+                            <th className="w-20"></th>
+                          </tr>
+                        </thead>
+                        <tbody className="divide-y divide-zinc-100">
+                          {groupFields.map(field => (
+                            <tr key={field.id} className="border-b border-zinc-50 last:border-0 hover:bg-zinc-50/50 transition-colors group/row">
+                              <td className="px-4 py-3">
+                                {getFieldIcon(field.type)}
+                              </td>
+                              <td className="px-4 py-3 font-medium text-zinc-900">{field.name}</td>
+                              <td className="px-4 py-3 text-zinc-500">{field.type}</td>
+                              <td className="px-4 py-3 text-center">
+                                {field.required && <Check className="h-4 w-4 text-amber-500 inline" />}
+                              </td>
+                              <td className="px-4 py-3">
+                                <div className="flex items-center justify-end gap-1.5 opacity-0 group-hover/row:opacity-100 transition-opacity">
+                                  <button
+                                    onClick={() => openEditModal(field)}
+                                    className="p-1 text-zinc-300 hover:text-zinc-600 transition-colors rounded"
+                                    title="Editar campo"
+                                  >
+                                    <Pencil className="h-3.5 w-3.5" />
+                                  </button>
+                                  <button
+                                    onClick={() => handleRemoveField(field.id)}
+                                    className="p-1 text-zinc-300 hover:text-red-400 transition-colors rounded"
+                                    title="Excluir campo"
+                                  >
+                                    <Trash2 className="h-3.5 w-3.5" />
+                                  </button>
+                                </div>
+                              </td>
+                            </tr>
+                          ))}
+                        </tbody>
+                      </table>
+                    </div>
+                  ) : (
+                    <div className="text-center py-6 text-xs text-zinc-400 border border-dashed border-zinc-200 rounded-lg bg-white/50 shadow-none">
+                      Nenhum campo neste grupo.
+                    </div>
+                  )
+                )}
               </div>
-            ) : userFields.length > 0 ? (
-              <div className="rounded-xl bg-white overflow-hidden border border-zinc-100">
-                <table className="w-full text-sm">
-                  <thead>
-                    <tr className="border-b border-zinc-50">
-                      <th className="text-left px-4 py-2.5 text-xs font-medium text-zinc-400 uppercase tracking-wide w-8"></th>
-                      <th className="text-left px-4 py-2.5 text-xs font-medium text-zinc-400 uppercase tracking-wide">Nome do campo</th>
-                      <th className="text-left px-4 py-2.5 text-xs font-medium text-zinc-400 uppercase tracking-wide">Tipo</th>
-                      <th className="text-center px-4 py-2.5 text-xs font-medium text-zinc-400 uppercase tracking-wide">Obrigatorio</th>
-                      <th className="w-20"></th>
-                    </tr>
-                  </thead>
-                  <tbody className="divide-y divide-zinc-100">
-                    {userFields.map(field => (
-                      <tr key={field.id} className="border-b border-zinc-50 last:border-0 hover:bg-zinc-50/50 transition-colors group">
-                        <td className="px-4 py-3">
-                          {getFieldIcon(field.type)}
-                        </td>
-                        <td className="px-4 py-3 font-medium text-zinc-900">{field.name}</td>
-                        <td className="px-4 py-3 text-zinc-500">{field.type}</td>
-                        <td className="px-4 py-3 text-center">
-                          <span className="inline-flex items-center justify-center">
-                            <span className={cn(
-                              "h-4 w-4 inline-block rounded border transition-colors",
-                              field.required ? "bg-amber-500 border-amber-600" : "border-zinc-200"
-                            )}>
-                              {field.required && (
-                                <svg className="w-3 h-3 text-white mx-auto" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="3" d="M5 13l4 4L19 7" />
-                                </svg>
-                              )}
-                            </span>
-                          </span>
-                        </td>
-                        <td className="px-4 py-3">
-                          <div className="flex items-center justify-end">
-                            <button
-                              onClick={() => handleRemoveField(field.id)}
-                              className="p-1 text-zinc-400 hover:text-red-500 opacity-0 group-hover:opacity-100 transition-all rounded"
-                              title="Excluir campo"
-                            >
-                              <Trash2 className="h-4 w-4" />
-                            </button>
-                          </div>
-                        </td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
-              </div>
-            ) : (
-              <div className="flex flex-col items-center justify-center py-12 text-zinc-400 gap-3 rounded-xl bg-white border border-zinc-100">
-                <List className="h-8 w-8 text-zinc-300" />
-                <p className="text-sm">Nenhum campo personalizado para esta entidade.</p>
-                <button 
-                  onClick={() => setShowFieldModal(true)}
-                  className="text-sm text-amber-500 hover:underline font-medium"
-                >
-                  Criar primeiro campo
-                </button>
-              </div>
-            )
-          )}
-        </div>
+            );
+          })
+        )}
       </div>
 
       {/* Group Modal */}
       {showGroupModal && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40" onClick={() => setShowGroupModal(false)}>
-          <div className="bg-white rounded-2xl border border-zinc-200 w-full max-w-sm mx-4 p-6" onClick={e => e.stopPropagation()}>
+          <div className="bg-white rounded-2xl border border-zinc-200 w-full max-w-sm mx-4 p-6 shadow-none" onClick={e => e.stopPropagation()}>
             <div className="flex items-center justify-between mb-5">
               <h2 className="text-base font-bold text-zinc-900">Novo grupo de campo</h2>
               <button onClick={() => setShowGroupModal(false)} className="p-1 text-zinc-400 hover:text-zinc-700 rounded-lg hover:bg-zinc-100">
@@ -467,20 +595,21 @@ export default function CamposPage() {
                   placeholder={`Criar grupos para o/a ${TAB_ENTITY_LABEL[activeTab]}`}
                   value={groupForm.name}
                   onChange={e => setGroupForm({ name: e.target.value })}
-                  className="w-full bg-white border border-zinc-200 text-[13px] font-medium rounded-lg px-4 py-2 outline-none focus:border-amber-500 transition-all"
+                  className="w-full bg-white border border-zinc-200 text-[13px] font-medium rounded-lg px-4 py-2 outline-none focus:border-amber-500 transition-all shadow-none"
                 />
               </div>
             </div>
             <div className="flex items-center justify-end gap-3 mt-6">
               <button 
                 onClick={() => setShowGroupModal(false)} 
-                className="px-4 py-2 text-[13px] font-bold text-zinc-600 bg-zinc-100 rounded-lg hover:bg-zinc-200 transition-colors"
+                className="px-4 py-2 text-[13px] font-bold text-zinc-600 bg-zinc-100 rounded-lg hover:bg-zinc-200 transition-colors shadow-none"
               >
                 Cancelar
               </button>
               <button 
-                onClick={() => { setGroupForm({ name: "" }); setShowGroupModal(false); }} 
-                className="px-5 py-2 bg-amber-500 text-white text-[13px] font-bold rounded-lg hover:bg-amber-600 transition-colors"
+                onClick={handleAddGroup} 
+                disabled={!groupForm.name.trim()}
+                className="px-5 py-2 bg-amber-500 text-white text-[13px] font-bold rounded-lg hover:bg-amber-600 transition-colors shadow-none disabled:opacity-50"
               >
                 Adicionar
               </button>
@@ -489,13 +618,15 @@ export default function CamposPage() {
         </div>
       )}
 
-      {/* Field Modal */}
-      {showFieldModal && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40" onClick={() => setShowFieldModal(false)}>
-          <div className="bg-white rounded-2xl border border-zinc-200 w-full max-w-sm mx-4 p-6" onClick={e => e.stopPropagation()}>
+      {/* Field Modal (New / Edit) */}
+      {(showFieldModal || editingField) && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40" onClick={() => { setShowFieldModal(false); setEditingField(null); }}>
+          <div className="bg-white rounded-2xl border border-zinc-200 w-full max-w-sm mx-4 p-6 shadow-none" onClick={e => e.stopPropagation()}>
             <div className="flex items-center justify-between mb-5">
-              <h2 className="text-base font-bold text-zinc-900">Novo campo personalizado</h2>
-              <button onClick={() => setShowFieldModal(false)} className="p-1 text-zinc-400 hover:text-zinc-700 rounded-lg hover:bg-zinc-100">
+              <h2 className="text-base font-bold text-zinc-900">
+                {editingField ? "Editar campo" : "Novo campo personalizado"}
+              </h2>
+              <button onClick={() => { setShowFieldModal(false); setEditingField(null); }} className="p-1 text-zinc-400 hover:text-zinc-700 rounded-lg hover:bg-zinc-100">
                 <X size={18} />
               </button>
             </div>
@@ -510,7 +641,7 @@ export default function CamposPage() {
                   value={fieldForm.name}
                   onChange={e => setFieldForm({ ...fieldForm, name: e.target.value })}
                   className={cn(
-                    "w-full bg-white border text-[13px] font-medium rounded-lg px-4 py-2 outline-none focus:border-amber-500 transition-all",
+                    "w-full bg-white border text-[13px] font-medium rounded-lg px-4 py-2 outline-none focus:border-amber-500 transition-all shadow-none",
                     fieldForm.name === "" ? "border-red-300 bg-red-50" : "border-zinc-200"
                   )}
                 />
@@ -520,7 +651,7 @@ export default function CamposPage() {
                 <select
                   value={fieldForm.type}
                   onChange={e => setFieldForm({ ...fieldForm, type: e.target.value as FieldType })}
-                  className="w-full bg-white border border-zinc-200 text-[13px] font-medium rounded-lg px-4 py-2 outline-none focus:border-amber-500 transition-all cursor-pointer"
+                  className="w-full bg-white border border-zinc-200 text-[13px] font-medium rounded-lg px-4 py-2 outline-none focus:border-amber-500 transition-all cursor-pointer shadow-none"
                 >
                   {FIELD_TYPES.map(t => <option key={t} value={t}>{t}</option>)}
                 </select>
@@ -530,9 +661,11 @@ export default function CamposPage() {
                 <select
                   value={fieldForm.group}
                   onChange={e => setFieldForm({ ...fieldForm, group: e.target.value })}
-                  className="w-full bg-white border border-zinc-200 text-[13px] font-medium rounded-lg px-4 py-2 outline-none focus:border-amber-500 transition-all cursor-pointer"
+                  className="w-full bg-white border border-zinc-200 text-[13px] font-medium rounded-lg px-4 py-2 outline-none focus:border-amber-500 transition-all cursor-pointer shadow-none"
                 >
-                  <option value="Desagrupado">Desagrupado</option>
+                  {currentTabGroups.map(g => (
+                    <option key={g} value={g}>{g}</option>
+                  ))}
                 </select>
               </div>
               <label className="flex items-center gap-3 cursor-pointer">
@@ -547,17 +680,17 @@ export default function CamposPage() {
             </div>
             <div className="flex items-center justify-end gap-3 mt-6">
               <button 
-                onClick={() => setShowFieldModal(false)} 
-                className="px-4 py-2 text-[13px] font-bold text-zinc-600 bg-zinc-100 rounded-lg hover:bg-zinc-200 transition-colors"
+                onClick={() => { setShowFieldModal(false); setEditingField(null); }} 
+                className="px-4 py-2 text-[13px] font-bold text-zinc-600 bg-zinc-100 rounded-lg hover:bg-zinc-200 transition-colors shadow-none"
               >
                 Cancelar
               </button>
               <button
-                onClick={handleAddField}
+                onClick={editingField ? handleUpdateField : handleAddField}
                 disabled={!fieldForm.name.trim() || saving}
-                className="px-5 py-2 bg-amber-500 text-white text-[13px] font-bold rounded-lg hover:bg-amber-600 transition-colors disabled:opacity-50"
+                className="px-5 py-2 bg-amber-500 text-white text-[13px] font-bold rounded-lg hover:bg-amber-600 transition-colors shadow-none disabled:opacity-50"
               >
-                {saving ? "Adicionando..." : "Adicionar"}
+                {saving ? "Salvando..." : editingField ? "Salvar" : "Adicionar"}
               </button>
             </div>
           </div>
