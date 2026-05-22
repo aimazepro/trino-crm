@@ -129,32 +129,36 @@ export function Topbar() {
 
   return (
     <>
-      <header className="flex items-center justify-between border-b border-zinc-200 bg-white px-6 py-2 shrink-0 h-14">
+      <header className="flex items-center gap-4 border-b border-border bg-card px-6 py-2 shrink-0 h-14">
         {/* Left spacing/mobile menu button */}
-        <div className="flex-1 flex items-center">
-          <button className="md:hidden shrink-0 text-zinc-500 hover:text-zinc-700">
-            <Menu className="h-5 w-5" />
-          </button>
-        </div>
+        <button className="md:hidden shrink-0 text-zinc-500 hover:text-zinc-700">
+          <Menu className="h-5 w-5" />
+        </button>
+        <div className="flex-1 hidden md:block"></div>
 
         {/* Centered Search Button */}
         <button
           onClick={() => setShowSearch(true)}
-          className="flex items-center gap-2.5 w-full max-w-md rounded-lg border border-zinc-200 bg-zinc-50 px-3.5 py-1.5 text-sm text-zinc-500 hover:border-zinc-300 hover:bg-white transition-colors"
+          className="flex items-center gap-2.5 w-full max-w-md rounded-lg border border-border bg-muted px-4 py-2 text-sm text-muted-foreground hover:border-muted-foreground/30 hover:bg-card transition-colors"
         >
-          <Search className="h-3.5 w-3.5 shrink-0 text-zinc-400" />
-          <span className="flex-1 text-left text-[13px]">Pesquisar negócios, contatos, empresas...</span>
-          <kbd className="hidden rounded border border-zinc-200 bg-white px-1.5 py-0.5 text-[11px] text-zinc-400 sm:block">⌘K</kbd>
+          <Search className="h-4 w-4 shrink-0 text-muted-foreground" />
+          <span className="flex-1 text-left text-[13px] text-muted-foreground">Pesquisar negócios, contatos, empresas...</span>
+          <kbd className="hidden rounded border border-border bg-card px-1.5 py-0.5 text-xs text-muted-foreground sm:block">⌘K</kbd>
         </button>
 
         {/* Right Actions */}
-        <div className="flex-1 flex items-center justify-end gap-1">
-          <button title="Ajuda" className="flex h-8 w-8 items-center justify-center rounded-lg text-zinc-400 hover:bg-zinc-100 hover:text-zinc-700 transition-colors">
-            <HelpCircle className="h-4 w-4" />
-          </button>
-          <button title="Notificações" className="relative flex h-8 w-8 items-center justify-center rounded-lg text-zinc-400 hover:bg-zinc-100 hover:text-zinc-700 transition-colors">
-            <Bell className="h-4 w-4" />
-          </button>
+        <div className="flex-1 flex items-center justify-end gap-2">
+          <div className="relative">
+            <button title="Ajuda" aria-label="Ajuda" className="relative rounded-md p-2 text-muted-foreground hover:bg-muted hover:text-foreground transition-colors">
+              <HelpCircle className="h-5 w-5" />
+            </button>
+          </div>
+          <div className="relative">
+            <button title="Notificações" className="relative rounded-md p-2 text-muted-foreground hover:bg-muted hover:text-foreground transition-colors">
+              <Bell className="h-5 w-5" />
+              <span className="absolute top-1.5 right-1.5 flex h-4 w-4 items-center justify-center rounded-full bg-red-500 text-[9px] font-bold text-white leading-none">6</span>
+            </button>
+          </div>
         </div>
       </header>
 

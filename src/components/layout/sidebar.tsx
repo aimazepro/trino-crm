@@ -12,14 +12,11 @@ import {
   Target,
   Phone,
   Crosshair,
-  LogOut,
-  BarChart3,
   Mic,
   ChevronLeft,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { createClient } from "@/lib/supabase/client";
-
 
 export function Sidebar() {
   const pathname = usePathname();
@@ -31,44 +28,42 @@ export function Sidebar() {
     router.push("/login");
   };
 
-  const isActive = (href: string) =>
-    href === "/" ? pathname === "/dashboard" || pathname === "/" : pathname.startsWith(href);
-
-  const contatosActive = pathname.startsWith("/contatos") || pathname.startsWith("/empresas");
+  const isActive = (href: string) => {
+    if (href === "/dashboard") {
+      return pathname === "/" || pathname === "/dashboard";
+    }
+    if (href === "/pipeline") {
+      return pathname.startsWith("/pipeline") || pathname.startsWith("/negocios");
+    }
+    if (href === "/contatos") {
+      return pathname.startsWith("/contatos") || pathname.startsWith("/empresas");
+    }
+    return pathname.startsWith(href);
+  };
 
   return (
     <aside className="flex h-screen shrink-0 flex-col bg-white border-r border-zinc-100/80 transition-[width] duration-200 ease-in-out overflow-hidden w-56">
-
       {/* Logo */}
-      <div className="flex h-14 items-center px-4 shrink-0 border-b border-zinc-100">
-        <Link href="/" className="flex items-center gap-2">
-          {/* Logo Mark (yellow squircle) */}
-          <div className="w-8 h-8 rounded-lg bg-[#F1A80A] flex items-center justify-center shrink-0">
-            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
-              <circle cx="12" cy="12" r="7" stroke="white" strokeWidth="2.5" />
-              <circle cx="12" cy="12" r="3" fill="white" />
-            </svg>
-          </div>
-          {/* Logo Text */}
-          <span className="text-[17px] font-black tracking-tight flex items-center">
-            <span className="text-[#F1A80A]">dm</span>
-            <span className="text-black font-semibold">[HUB]</span>
-          </span>
+      <div className="flex h-14 items-center px-3 shrink-0">
+        <Link href="/">
+          <img alt="DMhub" className="h-7 object-contain" src="/logo.png" />
         </Link>
       </div>
 
       {/* Nav */}
       <nav className="flex-1 overflow-y-auto overflow-x-hidden px-2 py-2">
         {/* CRM */}
-        <div className="">
+        <div>
           <span className="px-3 mb-1 block text-[10px] font-semibold uppercase tracking-wider text-zinc-400">
             CRM
           </span>
           <ul className="space-y-0.5">
             {[
-              { href: "/", label: "Meu Painel", icon: LayoutDashboard },
-              { href: "/negocios", label: "Negócios", icon: Briefcase },
-            ].map(item => {
+              { href: "/dashboard", label: "Meu Painel", icon: LayoutDashboard },
+              { href: "/pipeline", label: "Negócios", icon: Briefcase },
+              { href: "/contatos", label: "Contatos", icon: Users },
+              { href: "/atividades", label: "Atividades", icon: CheckCircle2 },
+            ].map((item) => {
               const active = isActive(item.href);
               return (
                 <li key={item.href}>
@@ -76,72 +71,23 @@ export function Sidebar() {
                     href={item.href}
                     className={cn(
                       "flex items-center gap-3 rounded-xl px-3 py-2 text-[13px] font-medium transition-all duration-150",
-                      active ? "bg-zinc-100 text-zinc-900" : "text-zinc-500 hover:bg-zinc-50 hover:text-zinc-800"
+                      active
+                        ? "bg-zinc-100 text-zinc-900"
+                        : "text-zinc-500 hover:bg-zinc-50 hover:text-zinc-800"
                     )}
                   >
-                    <item.icon className={cn("h-[18px] w-[18px] shrink-0", active ? "text-zinc-700" : "text-zinc-400")} />
-                    <span className="flex-1 whitespace-nowrap overflow-hidden">{item.label}</span>
+                    <item.icon
+                      className={cn(
+                        "h-[18px] w-[18px] shrink-0",
+                        active ? "text-zinc-700" : "text-zinc-400"
+                      )}
+                    />
+                    <span className="flex-1 whitespace-nowrap overflow-hidden">
+                      {item.label}
+                    </span>
                   </Link>
                 </li>
-              )
-            })}
-
-            {/* Contatos com sub-itens */}
-            <li>
-              <Link
-                href="/contatos"
-                className={cn(
-                  "flex items-center gap-3 rounded-xl px-3 py-2 text-[13px] font-medium transition-all duration-150",
-                  contatosActive ? "bg-zinc-100 text-zinc-900" : "text-zinc-500 hover:bg-zinc-50 hover:text-zinc-800"
-                )}
-              >
-                <Users className={cn("h-[18px] w-[18px] shrink-0", contatosActive ? "text-zinc-700" : "text-zinc-400")} />
-                <span className="flex-1 whitespace-nowrap overflow-hidden">Contatos</span>
-              </Link>
-              <ul className="ml-8 mt-0.5 space-y-0.5">
-                <li>
-                  <Link
-                    href="/contatos"
-                    className={cn(
-                      "block rounded-lg px-3 py-1.5 text-[12px] font-medium transition-all duration-150",
-                      pathname.startsWith("/contatos") && !pathname.startsWith("/contatos/") ? "text-amber-600 font-semibold" : pathname.startsWith("/contatos/") ? "text-amber-600 font-semibold" : "text-zinc-400 hover:text-zinc-700"
-                    )}
-                  >
-                    Pessoas
-                  </Link>
-                </li>
-                <li>
-                  <Link
-                    href="/empresas"
-                    className={cn(
-                      "block rounded-lg px-3 py-1.5 text-[12px] font-medium transition-all duration-150",
-                      pathname.startsWith("/empresas") ? "text-amber-600 font-semibold" : "text-zinc-400 hover:text-zinc-700"
-                    )}
-                  >
-                    Empresas
-                  </Link>
-                </li>
-              </ul>
-            </li>
-
-            {[
-              { href: "/atividades", label: "Atividades", icon: CheckCircle2 }
-            ].map(item => {
-              const active = isActive(item.href);
-              return (
-                <li key={item.href}>
-                  <Link
-                    href={item.href}
-                    className={cn(
-                      "flex items-center gap-3 rounded-xl px-3 py-2 text-[13px] font-medium transition-all duration-150",
-                      active ? "bg-zinc-100 text-zinc-900" : "text-zinc-500 hover:bg-zinc-50 hover:text-zinc-800"
-                    )}
-                  >
-                    <item.icon className={cn("h-[18px] w-[18px] shrink-0", active ? "text-zinc-700" : "text-zinc-400")} />
-                    <span className="flex-1 whitespace-nowrap overflow-hidden">{item.label}</span>
-                  </Link>
-                </li>
-              )
+              );
             })}
           </ul>
         </div>
@@ -155,23 +101,34 @@ export function Sidebar() {
             {[
               { href: "/insights", label: "Métricas", icon: BarChart3 },
               { href: "/ligacoes", label: "Ligações", icon: Phone },
-              { href: "/metas", label: "Metas", icon: Target }
-            ].map(item => {
+              { href: "/metas", label: "Metas", icon: Target },
+            ].map((item) => {
+              // We'll use standard lucide BarChart3 for metrics, imported as BarChart3
               const active = isActive(item.href);
+              const Icon = item.icon === BarChart3 ? BarChart3 : item.icon;
               return (
                 <li key={item.href}>
-                  <Link 
+                  <Link
                     href={item.href}
                     className={cn(
                       "flex items-center gap-3 rounded-xl px-3 py-2 text-[13px] font-medium transition-all duration-150",
-                      active ? "bg-zinc-100 text-zinc-900" : "text-zinc-500 hover:bg-zinc-50 hover:text-zinc-800"
+                      active
+                        ? "bg-zinc-100 text-zinc-900"
+                        : "text-zinc-500 hover:bg-zinc-50 hover:text-zinc-800"
                     )}
                   >
-                    <item.icon className={cn("h-[18px] w-[18px] shrink-0", active ? "text-zinc-700" : "text-zinc-400")} />
-                    <span className="flex-1 whitespace-nowrap overflow-hidden">{item.label}</span>
+                    <Icon
+                      className={cn(
+                        "h-[18px] w-[18px] shrink-0",
+                        active ? "text-zinc-700" : "text-zinc-400"
+                      )}
+                    />
+                    <span className="flex-1 whitespace-nowrap overflow-hidden">
+                      {item.label}
+                    </span>
                   </Link>
                 </li>
-              )
+              );
             })}
           </ul>
         </div>
@@ -185,23 +142,32 @@ export function Sidebar() {
             {[
               { href: "/prospeccao", label: "Prospecção", icon: Crosshair },
               { href: "/automacoes", label: "Automações", icon: Zap },
-              { href: "/analise-calls", label: "Análise de Calls", icon: Mic }
-            ].map(item => {
+              { href: "/analise-calls", label: "Análise de Calls", icon: Mic },
+            ].map((item) => {
               const active = isActive(item.href);
               return (
                 <li key={item.href}>
-                  <Link 
+                  <Link
                     href={item.href}
                     className={cn(
                       "flex items-center gap-3 rounded-xl px-3 py-2 text-[13px] font-medium transition-all duration-150",
-                      active ? "bg-zinc-100 text-zinc-900" : "text-zinc-500 hover:bg-zinc-50 hover:text-zinc-800"
+                      active
+                        ? "bg-zinc-100 text-zinc-900"
+                        : "text-zinc-500 hover:bg-zinc-50 hover:text-zinc-800"
                     )}
                   >
-                    <item.icon className={cn("h-[18px] w-[18px] shrink-0", active ? "text-zinc-700" : "text-zinc-400")} />
-                    <span className="flex-1 whitespace-nowrap overflow-hidden">{item.label}</span>
+                    <item.icon
+                      className={cn(
+                        "h-[18px] w-[18px] shrink-0",
+                        active ? "text-zinc-700" : "text-zinc-400"
+                      )}
+                    />
+                    <span className="flex-1 whitespace-nowrap overflow-hidden">
+                      {item.label}
+                    </span>
                   </Link>
                 </li>
-              )
+              );
             })}
           </ul>
         </div>
@@ -210,46 +176,64 @@ export function Sidebar() {
         <ul>
           <li>
             <Link
-              href="/configuracoes"
+              href="/configuracoes/perfil"
               className={cn(
                 "flex items-center gap-3 rounded-xl px-3 py-2 text-[13px] font-medium transition-all duration-150",
-                isActive("/configuracoes") ? "bg-zinc-100 text-zinc-900" : "text-zinc-500 hover:bg-zinc-50 hover:text-zinc-800"
+                isActive("/configuracoes")
+                  ? "bg-zinc-100 text-zinc-900"
+                  : "text-zinc-500 hover:bg-zinc-50 hover:text-zinc-800"
               )}
             >
-               <Settings className={cn("h-[18px] w-[18px] shrink-0", isActive("/configuracoes") ? "text-zinc-700" : "text-zinc-400")} />
-               <span className="flex-1 whitespace-nowrap overflow-hidden">Configurações</span>
+              <Settings
+                className={cn(
+                  "h-[18px] w-[18px] shrink-0",
+                  isActive("/configuracoes") ? "text-zinc-700" : "text-zinc-400"
+                )}
+              />
+              <span className="flex-1 whitespace-nowrap overflow-hidden">
+                Configurações
+              </span>
             </Link>
           </li>
           <li className="mt-1">
             <button
               onClick={() => {}}
-              className="w-full flex items-center gap-3 rounded-xl px-3 py-2 text-[13px] font-medium text-zinc-500 hover:bg-zinc-50 hover:text-zinc-800 transition-all duration-150 text-left"
+              className="w-full flex items-center gap-3 rounded-xl px-3 py-2 text-[13px] font-medium text-zinc-400 hover:bg-zinc-50 hover:text-zinc-600 transition-all duration-150 text-left"
             >
               <ChevronLeft className="h-[18px] w-[18px] shrink-0 text-zinc-400" />
-              <span className="flex-1 whitespace-nowrap overflow-hidden">Recolher</span>
+              <span className="flex-1 whitespace-nowrap overflow-hidden text-xs">
+                Recolher
+              </span>
             </button>
           </li>
         </ul>
       </nav>
 
-      {/* User footer */}
+      {/* User footer - Clerk style */}
       <div className="border-t border-zinc-100/80 px-3 py-3 shrink-0">
-        <button
-          onClick={handleLogout}
-          className="w-full flex items-center gap-2.5 rounded-xl px-2 py-2 hover:bg-red-50 transition-colors cursor-pointer group"
-        >
-          <img
-            src="/avatar_joao.png"
-            alt="João Paulo Olivera"
-            className="w-7 h-7 rounded-full object-cover shrink-0"
-          />
-          <div className="flex-1 min-w-0 text-left">
-            <p className="text-[12px] font-bold text-zinc-800 truncate">João Paulo Olivera</p>
-            <p className="text-[10px] font-medium text-zinc-400 truncate">Administrador</p>
-          </div>
-          <LogOut className="h-3.5 w-3.5 text-zinc-300 group-hover:text-red-500 shrink-0 transition-colors" />
-        </button>
+        <div className="cl-rootBox cl-userButton-root">
+          <button
+            onClick={handleLogout}
+            className="cl-userButtonTrigger cl-button flex w-full items-center justify-between gap-3 px-2 py-1 hover:bg-zinc-50 rounded-xl transition-all duration-150 cursor-pointer"
+            aria-label="Abrir menu do usuário"
+          >
+            <span className="cl-userButtonOuterIdentifier text-[13px] font-medium text-zinc-600 truncate">
+              João Paulo Olivera
+            </span>
+            <span className="cl-avatarBox cl-userButtonAvatarBox relative flex h-7 w-7 shrink-0 overflow-hidden rounded-full border border-zinc-100">
+              <img
+                src="https://img.clerk.com/eyJ0eXBlIjoicHJveHkiLCJzcmMiOiJodHRwczovL2ltYWdlcy5jbGVyay5kZXYvb2F1dGhfZ29vZ2xlL2ltZ18zRTBpS2dTU0NQVllBTEZKNDhOUldaZkh4RE0ifQ?width=80"
+                className="cl-avatarImage h-full w-full object-cover"
+                title="João Paulo Olivera"
+                alt="João Paulo Olivera"
+              />
+            </span>
+          </button>
+        </div>
       </div>
     </aside>
   );
 }
+
+// We'll also import BarChart3 for use in the list
+import { BarChart3 } from "lucide-react";

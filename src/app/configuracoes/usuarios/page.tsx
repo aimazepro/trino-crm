@@ -1,9 +1,10 @@
 "use client";
 
 import React, { useState, useEffect, useCallback } from "react";
-import { Plus, Check, X, ChevronUp, ChevronDown } from "lucide-react";
+import { Plus, Check, X, ChevronDown, Shield, Trash2, Users } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { createClient } from "@/lib/supabase/client";
+import { useCrm } from "@/contexts/crm-context";
 
 type Role = "Admin" | "Gerente" | "Vendedor";
 
@@ -15,6 +16,7 @@ type Member = {
   status: string;
   invited_at: string | null;
   accepted_at: string | null;
+  member_user_id?: string | null;
   self?: boolean;
 };
 
@@ -61,6 +63,8 @@ const ROLE_LABEL: Record<string, string> = {
 
 export default function UsuariosPage() {
   const supabase = createClient();
+  const { state: crmState } = useCrm();
+  
   const [members, setMembers] = useState<Member[]>([]);
   const [loading, setLoading] = useState(true);
   const [permissionsOpen, setPermissionsOpen] = useState(false);
@@ -114,6 +118,7 @@ export default function UsuariosPage() {
       status: m.status ?? "pending",
       invited_at: m.invited_at,
       accepted_at: m.accepted_at,
+      member_user_id: m.member_user_id,
     }));
 
     setMembers([selfMember, ...teamMembers]);
@@ -145,12 +150,71 @@ export default function UsuariosPage() {
         status: data.status,
         invited_at: data.invited_at,
         accepted_at: data.accepted_at,
+        member_user_id: data.member_user_id,
       };
       setMembers(prev => [...prev, newMember]);
     }
     setInviteEmail("");
     setInviteRole("Vendedor");
     setShowModal(false);
+  };
+
+  const handleUpdateRole = async (memberId: string, role: string) => {
+    const { error } = await supabase
+      .from("team_members")
+      .update({ role })
+      .eq("id", memberId);
+    if (error) {
+      console.error("Error updating role:", error);
+      alert("Erro ao atualizar função");
+    } else {
+      setMembers(prev => prev.map(m => m.id === memberId ? { ...m, role } : m));
+    }
+  };
+
+  const handleUpdateStatus = async (memberId: string, status: string) => {
+    const { error } = await supabase
+      .from("team_members")
+      .update({ status })
+      .eq("id", memberId);
+    if (error) {
+      console.error("Error updating status:", error);
+      alert("Erro ao atualizar status");
+    } else {
+      setMembers(prev => prev.map(m => m.id === memberId ? { ...m, status } : m));
+    }
+  };
+
+  const handleDeleteMember = async (memberId: string) => {
+    const { error } = await supabase
+      .from("team_members")
+      .delete()
+      .eq("id", memberId);
+    if (error) {
+      console.error("Error deleting member:", error);
+      alert("Erro ao remover membro");
+    } else {
+      setMembers(prev => prev.filter(m => m.id !== memberId));
+    }
+  };
+
+  const getMemberDealsCount = (m: Member) => {
+    if (m.self) {
+      return crmState.deals.filter(d => d.ownerId === m.id).length;
+    }
+    return crmState.deals.filter(d => 
+      (m.member_user_id && d.ownerId === m.member_user_id) || 
+      (d.ownerId === m.id)
+    ).length;
+  };
+
+  const formatDate = (dateStr: string | null) => {
+    if (!dateStr) return "—";
+    return new Date(dateStr).toLocaleDateString("pt-BR", {
+      day: "numeric",
+      month: "short",
+      year: "numeric"
+    });
   };
 
   const activeMembers = members.filter(m => m.status === "active" || m.self);
@@ -160,226 +224,354 @@ export default function UsuariosPage() {
   const groups = Array.from(new Set(PERMISSIONS.map(p => p.group)));
 
   return (
-    <div className="flex flex-col min-h-full bg-[#F4F4F5]">
-
-      <div className="flex items-center justify-between border-b border-zinc-200 px-8 py-5 shrink-0 bg-white">
-        <div className="flex items-center gap-3">
+    <div className="flex flex-col min-h-full bg-zinc-50/30">
+      
+      {/* Header */}
+      <div className="flex items-center justify-between border-b border-zinc-100 px-6 py-5 shrink-0 bg-white">
+        <div className="flex items-center gap-2">
+          <Users className="h-5 w-5 text-zinc-400" />
           <h1 className="text-xl font-bold text-zinc-900 tracking-tight">Usuários e acesso</h1>
-          <span className="text-[13px] font-bold text-zinc-400">{members.length}</span>
+          <span className="flex items-center justify-center rounded-full bg-zinc-100 px-2 py-0.5 text-[11px] font-semibold text-zinc-500 min-w-[20px] h-5">
+            {members.length}
+          </span>
         </div>
         <div className="flex items-center gap-4">
+          <span className="text-[13px] font-semibold text-zinc-400">
+            {activeMembers.length + pendingMembers.length}/{activeMembers.length + pendingMembers.length} vagas
+          </span>
           <button
             onClick={() => setShowModal(true)}
-            className="flex items-center gap-2 bg-amber-500 text-white px-4 py-2 rounded-lg text-[13px] font-bold hover:bg-amber-600 transition-colors shadow-sm"
+            className="flex items-center gap-2 bg-gradient-to-r from-amber-500 to-amber-400 text-white px-4 py-2.5 rounded-xl text-[13px] font-bold hover:from-amber-600 hover:to-amber-500 transition-all duration-150 shadow-sm"
           >
             <Plus size={15} /> Convidar usuário
           </button>
         </div>
       </div>
 
-      <div className="flex-1 p-8">
-        <div className="max-w-5xl space-y-4">
+      {/* Accordion: Permissões por cargo */}
+      <div className="shrink-0">
+        <div className="bg-white">
+          <button
+            onClick={() => setPermissionsOpen(!permissionsOpen)}
+            className="flex w-full items-center justify-between px-6 py-3 text-sm hover:bg-zinc-50 transition-colors"
+          >
+            <div className="flex items-center gap-2 text-zinc-600 font-medium">
+              <Shield className="h-4 w-4 text-zinc-400" />
+              Permissões por cargo
+              <span className="text-xs text-zinc-400 font-normal">(clique para editar)</span>
+            </div>
+            <ChevronDown className={cn("h-4 w-4 text-zinc-400 transition-transform", permissionsOpen && "rotate-180")} />
+          </button>
+        </div>
 
-          {/* Permissões por cargo */}
-          <div className="bg-white border border-zinc-200 rounded-xl shadow-sm overflow-hidden">
-            <button
-              onClick={() => setPermissionsOpen(!permissionsOpen)}
-              className="w-full flex items-center justify-between px-6 py-4 hover:bg-zinc-50 transition-colors"
-            >
-              <span className="text-[13px] font-semibold text-zinc-600">
-                Permissões por cargo <span className="text-zinc-400 font-normal">(clique para editar)</span>
-              </span>
-              {permissionsOpen ? <ChevronUp size={16} className="text-zinc-400" /> : <ChevronDown size={16} className="text-zinc-400" />}
-            </button>
-
-            {permissionsOpen && (
-              <div className="border-t border-zinc-100 overflow-x-auto">
-                <table className="w-full">
-                  <thead>
-                    <tr className="border-b border-zinc-100">
-                      <th className="text-left px-6 py-3 text-[11px] font-bold text-zinc-500 uppercase tracking-wider">PERMISSÃO</th>
-                      <th className="px-6 py-3 text-[11px] font-bold text-amber-500 uppercase tracking-wider text-center">Administrador</th>
-                      <th className="px-6 py-3 text-[11px] font-bold text-amber-500 uppercase tracking-wider text-center">Gerente</th>
-                      <th className="px-6 py-3 text-[11px] font-bold text-zinc-400 uppercase tracking-wider text-center">Vendedor</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {groups.map(group => {
-                      const groupPerms = PERMISSIONS.filter(p => p.group === group);
-                      return (
-                        <React.Fragment key={group}>
-                          <tr className="bg-zinc-50">
-                            <td colSpan={4} className="px-6 py-2 text-[10px] font-bold text-zinc-400 uppercase tracking-wider">{group}</td>
-                          </tr>
-                          {groupPerms.map(perm => (
-                            <tr key={perm.label} className="border-t border-zinc-50 hover:bg-zinc-50/50">
-                              <td className="px-6 py-3 text-[13px] font-medium text-zinc-700">{perm.label}</td>
-                              <td className="px-6 py-3 text-center">
-                                <Check size={15} className="text-zinc-400 mx-auto" />
-                              </td>
-                              <td className="px-6 py-3 text-center">
-                                {perm.gerente === true && <Check size={15} className="text-zinc-400 mx-auto" />}
-                                {perm.gerente === false && <span className="inline-block w-4 h-4 rounded border border-zinc-200 mx-auto" />}
-                                {perm.gerente === "toggle" && (
-                                  <button
-                                    onClick={() => togglePerm(perm.label, "gerente")}
-                                    className={cn(
-                                      "relative inline-flex h-5 w-9 shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200",
-                                      toggles[perm.label]?.gerente ? "bg-green-500" : "bg-zinc-300"
-                                    )}
-                                  >
-                                    <span className={cn(
-                                      "pointer-events-none inline-block h-4 w-4 transform rounded-full bg-white shadow transition duration-200",
-                                      toggles[perm.label]?.gerente ? "translate-x-4" : "translate-x-0"
-                                    )} />
-                                  </button>
-                                )}
-                              </td>
-                              <td className="px-6 py-3 text-center">
-                                {perm.vendedor === true && <Check size={15} className="text-zinc-400 mx-auto" />}
-                                {perm.vendedor === false && <span className="inline-block w-4 h-4 rounded border border-zinc-200 mx-auto" />}
-                                {perm.vendedor === "toggle" && (
-                                  <button
-                                    onClick={() => togglePerm(perm.label, "vendedor")}
-                                    className={cn(
-                                      "relative inline-flex h-5 w-9 shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200",
-                                      toggles[perm.label]?.vendedor ? "bg-green-500" : "bg-zinc-300"
-                                    )}
-                                  >
-                                    <span className={cn(
-                                      "pointer-events-none inline-block h-4 w-4 transform rounded-full bg-white shadow transition duration-200",
-                                      toggles[perm.label]?.vendedor ? "translate-x-4" : "translate-x-0"
-                                    )} />
-                                  </button>
-                                )}
-                              </td>
-                            </tr>
-                          ))}
-                        </React.Fragment>
-                      );
-                    })}
-                  </tbody>
-                </table>
-              </div>
-            )}
-          </div>
-
-          {/* Tabs */}
-          <div className="flex border-b border-zinc-200 bg-white rounded-t-xl pt-1 px-4">
-            {[
-              { key: "ativos", label: `Ativos ${activeMembers.length + pendingMembers.length}` },
-              { key: "bloqueados", label: `Bloqueados ${blockedMembers.length}` },
-            ].map(tab => (
-              <button
-                key={tab.key}
-                onClick={() => setActiveTab(tab.key as "ativos" | "bloqueados")}
-                className={cn(
-                  "px-4 py-3 text-[13px] font-bold border-b-2 transition-colors",
-                  activeTab === tab.key
-                    ? "border-amber-500 text-amber-600"
-                    : "border-transparent text-zinc-400 hover:text-zinc-700"
-                )}
-              >
-                {tab.label}
-              </button>
-            ))}
-          </div>
-
-          {/* Users table */}
-          <div className="bg-white border border-zinc-200 rounded-b-xl shadow-sm overflow-hidden -mt-4 pt-0">
-            {loading ? (
-              <div className="flex items-center justify-center py-10">
-                <div className="h-5 w-5 animate-spin rounded-full border-2 border-amber-400 border-t-transparent" />
-              </div>
-            ) : (
-              <table className="w-full text-left">
-                <thead>
-                  <tr className="border-b border-zinc-100">
-                    <th className="px-6 py-3 text-[11px] font-bold text-zinc-400 uppercase tracking-wider">USUÁRIO</th>
-                    <th className="px-6 py-3 text-[11px] font-bold text-zinc-400 uppercase tracking-wider">FUNÇÃO</th>
-                    <th className="px-6 py-3 text-[11px] font-bold text-zinc-400 uppercase tracking-wider">STATUS</th>
-                    <th className="px-6 py-3 text-[11px] font-bold text-zinc-400 uppercase tracking-wider">MEMBRO DESDE</th>
-                  </tr>
-                </thead>
-                <tbody className="divide-y divide-zinc-100">
-                  {activeTab === "ativos" ? (
-                    [...activeMembers, ...pendingMembers].length > 0 ? (
-                      [...activeMembers, ...pendingMembers].map(m => (
-                        <tr key={m.id} className="hover:bg-zinc-50/50 transition-colors">
-                          <td className="px-6 py-4">
-                            <div className="flex items-center gap-3">
-                              <div className="w-8 h-8 rounded-full bg-violet-500 text-white flex items-center justify-center font-bold text-sm shrink-0">
-                                {(m.name ?? m.email).charAt(0).toUpperCase()}
-                              </div>
-                              <div>
-                                <p className="text-[13px] font-bold text-zinc-900">
-                                  {m.name ?? m.email}
-                                  {m.self && <span className="text-zinc-400 font-normal"> (você)</span>}
-                                </p>
-                                <p className="text-[12px] font-medium text-zinc-400">{m.email}</p>
-                              </div>
-                            </div>
+        {permissionsOpen && (
+          <div className="border-t border-zinc-100 overflow-x-auto bg-white px-6 py-4">
+            <table className="w-full">
+              <thead>
+                <tr className="border-b border-zinc-100">
+                  <th className="text-left px-6 py-3 text-[11px] font-bold text-zinc-500 uppercase tracking-wider">PERMISSÃO</th>
+                  <th className="px-6 py-3 text-[11px] font-bold text-amber-500 uppercase tracking-wider text-center">Administrador</th>
+                  <th className="px-6 py-3 text-[11px] font-bold text-amber-500 uppercase tracking-wider text-center">Gerente</th>
+                  <th className="px-6 py-3 text-[11px] font-bold text-zinc-400 uppercase tracking-wider text-center">Vendedor</th>
+                </tr>
+              </thead>
+              <tbody>
+                {groups.map(group => {
+                  const groupPerms = PERMISSIONS.filter(p => p.group === group);
+                  return (
+                    <React.Fragment key={group}>
+                      <tr className="bg-zinc-50">
+                        <td colSpan={4} className="px-6 py-2 text-[10px] font-bold text-zinc-400 uppercase tracking-wider">{group}</td>
+                      </tr>
+                      {groupPerms.map(perm => (
+                        <tr key={perm.label} className="border-t border-zinc-50 hover:bg-zinc-50/50">
+                          <td className="px-6 py-3 text-[13px] font-medium text-zinc-700">{perm.label}</td>
+                          <td className="px-6 py-3 text-center">
+                            <Check size={15} className="text-zinc-400 mx-auto" />
                           </td>
-                          <td className="px-6 py-4">
-                            <span className="text-[11px] font-bold text-amber-700 bg-amber-100 px-2.5 py-1 rounded-full">
-                              {ROLE_LABEL[m.role] ?? m.role}
-                            </span>
-                          </td>
-                          <td className="px-6 py-4">
-                            {m.status === "pending" ? (
-                              <span className="text-[11px] font-bold text-zinc-500 bg-zinc-100 px-2 py-0.5 rounded-full">Pendente</span>
-                            ) : (
-                              <span className="text-[11px] font-bold text-green-700 bg-green-50 px-2 py-0.5 rounded-full">Ativo</span>
+                          <td className="px-6 py-3 text-center">
+                            {perm.gerente === true && <Check size={15} className="text-zinc-400 mx-auto" />}
+                            {perm.gerente === false && <span className="inline-block w-4 h-4 rounded border border-zinc-200 mx-auto" />}
+                            {perm.gerente === "toggle" && (
+                              <button
+                                onClick={() => togglePerm(perm.label, "gerente")}
+                                className={cn(
+                                  "relative inline-flex h-5 w-9 shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200",
+                                  toggles[perm.label]?.gerente ? "bg-green-500" : "bg-zinc-300"
+                                )}
+                              >
+                                <span className={cn(
+                                  "pointer-events-none inline-block h-4 w-4 transform rounded-full bg-white shadow transition duration-200",
+                                  toggles[perm.label]?.gerente ? "translate-x-4" : "translate-x-0"
+                                )} />
+                              </button>
                             )}
                           </td>
-                          <td className="px-6 py-4 text-[13px] font-medium text-zinc-600">
-                            {m.invited_at ? new Date(m.invited_at).toLocaleDateString("pt-BR") : "—"}
+                          <td className="px-6 py-3 text-center">
+                            {perm.vendedor === true && <Check size={15} className="text-zinc-400 mx-auto" />}
+                            {perm.vendedor === false && <span className="inline-block w-4 h-4 rounded border border-zinc-200 mx-auto" />}
+                            {perm.vendedor === "toggle" && (
+                              <button
+                                onClick={() => togglePerm(perm.label, "vendedor")}
+                                className={cn(
+                                  "relative inline-flex h-5 w-9 shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200",
+                                  toggles[perm.label]?.vendedor ? "bg-green-500" : "bg-zinc-300"
+                                )}
+                              >
+                                <span className={cn(
+                                  "pointer-events-none inline-block h-4 w-4 transform rounded-full bg-white shadow transition duration-200",
+                                  toggles[perm.label]?.vendedor ? "translate-x-4" : "translate-x-0"
+                                )} />
+                              </button>
+                            )}
                           </td>
                         </tr>
-                      ))
-                    ) : (
-                      <tr>
-                        <td colSpan={4} className="py-10 text-center text-[13px] font-medium text-zinc-400">Nenhum usuário.</td>
-                      </tr>
-                    )
-                  ) : (
-                    blockedMembers.length > 0 ? (
-                      blockedMembers.map(m => (
-                        <tr key={m.id} className="hover:bg-zinc-50/50 transition-colors">
-                          <td className="px-6 py-4">
-                            <div className="flex items-center gap-3">
-                              <div className="w-8 h-8 rounded-full bg-zinc-300 text-white flex items-center justify-center font-bold text-sm shrink-0">
-                                {(m.name ?? m.email).charAt(0).toUpperCase()}
-                              </div>
-                              <div>
-                                <p className="text-[13px] font-bold text-zinc-600">{m.name ?? m.email}</p>
-                                <p className="text-[12px] font-medium text-zinc-400">{m.email}</p>
-                              </div>
-                            </div>
-                          </td>
-                          <td className="px-6 py-4">
-                            <span className="text-[11px] font-bold text-zinc-500 bg-zinc-100 px-2.5 py-1 rounded-full">{ROLE_LABEL[m.role] ?? m.role}</span>
-                          </td>
-                          <td className="px-6 py-4">
-                            <span className="text-[11px] font-bold text-red-600 bg-red-50 px-2 py-0.5 rounded-full">Bloqueado</span>
-                          </td>
-                          <td className="px-6 py-4 text-[13px] font-medium text-zinc-400">—</td>
-                        </tr>
-                      ))
-                    ) : (
-                      <tr>
-                        <td colSpan={4} className="py-10 text-center text-[13px] font-medium text-zinc-400">Nenhum usuário bloqueado.</td>
-                      </tr>
-                    )
-                  )}
-                </tbody>
-              </table>
-            )}
+                      ))}
+                    </React.Fragment>
+                  );
+                })}
+              </tbody>
+            </table>
           </div>
-
-        </div>
+        )}
       </div>
 
+      {/* Tabs */}
+      <div className="flex gap-0 bg-white px-6 shrink-0">
+        <button
+          onClick={() => setActiveTab("ativos")}
+          className={cn(
+            "px-4 py-2.5 text-sm font-medium border-b-2 transition-all duration-150",
+            activeTab === "ativos"
+              ? "border-amber-500 text-amber-600"
+              : "border-transparent text-zinc-500 hover:text-zinc-700"
+          )}
+        >
+          Ativos
+          <span className="ml-1.5 rounded-full bg-zinc-100 px-1.5 py-0.5 text-xs font-semibold text-zinc-500">
+            {activeMembers.length + pendingMembers.length}
+          </span>
+        </button>
+        <button
+          onClick={() => setActiveTab("bloqueados")}
+          className={cn(
+            "px-4 py-2.5 text-sm font-medium border-b-2 transition-all duration-150",
+            activeTab === "bloqueados"
+              ? "border-amber-500 text-amber-600"
+              : "border-transparent text-zinc-500 hover:text-zinc-700"
+          )}
+        >
+          Bloqueados
+          {blockedMembers.length > 0 && (
+            <span className="ml-1.5 rounded-full bg-zinc-100 px-1.5 py-0.5 text-xs font-semibold text-zinc-500">
+              {blockedMembers.length}
+            </span>
+          )}
+        </button>
+      </div>
+
+      {/* Users table */}
+      <div className="flex-1 overflow-auto bg-white">
+        {loading ? (
+          <div className="flex items-center justify-center py-10">
+            <div className="h-5 w-5 animate-spin rounded-full border-2 border-amber-400 border-t-transparent" />
+          </div>
+        ) : (
+          <table className="w-full text-left border-collapse text-sm">
+            <thead>
+              <tr className="border-b border-zinc-100 bg-zinc-50/80 sticky top-0 backdrop-blur-sm z-10">
+                <th className="px-6 py-3.5 text-[11px] font-bold text-zinc-400 uppercase tracking-wider text-left">USUÁRIO</th>
+                <th className="px-6 py-3.5 text-[11px] font-bold text-zinc-400 uppercase tracking-wider text-left">FUNÇÃO</th>
+                <th className="px-6 py-3.5 text-[11px] font-bold text-zinc-400 uppercase tracking-wider text-left">MEMBRO DESDE</th>
+                <th className="px-6 py-3.5 text-[11px] font-bold text-zinc-400 uppercase tracking-wider text-left">NEGÓCIOS</th>
+                <th className="px-6 py-3.5 text-[11px] font-bold text-zinc-400 uppercase tracking-wider text-right">AÇÕES</th>
+              </tr>
+            </thead>
+            <tbody className="divide-y divide-zinc-100">
+              {activeTab === "ativos" ? (
+                [...activeMembers, ...pendingMembers].length > 0 ? (
+                  [...activeMembers, ...pendingMembers].map(m => (
+                    <tr key={m.id} className="hover:bg-zinc-50/30 transition-colors">
+                      {/* Usuário */}
+                      <td className="px-6 py-4">
+                        <div className="flex items-center gap-3">
+                          {m.self ? (
+                            <img
+                              src="https://img.clerk.com/eyJ0eXBlIjoicHJveHkiLCJzcmMiOiJodHRwczovL2ltYWdlcy5jbGVyay5kZXYvb2F1dGhfZ29vZ2xlL2ltZ18zRTBpS2dTU0NQVllBTEZKNDhOUldaZkh4RE0ifQ?width=80"
+                              alt="João Paulo Olivera"
+                              className="w-9 h-9 rounded-full object-cover border-2 border-white ring-1 ring-zinc-200/50 shadow-sm shrink-0"
+                            />
+                          ) : (
+                            <div className="w-9 h-9 rounded-full bg-zinc-50 border border-zinc-200/80 text-zinc-600 flex items-center justify-center font-bold text-xs shrink-0 shadow-sm">
+                              {(m.name ?? m.email).substring(0, 2).toUpperCase()}
+                            </div>
+                          )}
+                          <div>
+                            <div className="flex items-center gap-1.5">
+                              <p className="text-[13px] font-bold text-zinc-900">
+                                {m.name ?? m.email}
+                              </p>
+                              {m.self && (
+                                <span className="text-[10px] bg-zinc-100 text-zinc-500 px-1.5 py-0.5 rounded-md font-medium">você</span>
+                              )}
+                            </div>
+                            <p className="text-xs text-zinc-400">{m.email}</p>
+                            <p className="text-[10px] text-zinc-400 font-normal">
+                              {m.status === "pending" ? "Convite pendente" : "Gerenciado pelo Clerk"}
+                            </p>
+                          </div>
+                        </div>
+                      </td>
+
+                      {/* Função */}
+                      <td className="px-6 py-4">
+                        <span className={cn(
+                          "inline-flex items-center rounded-full px-2.5 py-0.5 text-xs font-semibold border",
+                          m.role === "Admin" && "bg-amber-50 text-amber-700 border-amber-200/60",
+                          m.role === "Gerente" && "bg-blue-50 text-blue-700 border-blue-200/60",
+                          m.role === "Vendedor" && "bg-zinc-50 text-zinc-600 border-zinc-200/60"
+                        )}>
+                          {ROLE_LABEL[m.role] ?? m.role}
+                        </span>
+                      </td>
+
+                      {/* Membro desde */}
+                      <td className="px-6 py-4 text-[13px] font-medium text-zinc-500">
+                        {formatDate(m.invited_at)}
+                      </td>
+
+                      {/* Negócios */}
+                      <td className="px-6 py-4 text-[13px] font-medium text-zinc-500">
+                        <span className={cn(
+                          "font-bold",
+                          getMemberDealsCount(m) > 0 ? "text-amber-600" : "text-zinc-400"
+                        )}>
+                          {getMemberDealsCount(m)}
+                        </span>{" "}
+                        negócios
+                      </td>
+
+                      {/* Ações */}
+                      <td className="px-6 py-4 text-right">
+                        {!m.self && (
+                          <div className="flex items-center justify-end gap-2.5">
+                            <select
+                              value={m.role}
+                              onChange={(e) => handleUpdateRole(m.id, e.target.value)}
+                              className="text-xs bg-white border border-zinc-200 rounded-xl px-2.5 py-1.5 outline-none font-medium text-zinc-700 focus:border-amber-500 transition-all cursor-pointer shadow-sm hover:bg-zinc-50/50"
+                            >
+                              <option value="Vendedor">Vendedor</option>
+                              <option value="Gerente">Gerente</option>
+                              <option value="Admin">Administrador</option>
+                            </select>
+
+                            <button
+                              onClick={() => handleUpdateStatus(m.id, "blocked")}
+                              className="text-xs text-zinc-500 hover:text-red-600 font-medium px-2.5 py-1.5 rounded-xl border border-zinc-200 hover:border-red-200 hover:bg-red-50/30 transition-all shadow-sm"
+                              title="Bloquear usuário"
+                            >
+                              Bloquear
+                            </button>
+
+                            <button
+                              onClick={() => {
+                                if (confirm("Deseja realmente excluir este membro?")) {
+                                  handleDeleteMember(m.id);
+                                }
+                              }}
+                              className="text-zinc-400 hover:text-red-500 p-1.5 rounded-xl border border-transparent hover:border-zinc-200 hover:bg-zinc-50 transition-all"
+                              title="Excluir membro"
+                            >
+                              <Trash2 className="h-4 w-4" />
+                            </button>
+                          </div>
+                        )}
+                      </td>
+                    </tr>
+                  ))
+                ) : (
+                  <tr>
+                    <td colSpan={5} className="py-10 text-center text-[13px] font-medium text-zinc-400">Nenhum usuário.</td>
+                  </tr>
+                )
+              ) : (
+                blockedMembers.length > 0 ? (
+                  blockedMembers.map(m => (
+                    <tr key={m.id} className="hover:bg-zinc-50/30 transition-colors">
+                      {/* Usuário */}
+                      <td className="px-6 py-4">
+                        <div className="flex items-center gap-3">
+                          <div className="w-9 h-9 rounded-full bg-zinc-50 border border-zinc-200 text-zinc-400 flex items-center justify-center font-bold text-xs shrink-0 shadow-sm">
+                            {(m.name ?? m.email).substring(0, 2).toUpperCase()}
+                          </div>
+                          <div>
+                            <p className="text-[13px] font-bold text-zinc-600">{m.name ?? m.email}</p>
+                            <p className="text-xs text-zinc-400">{m.email}</p>
+                          </div>
+                        </div>
+                      </td>
+
+                      {/* Função */}
+                      <td className="px-6 py-4">
+                        <span className="inline-flex items-center rounded-full border border-zinc-200 bg-zinc-50 px-2.5 py-0.5 text-xs font-semibold text-zinc-500">
+                          {ROLE_LABEL[m.role] ?? m.role}
+                        </span>
+                      </td>
+
+                      {/* Membro desde */}
+                      <td className="px-6 py-4 text-[13px] font-medium text-zinc-400">
+                        {formatDate(m.invited_at)}
+                      </td>
+
+                      {/* Negócios */}
+                      <td className="px-6 py-4 text-[13px] font-medium text-zinc-400">
+                        <span className={cn(
+                          "font-bold",
+                          getMemberDealsCount(m) > 0 ? "text-zinc-500" : "text-zinc-300"
+                        )}>
+                          {getMemberDealsCount(m)}
+                        </span>{" "}
+                        negócios
+                      </td>
+
+                      {/* Ações */}
+                      <td className="px-6 py-4 text-right">
+                        <div className="flex items-center justify-end gap-2.5">
+                          <button
+                            onClick={() => handleUpdateStatus(m.id, "active")}
+                            className="text-xs text-emerald-600 hover:text-emerald-700 font-medium px-2.5 py-1.5 rounded-xl border border-emerald-200 hover:bg-emerald-50/30 transition-all shadow-sm"
+                            title="Desbloquear e reativar usuário"
+                          >
+                            Reativar
+                          </button>
+
+                          <button
+                            onClick={() => {
+                              if (confirm("Deseja realmente remover permanentemente este membro?")) {
+                                  handleDeleteMember(m.id);
+                              }
+                            }}
+                            className="text-zinc-400 hover:text-red-500 p-1.5 rounded-xl border border-transparent hover:border-zinc-200 hover:bg-zinc-50 transition-all"
+                            title="Excluir permanentemente"
+                          >
+                            <Trash2 className="h-4 w-4" />
+                          </button>
+                        </div>
+                      </td>
+                    </tr>
+                  ))
+                ) : (
+                  <tr>
+                    <td colSpan={5} className="py-10 text-center text-[13px] font-medium text-zinc-400">Nenhum usuário bloqueado.</td>
+                  </tr>
+                )
+              )}
+            </tbody>
+          </table>
+        )}
+      </div>
+
+      {/* Invite Modal */}
       {showModal && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40" onClick={() => setShowModal(false)}>
           <div className="bg-white rounded-2xl shadow-2xl w-full max-w-md mx-4 p-6" onClick={e => e.stopPropagation()}>
@@ -410,7 +602,7 @@ export default function UsuariosPage() {
                 <select
                   value={inviteRole}
                   onChange={e => setInviteRole(e.target.value as Role)}
-                  className="w-full bg-white border border-zinc-200 text-[13px] font-medium rounded-lg px-4 py-2.5 outline-none focus:border-amber-500 transition-all"
+                  className="w-full bg-white border border-zinc-200 text-[13px] font-medium rounded-lg px-4 py-2.5 outline-none focus:border-amber-500 transition-all cursor-pointer"
                 >
                   {ROLE_OPTIONS.map(opt => (
                     <option key={opt.value} value={opt.value}>{opt.label}</option>
@@ -429,7 +621,7 @@ export default function UsuariosPage() {
               <button
                 onClick={handleInvite}
                 disabled={!inviteEmail.trim() || inviting}
-                className="px-5 py-2 bg-amber-500 text-white text-[13px] font-bold rounded-lg hover:bg-amber-600 transition-colors shadow-sm disabled:opacity-50"
+                className="px-5 py-2 bg-gradient-to-r from-amber-500 to-amber-400 text-white text-[13px] font-bold rounded-lg hover:from-amber-600 hover:to-amber-500 transition-colors shadow-sm disabled:opacity-50"
               >
                 {inviting ? "Convidando..." : "Enviar convite"}
               </button>
