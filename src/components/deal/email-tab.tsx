@@ -76,7 +76,6 @@ export function EmailTab({ contactId, contactEmail, contactName, dealId, gmailAc
   const [loading, setLoading] = useState(true);
   const [composing, setComposing] = useState(false);
   const [subject, setSubject] = useState("");
-  const [bodyHtml, setBodyHtml] = useState("");
   const [sending, setSending] = useState(false);
   const [expandedId, setExpandedId] = useState<string | null>(null);
   const [showTemplates, setShowTemplates] = useState(false);

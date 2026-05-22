@@ -44,7 +44,10 @@ export default function GmailPage() {
 
   const [loading, setLoading] = useState(true);
   const [accountEmail, setAccountEmail] = useState<string | null>(null);
-  const [justConnected, setJustConnected] = useState(false);
+  const [justConnected, setJustConnected] = useState(() => {
+    if (typeof window === "undefined") return false;
+    return new URLSearchParams(window.location.search).get("gmail") === "connected";
+  });
   const [signature, setSignature] = useState<Signature>(emptySignature);
   const [savingSignature, setSavingSignature] = useState(false);
   const [signatureSaved, setSignatureSaved] = useState(false);
@@ -102,17 +105,13 @@ export default function GmailPage() {
   }, [supabase]);
 
   useEffect(() => {
-    if (typeof window !== "undefined") {
-      const params = new URLSearchParams(window.location.search);
-      if (params.get("gmail") === "connected") {
-        setJustConnected(true);
-        const url = new URL(window.location.href);
-        url.searchParams.delete("gmail");
-        window.history.replaceState({}, "", url.toString());
-      }
+    if (justConnected && typeof window !== "undefined") {
+      const url = new URL(window.location.href);
+      url.searchParams.delete("gmail");
+      window.history.replaceState({}, "", url.toString());
     }
     loadState();
-  }, [loadState]);
+  }, [loadState, justConnected]);
 
   const handleConnect = () => {
     window.location.href = GOOGLE_OAUTH_URL;
