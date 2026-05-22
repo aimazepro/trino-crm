@@ -82,7 +82,33 @@ export async function POST(req: NextRequest) {
       .replace(/\{\{owner_name\}\}/g, ownerName);
 
   const subject = replaceVars(rawSubject);
-  const bodyHtml = replaceVars(rawBody);
+  let bodyHtml = replaceVars(rawBody);
+
+  // Append signature if user has one enabled
+  const { data: sigData } = await makeAdmin()
+    .from("email_signatures")
+    .select("*")
+    .eq("user_id", user.id)
+    .eq("enabled", true)
+    .maybeSingle();
+
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const sig = sigData as any;
+  if (sig) {
+    const photoCell = sig.photo_url
+      ? `<td style="vertical-align:top;padding-right:12px"><img src="${sig.photo_url}" alt="" style="width:70px;height:70px;border-radius:50%;object-fit:cover" /></td>`
+      : "";
+    const lines: string[] = [];
+    if (sig.name) lines.push(`<strong style="font-size:14px;color:#333">${sig.name}</strong>`);
+    if (sig.role) lines.push(`<span style="font-size:12px;color:#666">${sig.role}</span>`);
+    if (sig.company) lines.push(`<span style="font-size:12px;color:#666">${sig.company}</span>`);
+    if (sig.phone) lines.push(`<span style="font-size:12px;color:#666">${sig.phone}</span>`);
+    const logoBlock = sig.logo_url
+      ? `<div style="margin-top:8px"><img src="${sig.logo_url}" alt="" style="max-height:50px;max-width:200px" /></div>`
+      : "";
+    const sigHtml = `<br/><br/><table cellpadding="0" cellspacing="0"><tr>${photoCell}<td style="vertical-align:top">${lines.join("<br/>")}${logoBlock}</td></tr></table>`;
+    bodyHtml = bodyHtml + sigHtml;
+  }
 
   const accessToken = await getValidToken(user.id);
   if (!accessToken) return NextResponse.json({ error: "Gmail not connected" }, { status: 400 });
