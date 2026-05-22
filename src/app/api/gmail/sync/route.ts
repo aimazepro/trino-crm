@@ -42,7 +42,14 @@ async function getValidToken(userId: string): Promise<{ token: string; email: st
     }),
   });
   const tokens = await res.json();
-  if (!tokens.access_token) return null;
+  if (!tokens.access_token) {
+    await admin
+      .from("integrations")
+      .update({ active: false })
+      .eq("user_id", userId)
+      .eq("provider", "gmail");
+    return null;
+  }
 
   await admin.from("integrations").update({
     access_token: tokens.access_token,

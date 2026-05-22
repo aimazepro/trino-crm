@@ -2,6 +2,37 @@
 
 import { useMemo, useState, useRef, useEffect } from "react";
 import { useCrm } from "@/contexts/crm-context";
+import { createClient } from "@/lib/supabase/client";
+
+function useOwnerNameMap(): { map: Record<string, string>; names: string[]; selfName: string } {
+  const [map, setMap] = useState<Record<string, string>>({});
+  const [selfName, setSelfName] = useState<string>("");
+  useEffect(() => {
+    let cancelled = false;
+    const supabase = createClient();
+    (async () => {
+      const { data: { user } } = await supabase.auth.getUser();
+      if (!user) return;
+      const self = (user.user_metadata?.full_name as string | undefined) || user.email || "Você";
+      const next: Record<string, string> = { [user.id]: self };
+      const { data } = await supabase
+        .from("team_members")
+        .select("member_user_id, name, email, owner_user_id, status")
+        .or(`owner_user_id.eq.${user.id},member_user_id.eq.${user.id}`)
+        .eq("status", "accepted");
+      (data ?? []).forEach((m) => {
+        if (m.member_user_id) next[m.member_user_id] = m.name || m.email;
+      });
+      if (!cancelled) {
+        setMap(next);
+        setSelfName(self);
+      }
+    })();
+    return () => { cancelled = true; };
+  }, []);
+  const names = Object.values(map);
+  return { map, names, selfName };
+}
 import {
   BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip,
   ResponsiveContainer, Legend, PieChart, Pie, Cell
@@ -227,6 +258,7 @@ const COLORS = [
 
 export default function InsightsPage() {
   const { state } = useCrm();
+  const { map: ownerNameMap, names: ownerNames, selfName: selfOwnerName } = useOwnerNameMap();
 
   // ── States ──────────────────────────────────────────────────────────────────
   const [savedReports, setSavedReports] = useState<SavedReport[]>([]);
@@ -536,7 +568,7 @@ export default function InsightsPage() {
           value: d.value,
           stageName: stage?.name || "Entrada de Leads",
           pipelineName: pipeline?.name || "Prospeccao",
-          ownerName: "João Paulo Olivera",
+          ownerName: ownerNameMap[d.ownerId ?? ""] ?? "Sem dono",
           createdAt: d.createdAt || new Date().toISOString(),
           status: d.status === "Ativo" ? "-" : d.status
         };
@@ -616,13 +648,13 @@ export default function InsightsPage() {
       const completed = activities.filter(a => a.completed).length;
       const pending = activities.filter(a => !a.completed).length;
       return [
-        { name: "João Paulo Olivera", "Concluídas": completed, "Pendentes": pending }
+        { name: selfOwnerName || "Sem dono", "Concluídas": completed, "Pendentes": pending }
       ];
     }
     return [
-      { name: "João Paulo Olivera", "Concluídas": 4, "Pendentes": 1 }
+      { name: selfOwnerName || "Sem dono", "Concluídas": 0, "Pendentes": 0 }
     ];
-  }, [state.deals]);
+  }, [state.deals, selfOwnerName]);
 
   // Mix de Atividades
   const mixActivityChartData = useMemo(() => {
@@ -633,13 +665,13 @@ export default function InsightsPage() {
         counts[a.type] = (counts[a.type] || 0) + 1;
       });
       return [
-        { name: "João Paulo Olivera", ...counts }
+        { name: selfOwnerName || "Sem dono", ...counts }
       ];
     }
     return [
-      { name: "João Paulo Olivera", "WhatsApp": 4, "Reunião": 1 }
+      { name: selfOwnerName || "Sem dono" }
     ];
-  }, [state.deals]);
+  }, [state.deals, selfOwnerName]);
 
   // ── Filter and Sort Deals for Editor ────────────────────────────────────────
   // eslint-disable-next-line react-hooks/preserve-manual-memoization
@@ -1267,7 +1299,7 @@ export default function InsightsPage() {
                 
                 {showUserDropdown && (
                   <div className="absolute right-0 mt-1 w-48 rounded-lg border border-zinc-200 bg-white shadow-lg py-1 z-50">
-                    {["Todos os usuarios", "Joao Paulo Olivera", "Pixeo Digital Business"].map((user) => (
+                    {["Todos os usuarios", ...ownerNames].map((user) => (
                       <button
                         key={user}
                         type="button"
@@ -1581,7 +1613,7 @@ export default function InsightsPage() {
                               setNewFilterValue("Prospeccao");
                             } else if (field === "Responsavel") {
                               setNewFilterOperator("é");
-                              setNewFilterValue("João Paulo Olivera");
+                              setNewFilterValue(ownerNames[0] ?? "");
                             } else if (field === "Valor") {
                               setNewFilterOperator("maior que");
                               setNewFilterValue("1000");
@@ -1657,7 +1689,7 @@ export default function InsightsPage() {
                             onChange={e => setNewFilterValue(e.target.value)}
                             className="w-full text-xs border border-zinc-200 bg-white rounded p-1.5 outline-none"
                           >
-                            <option value="João Paulo Olivera">João Paulo Olivera</option>
+                            {ownerNames.map((n) => <option key={n} value={n}>{n}</option>)}
                           </select>
                         ) : (
                           <input

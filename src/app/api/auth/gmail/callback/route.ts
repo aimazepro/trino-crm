@@ -74,13 +74,26 @@ export async function GET(req: NextRequest) {
     process.env.SUPABASE_SERVICE_ROLE_KEY!
   );
 
+  // Google only returns refresh_token on the first authorization. On reconnect
+  // it will be missing — preserve the existing one instead of overwriting with null.
+  let refreshToken: string | null = tokens.refresh_token ?? null;
+  if (!refreshToken) {
+    const { data: existing } = await admin
+      .from("integrations")
+      .select("refresh_token")
+      .eq("user_id", user.id)
+      .eq("provider", "gmail")
+      .maybeSingle();
+    refreshToken = existing?.refresh_token ?? null;
+  }
+
   await admin.from("integrations").upsert(
     {
       user_id: user.id,
       provider: "gmail",
       account_email: profile.email,
       access_token: tokens.access_token,
-      refresh_token: tokens.refresh_token,
+      refresh_token: refreshToken,
       expires_at: new Date(Date.now() + tokens.expires_in * 1000).toISOString(),
       scopes: ["gmail.send", "userinfo.email"],
       active: true,

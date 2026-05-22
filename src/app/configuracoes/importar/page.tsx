@@ -1,18 +1,21 @@
 "use client";
 
-import { useState, useRef } from "react";
-import { 
-  ChevronDown, 
-  ChevronUp, 
-  Download, 
-  Upload, 
-  ArrowLeft, 
-  ArrowRight, 
-  FileText, 
+import { useState, useRef, useEffect } from "react";
+import {
+  ChevronDown,
+  ChevronUp,
+  Download,
+  Upload,
+  ArrowLeft,
+  ArrowRight,
+  FileText,
   AlertTriangle,
   Play
 } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { createClient } from "@/lib/supabase/client";
+
+type OwnerOption = { id: string; name: string };
 
 // Types
 type Step = 1 | 2 | 3 | 4;
@@ -133,6 +136,29 @@ export default function ImportacaoPage() {
   const [duplicateStrategy, setDuplicateStrategy] = useState<"merge" | "create_all">("merge");
   const [recordOwner, setRecordOwner] = useState<string>("");
   const [runAutomations, setRunAutomations] = useState<boolean>(false);
+  const [ownerOptions, setOwnerOptions] = useState<OwnerOption[]>([]);
+
+  useEffect(() => {
+    let cancelled = false;
+    const supabase = createClient();
+    (async () => {
+      const { data: { user } } = await supabase.auth.getUser();
+      if (!user) return;
+      const { data } = await supabase
+        .from("team_members")
+        .select("member_user_id, name, email, owner_user_id, status")
+        .or(`owner_user_id.eq.${user.id},member_user_id.eq.${user.id}`)
+        .eq("status", "accepted");
+      const opts: OwnerOption[] = [];
+      (data ?? []).forEach((m) => {
+        if (m.member_user_id && m.member_user_id !== user.id) {
+          opts.push({ id: m.member_user_id, name: m.name || m.email });
+        }
+      });
+      if (!cancelled) setOwnerOptions(opts);
+    })();
+    return () => { cancelled = true; };
+  }, []);
 
   // Calculated properties
   const isEtapaMapped = Object.values(mappings).includes("dealStageName");
@@ -747,7 +773,9 @@ export default function ImportacaoPage() {
                     className="w-full max-w-xs rounded-lg border border-zinc-200 bg-white px-3 py-2 text-sm text-zinc-950 outline-none focus:border-amber-400 focus:ring-2 focus:ring-amber-100"
                   >
                     <option value="">Eu mesmo</option>
-                    <option value="user_3E0iKg8G9xU4ld6q6nryL8WNQ4z">João Paulo Olivera</option>
+                    {ownerOptions.map((o) => (
+                      <option key={o.id} value={o.id}>{o.name}</option>
+                    ))}
                   </select>
                 </div>
 
@@ -954,31 +982,36 @@ export default function ImportacaoPage() {
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-zinc-100 text-zinc-900">
-                  <tr className="hover:bg-zinc-50/50">
+                  <tr>
+                    <td colSpan={5} className="px-6 py-10 text-center text-zinc-500 text-sm">
+                      Nenhuma importação registrada ainda.
+                    </td>
+                  </tr>
+                  <tr className="hidden">
                     <td className="px-6 py-4 font-semibold flex items-center gap-2">
                       <FileText className="h-4 w-4 text-zinc-400" />
-                      <span>leads_maio_2026.csv</span>
+                      <span>—</span>
                     </td>
-                    <td className="px-6 py-4 text-zinc-500">22/05/2026 10:30</td>
-                    <td className="px-6 py-4 text-zinc-500">150 contatos, 132 empresas, 45 negócios</td>
-                    <td className="px-6 py-4 text-zinc-500">João Paulo Olivera</td>
+                    <td className="px-6 py-4 text-zinc-500">—</td>
+                    <td className="px-6 py-4 text-zinc-500">—</td>
+                    <td className="px-6 py-4 text-zinc-500">—</td>
                     <td className="px-6 py-4">
                       <span className="px-2 py-0.5 rounded-full bg-green-50 border border-green-200 text-green-700 font-semibold text-[10px]">
-                        Concluído
+                        —
                       </span>
                     </td>
                   </tr>
-                  <tr className="hover:bg-zinc-50/50">
+                  <tr className="hidden">
                     <td className="px-6 py-4 font-semibold flex items-center gap-2">
                       <FileText className="h-4 w-4 text-zinc-400" />
-                      <span>base_clientes_antiga.csv</span>
+                      <span>—</span>
                     </td>
-                    <td className="px-6 py-4 text-zinc-500">18/04/2026 14:15</td>
-                    <td className="px-6 py-4 text-zinc-500">42 contatos, 40 empresas, 0 negócios</td>
-                    <td className="px-6 py-4 text-zinc-500">João Paulo Olivera</td>
+                    <td className="px-6 py-4 text-zinc-500">—</td>
+                    <td className="px-6 py-4 text-zinc-500">—</td>
+                    <td className="px-6 py-4 text-zinc-500">—</td>
                     <td className="px-6 py-4">
                       <span className="px-2 py-0.5 rounded-full bg-green-50 border border-green-200 text-green-700 font-semibold text-[10px]">
-                        Concluído
+                        —
                       </span>
                     </td>
                   </tr>

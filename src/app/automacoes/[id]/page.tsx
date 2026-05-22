@@ -14,6 +14,7 @@ import {
   AUTOMATION_TEMPLATES,
 } from "@/contexts/automacoes-context";
 import { useCrm } from "@/contexts/crm-context";
+import { createClient } from "@/lib/supabase/client";
 import type {
   Automation,
   AutomationStep,
@@ -25,17 +26,58 @@ import type {
   Pipeline,
 } from "@/lib/crm-types";
 
-// ── Mock data (replace with real API when available) ──────────────────────────
+type AssignableUser = { id: string; name: string };
+type CustomFieldOption = { id: string; name: string };
 
-const MOCK_USERS = [
-  { id: "user-1", name: "João Paulo Olivera" },
-];
+function useTeamUsers(): AssignableUser[] {
+  const [users, setUsers] = useState<AssignableUser[]>([]);
+  useEffect(() => {
+    let cancelled = false;
+    const supabase = createClient();
+    (async () => {
+      const { data: { user } } = await supabase.auth.getUser();
+      if (!user) return;
+      const selfName = (user.user_metadata?.full_name as string | undefined) || user.email || "Você";
+      const list: AssignableUser[] = [{ id: user.id, name: selfName }];
+      const { data } = await supabase
+        .from("team_members")
+        .select("member_user_id, name, email, owner_user_id, status")
+        .or(`owner_user_id.eq.${user.id},member_user_id.eq.${user.id}`)
+        .eq("status", "accepted");
+      (data ?? []).forEach((m) => {
+        if (m.member_user_id && m.member_user_id !== user.id) {
+          list.push({ id: m.member_user_id, name: m.name || m.email });
+        }
+      });
+      if (!cancelled) setUsers(list);
+    })();
+    return () => { cancelled = true; };
+  }, []);
+  return users;
+}
 
-const MOCK_CUSTOM_FIELDS = [
-  { id: "cf-1", name: "Segmento" },
-  { id: "cf-2", name: "Origem do Lead" },
-  { id: "cf-3", name: "Produto de interesse" },
-];
+function useDealCustomFields(): CustomFieldOption[] {
+  const [fields, setFields] = useState<CustomFieldOption[]>([]);
+  useEffect(() => {
+    let cancelled = false;
+    const supabase = createClient();
+    (async () => {
+      const { data: { user } } = await supabase.auth.getUser();
+      if (!user) return;
+      const { data } = await supabase
+        .from("custom_fields")
+        .select("id, label, entity")
+        .eq("user_id", user.id)
+        .eq("entity", "deal")
+        .order("sort_order", { ascending: true });
+      if (!cancelled) {
+        setFields((data ?? []).map((f) => ({ id: f.id, name: f.label })));
+      }
+    })();
+    return () => { cancelled = true; };
+  }, []);
+  return fields;
+}
 
 // ── Constants ─────────────────────────────────────────────────────────────────
 
@@ -936,6 +978,8 @@ function OwnerModeField({
   showKeep: boolean;
   onChange: (patch: Record<string, string | number | boolean>) => void;
 }) {
+  const teamUsers = useTeamUsers();
+  const customFields = useDealCustomFields();
   const tabOptions = [
     ...(showKeep ? [{ id: "keep", label: "Manter original" }] : []),
     { id: "fixed", label: "Valor fixo" },
@@ -976,7 +1020,7 @@ function OwnerModeField({
       {mode === "fixed" && (
         <Select value={userId} onChange={(v) => onChange({ userId: v })}>
           <option value="">Selecionar usuário...</option>
-          {MOCK_USERS.map((u) => <option key={u.id} value={u.id}>{u.name}</option>)}
+          {teamUsers.map((u) => <option key={u.id} value={u.id}>{u.name}</option>)}
         </Select>
       )}
 
@@ -984,7 +1028,7 @@ function OwnerModeField({
         <div className="space-y-1.5">
           <p className="text-[12px] text-zinc-500">Selecione os membros que participarão do rodízio:</p>
           <div className="border border-zinc-200 rounded-lg overflow-hidden">
-            {MOCK_USERS.map((u) => (
+            {teamUsers.map((u) => (
               <label
                 key={u.id}
                 className="flex items-center gap-2 px-3 py-2.5 cursor-pointer hover:bg-zinc-50"
@@ -1005,7 +1049,7 @@ function OwnerModeField({
       {mode === "custom_field" && (
         <Select value={customFieldId} onChange={(v) => onChange({ customFieldId: v })}>
           <option value="">Selecionar campo personalizado...</option>
-          {MOCK_CUSTOM_FIELDS.map((f) => <option key={f.id} value={f.id}>{f.name}</option>)}
+          {customFields.map((f) => <option key={f.id} value={f.id}>{f.name}</option>)}
         </Select>
       )}
     </div>
