@@ -1,8 +1,7 @@
 "use client";
 
 import { useState, useEffect } from "react";
-import { Plus, Webhook, Trash2, X, Zap } from "lucide-react";
-import { cn } from "@/lib/utils";
+import { Plus, X, Zap, Trash2, Link2, CircleCheck } from "lucide-react";
 import { createClient } from "@/lib/supabase/client";
 
 type WebhookItem = {
@@ -14,9 +13,9 @@ type WebhookItem = {
 };
 
 const EVENTS = [
-  { key: "deal_created", label: "Negócio criado", code: "DEAL_CREATED" },
-  { key: "deal_won", label: "Negócio ganho", code: "DEAL_WON" },
-  { key: "deal_lost", label: "Negócio perdido", code: "DEAL_LOST" },
+  { key: "deal_created", label: "Negocio criado", code: "DEAL_CREATED" },
+  { key: "deal_won", label: "Negocio ganho", code: "DEAL_WON" },
+  { key: "deal_lost", label: "Negocio perdido", code: "DEAL_LOST" },
   { key: "contact_created", label: "Contato criado", code: "CONTACT_CREATED" },
   { key: "activity_created", label: "Atividade criada", code: "ACTIVITY_CREATED" },
 ];
@@ -24,195 +23,353 @@ const EVENTS = [
 export default function WebhooksPage() {
   const [webhooks, setWebhooks] = useState<WebhookItem[]>([]);
   const [showModal, setShowModal] = useState(false);
-  const [form, setForm] = useState({ url: "", events: new Set<string>(), secret: "" });
+  const [loading, setLoading] = useState(true);
+  const [toast, setToast] = useState<string | null>(null);
+
+  const [formUrl, setFormUrl] = useState("");
+  const [formEvents, setFormEvents] = useState<Set<string>>(new Set());
+  const [formSecret, setFormSecret] = useState("");
+  const [saving, setSaving] = useState(false);
+
   const supabase = createClient();
 
-  useEffect(() => {
-    async function load() {
-      const { data: { user } } = await supabase.auth.getUser();
-      if (!user) return;
-      const { data } = await supabase.from("webhooks").select("id, url, events, secret, active").eq("user_id", user.id).order("created_at");
-      setWebhooks(data ?? []);
+  // Load webhooks from Supabase
+  const loadWebhooks = async () => {
+    setLoading(true);
+    const {
+      data: { user },
+    } = await supabase.auth.getUser();
+    if (!user) {
+      setLoading(false);
+      return;
     }
-    load();
-  }, [supabase]);
+
+    const { data } = await supabase
+      .from("webhooks")
+      .select("id, url, events, secret, active")
+      .eq("user_id", user.id)
+      .order("created_at");
+
+    setWebhooks(data ?? []);
+    setLoading(false);
+  };
+
+  useEffect(() => {
+    loadWebhooks();
+  }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
   const toggleEvent = (key: string) => {
-    const next = new Set(form.events);
-    if (next.has(key)) next.delete(key); else next.add(key);
-    setForm({ ...form, events: next });
+    const next = new Set(formEvents);
+    if (next.has(key)) {
+      next.delete(key);
+    } else {
+      next.add(key);
+    }
+    setFormEvents(next);
   };
 
-  const handleSave = async () => {
-    if (!form.url.trim() || form.events.size === 0) return;
-    const { data: { user } } = await supabase.auth.getUser();
-    if (!user) return;
-    const { data } = await supabase.from("webhooks").insert({
-      user_id: user.id, url: form.url, events: Array.from(form.events), secret: form.secret || null, active: true,
-    }).select("id, url, events, secret, active").single();
-    if (data) setWebhooks([...webhooks, data]);
-    setForm({ url: "", events: new Set(), secret: "" });
+  const handleCreate = async () => {
+    if (!formUrl.trim() || formEvents.size === 0) return;
+    setSaving(true);
+
+    const {
+      data: { user },
+    } = await supabase.auth.getUser();
+    if (!user) {
+      setSaving(false);
+      return;
+    }
+
+    const newWebhook = {
+      user_id: user.id,
+      url: formUrl.trim(),
+      events: Array.from(formEvents),
+      secret: formSecret.trim() || null,
+      active: true,
+    };
+
+    // Optimistically add to local state to make UI super responsive
+    const tempId = `temp_${Date.now()}`;
+    const tempItem: WebhookItem = {
+      id: tempId,
+      url: newWebhook.url,
+      events: newWebhook.events,
+      secret: newWebhook.secret,
+      active: true,
+    };
+
+    setWebhooks((prev) => [...prev, tempItem]);
     setShowModal(false);
-  };
+    setToast("Webhook criado.");
 
-  const openModal = () => {
-    setForm({ url: "", events: new Set(), secret: "" });
-    setShowModal(true);
+    // Reset Form
+    setFormUrl("");
+    setFormEvents(new Set());
+    setFormSecret("");
+    setSaving(false);
+
+    // Save in background
+    const { data } = await supabase
+      .from("webhooks")
+      .insert(newWebhook)
+      .select("id, url, events, secret, active")
+      .single();
+
+    if (data) {
+      setWebhooks((prev) =>
+        prev.map((item) => (item.id === tempId ? data : item))
+      );
+    }
   };
 
   const handleDelete = async (id: string) => {
-    setWebhooks(webhooks.filter(w => w.id !== id));
-    await supabase.from("webhooks").delete().eq("id", id);
+    setWebhooks((prev) => prev.filter((w) => w.id !== id));
+    if (!id.startsWith("temp_")) {
+      await supabase.from("webhooks").delete().eq("id", id);
+    }
   };
 
-  const getEvent = (key: string) => EVENTS.find(e => e.key === key);
+  const toggleActive = async (item: WebhookItem) => {
+    const nextActive = !item.active;
+    setWebhooks((prev) =>
+      prev.map((w) => (w.id === item.id ? { ...w, active: nextActive } : w))
+    );
+    if (!item.id.startsWith("temp_")) {
+      await supabase
+        .from("webhooks")
+        .update({ active: nextActive })
+        .eq("id", item.id);
+    }
+  };
+
+  const getEventLabel = (key: string) => {
+    return EVENTS.find((e) => e.key === key)?.label ?? key;
+  };
 
   return (
-    <div className="flex flex-col min-h-full bg-[#F4F4F5]">
-      <div className="flex items-center justify-between border-b border-zinc-200 px-8 py-5 shrink-0 bg-white">
-        <div>
-          <h1 className="text-xl font-bold text-zinc-900 tracking-tight">Webhooks</h1>
-          <p className="text-sm font-medium text-zinc-400 mt-0.5">Notifique sistemas externos sobre eventos no CRM.</p>
-        </div>
-        <button
-          onClick={openModal}
-          className="flex items-center gap-2 bg-amber-500 text-white px-4 py-2 rounded-lg text-[13px] font-bold hover:bg-amber-600 transition-colors shadow-sm"
-        >
-          <Plus size={15} /> Novo Webhook
-        </button>
-      </div>
+    <main className="flex-1 overflow-y-auto bg-zinc-50/30">
+      <div className="p-8 max-w-4xl mx-auto space-y-6">
+        {/* Success Toast */}
+        {toast && (
+          <div className="fixed bottom-6 right-6 z-50 bg-zinc-900 text-white text-sm px-4 py-3 rounded-lg shadow-lg flex items-center gap-3">
+            <CircleCheck className="h-4 w-4 text-green-400 shrink-0" />
+            <span>{toast}</span>
+            <button
+              onClick={() => setToast(null)}
+              className="ml-2 text-zinc-400 hover:text-white"
+            >
+              x
+            </button>
+          </div>
+        )}
 
-      <div className="flex-1 p-8">
-        <div className="max-w-4xl">
-          {webhooks.length === 0 ? (
-            <div className="bg-white border border-zinc-200 rounded-xl shadow-sm py-16 flex flex-col items-center justify-center">
-              <div className="w-14 h-14 bg-zinc-100 rounded-2xl flex items-center justify-center mb-4">
-                <Webhook size={26} className="text-zinc-300" />
-              </div>
-              <p className="text-[14px] font-medium text-zinc-400">Nenhum webhook configurado.</p>
-            </div>
-          ) : (
-            <div className="bg-white border border-zinc-200 rounded-xl shadow-sm overflow-hidden">
-              <div className="grid grid-cols-[1fr_200px_90px_80px] border-b border-zinc-200 bg-zinc-50/50">
-                <div className="px-5 py-3 text-[11px] font-bold text-zinc-400 uppercase tracking-wider">URL</div>
-                <div className="px-4 py-3 text-[11px] font-bold text-zinc-400 uppercase tracking-wider">EVENTOS</div>
-                <div className="px-4 py-3 text-[11px] font-bold text-zinc-400 uppercase tracking-wider">STATUS</div>
-                <div className="px-4 py-3" />
-              </div>
-              <div className="divide-y divide-zinc-100">
-                {webhooks.map(wh => (
-                  <div key={wh.id} className="grid grid-cols-[1fr_200px_90px_80px] items-center group hover:bg-zinc-50/50 transition-colors">
-                    <div className="px-5 py-3.5 min-w-0">
-                      <p className="text-[12px] font-mono text-zinc-600 truncate">{wh.url}</p>
-                    </div>
-                    <div className="px-4 py-3.5">
-                      <div className="flex flex-wrap gap-1">
-                        {wh.events.map(ev => {
-                          const event = getEvent(ev);
-                          return (
-                            <span key={ev} className="text-[10px] font-bold text-zinc-500 bg-zinc-100 px-1.5 py-0.5 rounded font-mono">
-                              {event?.code ?? ev}
-                            </span>
-                          );
-                        })}
+        {/* Page Header */}
+        <div className="flex items-center justify-between">
+          <div>
+            <h1 className="text-xl font-semibold text-zinc-900">Webhooks</h1>
+            <p className="text-sm text-zinc-500 mt-0.5">
+              Notifique sistemas externos sobre eventos do CRM.
+            </p>
+          </div>
+          <button
+            onClick={() => {
+              setToast(null);
+              setShowModal(true);
+            }}
+            className="flex items-center gap-2 bg-gradient-to-r from-amber-500 to-amber-400 hover:from-amber-600 hover:to-amber-500 shadow-sm hover:shadow-md text-white text-sm font-medium px-4 py-2 rounded-lg transition-colors"
+          >
+            <Plus className="h-4 w-4" />
+            Novo Webhook
+          </button>
+        </div>
+
+        {/* Loading state */}
+        {loading ? (
+          <div className="flex items-center justify-center py-16">
+            <div className="h-6 w-6 animate-spin rounded-full border-2 border-amber-500 border-t-transparent" />
+          </div>
+        ) : webhooks.length === 0 ? (
+          /* Empty state */
+          <div className="text-center py-16 text-zinc-400 text-sm">
+            Nenhum webhook configurado.
+          </div>
+        ) : (
+          /* Table list of Webhooks */
+          <div className="border border-zinc-200 rounded-xl overflow-hidden bg-white">
+            <table className="w-full text-sm">
+              <thead>
+                <tr className="bg-zinc-50 border-b border-zinc-100">
+                  <th className="text-left px-4 py-3 text-xs font-semibold text-zinc-400 uppercase tracking-wide">
+                    URL
+                  </th>
+                  <th className="text-left px-4 py-3 text-xs font-semibold text-zinc-400 uppercase tracking-wide">
+                    Eventos
+                  </th>
+                  <th className="text-left px-4 py-3 text-xs font-semibold text-zinc-400 uppercase tracking-wide">
+                    Status
+                  </th>
+                  <th className="px-4 py-3"></th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-zinc-100">
+                {webhooks.map((wh) => (
+                  <tr key={wh.id} className="hover:bg-zinc-50">
+                    <td className="px-4 py-3">
+                      <div className="flex items-center gap-2">
+                        <Link2 className="h-3.5 w-3.5 text-zinc-400 shrink-0" />
+                        <span
+                          className="font-mono text-xs text-zinc-700 truncate max-w-[200px]"
+                          title={wh.url}
+                        >
+                          {wh.url}
+                        </span>
                       </div>
-                    </div>
-                    <div className="px-4 py-3.5">
-                      <span className={cn("text-[11px] font-bold px-2 py-0.5 rounded-full", wh.active ? "text-green-600 bg-green-50" : "text-zinc-400 bg-zinc-100")}>
+                    </td>
+                    <td className="px-4 py-3">
+                      <div className="flex flex-wrap gap-1">
+                        {wh.events.map((ev) => (
+                          <span
+                            key={ev}
+                            className="text-xs font-medium bg-zinc-100 text-zinc-600 px-2 py-0.5 rounded-full"
+                          >
+                            {getEventLabel(ev)}
+                          </span>
+                        ))}
+                      </div>
+                    </td>
+                    <td className="px-4 py-3">
+                      <button
+                        onClick={() => toggleActive(wh)}
+                        className={`text-xs font-semibold px-2.5 py-1 rounded-full transition-colors ${
+                          wh.active
+                            ? "bg-green-100 text-green-700 hover:bg-green-200"
+                            : "bg-zinc-100 text-zinc-600 hover:bg-zinc-200"
+                        }`}
+                      >
                         {wh.active ? "Ativo" : "Inativo"}
-                      </span>
-                    </div>
-                    <div className="px-4 py-3.5 flex items-center gap-1.5 opacity-0 group-hover:opacity-100 transition-all">
-                      <button
-                        className="flex items-center gap-1 text-[11px] font-bold text-zinc-500 hover:text-amber-600 hover:bg-amber-50 px-2 py-1 rounded-lg transition-colors"
-                        title="Testar webhook"
-                      >
-                        <Zap size={11} /> Testar
                       </button>
-                      <button
-                        onClick={() => handleDelete(wh.id)}
-                        className="p-1.5 text-zinc-400 hover:text-red-500 hover:bg-red-50 rounded-lg transition-colors"
-                      >
-                        <Trash2 size={12} />
-                      </button>
-                    </div>
-                  </div>
+                    </td>
+                    <td className="px-4 py-3">
+                      <div className="flex items-center gap-2 justify-end">
+                        <button
+                          disabled
+                          className="flex items-center gap-1.5 text-xs font-medium text-zinc-600 border border-zinc-200 hover:bg-zinc-50 px-2.5 py-1.5 rounded-lg transition-colors disabled:opacity-50"
+                        >
+                          <Zap className="h-3 w-3" />
+                          Testar
+                        </button>
+                        <button
+                          onClick={() => handleDelete(wh.id)}
+                          className="text-zinc-300 hover:text-red-400 transition-colors"
+                        >
+                          <Trash2 className="h-4 w-4" />
+                        </button>
+                      </div>
+                    </td>
+                  </tr>
                 ))}
-              </div>
-            </div>
-          )}
-        </div>
+              </tbody>
+            </table>
+          </div>
+        )}
       </div>
 
+      {/* Modal Dialog */}
       {showModal && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4" onClick={() => setShowModal(false)}>
-          <div className="bg-white rounded-2xl shadow-2xl w-full max-w-md flex flex-col" onClick={e => e.stopPropagation()}>
-            <div className="flex items-center justify-between px-6 py-5 border-b border-zinc-100">
-              <h2 className="text-base font-bold text-zinc-900">Novo Webhook</h2>
-              <button onClick={() => setShowModal(false)} className="p-1 text-zinc-400 hover:text-zinc-700 rounded-lg hover:bg-zinc-100"><X size={18} /></button>
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4">
+          <div className="bg-white rounded-xl shadow-2xl w-full max-w-md">
+            {/* Modal Header */}
+            <div className="flex items-center justify-between px-6 py-4 border-b border-zinc-100">
+              <h2 className="font-semibold text-zinc-900">Novo Webhook</h2>
+              <button
+                onClick={() => setShowModal(false)}
+                className="text-zinc-400 hover:text-zinc-600"
+              >
+                <X className="h-5 w-5" />
+              </button>
             </div>
 
-            <div className="px-6 py-5 space-y-4">
-              <div className="space-y-1.5">
-                <label className="text-[11px] font-bold text-zinc-500 uppercase tracking-wider">URL DE DESTINO</label>
+            {/* Modal Body */}
+            <div className="px-6 py-4 space-y-4">
+              {/* URL */}
+              <div>
+                <label className="text-xs font-medium text-zinc-500 uppercase tracking-wide">
+                  URL de destino
+                </label>
                 <input
+                  className="mt-1 w-full border border-zinc-200 rounded-lg px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-amber-300"
+                  placeholder="https://sua-api.com/webhook"
                   type="url"
-                  placeholder="https://..."
-                  value={form.url}
-                  onChange={e => setForm({ ...form, url: e.target.value })}
-                  className="w-full bg-white border border-zinc-200 text-[13px] font-medium rounded-lg px-4 py-2.5 outline-none focus:border-amber-500 transition-all"
+                  value={formUrl}
+                  onChange={(e) => setFormUrl(e.target.value)}
+                  autoFocus
                 />
               </div>
 
-              <div className="space-y-2">
-                <label className="text-[11px] font-bold text-zinc-500 uppercase tracking-wider">EVENTOS</label>
-                <div className="space-y-1.5">
-                  {EVENTS.map(event => (
-                    <label
-                      key={event.key}
-                      className={cn(
-                        "flex items-center justify-between px-4 py-2.5 border rounded-xl cursor-pointer transition-colors",
-                        form.events.has(event.key)
-                          ? "border-amber-300 bg-amber-50"
-                          : "border-zinc-200 hover:bg-zinc-50"
-                      )}
-                    >
-                      <div className="flex items-center gap-3">
+              {/* Events List */}
+              <div>
+                <label className="text-xs font-medium text-zinc-500 uppercase tracking-wide">
+                  Eventos
+                </label>
+                <div className="mt-2 space-y-2">
+                  {EVENTS.map((event) => {
+                    const isChecked = formEvents.has(event.key);
+                    return (
+                      <label
+                        key={event.key}
+                        className="flex items-center gap-3 cursor-pointer"
+                      >
                         <input
+                          className="accent-amber-500 h-4 w-4"
                           type="checkbox"
-                          checked={form.events.has(event.key)}
+                          checked={isChecked}
                           onChange={() => toggleEvent(event.key)}
-                          className="w-4 h-4 accent-amber-500"
                         />
-                        <span className="text-[13px] font-semibold text-zinc-700">{event.label}</span>
-                      </div>
-                      <span className="text-[11px] font-mono text-zinc-400">{event.code}</span>
-                    </label>
-                  ))}
+                        <span className="text-sm text-zinc-700">
+                          {event.label}
+                        </span>
+                        <span className="text-xs text-zinc-400 font-mono ml-auto">
+                          {event.code}
+                        </span>
+                      </label>
+                    );
+                  })}
                 </div>
               </div>
 
-              <div className="space-y-1.5">
-                <label className="text-[11px] font-bold text-zinc-500 uppercase tracking-wider">
-                  SECRET <span className="font-normal normal-case text-zinc-400">(opcional)</span>
+              {/* Secret */}
+              <div>
+                <label className="text-xs font-medium text-zinc-500 uppercase tracking-wide">
+                  Secret (opcional)
                 </label>
                 <input
-                  type="text"
-                  placeholder="Usado para validar assinatura HMAC-SHA256"
-                  value={form.secret}
-                  onChange={e => setForm({ ...form, secret: e.target.value })}
-                  className="w-full bg-white border border-zinc-200 text-[13px] font-medium rounded-lg px-4 py-2.5 outline-none focus:border-amber-500 transition-all font-mono"
+                  className="mt-1 w-full border border-zinc-200 rounded-lg px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-amber-300 font-mono"
+                  placeholder="Chave para assinar o payload (HMAC-SHA256)"
+                  value={formSecret}
+                  onChange={(e) => setFormSecret(e.target.value)}
                 />
               </div>
             </div>
 
-            <div className="flex items-center justify-end gap-3 px-6 py-4 border-t border-zinc-100">
-              <button onClick={() => setShowModal(false)} className="px-4 py-2 text-[13px] font-bold text-zinc-600 bg-zinc-100 rounded-lg hover:bg-zinc-200">Cancelar</button>
-              <button onClick={handleSave} className="px-5 py-2 bg-amber-500 text-white text-[13px] font-bold rounded-lg hover:bg-amber-600 shadow-sm">Criar</button>
+            {/* Modal Footer */}
+            <div className="px-6 py-4 border-t border-zinc-100 flex justify-end gap-2">
+              <button
+                onClick={() => setShowModal(false)}
+                className="px-4 py-2 text-sm text-zinc-600 hover:bg-zinc-50 rounded-lg"
+              >
+                Cancelar
+              </button>
+              <button
+                onClick={handleCreate}
+                disabled={saving || !formUrl.trim() || formEvents.size === 0}
+                className="px-4 py-2 text-sm font-medium bg-gradient-to-r from-amber-500 to-amber-400 hover:from-amber-600 hover:to-amber-500 shadow-sm hover:shadow-md text-white rounded-lg disabled:opacity-60 transition-colors"
+              >
+                Criar
+              </button>
             </div>
           </div>
         </div>
       )}
-    </div>
+    </main>
   );
 }
