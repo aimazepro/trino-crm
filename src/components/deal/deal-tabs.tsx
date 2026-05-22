@@ -7,6 +7,7 @@ import { ptBR } from "date-fns/locale";
 import { useCrm } from "@/contexts/crm-context";
 import { createClient } from "@/lib/supabase/client";
 import { ActivityTab } from "./activity-tab";
+import { EmailTab } from "./email-tab";
 import { ArrowRight, MessageCircleOff, Settings, Paperclip, Mic, LayoutTemplate, PhoneOff, WifiOff, Mail, History, Phone, MessageCircle, FileText, Pencil, Trash2, X, Check } from "lucide-react";
 import Link from "next/link";
 import { cn } from "@/lib/utils";
@@ -35,14 +36,14 @@ export function DealTabs({ dealId }: DealTabsProps) {
   const contact = deal && deal.contactId ? state.contacts.find(c => c.id === deal.contactId) : null;
   
   const [activeTab, setActiveTab] = useState("Atividades");
-  const [gmailConnected, setGmailConnected] = useState(false);
+  const [gmailAccountEmail, setGmailAccountEmail] = useState<string | null>(null);
 
   useEffect(() => {
     const supabase = createClient();
     supabase.auth.getUser().then(({ data: { user } }) => {
       if (!user) return;
-      supabase.from("integrations").select("id").eq("user_id", user.id).eq("provider", "gmail").eq("active", true).maybeSingle().then(({ data }) => {
-        setGmailConnected(!!data);
+      supabase.from("integrations").select("account_email").eq("user_id", user.id).eq("provider", "gmail").eq("active", true).maybeSingle().then(({ data }) => {
+        if (data) setGmailAccountEmail(data.account_email);
       });
     });
   }, []);
@@ -250,26 +251,20 @@ export function DealTabs({ dealId }: DealTabsProps) {
 
         {/* Email Tab */}
         {activeTab === "Email" && (
-          <div className="rounded-xl bg-white border border-zinc-200 overflow-hidden">
-            <div className="flex flex-col items-center justify-center h-64 text-center px-4">
-              {(!contact || !contact.emails || contact.emails.length === 0) ? (
-                <>
+          <>
+            {(!contact || !contact.emails || contact.emails.length === 0) ? (
+              <div className="rounded-xl bg-white border border-zinc-200 overflow-hidden">
+                <div className="flex flex-col items-center justify-center h-64 text-center px-4">
                   <div className="h-12 w-12 rounded-full bg-zinc-100 flex items-center justify-center mb-3">
                     <Mail className="h-6 w-6 text-zinc-400" />
                   </div>
                   <p className="text-sm font-medium text-zinc-700">Contato sem email</p>
                   <p className="text-xs text-zinc-500 mt-1">Adicione um email ao contato para enviar mensagens</p>
-                </>
-              ) : gmailConnected ? (
-                <>
-                  <div className="h-12 w-12 rounded-full bg-blue-50 flex items-center justify-center mb-3">
-                    <Mail className="h-6 w-6 text-blue-500" />
-                  </div>
-                  <p className="text-sm font-medium text-zinc-700">Gmail conectado</p>
-                  <p className="text-xs text-zinc-500 mt-1">{contact?.emails?.[0]?.value}</p>
-                </>
-              ) : (
-                <>
+                </div>
+              </div>
+            ) : !gmailAccountEmail ? (
+              <div className="rounded-xl bg-white border border-zinc-200 overflow-hidden">
+                <div className="flex flex-col items-center justify-center h-64 text-center px-4">
                   <div className="h-12 w-12 rounded-full bg-zinc-100 flex items-center justify-center mb-3">
                     <WifiOff className="h-6 w-6 text-zinc-400" />
                   </div>
@@ -278,10 +273,18 @@ export function DealTabs({ dealId }: DealTabsProps) {
                   <Link href="/configuracoes/gmail" className="inline-flex items-center gap-2 px-4 py-2 bg-blue-600 text-white text-sm rounded-lg hover:bg-blue-700 transition-colors">
                     <Settings className="h-4 w-4" /> Configurar Gmail
                   </Link>
-                </>
-              )}
-            </div>
-          </div>
+                </div>
+              </div>
+            ) : (
+              <EmailTab
+                contactId={contact!.id}
+                contactEmail={contact!.emails[0].value}
+                contactName={contact!.name}
+                dealId={dealId}
+                gmailAccountEmail={gmailAccountEmail}
+              />
+            )}
+          </>
         )}
 
         {/* WhatsApp Tab */}
