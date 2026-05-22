@@ -64,7 +64,7 @@ function transformCompany(row: any): Company {
     website: row.website ?? undefined, segment: row.segment ?? undefined,
     size: row.size ?? undefined, city: row.city ?? undefined,
     state: row.state ?? undefined, cnpj: row.cnpj ?? undefined,
-    parentCompanyId: row.parent_company_id ?? undefined,
+    cnpj: row.cnpj ?? undefined,
   };
 }
 
@@ -506,7 +506,7 @@ export function CrmProvider({ children }: { children: ReactNode }) {
     if (fields.city !== undefined) db.city = fields.city ?? null;
     if (fields.state !== undefined) db.state = fields.state ?? null;
     if (fields.cnpj !== undefined) db.cnpj = fields.cnpj ?? null;
-    if (fields.parentCompanyId !== undefined) db.parent_company_id = fields.parentCompanyId ?? null;
+    // if (fields.parentCompanyId !== undefined) db.parent_company_id = fields.parentCompanyId ?? null;
     if (Object.keys(db).length > 0) {
       supabase.from("companies").update(db).eq("id", companyId)
         .then(({ error }) => { if (error) console.error("[CRM] updateCompany failed:", error); });
@@ -518,7 +518,7 @@ export function CrmProvider({ children }: { children: ReactNode }) {
     const { data, error } = await supabase.from("companies").insert({
       user_id: userId, name: company.name, website: company.website ?? null, segment: company.segment ?? null,
       size: company.size ?? null, city: company.city ?? null, state: company.state ?? null,
-      cnpj: company.cnpj ?? null, parent_company_id: company.parentCompanyId ?? null,
+      cnpj: company.cnpj ?? null,
     }).select().single();
     if (error || !data) {
       console.error("[CRM] addCompany failed:", error);

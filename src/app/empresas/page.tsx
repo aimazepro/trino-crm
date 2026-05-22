@@ -21,7 +21,6 @@ function NewCompanyModal({ onClose, onSave, companies }: {
   const [city, setCity] = useState("");
   const [state, setState] = useState("");
   const [parentSearch, setParentSearch] = useState("");
-  const [parentCompanyId, setParentCompanyId] = useState<string | undefined>();
   const [showParentDropdown, setShowParentDropdown] = useState(false);
 
   const parentOptions = useMemo(() => {
@@ -29,7 +28,7 @@ function NewCompanyModal({ onClose, onSave, companies }: {
     return companies.filter(c => c.name.toLowerCase().includes(parentSearch.toLowerCase())).slice(0, 6);
   }, [companies, parentSearch]);
 
-  const selectedParent = companies.find(c => c.id === parentCompanyId);
+
 
   const formatCnpj = (val: string) => {
     const digits = val.replace(/\D/g, "").slice(0, 14);
@@ -102,41 +101,8 @@ function NewCompanyModal({ onClose, onSave, companies }: {
           </div>
         </div>
 
-        {/* Empresa Mae */}
-        <div className="mb-6 relative">
-          <label className="block text-xs font-semibold text-gray-600 mb-1.5">Empresa Mae <span className="text-gray-400 font-normal">(opcional)</span></label>
-          {selectedParent ? (
-            <div className="flex items-center gap-2 border border-amber-300 rounded-xl px-3.5 py-2.5 bg-amber-50">
-              <div className="w-5 h-5 rounded-md bg-orange-100 text-orange-600 font-bold flex items-center justify-center text-[10px] uppercase shrink-0">{selectedParent.name.charAt(0)}</div>
-              <span className="text-sm font-semibold text-gray-800 flex-1">{selectedParent.name}</span>
-              <button onClick={() => { setParentCompanyId(undefined); setParentSearch(""); }} className="text-gray-400 hover:text-gray-600"><X size={14} /></button>
-            </div>
-          ) : (
-            <div className="relative">
-              <SearchIcon size={14} className="absolute left-3.5 top-1/2 -translate-y-1/2 text-gray-300 pointer-events-none" />
-              <input value={parentSearch}
-                onChange={e => { setParentSearch(e.target.value); setShowParentDropdown(true); }}
-                onFocus={() => setShowParentDropdown(true)}
-                onBlur={() => setTimeout(() => setShowParentDropdown(false), 150)}
-                placeholder="Buscar empresa mae..."
-                className={inputClass + " pl-9"} />
-              {showParentDropdown && parentOptions.length > 0 && (
-                <div className="absolute top-full left-0 right-0 mt-1 bg-white border border-gray-200 rounded-xl shadow-lg z-10 overflow-hidden">
-                  {parentOptions.map(c => (
-                    <button key={c.id} onMouseDown={() => { setParentCompanyId(c.id); setParentSearch(""); setShowParentDropdown(false); }}
-                      className="w-full flex items-center gap-2.5 px-3.5 py-2.5 text-sm text-left hover:bg-gray-50 transition-colors">
-                      <div className="w-5 h-5 rounded-md bg-orange-100 text-orange-600 font-bold flex items-center justify-center text-[10px] uppercase shrink-0">{c.name.charAt(0)}</div>
-                      <span className="font-medium text-gray-800">{c.name}</span>
-                    </button>
-                  ))}
-                </div>
-              )}
-            </div>
-          )}
-        </div>
-
         <button
-          onClick={() => name.trim() && onSave({ name: name.trim(), cnpj: cnpj || undefined, website: website || undefined, segment: segment || undefined, size: size || undefined, city: city || undefined, state: state || undefined, parentCompanyId })}
+          onClick={() => name.trim() && onSave({ name: name.trim(), cnpj: cnpj || undefined, website: website || undefined, segment: segment || undefined, size: size || undefined, city: city || undefined, state: state || undefined })}
           disabled={!name.trim()}
           className="w-full py-3 bg-amber-400 hover:bg-amber-500 text-white font-bold rounded-xl text-sm transition disabled:opacity-40 shadow-sm"
         >
