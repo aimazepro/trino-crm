@@ -250,7 +250,22 @@ export default function ContatoPage({ params }: { params: Promise<{ id: string }
             {contact.name}
           </h1>
         </div>
-        <div className="ml-auto flex items-center gap-2" />
+        <div className="ml-auto flex items-center gap-2">
+          {contact.phones?.[0]?.value && (
+            <>
+              <a href={`tel:${contact.phones[0].value}`}
+                className="flex items-center gap-1.5 rounded-xl bg-zinc-50 px-3 py-1.5 text-sm text-zinc-600 hover:bg-zinc-100 transition-colors">
+                <Phone className="h-3.5 w-3.5 text-zinc-400" aria-hidden="true" />
+                Ligar
+              </a>
+              <a href={`https://wa.me/${contact.phones[0].value.replace(/\D/g, "")}`}
+                target="_blank" rel="noopener noreferrer"
+                className="flex items-center gap-1.5 rounded-lg bg-green-500 px-3 py-1.5 text-sm font-medium text-white hover:bg-green-600 transition-colors">
+                WhatsApp
+              </a>
+            </>
+          )}
+        </div>
       </div>
 
       {/* Body */}

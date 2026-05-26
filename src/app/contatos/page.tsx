@@ -3,7 +3,10 @@
 import { useState, useMemo, useRef, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import { useCrm } from "@/contexts/crm-context";
-import { Plus, Search, Download, Settings, X, ChevronDown, GripVertical, AlertTriangle } from "lucide-react";
+import {
+  Plus, Search, Download, Settings, X, ChevronDown,
+  GripVertical, AlertTriangle, Users, Mail, Phone,
+} from "lucide-react";
 import { cn } from "@/lib/utils";
 import { Contact } from "@/lib/crm-types";
 
@@ -33,11 +36,11 @@ function TypeSelector({ value, options, onChange }: { value: string; options: st
   return (
     <div ref={ref} className="relative shrink-0">
       <button type="button" onClick={() => setOpen(o => !o)}
-        className="flex items-center gap-1 px-3 py-2 border border-gray-200 rounded-lg text-xs font-semibold text-gray-600 bg-white hover:bg-gray-50 transition-colors whitespace-nowrap">
+        className="flex items-center gap-1 px-3 py-2 border border-zinc-200 rounded-lg text-xs font-semibold text-zinc-600 bg-white hover:bg-zinc-50 transition-colors whitespace-nowrap">
         {value} <ChevronDown size={11} />
       </button>
       {open && (
-        <div className="absolute right-0 top-full mt-1 z-50 bg-white border border-gray-200 rounded-xl shadow-lg overflow-hidden min-w-[110px]">
+        <div className="absolute right-0 top-full mt-1 z-50 bg-white border border-zinc-200 rounded-xl shadow-lg overflow-hidden min-w-[110px]">
           {options.map(o => (
             <button key={o} type="button" onMouseDown={() => { onChange(o); setOpen(false); }}
               className={cn("w-full text-left px-3 py-2 text-xs font-medium hover:bg-amber-50 transition-colors", o === value && "text-amber-600 font-bold")}>
@@ -60,15 +63,15 @@ function BulkFieldSelect({ label, value, options, onChange }: { label: string; v
   }, []);
   return (
     <div className="space-y-1.5">
-      <label className="block text-xs font-semibold text-gray-600">{label}</label>
+      <label className="block text-xs font-semibold text-zinc-600">{label}</label>
       <div ref={ref} className="relative">
         <button type="button" onClick={() => setOpen(o => !o)}
-          className="w-full flex items-center justify-between px-3 py-2.5 border border-gray-200 rounded-xl text-sm text-gray-700 bg-white hover:border-gray-300 transition-colors">
-          <span className={value === options[0] ? "text-gray-400" : "text-gray-800"}>{value}</span>
-          <ChevronDown size={14} className="text-gray-400 shrink-0" />
+          className="w-full flex items-center justify-between px-3 py-2.5 border border-zinc-200 rounded-xl text-sm text-zinc-700 bg-white hover:border-zinc-300 transition-colors">
+          <span className={value === options[0] ? "text-zinc-400" : "text-zinc-800"}>{value}</span>
+          <ChevronDown size={14} className="text-zinc-400 shrink-0" />
         </button>
         {open && (
-          <div className="absolute left-0 top-full mt-1 z-50 bg-white border border-gray-200 rounded-xl shadow-lg overflow-hidden w-full">
+          <div className="absolute left-0 top-full mt-1 z-50 bg-white border border-zinc-200 rounded-xl shadow-lg overflow-hidden w-full">
             {options.map(o => (
               <button key={o} type="button" onMouseDown={() => { onChange(o); setOpen(false); }}
                 className={cn("w-full text-left px-3 py-2.5 text-sm hover:bg-amber-50 transition-colors", o === value && "text-amber-600 font-semibold")}>
@@ -96,23 +99,23 @@ function CompanySearchInput({ companies, selectedId, onSelect }: { companies: { 
   const filtered = query.trim() ? companies.filter(c => c.name.toLowerCase().includes(query.toLowerCase())) : companies.slice(0, 6);
   return (
     <div ref={ref} className="relative">
-      <div className="flex items-center border border-gray-200 rounded-lg px-3 py-2.5 bg-white focus-within:border-amber-400 transition-colors">
-        <Search size={13} className="text-gray-400 mr-2 shrink-0" />
+      <div className="flex items-center border border-zinc-200 rounded-lg px-3 py-2.5 bg-white focus-within:border-amber-400 transition-colors">
+        <Search size={13} className="text-zinc-400 mr-2 shrink-0" />
         <input value={query} onChange={e => { setQuery(e.target.value); onSelect(""); setOpen(true); }}
           onFocus={() => setOpen(true)} placeholder="Buscar empresa por nome..."
-          className="flex-1 text-sm outline-none bg-transparent text-gray-800 placeholder:text-gray-400" />
+          className="flex-1 text-sm outline-none bg-transparent text-zinc-800 placeholder:text-zinc-400" />
         {selectedId && (
-          <button type="button" onClick={() => { onSelect(""); setQuery(""); }} className="text-gray-300 hover:text-red-400 transition-colors ml-1">
+          <button type="button" onClick={() => { onSelect(""); setQuery(""); }} className="text-zinc-300 hover:text-red-400 transition-colors ml-1">
             <X size={12} />
           </button>
         )}
       </div>
       {open && filtered.length > 0 && (
-        <div className="absolute z-50 top-full mt-1 w-full bg-white border border-gray-200 rounded-xl shadow-lg overflow-hidden">
+        <div className="absolute z-50 top-full mt-1 w-full bg-white border border-zinc-200 rounded-xl shadow-lg overflow-hidden">
           {filtered.map(c => (
             <button key={c.id} type="button" onMouseDown={() => { onSelect(c.id); setQuery(c.name); setOpen(false); }}
-              className="w-full flex items-center gap-2.5 px-3 py-2.5 hover:bg-amber-50 text-left text-sm font-medium text-gray-900 transition-colors">
-              <div className="w-5 h-5 rounded bg-orange-100 text-orange-600 text-[10px] font-black flex items-center justify-center shrink-0">{c.name.charAt(0)}</div>
+              className="w-full flex items-center gap-2.5 px-3 py-2.5 hover:bg-amber-50 text-left text-sm font-medium text-zinc-900 transition-colors">
+              <div className="w-5 h-5 rounded bg-amber-50 text-amber-600 text-[10px] font-black flex items-center justify-center shrink-0">{c.name.charAt(0)}</div>
               {c.name}
             </button>
           ))}
@@ -132,49 +135,49 @@ function NewContactModal({ onClose, onSave }: { onClose: () => void; onSave: (da
   const [role, setRole] = useState("");
   const [companyId, setCompanyId] = useState("");
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-gray-900/40 backdrop-blur-sm" onClick={onClose}>
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-zinc-900/40 backdrop-blur-sm" onClick={onClose}>
       <div className="bg-white rounded-2xl shadow-2xl w-full max-w-sm overflow-hidden" onClick={e => e.stopPropagation()}>
         <div className="flex items-start justify-between px-6 pt-6 pb-4">
           <div>
-            <h2 className="text-[17px] font-bold text-gray-900">Novo Contato</h2>
-            <p className="text-xs text-gray-400 mt-0.5">Preencha os dados da pessoa.</p>
+            <h2 className="text-[17px] font-bold text-zinc-900">Novo Contato</h2>
+            <p className="text-xs text-zinc-400 mt-0.5">Preencha os dados da pessoa.</p>
           </div>
-          <button onClick={onClose} className="p-1 text-gray-400 hover:text-gray-700 hover:bg-gray-100 rounded-lg transition-colors mt-0.5"><X size={18} /></button>
+          <button onClick={onClose} className="p-1 text-zinc-400 hover:text-zinc-700 hover:bg-zinc-100 rounded-lg transition-colors mt-0.5"><X size={18} /></button>
         </div>
         <div className="px-6 pb-6 space-y-4">
           <div className="space-y-1.5">
-            <label className="text-sm font-semibold text-gray-700">Nome <span className="text-red-400">*</span></label>
+            <label className="text-sm font-semibold text-zinc-700">Nome <span className="text-red-400">*</span></label>
             <input autoFocus value={name} onChange={e => setName(e.target.value)} placeholder="Nome completo"
-              className="w-full border border-gray-200 rounded-lg px-3 py-2.5 text-sm outline-none focus:border-amber-400 transition-colors" />
+              className="w-full border border-zinc-200 rounded-lg px-3 py-2.5 text-sm outline-none focus:border-amber-400 transition-colors" />
           </div>
           <div className="space-y-1.5">
-            <label className="text-sm font-semibold text-gray-700">E-mail</label>
+            <label className="text-sm font-semibold text-zinc-700">E-mail</label>
             <div className="flex gap-2">
               <input value={email} onChange={e => setEmail(e.target.value)} placeholder="email@empresa.com"
-                className="flex-1 border border-gray-200 rounded-lg px-3 py-2.5 text-sm outline-none focus:border-amber-400 transition-colors" />
+                className="flex-1 border border-zinc-200 rounded-lg px-3 py-2.5 text-sm outline-none focus:border-amber-400 transition-colors" />
               <TypeSelector value={emailType} options={EMAIL_TYPES} onChange={setEmailType} />
             </div>
           </div>
           <div className="space-y-1.5">
-            <label className="text-sm font-semibold text-gray-700">Telefone</label>
+            <label className="text-sm font-semibold text-zinc-700">Telefone</label>
             <div className="flex gap-2">
               <input value={phone} onChange={e => setPhone(e.target.value)} placeholder="(11) 99999-9999"
-                className="flex-1 border border-gray-200 rounded-lg px-3 py-2.5 text-sm outline-none focus:border-amber-400 transition-colors" />
+                className="flex-1 border border-zinc-200 rounded-lg px-3 py-2.5 text-sm outline-none focus:border-amber-400 transition-colors" />
               <TypeSelector value={phoneType} options={PHONE_TYPES} onChange={setPhoneType} />
             </div>
           </div>
           <div className="space-y-1.5">
-            <label className="text-sm font-semibold text-gray-700">Cargo</label>
+            <label className="text-sm font-semibold text-zinc-700">Cargo</label>
             <input value={role} onChange={e => setRole(e.target.value)} placeholder="Ex: CEO, Diretor Comercial..."
-              className="w-full border border-gray-200 rounded-lg px-3 py-2.5 text-sm outline-none focus:border-amber-400 transition-colors" />
+              className="w-full border border-zinc-200 rounded-lg px-3 py-2.5 text-sm outline-none focus:border-amber-400 transition-colors" />
           </div>
           <div className="space-y-1.5">
-            <label className="text-sm font-semibold text-gray-700">Empresa</label>
+            <label className="text-sm font-semibold text-zinc-700">Empresa</label>
             <CompanySearchInput companies={state.companies} selectedId={companyId} onSelect={setCompanyId} />
           </div>
           <button onClick={() => { if (!name.trim()) return; onSave({ name: name.trim(), email, emailType, phone, phoneType, role, companyId }); }}
             disabled={!name.trim()}
-            className="w-full py-3 bg-amber-400 hover:bg-amber-500 disabled:opacity-50 disabled:cursor-not-allowed text-white font-bold rounded-xl text-sm transition-colors mt-2">
+            className="w-full py-3 bg-gradient-to-r from-amber-500 to-amber-400 hover:from-amber-600 hover:to-amber-500 disabled:opacity-50 disabled:cursor-not-allowed text-white font-bold rounded-xl text-sm transition-colors mt-2">
             Criar Contato
           </button>
         </div>
@@ -182,6 +185,8 @@ function NewContactModal({ onClose, onSave }: { onClose: () => void; onSave: (da
     </div>
   );
 }
+
+const COLS = ["Nome", "Email", "Telefone", "Cargo", "Empresa", "Negócios", "Proprietário", "nome do sdr"];
 
 export default function ContatosPage() {
   const router = useRouter();
@@ -209,11 +214,8 @@ export default function ContatosPage() {
   const someSelected = selectedIds.size > 0;
 
   const toggleAll = () => {
-    if (allSelected) {
-      setSelectedIds(new Set());
-    } else {
-      setSelectedIds(new Set(filtered.map(c => c.id)));
-    }
+    if (allSelected) setSelectedIds(new Set());
+    else setSelectedIds(new Set(filtered.map(c => c.id)));
   };
 
   const toggleOne = (id: string) => {
@@ -266,99 +268,127 @@ export default function ContatosPage() {
   };
 
   return (
-    <div className="flex flex-col h-full overflow-hidden bg-[#F4F4F5]">
-
+    <div className="flex h-full flex-col">
       {/* Header */}
-      <div className="flex items-center justify-between px-8 py-3 bg-white border-b border-gray-200 shrink-0">
+      <div className="flex items-center justify-between bg-white px-6 py-4">
         <div className="flex items-center gap-3">
-          <h1 className="text-[17px] font-bold text-gray-900 tracking-tight">Pessoas</h1>
-          <span className="bg-gray-100 text-gray-600 font-bold text-[11px] px-2 py-0.5 rounded-full">{state.contacts.length}</span>
+          <Users className="h-5 w-5 text-zinc-400" aria-hidden="true" />
+          <h1 className="text-lg font-semibold text-zinc-800">Pessoas</h1>
+          <span className="rounded-full bg-zinc-100 px-2 py-0.5 text-xs font-medium text-zinc-500">{state.contacts.length}</span>
         </div>
         <div className="flex items-center gap-2">
-          <div className="relative">
-            <Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
+          <div className="flex items-center gap-1.5 rounded-lg border border-zinc-200 bg-white px-3 py-1.5 text-sm text-zinc-400">
+            <Search className="h-3.5 w-3.5" aria-hidden="true" />
             <input value={search} onChange={e => setSearch(e.target.value)} placeholder="Buscar contato..."
-              className="pl-8 pr-4 py-1.5 text-[13px] border border-gray-200 rounded-lg bg-white outline-none focus:border-amber-500 w-56 shadow-sm placeholder:text-gray-400 font-medium transition-colors" />
+              className="outline-none text-zinc-700 placeholder-zinc-400 w-48" />
           </div>
-          <button className="p-1.5 text-gray-400 hover:text-gray-700 transition-colors border border-gray-200 hover:bg-gray-50 rounded-lg bg-white shadow-sm ml-1">
-            <Settings size={15} />
+          <button title="Personalizar colunas" className="flex items-center justify-center rounded-md p-1.5 text-zinc-400 hover:bg-zinc-100 hover:text-zinc-600 transition-colors">
+            <Settings className="h-4 w-4" aria-hidden="true" />
           </button>
-          <button className="flex items-center gap-1.5 px-3 py-1.5 bg-white border border-gray-200 text-gray-600 font-medium text-[12px] rounded-lg hover:bg-gray-50 transition-colors shadow-sm ml-1">
-            <Download size={14} className="text-gray-400" />
+          <button className="flex items-center gap-1.5 rounded-lg border border-zinc-200 px-3 py-1.5 text-sm font-medium text-zinc-500 hover:bg-zinc-50 transition-colors">
+            <Download className="h-3.5 w-3.5" aria-hidden="true" />
             Exportar
           </button>
           <button onClick={() => setShowModal(true)}
-            className="flex items-center gap-1.5 px-4 py-1.5 bg-amber-500 text-white font-bold text-[13px] rounded-lg shadow-sm shadow-amber-500/20 hover:bg-amber-600 transition-colors whitespace-nowrap ml-1">
-            <Plus size={15} /> Novo Contato
+            className="flex items-center gap-2 rounded-lg bg-gradient-to-r from-amber-500 to-amber-400 px-4 py-1.5 text-sm font-semibold text-white hover:from-amber-600 hover:to-amber-500 shadow-sm hover:shadow-md transition-colors">
+            <Plus className="h-4 w-4" aria-hidden="true" />
+            Novo Contato
           </button>
         </div>
       </div>
 
       {/* Table */}
-      <div className="flex-1 overflow-auto p-6">
-        <div className="bg-white border border-gray-200 rounded-[24px] overflow-hidden shadow-sm">
-          <div className="overflow-x-auto">
-            <table className="w-full text-left border-collapse">
-              <thead>
-                <tr className="border-b border-zinc-200 bg-zinc-50 text-[11px] font-semibold text-zinc-400 uppercase tracking-wider">
-                  <th className="py-3 px-4 w-10">
-                    <input type="checkbox" checked={allSelected} onChange={toggleAll}
-                      className="rounded border-gray-300 accent-amber-500 cursor-pointer" />
-                  </th>
-                  {["Nome", "Email", "Telefone", "Cargo", "Empresa", "Negócios", "Proprietário"].map(col => (
-                    <th key={col} className="py-3 px-4">
-                      <div className="flex items-center gap-1.5">
-                        <GripVertical size={12} className="text-zinc-300 shrink-0" />
-                        {col}
+      <div className="flex-1 overflow-auto">
+        <table className="w-full text-[13px] border-collapse">
+          <thead className="sticky top-0 bg-zinc-50 z-10 border-b border-zinc-300">
+            <tr>
+              <th className="px-2 py-2 w-10 border-r border-zinc-200">
+                <button
+                  onClick={toggleAll}
+                  className="flex h-4 w-4 items-center justify-center rounded border border-zinc-300 hover:border-zinc-400 transition-colors"
+                  style={{ backgroundColor: allSelected ? "#f59e0b" : "white" }}>
+                  {allSelected && <svg width="10" height="10" viewBox="0 0 10 10" fill="none"><path d="M2 5l2.5 2.5L8 3" stroke="white" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" /></svg>}
+                </button>
+              </th>
+              {COLS.map(col => (
+                <th key={col} className="group px-3 py-2 text-left text-xs font-semibold text-zinc-500 border-r border-zinc-200">
+                  <button type="button" className="cursor-grab text-zinc-300 hover:text-zinc-500 opacity-0 group-hover:opacity-100 transition-opacity touch-none align-middle inline-block mr-1.5" title="Arraste para reordenar">
+                    <GripVertical className="h-3.5 w-3.5" aria-hidden="true" />
+                  </button>
+                  {col}
+                </th>
+              ))}
+            </tr>
+          </thead>
+          <tbody>
+            {filtered.length === 0 ? (
+              <tr>
+                <td colSpan={COLS.length + 1} className="py-16 text-center text-[13px] font-medium text-zinc-400">
+                  {search ? "Nenhum contato encontrado." : "Nenhum contato cadastrado ainda."}
+                </td>
+              </tr>
+            ) : (
+              filtered.map(c => {
+                const company = getCompany(c);
+                const dealsCount = getDealsCount(c);
+                const selected = selectedIds.has(c.id);
+                return (
+                  <tr key={c.id}
+                    className={cn("border-b border-zinc-200 cursor-pointer transition-colors h-10", selected ? "bg-amber-50" : "hover:bg-zinc-50")}
+                    onClick={() => router.push(`/contatos/${c.id}`)}>
+                    <td className="px-2 py-1.5 w-10 border-r border-zinc-100" onClick={e => e.stopPropagation()}>
+                      <button
+                        onClick={() => toggleOne(c.id)}
+                        className="flex h-4 w-4 items-center justify-center rounded border border-zinc-300 hover:border-zinc-400 transition-colors"
+                        style={{ backgroundColor: selected ? "#f59e0b" : "white" }}>
+                        {selected && <svg width="10" height="10" viewBox="0 0 10 10" fill="none"><path d="M2 5l2.5 2.5L8 3" stroke="white" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" /></svg>}
+                      </button>
+                    </td>
+                    <td className="px-3 py-1.5 border-r border-zinc-100 truncate overflow-hidden whitespace-nowrap text-zinc-600 max-w-[220px]">
+                      <div className="flex items-center gap-3">
+                        <div className="flex h-8 w-8 items-center justify-center rounded-full bg-zinc-100 text-zinc-600 font-medium text-sm shrink-0">
+                          {c.name.charAt(0).toUpperCase()}
+                        </div>
+                        <span className="font-medium text-zinc-800">{c.name}</span>
                       </div>
-                    </th>
-                  ))}
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-zinc-100">
-                {filtered.length === 0 ? (
-                  <tr>
-                    <td colSpan={9} className="py-16 text-center text-[13px] font-medium text-gray-400">
-                      {search ? "Nenhum contato encontrado para a busca." : "Nenhum contato cadastrado ainda."}
+                    </td>
+                    <td className="px-3 py-1.5 border-r border-zinc-100 truncate overflow-hidden whitespace-nowrap text-zinc-600">
+                      {c.emails?.[0]?.value ? (
+                        <a href={`mailto:${c.emails[0].value}`} onClick={e => e.stopPropagation()}
+                          className="flex items-center gap-1 text-zinc-400 hover:text-amber-500 text-xs">
+                          <Mail className="h-3.5 w-3.5" aria-hidden="true" />{c.emails[0].value}
+                        </a>
+                      ) : <span className="text-zinc-300">-</span>}
+                    </td>
+                    <td className="px-3 py-1.5 border-r border-zinc-100 truncate overflow-hidden whitespace-nowrap text-zinc-600">
+                      {c.phones?.[0]?.value ? (
+                        <a href={`tel:${c.phones[0].value}`} onClick={e => e.stopPropagation()}
+                          className="flex items-center gap-1 text-zinc-400 hover:text-amber-500 text-xs">
+                          <Phone className="h-3.5 w-3.5" aria-hidden="true" />{c.phones[0].value}
+                        </a>
+                      ) : <span className="text-zinc-300">-</span>}
+                    </td>
+                    <td className="px-3 py-1.5 border-r border-zinc-100 truncate overflow-hidden whitespace-nowrap text-zinc-600">
+                      {c.role ? <span className="text-zinc-500">{c.role}</span> : <span className="text-zinc-500">-</span>}
+                    </td>
+                    <td className="px-3 py-1.5 border-r border-zinc-100 truncate overflow-hidden whitespace-nowrap text-zinc-600">
+                      {company ? <span className="text-zinc-500">{company.name}</span> : <span className="text-zinc-500">-</span>}
+                    </td>
+                    <td className="px-3 py-1.5 border-r border-zinc-100 truncate overflow-hidden whitespace-nowrap text-zinc-600">
+                      <span className="text-zinc-500">{dealsCount}</span>
+                    </td>
+                    <td className="px-3 py-1.5 border-r border-zinc-100 truncate overflow-hidden whitespace-nowrap text-zinc-600">
+                      <span className="text-sm text-zinc-600">João Paulo Olivera</span>
+                    </td>
+                    <td className="px-3 py-1.5 border-r border-zinc-100 truncate overflow-hidden whitespace-nowrap text-zinc-600">
+                      <span className="text-sm text-zinc-600"><span className="text-zinc-300">-</span></span>
                     </td>
                   </tr>
-                ) : (
-                  filtered.map(c => {
-                    const company = getCompany(c);
-                    const dealsCount = getDealsCount(c);
-                    const selected = selectedIds.has(c.id);
-                    return (
-                      <tr key={c.id}
-                        className={cn("transition-colors group cursor-pointer", selected ? "bg-amber-50" : "hover:bg-gray-50/80")}
-                        onClick={() => router.push(`/contatos/${c.id}`)}>
-                        <td className="py-3 px-4" onClick={e => e.stopPropagation()}>
-                          <input type="checkbox" checked={selected} onChange={() => toggleOne(c.id)}
-                            className="rounded border-gray-300 accent-amber-500 cursor-pointer" />
-                        </td>
-                        <td className="py-3 px-4">
-                          <div className="flex items-center gap-2.5">
-                            <div className="w-6 h-6 rounded-full bg-gray-200 text-gray-600 font-bold flex items-center justify-center text-[10px] shrink-0 uppercase">
-                              {c.name.charAt(0)}
-                            </div>
-                            <span className="font-semibold text-[13px] text-gray-900 group-hover:text-amber-600 transition-colors">
-                              {c.name}
-                            </span>
-                          </div>
-                        </td>
-                        <td className="py-3 px-4 text-[13px] text-gray-600">{c.emails?.[0]?.value || <span className="text-gray-300">—</span>}</td>
-                        <td className="py-3 px-4 text-[13px] text-gray-600">{c.phones?.[0]?.value || <span className="text-gray-300">—</span>}</td>
-                        <td className="py-3 px-4 text-[13px] text-gray-600">{c.role || <span className="text-gray-300">—</span>}</td>
-                        <td className="py-3 px-4 text-[13px] text-gray-700 font-medium">{company?.name || <span className="text-gray-300">—</span>}</td>
-                        <td className="py-3 px-4 text-[13px] font-bold text-gray-700">{dealsCount || <span className="text-gray-400 font-normal">0</span>}</td>
-                        <td className="py-3 px-4 text-[13px] text-gray-500">—</td>
-                      </tr>
-                    );
-                  })
-                )}
-              </tbody>
-            </table>
-          </div>
-        </div>
+                );
+              })
+            )}
+          </tbody>
+        </table>
       </div>
 
       {/* Floating bottom bar */}
@@ -376,8 +406,7 @@ export default function ContatosPage() {
             className="px-4 py-1.5 bg-zinc-100 hover:bg-zinc-200 text-zinc-700 text-[12px] font-semibold rounded-lg transition-colors">
             Exportar CSV
           </button>
-          <button onClick={() => setSelectedIds(new Set())}
-            className="p-1.5 text-zinc-400 hover:text-zinc-600 transition-colors">
+          <button onClick={() => setSelectedIds(new Set())} className="p-1.5 text-zinc-400 hover:text-zinc-600 transition-colors">
             <X size={16} />
           </button>
         </div>
@@ -389,27 +418,24 @@ export default function ContatosPage() {
           <div className="fixed inset-0 z-40 bg-black/20" onClick={() => setBulkEditOpen(false)} />
           <div className="fixed right-0 top-0 h-full w-[420px] z-50 bg-white shadow-2xl border-l border-zinc-200 flex flex-col">
             <div className="flex items-center justify-between px-6 py-5 border-b border-zinc-100">
-              <h2 className="text-[15px] font-bold text-gray-900">
+              <h2 className="text-[15px] font-bold text-zinc-900">
                 Editar {selectedIds.size} {selectedIds.size === 1 ? "contato" : "contatos"}
               </h2>
-              <button onClick={() => setBulkEditOpen(false)} className="p-1.5 text-gray-400 hover:text-gray-700 hover:bg-gray-100 rounded-lg transition-colors">
+              <button onClick={() => setBulkEditOpen(false)} className="p-1.5 text-zinc-400 hover:text-zinc-700 hover:bg-zinc-100 rounded-lg transition-colors">
                 <X size={18} />
               </button>
             </div>
-
             <div className="px-6 py-4 bg-amber-50 border-b border-amber-100 flex items-start gap-2">
               <AlertTriangle size={15} className="text-amber-500 shrink-0 mt-0.5" />
               <p className="text-[12px] text-amber-700 font-medium leading-relaxed">
                 Os campos preenchidos serão aplicados a todos os {selectedIds.size} contatos selecionados. Campos com "Manter valor atual" não serão alterados.
               </p>
             </div>
-
             <div className="flex-1 overflow-y-auto px-6 py-5 space-y-5">
               <BulkFieldSelect label="Cargo" value={bulkCargo} options={CARGO_OPTIONS} onChange={setBulkCargo} />
               <BulkFieldSelect label="Proprietário" value="Manter valor atual" options={["Manter valor atual"]} onChange={() => {}} />
               <BulkFieldSelect label="Ações" value={bulkAcao} options={ACAO_OPTIONS} onChange={setBulkAcao} />
             </div>
-
             <div className="px-6 py-4 border-t border-zinc-100">
               <button onClick={handleBulkSave} disabled={!bulkChanged}
                 className="w-full py-3 bg-emerald-500 hover:bg-emerald-600 disabled:opacity-40 disabled:cursor-not-allowed text-white font-bold rounded-xl text-sm transition-colors">

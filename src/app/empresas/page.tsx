@@ -3,7 +3,11 @@
 import { useState, useMemo, useRef, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import { useCrm } from "@/contexts/crm-context";
-import { Plus, Search, Download, Settings, Building2, X, ChevronDown, GripVertical, AlertTriangle } from "lucide-react";
+import {
+  Plus, Search, Download, Settings, Building2, X,
+  ChevronDown, GripVertical, AlertTriangle, Globe, MapPin,
+} from "lucide-react";
+import { cn } from "@/lib/utils";
 import { Company } from "@/lib/crm-types";
 
 const PORTE_OPTIONS = ["Selecionar", "MEI", "Micro", "Pequena", "Media", "Grande"];
@@ -21,18 +25,18 @@ function BulkFieldSelect({ label, value, options, onChange }: { label: string; v
   }, []);
   return (
     <div className="space-y-1.5">
-      <label className="block text-xs font-semibold text-gray-600">{label}</label>
+      <label className="block text-xs font-semibold text-zinc-600">{label}</label>
       <div ref={ref} className="relative">
         <button type="button" onClick={() => setOpen(o => !o)}
-          className="w-full flex items-center justify-between px-3 py-2.5 border border-gray-200 rounded-xl text-sm text-gray-700 bg-white hover:border-gray-300 transition-colors">
-          <span className={value === options[0] ? "text-gray-400" : "text-gray-800"}>{value}</span>
-          <ChevronDown size={14} className="text-gray-400 shrink-0" />
+          className="w-full flex items-center justify-between px-3 py-2.5 border border-zinc-200 rounded-xl text-sm text-zinc-700 bg-white hover:border-zinc-300 transition-colors">
+          <span className={value === options[0] ? "text-zinc-400" : "text-zinc-800"}>{value}</span>
+          <ChevronDown size={14} className="text-zinc-400 shrink-0" />
         </button>
         {open && (
-          <div className="absolute left-0 top-full mt-1 z-50 bg-white border border-gray-200 rounded-xl shadow-lg overflow-hidden w-full">
+          <div className="absolute left-0 top-full mt-1 z-50 bg-white border border-zinc-200 rounded-xl shadow-lg overflow-hidden w-full">
             {options.map(o => (
               <button key={o} type="button" onMouseDown={() => { onChange(o); setOpen(false); }}
-                className={`w-full text-left px-3 py-2.5 text-sm hover:bg-amber-50 transition-colors ${o === value ? "text-amber-600 font-semibold" : ""}`}>
+                className={cn("w-full text-left px-3 py-2.5 text-sm hover:bg-amber-50 transition-colors", o === value && "text-amber-600 font-semibold")}>
                 {o}
               </button>
             ))}
@@ -43,10 +47,9 @@ function BulkFieldSelect({ label, value, options, onChange }: { label: string; v
   );
 }
 
-function NewCompanyModal({ onClose, onSave, companies }: {
+function NewCompanyModal({ onClose, onSave }: {
   onClose: () => void;
   onSave: (data: Partial<Company> & { name: string }) => void;
-  companies: Company[];
 }) {
   const [name, setName] = useState("");
   const [cnpj, setCnpj] = useState("");
@@ -65,37 +68,37 @@ function NewCompanyModal({ onClose, onSave, companies }: {
       .replace(/^(\d{2})(\d*)$/, "$1.$2");
   };
 
-  const inputClass = "w-full border border-gray-200 rounded-xl px-3.5 py-2.5 text-sm outline-none focus:border-amber-400 focus:ring-2 focus:ring-amber-100 placeholder:text-gray-300 text-gray-800 transition";
+  const inputClass = "w-full border border-zinc-200 rounded-xl px-3.5 py-2.5 text-sm outline-none focus:border-amber-400 focus:ring-2 focus:ring-amber-100 placeholder:text-zinc-300 text-zinc-800 transition";
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-gray-900/40 backdrop-blur-sm" onClick={onClose}>
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-zinc-900/40 backdrop-blur-sm" onClick={onClose}>
       <div className="bg-white rounded-2xl shadow-2xl w-full max-w-md p-6" onClick={e => e.stopPropagation()}>
         <div className="flex items-start justify-between mb-1">
-          <h2 className="text-lg font-bold text-gray-900">Nova Empresa</h2>
-          <button onClick={onClose} className="text-gray-400 hover:text-gray-600 transition mt-0.5"><X size={18} /></button>
+          <h2 className="text-lg font-bold text-zinc-900">Nova Empresa</h2>
+          <button onClick={onClose} className="text-zinc-400 hover:text-zinc-600 transition mt-0.5"><X size={18} /></button>
         </div>
-        <p className="text-sm text-gray-400 mb-5">Preencha os dados da empresa.</p>
+        <p className="text-sm text-zinc-400 mb-5">Preencha os dados da empresa.</p>
         <div className="mb-4">
-          <label className="block text-xs font-semibold text-gray-600 mb-1.5">Nome <span className="text-red-400">*</span></label>
+          <label className="block text-xs font-semibold text-zinc-600 mb-1.5">Nome <span className="text-red-400">*</span></label>
           <input autoFocus value={name} onChange={e => setName(e.target.value)} placeholder="Razão Social ou Nome Fantasia" className={inputClass} />
         </div>
         <div className="grid grid-cols-2 gap-3 mb-4">
           <div>
-            <label className="block text-xs font-semibold text-gray-600 mb-1.5">CNPJ</label>
+            <label className="block text-xs font-semibold text-zinc-600 mb-1.5">CNPJ</label>
             <input value={cnpj} onChange={e => setCnpj(formatCnpj(e.target.value))} placeholder="00.000.000/0001-00" className={inputClass} />
           </div>
           <div>
-            <label className="block text-xs font-semibold text-gray-600 mb-1.5">Site</label>
+            <label className="block text-xs font-semibold text-zinc-600 mb-1.5">Site</label>
             <input value={website} onChange={e => setWebsite(e.target.value)} placeholder="https://..." className={inputClass} />
           </div>
         </div>
         <div className="grid grid-cols-2 gap-3 mb-4">
           <div>
-            <label className="block text-xs font-semibold text-gray-600 mb-1.5">Segmento</label>
+            <label className="block text-xs font-semibold text-zinc-600 mb-1.5">Segmento</label>
             <input value={segment} onChange={e => setSegment(e.target.value)} placeholder="Ex: Tecnologia" className={inputClass} />
           </div>
           <div>
-            <label className="block text-xs font-semibold text-gray-600 mb-1.5">Porte</label>
+            <label className="block text-xs font-semibold text-zinc-600 mb-1.5">Porte</label>
             <select value={size} onChange={e => setSize(e.target.value === "Selecionar" ? "" : e.target.value)}
               className={inputClass + " cursor-pointer bg-white"}>
               {PORTE_OPTIONS.map(o => <option key={o} value={o === "Selecionar" ? "" : o}>{o}</option>)}
@@ -104,24 +107,26 @@ function NewCompanyModal({ onClose, onSave, companies }: {
         </div>
         <div className="grid grid-cols-2 gap-3 mb-6">
           <div>
-            <label className="block text-xs font-semibold text-gray-600 mb-1.5">Cidade</label>
+            <label className="block text-xs font-semibold text-zinc-600 mb-1.5">Cidade</label>
             <input value={city} onChange={e => setCity(e.target.value)} placeholder="São Paulo" className={inputClass} />
           </div>
           <div>
-            <label className="block text-xs font-semibold text-gray-600 mb-1.5">Estado</label>
+            <label className="block text-xs font-semibold text-zinc-600 mb-1.5">Estado</label>
             <input value={state} onChange={e => setState(e.target.value)} placeholder="SP" maxLength={2} className={inputClass} />
           </div>
         </div>
         <button
           onClick={() => name.trim() && onSave({ name: name.trim(), cnpj: cnpj || undefined, website: website || undefined, segment: segment || undefined, size: size || undefined, city: city || undefined, state: state || undefined })}
           disabled={!name.trim()}
-          className="w-full py-3 bg-amber-400 hover:bg-amber-500 text-white font-bold rounded-xl text-sm transition disabled:opacity-40 shadow-sm">
+          className="w-full py-3 bg-gradient-to-r from-amber-500 to-amber-400 hover:from-amber-600 hover:to-amber-500 text-white font-bold rounded-xl text-sm transition disabled:opacity-40 shadow-sm">
           Criar Empresa
         </button>
       </div>
     </div>
   );
 }
+
+const COLS = ["Empresa", "Website", "Segmento", "Porte", "Cidade", "Estado", "CNPJ", "Contatos", "Negócios", "Proprietário"];
 
 export default function EmpresasPage() {
   const router = useRouter();
@@ -200,116 +205,153 @@ export default function EmpresasPage() {
   };
 
   return (
-    <div className="flex flex-col h-full overflow-hidden bg-[#F4F4F5]">
-
+    <div className="flex h-full flex-col">
       {/* Header */}
-      <div className="flex items-center justify-between px-8 py-3 bg-white border-b border-gray-200 shrink-0">
+      <div className="flex items-center justify-between bg-white px-6 py-4">
         <div className="flex items-center gap-3">
-          <h1 className="text-[17px] font-bold text-gray-900 tracking-tight">Empresas</h1>
-          <span className="bg-gray-100 text-gray-600 font-bold text-[11px] px-2 py-0.5 rounded-full">{state.companies.length}</span>
+          <Building2 className="h-5 w-5 text-zinc-400" aria-hidden="true" />
+          <h1 className="text-lg font-semibold text-zinc-800">Empresas</h1>
+          <span className="rounded-full bg-zinc-100 px-2 py-0.5 text-xs font-medium text-zinc-500">{state.companies.length}</span>
         </div>
         <div className="flex items-center gap-2">
-          <div className="relative">
-            <Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
+          <div className="flex items-center gap-1.5 rounded-lg border border-zinc-200 bg-white px-3 py-1.5 text-sm text-zinc-400">
+            <Search className="h-3.5 w-3.5" aria-hidden="true" />
             <input value={search} onChange={e => setSearch(e.target.value)} placeholder="Buscar empresa..."
-              className="pl-8 pr-4 py-1.5 text-[13px] border border-gray-200 rounded-lg bg-white outline-none focus:border-amber-500 w-56 shadow-sm placeholder:text-gray-400 font-medium transition-colors" />
+              className="outline-none text-zinc-700 placeholder-zinc-400 w-48" />
           </div>
-          <button className="p-1.5 text-gray-400 hover:text-gray-700 transition-colors border border-gray-200 hover:bg-gray-50 rounded-lg bg-white shadow-sm ml-1">
-            <Settings size={15} />
+          <button title="Personalizar colunas" className="flex items-center justify-center rounded-md p-1.5 text-zinc-400 hover:bg-zinc-100 hover:text-zinc-600 transition-colors">
+            <Settings className="h-4 w-4" aria-hidden="true" />
           </button>
-          <button className="flex items-center gap-1.5 px-3 py-1.5 bg-white border border-gray-200 text-gray-600 font-medium text-[12px] rounded-lg hover:bg-gray-50 transition-colors shadow-sm ml-1">
-            <Download size={14} className="text-gray-400" />
+          <button className="flex items-center gap-1.5 rounded-lg border border-zinc-200 px-3 py-1.5 text-sm font-medium text-zinc-500 hover:bg-zinc-50 transition-colors">
+            <Download className="h-3.5 w-3.5" aria-hidden="true" />
             Exportar
           </button>
           <button onClick={() => setShowModal(true)}
-            className="flex items-center gap-1.5 px-4 py-1.5 bg-amber-500 text-white font-bold text-[13px] rounded-lg shadow-sm shadow-amber-500/20 hover:bg-amber-600 transition-colors whitespace-nowrap ml-1">
-            <Plus size={15} /> Nova Empresa
+            className="flex items-center gap-2 rounded-lg bg-gradient-to-r from-amber-500 to-amber-400 px-4 py-1.5 text-sm font-semibold text-white hover:from-amber-600 hover:to-amber-500 shadow-sm hover:shadow-md transition-colors">
+            <Plus className="h-4 w-4" aria-hidden="true" />
+            Nova Empresa
           </button>
         </div>
       </div>
 
       {/* Table */}
-      <div className="flex-1 overflow-auto p-6">
-        <div className="bg-white border border-gray-200 rounded-[24px] overflow-hidden shadow-sm">
-          {state.companies.length === 0 && !search ? (
-            <div className="flex flex-col items-center justify-center py-20 text-center">
-              <div className="w-16 h-16 rounded-2xl bg-gray-50 flex items-center justify-center mb-4">
-                <Building2 size={28} className="text-gray-300" />
-              </div>
-              <h3 className="text-base font-bold text-gray-900 mb-1">Nenhuma empresa cadastrada</h3>
-              <p className="text-sm text-gray-400 mb-6 max-w-xs">Comece adicionando empresas para organizar seus negócios.</p>
-              <button onClick={() => setShowModal(true)}
-                className="px-6 py-2.5 bg-amber-500 text-white font-bold text-sm rounded-xl hover:bg-amber-600 shadow-sm transition-colors">
-                + Cadastrar Empresa
-              </button>
+      <div className="flex-1 overflow-auto">
+        {state.companies.length === 0 && !search ? (
+          <div className="flex flex-col items-center justify-center py-20 text-center">
+            <div className="w-16 h-16 rounded-2xl bg-zinc-50 flex items-center justify-center mb-4">
+              <Building2 size={28} className="text-zinc-300" />
             </div>
-          ) : (
-            <div className="overflow-x-auto">
-              <table className="w-full text-left border-collapse">
-                <thead>
-                  <tr className="border-b border-zinc-200 bg-zinc-50 text-[11px] font-semibold text-zinc-400 uppercase tracking-wider">
-                    <th className="py-3 px-4 w-10">
-                      <input type="checkbox" checked={allSelected} onChange={toggleAll}
-                        className="rounded border-gray-300 accent-amber-500 cursor-pointer" />
-                    </th>
-                    {["Empresa", "Website", "Segmento", "Porte", "Cidade", "Estado", "CNPJ", "Contatos", "Negócios", "Proprietário"].map(col => (
-                      <th key={col} className="py-3 px-4">
-                        <div className="flex items-center gap-1.5">
-                          <GripVertical size={12} className="text-zinc-300 shrink-0" />
-                          {col}
+            <h3 className="text-base font-bold text-zinc-900 mb-1">Nenhuma empresa cadastrada</h3>
+            <p className="text-sm text-zinc-400 mb-6 max-w-xs">Comece adicionando empresas para organizar seus negócios.</p>
+            <button onClick={() => setShowModal(true)}
+              className="px-6 py-2.5 bg-gradient-to-r from-amber-500 to-amber-400 text-white font-bold text-sm rounded-xl hover:from-amber-600 hover:to-amber-500 shadow-sm transition-colors">
+              + Cadastrar Empresa
+            </button>
+          </div>
+        ) : (
+          <table className="w-full text-[13px] border-collapse">
+            <thead className="sticky top-0 bg-zinc-50 z-10 border-b border-zinc-300">
+              <tr>
+                <th className="px-2 py-2 w-10 border-r border-zinc-200">
+                  <button
+                    onClick={toggleAll}
+                    className="flex h-4 w-4 items-center justify-center rounded border border-zinc-300 hover:border-zinc-400 transition-colors"
+                    style={{ backgroundColor: allSelected ? "#f59e0b" : "white" }}>
+                    {allSelected && <svg width="10" height="10" viewBox="0 0 10 10" fill="none"><path d="M2 5l2.5 2.5L8 3" stroke="white" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" /></svg>}
+                  </button>
+                </th>
+                {COLS.map(col => (
+                  <th key={col} className="group px-3 py-2 text-left text-xs font-semibold text-zinc-500 border-r border-zinc-200">
+                    <button type="button" className="cursor-grab text-zinc-300 hover:text-zinc-500 opacity-0 group-hover:opacity-100 transition-opacity touch-none align-middle inline-block mr-1.5" title="Arraste para reordenar">
+                      <GripVertical className="h-3.5 w-3.5" aria-hidden="true" />
+                    </button>
+                    {col}
+                  </th>
+                ))}
+              </tr>
+            </thead>
+            <tbody>
+              {filtered.length === 0 ? (
+                <tr>
+                  <td colSpan={COLS.length + 1} className="py-16 text-center text-[13px] font-medium text-zinc-400">
+                    Nenhuma empresa encontrada.
+                  </td>
+                </tr>
+              ) : (
+                filtered.map(c => {
+                  const contacts = getContactsCount(c);
+                  const deals = getDealsCount(c);
+                  const selected = selectedIds.has(c.id);
+                  return (
+                    <tr key={c.id}
+                      className={cn("border-b border-zinc-200 cursor-pointer transition-colors h-10", selected ? "bg-amber-50" : "hover:bg-zinc-50")}
+                      onClick={() => router.push(`/empresas/${c.id}`)}>
+                      <td className="px-2 py-1.5 w-10 border-r border-zinc-100" onClick={e => e.stopPropagation()}>
+                        <button
+                          onClick={() => toggleOne(c.id)}
+                          className="flex h-4 w-4 items-center justify-center rounded border border-zinc-300 hover:border-zinc-400 transition-colors"
+                          style={{ backgroundColor: selected ? "#f59e0b" : "white" }}>
+                          {selected && <svg width="10" height="10" viewBox="0 0 10 10" fill="none"><path d="M2 5l2.5 2.5L8 3" stroke="white" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" /></svg>}
+                        </button>
+                      </td>
+                      <td className="px-3 py-1.5 border-r border-zinc-100 truncate overflow-hidden whitespace-nowrap text-zinc-600">
+                        <div className="flex items-center gap-3">
+                          <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-amber-50 text-amber-600 font-semibold text-sm shrink-0">
+                            {c.name.charAt(0).toUpperCase()}
+                          </div>
+                          <div>
+                            <p className="font-medium text-zinc-800">{c.name}</p>
+                            {c.website && (
+                              <p className="text-xs text-zinc-400 flex items-center gap-1">
+                                <Globe className="h-3 w-3" aria-hidden="true" />{c.website.replace(/^https?:\/\//, "")}
+                              </p>
+                            )}
+                          </div>
                         </div>
-                      </th>
-                    ))}
-                  </tr>
-                </thead>
-                <tbody className="divide-y divide-zinc-100">
-                  {filtered.length === 0 ? (
-                    <tr>
-                      <td colSpan={12} className="py-16 text-center text-[13px] font-medium text-gray-400">
-                        Nenhuma empresa encontrada para &quot;{search}&quot;
+                      </td>
+                      <td className="px-3 py-1.5 border-r border-zinc-100 truncate overflow-hidden whitespace-nowrap text-zinc-600">
+                        {c.website ? (
+                          <span className="text-zinc-500 flex items-center gap-1">
+                            <Globe className="h-3.5 w-3.5 text-zinc-300" aria-hidden="true" />
+                            {c.website.replace(/^https?:\/\//, "")}
+                          </span>
+                        ) : <span className="text-zinc-300">-</span>}
+                      </td>
+                      <td className="px-3 py-1.5 border-r border-zinc-100 truncate overflow-hidden whitespace-nowrap text-zinc-600">
+                        {c.segment ? <span className="text-zinc-500">{c.segment}</span> : <span className="text-zinc-500">-</span>}
+                      </td>
+                      <td className="px-3 py-1.5 border-r border-zinc-100 truncate overflow-hidden whitespace-nowrap text-zinc-600">
+                        {c.size ? <span className="text-zinc-500">{c.size}</span> : <span className="text-zinc-300">-</span>}
+                      </td>
+                      <td className="px-3 py-1.5 border-r border-zinc-100 truncate overflow-hidden whitespace-nowrap text-zinc-600">
+                        {c.city ? (
+                          <span className="flex items-center gap-1 text-zinc-500">
+                            <MapPin className="h-3.5 w-3.5 text-zinc-300" aria-hidden="true" />{c.city}
+                          </span>
+                        ) : <span className="text-zinc-300">-</span>}
+                      </td>
+                      <td className="px-3 py-1.5 border-r border-zinc-100 truncate overflow-hidden whitespace-nowrap text-zinc-600">
+                        {c.state ? <span className="text-zinc-500">{c.state}</span> : <span className="text-zinc-300">-</span>}
+                      </td>
+                      <td className="px-3 py-1.5 border-r border-zinc-100 truncate overflow-hidden whitespace-nowrap text-zinc-600">
+                        {c.cnpj ? <span className="text-zinc-500">{c.cnpj}</span> : <span className="text-zinc-300">-</span>}
+                      </td>
+                      <td className="px-3 py-1.5 border-r border-zinc-100 truncate overflow-hidden whitespace-nowrap text-zinc-600">
+                        <span className="text-zinc-500">{contacts}</span>
+                      </td>
+                      <td className="px-3 py-1.5 border-r border-zinc-100 truncate overflow-hidden whitespace-nowrap text-zinc-600">
+                        <span className="text-zinc-500">{deals}</span>
+                      </td>
+                      <td className="px-3 py-1.5 border-r border-zinc-100 truncate overflow-hidden whitespace-nowrap text-zinc-600">
+                        <span className="text-sm text-zinc-600">João Paulo Olivera</span>
                       </td>
                     </tr>
-                  ) : (
-                    filtered.map(c => {
-                      const contacts = getContactsCount(c);
-                      const deals = getDealsCount(c);
-                      const selected = selectedIds.has(c.id);
-                      return (
-                        <tr key={c.id}
-                          className={`transition-colors group cursor-pointer ${selected ? "bg-amber-50" : "hover:bg-gray-50/80"}`}
-                          onClick={() => router.push(`/empresas/${c.id}`)}>
-                          <td className="py-3 px-4" onClick={e => e.stopPropagation()}>
-                            <input type="checkbox" checked={selected} onChange={() => toggleOne(c.id)}
-                              className="rounded border-gray-300 accent-amber-500 cursor-pointer" />
-                          </td>
-                          <td className="py-3 px-4">
-                            <div className="flex items-center gap-2.5">
-                              <div className="w-7 h-7 rounded-lg bg-orange-100 text-orange-600 font-bold flex items-center justify-center text-xs shrink-0 uppercase">
-                                {c.name.charAt(0)}
-                              </div>
-                              <span className="font-semibold text-[13px] text-gray-900 group-hover:text-amber-600 transition-colors">
-                                {c.name}
-                              </span>
-                            </div>
-                          </td>
-                          <td className="py-3 px-4 text-[13px] text-blue-500">{c.website || <span className="text-gray-300">—</span>}</td>
-                          <td className="py-3 px-4 text-[13px] text-gray-600">{c.segment || <span className="text-gray-300">—</span>}</td>
-                          <td className="py-3 px-4 text-[13px] text-gray-600">{c.size || <span className="text-gray-300">—</span>}</td>
-                          <td className="py-3 px-4 text-[13px] text-gray-600">{c.city || <span className="text-gray-300">—</span>}</td>
-                          <td className="py-3 px-4 text-[13px] text-gray-600">{c.state || <span className="text-gray-300">—</span>}</td>
-                          <td className="py-3 px-4 text-[13px] text-gray-500">{c.cnpj || <span className="text-gray-300">—</span>}</td>
-                          <td className="py-3 px-4 text-[13px] font-bold text-gray-700">{contacts}</td>
-                          <td className="py-3 px-4 text-[13px] font-bold text-gray-700">{deals}</td>
-                          <td className="py-3 px-4 text-[13px] text-gray-500">—</td>
-                        </tr>
-                      );
-                    })
-                  )}
-                </tbody>
-              </table>
-            </div>
-          )}
-        </div>
+                  );
+                })
+              )}
+            </tbody>
+          </table>
+        )}
       </div>
 
       {/* Floating bottom bar */}
@@ -327,8 +369,7 @@ export default function EmpresasPage() {
             className="px-4 py-1.5 bg-zinc-100 hover:bg-zinc-200 text-zinc-700 text-[12px] font-semibold rounded-lg transition-colors">
             Exportar CSV
           </button>
-          <button onClick={() => setSelectedIds(new Set())}
-            className="p-1.5 text-zinc-400 hover:text-zinc-600 transition-colors">
+          <button onClick={() => setSelectedIds(new Set())} className="p-1.5 text-zinc-400 hover:text-zinc-600 transition-colors">
             <X size={16} />
           </button>
         </div>
@@ -340,38 +381,35 @@ export default function EmpresasPage() {
           <div className="fixed inset-0 z-40 bg-black/20" onClick={() => setBulkEditOpen(false)} />
           <div className="fixed right-0 top-0 h-full w-[420px] z-50 bg-white shadow-2xl border-l border-zinc-200 flex flex-col">
             <div className="flex items-center justify-between px-6 py-5 border-b border-zinc-100">
-              <h2 className="text-[15px] font-bold text-gray-900">
+              <h2 className="text-[15px] font-bold text-zinc-900">
                 Editar {selectedIds.size} {selectedIds.size === 1 ? "empresa" : "empresas"}
               </h2>
-              <button onClick={() => setBulkEditOpen(false)} className="p-1.5 text-gray-400 hover:text-gray-700 hover:bg-gray-100 rounded-lg transition-colors">
+              <button onClick={() => setBulkEditOpen(false)} className="p-1.5 text-zinc-400 hover:text-zinc-700 hover:bg-zinc-100 rounded-lg transition-colors">
                 <X size={18} />
               </button>
             </div>
-
             <div className="px-6 py-4 bg-amber-50 border-b border-amber-100 flex items-start gap-2">
               <AlertTriangle size={15} className="text-amber-500 shrink-0 mt-0.5" />
               <p className="text-[12px] text-amber-700 font-medium leading-relaxed">
                 Os campos preenchidos serão aplicados a todas as {selectedIds.size} empresas selecionadas. Campos com "Manter valor atual" não serão alterados.
               </p>
             </div>
-
             <div className="flex-1 overflow-y-auto px-6 py-5 space-y-5">
               <BulkFieldSelect label="Segmento" value={bulkSegmento} options={SEGMENTO_BULK_OPTIONS} onChange={setBulkSegmento} />
               <BulkFieldSelect label="Porte" value={bulkPorte} options={PORTE_BULK_OPTIONS} onChange={setBulkPorte} />
               <div className="space-y-1.5">
-                <label className="block text-xs font-semibold text-gray-600">Cidade</label>
+                <label className="block text-xs font-semibold text-zinc-600">Cidade</label>
                 <input value={bulkCidade} onChange={e => setBulkCidade(e.target.value)} placeholder="Manter valor atual"
-                  className="w-full border border-gray-200 rounded-xl px-3 py-2.5 text-sm outline-none focus:border-amber-400 placeholder:text-gray-400 text-gray-800 transition-colors" />
+                  className="w-full border border-zinc-200 rounded-xl px-3 py-2.5 text-sm outline-none focus:border-amber-400 placeholder:text-zinc-400 text-zinc-800 transition-colors" />
               </div>
               <div className="space-y-1.5">
-                <label className="block text-xs font-semibold text-gray-600">Estado</label>
+                <label className="block text-xs font-semibold text-zinc-600">Estado</label>
                 <input value={bulkEstado} onChange={e => setBulkEstado(e.target.value)} placeholder="Manter valor atual" maxLength={2}
-                  className="w-full border border-gray-200 rounded-xl px-3 py-2.5 text-sm outline-none focus:border-amber-400 placeholder:text-gray-400 text-gray-800 transition-colors" />
+                  className="w-full border border-zinc-200 rounded-xl px-3 py-2.5 text-sm outline-none focus:border-amber-400 placeholder:text-zinc-400 text-zinc-800 transition-colors" />
               </div>
               <BulkFieldSelect label="Proprietário" value="Manter valor atual" options={["Manter valor atual"]} onChange={() => {}} />
               <BulkFieldSelect label="Ações" value={bulkAcao} options={ACAO_OPTIONS} onChange={setBulkAcao} />
             </div>
-
             <div className="px-6 py-4 border-t border-zinc-100">
               <button onClick={handleBulkSave} disabled={!bulkChanged}
                 className="w-full py-3 bg-emerald-500 hover:bg-emerald-600 disabled:opacity-40 disabled:cursor-not-allowed text-white font-bold rounded-xl text-sm transition-colors">
@@ -382,7 +420,7 @@ export default function EmpresasPage() {
         </>
       )}
 
-      {showModal && <NewCompanyModal onClose={() => setShowModal(false)} onSave={handleCreate} companies={state.companies} />}
+      {showModal && <NewCompanyModal onClose={() => setShowModal(false)} onSave={handleCreate} />}
     </div>
   );
 }
