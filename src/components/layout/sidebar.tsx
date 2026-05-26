@@ -61,10 +61,11 @@ export function Sidebar() {
             {[
               { href: "/dashboard", label: "Meu Painel", icon: LayoutDashboard },
               { href: "/pipeline", label: "Negócios", icon: Briefcase },
-              { href: "/contatos", label: "Contatos", icon: Users },
+              { href: "/contatos", label: "Contatos", icon: Users, sub: [{ href: "/contatos", label: "Pessoas" }, { href: "/empresas", label: "Empresas" }] },
               { href: "/atividades", label: "Atividades", icon: CheckCircle2 },
             ].map((item) => {
               const active = isActive(item.href);
+              const hasSub = "sub" in item && item.sub;
               return (
                 <li key={item.href}>
                   <Link
@@ -86,6 +87,26 @@ export function Sidebar() {
                       {item.label}
                     </span>
                   </Link>
+                  {hasSub && active && (
+                    <ul className="mt-0.5 ml-7 space-y-0.5">
+                      {item.sub!.map(s => {
+                        const subActive = pathname.startsWith(s.href) && !(s.href === "/contatos" && pathname.startsWith("/empresas"));
+                        return (
+                          <li key={s.href}>
+                            <Link
+                              href={s.href}
+                              className={cn(
+                                "block rounded-lg px-3 py-1.5 text-[12px] font-medium transition-all duration-150",
+                                subActive ? "text-amber-600" : "text-zinc-400 hover:text-zinc-700"
+                              )}
+                            >
+                              {s.label}
+                            </Link>
+                          </li>
+                        );
+                      })}
+                    </ul>
+                  )}
                 </li>
               );
             })}

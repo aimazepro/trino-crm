@@ -107,7 +107,7 @@ function transformDeal(row: any): Deal {
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     activities: ((row.activities ?? []) as any[]).map((a): Activity => ({
       id: a.id, dealId: a.deal_id, title: a.title, description: a.description ?? undefined,
-      date: a.date, type: a.type, completed: a.completed, createdAt: a.created_at,
+      date: new Date(a.date).toISOString(), type: a.type, completed: a.completed, createdAt: a.created_at,
       guests: a.guests ?? [],
     })),
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -161,10 +161,10 @@ export function CrmProvider({ children }: { children: ReactNode }) {
 
       const [
         { data: pipelinesRaw, error: pErr },
-        { data: contactsRaw },
-        { data: companiesRaw },
-        { data: labelsRaw },
-        { data: dealsRaw },
+        { data: contactsRaw, error: cErr },
+        { data: companiesRaw, error: coErr },
+        { data: labelsRaw, error: lErr },
+        { data: dealsRaw, error: dErr },
         { data: notificationsRaw, error: nErr },
       ] = await Promise.all([
         supabase.from("pipelines").select("*, pipeline_stages(*)").order("created_at"),
@@ -178,6 +178,10 @@ export function CrmProvider({ children }: { children: ReactNode }) {
         supabase.from("notifications").select("*").order("created_at", { ascending: false }),
       ]);
       if (pErr) console.error("[CRM] load pipelines failed:", pErr);
+      if (cErr) console.error("[CRM] load contacts failed:", cErr);
+      if (coErr) console.error("[CRM] load companies failed:", coErr);
+      if (lErr) console.error("[CRM] load labels failed:", lErr);
+      if (dErr) console.error("[CRM] load deals failed:", dErr);
 
       const pipelines = (pipelinesRaw ?? []).map(transformPipeline);
 

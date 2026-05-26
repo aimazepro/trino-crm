@@ -135,6 +135,22 @@ export default function AtividadesPage() {
     }).join(" ");
   };
 
+  const handleSetViewMode = (mode: ViewMode) => {
+    setViewMode(mode);
+    if (mode === "calendar") {
+      const now = new Date();
+      const upcoming = [...filtered]
+        .sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime())
+        .find(a => new Date(a.date) >= startOfDay(now));
+      const target = upcoming
+        ? new Date(upcoming.date)
+        : filtered.length > 0
+          ? new Date(filtered[filtered.length - 1].date)
+          : now;
+      setCurrentDate(target);
+    }
+  };
+
   const handleDayClick = (day: Date) => {
     if (selectedDay && isSameDay(selectedDay, day)) setSelectedDay(null);
     else setSelectedDay(day);
@@ -145,7 +161,8 @@ export default function AtividadesPage() {
       updateActivity(editingActivity.id, { title: data.title, date: data.date, type: data.type, description: data.description, guests: data.guests });
     } else {
       const targetDealId = data.dealId || state.deals.find(d => d.status === "Ativo")?.id || state.deals[0]?.id;
-      if (targetDealId) addActivity({ dealId: targetDealId, title: data.title, date: data.date, type: data.type, description: data.description, guests: data.guests });
+      if (!targetDealId) return; // no deals exist — nothing to attach activity to
+      addActivity({ dealId: targetDealId, title: data.title, date: data.date, type: data.type, description: data.description, guests: data.guests });
     }
     setShowModal(false);
     setEditingActivity(null);
@@ -181,13 +198,13 @@ export default function AtividadesPage() {
           {/* View toggle */}
           <div className="flex rounded-lg border border-zinc-200 overflow-hidden text-xs font-medium">
             <button
-              onClick={() => setViewMode("list")}
+              onClick={() => handleSetViewMode("list")}
               className={cn("flex items-center gap-1.5 px-3 py-1.5 transition-colors", viewMode === "list" ? "bg-amber-500 text-white" : "text-zinc-500 hover:bg-zinc-50")}
             >
               <List className="h-3.5 w-3.5" aria-hidden="true" /> Lista
             </button>
             <button
-              onClick={() => setViewMode("calendar")}
+              onClick={() => handleSetViewMode("calendar")}
               className={cn("flex items-center gap-1.5 px-3 py-1.5 border-l border-zinc-200 transition-colors", viewMode === "calendar" ? "bg-amber-500 text-white" : "text-zinc-500 hover:bg-zinc-50")}
             >
               <CalendarIcon className="h-3.5 w-3.5" aria-hidden="true" /> Calendario
@@ -368,20 +385,28 @@ export default function AtividadesPage() {
           <div className="flex-1 overflow-auto p-6">
             {/* Nav */}
             <div className="flex items-center justify-between mb-5 max-w-4xl mx-auto">
-              <button
-                onClick={() => setCurrentDate(subMonths(currentDate, 1))}
-                className="rounded-lg border border-zinc-200 p-1.5 text-zinc-400 hover:bg-zinc-50 transition-colors"
-              >
-                <ChevronLeft className="h-4 w-4" aria-hidden="true" />
-              </button>
+              <div className="flex items-center gap-2">
+                <button
+                  onClick={() => setCurrentDate(subMonths(currentDate, 1))}
+                  className="rounded-lg border border-zinc-200 p-1.5 text-zinc-400 hover:bg-zinc-50 transition-colors"
+                >
+                  <ChevronLeft className="h-4 w-4" aria-hidden="true" />
+                </button>
+                <button
+                  onClick={() => setCurrentDate(addMonths(currentDate, 1))}
+                  className="rounded-lg border border-zinc-200 p-1.5 text-zinc-400 hover:bg-zinc-50 transition-colors"
+                >
+                  <ChevronRight className="h-4 w-4" aria-hidden="true" />
+                </button>
+              </div>
               <h2 className="text-sm font-semibold text-zinc-800 capitalize">
                 {format(currentDate, "MMMM 'de' yyyy", { locale: ptBR })}
               </h2>
               <button
-                onClick={() => setCurrentDate(addMonths(currentDate, 1))}
-                className="rounded-lg border border-zinc-200 p-1.5 text-zinc-400 hover:bg-zinc-50 transition-colors"
+                onClick={() => setCurrentDate(new Date())}
+                className="rounded-lg border border-zinc-200 px-3 py-1.5 text-xs font-medium text-zinc-500 hover:bg-zinc-50 transition-colors"
               >
-                <ChevronRight className="h-4 w-4" aria-hidden="true" />
+                Hoje
               </button>
             </div>
 
