@@ -15,7 +15,17 @@ const SEGMENTO_BULK_OPTIONS = ["Manter valor atual", "Tecnologia", "Saúde", "Ed
 const PORTE_BULK_OPTIONS = ["Manter valor atual", "MEI", "Micro", "Pequena", "Media", "Grande"];
 const ACAO_OPTIONS = ["Manter valor atual", "Excluir empresas"];
 
-function BulkFieldSelect({ label, value, options, onChange }: { label: string; value: string; options: string[]; onChange: (v: string) => void }) {
+function BulkFieldSelect({
+  label,
+  value,
+  options,
+  onChange,
+}: {
+  label: string;
+  value: string;
+  options: string[];
+  onChange: (v: any) => void;
+}) {
   const [open, setOpen] = useState(false);
   const ref = useRef<HTMLDivElement>(null);
   useEffect(() => {
@@ -24,25 +34,37 @@ function BulkFieldSelect({ label, value, options, onChange }: { label: string; v
     return () => document.removeEventListener("mousedown", h);
   }, []);
   return (
-    <div className="space-y-1.5">
-      <label className="block text-xs font-semibold text-zinc-600">{label}</label>
-      <div ref={ref} className="relative">
-        <button type="button" onClick={() => setOpen(o => !o)}
-          className="w-full flex items-center justify-between px-3 py-2.5 border border-zinc-200 rounded-xl text-sm text-zinc-700 bg-white hover:border-zinc-300 transition-colors">
-          <span className={value === options[0] ? "text-zinc-400" : "text-zinc-800"}>{value}</span>
-          <ChevronDown size={14} className="text-zinc-400 shrink-0" />
-        </button>
-        {open && (
-          <div className="absolute left-0 top-full mt-1 z-50 bg-white border border-zinc-200 rounded-xl shadow-lg overflow-hidden w-full">
-            {options.map(o => (
-              <button key={o} type="button" onMouseDown={() => { onChange(o); setOpen(false); }}
-                className={cn("w-full text-left px-3 py-2.5 text-sm hover:bg-amber-50 transition-colors", o === value && "text-amber-600 font-semibold")}>
-                {o}
-              </button>
-            ))}
-          </div>
-        )}
-      </div>
+    <div ref={ref} className="relative w-full">
+      <button
+        type="button"
+        onClick={() => setOpen(o => !o)}
+        className="flex items-center gap-1.5 rounded-lg border border-zinc-200 bg-white px-3 py-1.5 text-sm hover:bg-zinc-50 transition-colors min-w-0 w-full"
+      >
+        <span className="min-w-0 truncate flex-1 text-left text-zinc-800 font-medium">
+          {value}
+        </span>
+        <ChevronDown className="h-3.5 w-3.5 text-zinc-400 shrink-0" aria-hidden="true" />
+      </button>
+      {open && (
+        <div className="absolute left-0 top-full mt-1 z-50 bg-white border border-zinc-200 rounded-xl shadow-lg overflow-hidden w-full">
+          {options.map(o => (
+            <button
+              key={o}
+              type="button"
+              onMouseDown={() => { onChange(o); setOpen(false); }}
+              className={cn(
+                "w-full text-left px-3 py-2.5 text-sm hover:bg-amber-50 transition-colors flex items-center justify-between",
+                o === value && "bg-blue-600 text-white font-semibold hover:bg-blue-600"
+              )}
+            >
+              <span>{o}</span>
+              {o === value && (
+                <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="lucide lucide-check h-3.5 w-3.5 text-white" aria-hidden="true"><path d="M20 6 9 17l-5-5"></path></svg>
+              )}
+            </button>
+          ))}
+        </div>
+      )}
     </div>
   );
 }
@@ -130,16 +152,46 @@ const COLS = ["Empresa", "Website", "Segmento", "Porte", "Cidade", "Estado", "CN
 
 export default function EmpresasPage() {
   const router = useRouter();
-  const { state, addCompany, updateCompany } = useCrm();
+  const { state, addCompany, updateCompany, deleteCompany } = useCrm();
   const [search, setSearch] = useState("");
   const [showModal, setShowModal] = useState(false);
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
   const [bulkEditOpen, setBulkEditOpen] = useState(false);
-  const [bulkSegmento, setBulkSegmento] = useState(SEGMENTO_BULK_OPTIONS[0]);
-  const [bulkPorte, setBulkPorte] = useState(PORTE_BULK_OPTIONS[0]);
-  const [bulkCidade, setBulkCidade] = useState("");
-  const [bulkEstado, setBulkEstado] = useState("");
-  const [bulkAcao, setBulkAcao] = useState(ACAO_OPTIONS[0]);
+
+  // Bulk edit field states
+  const [segMode, setSegMode] = useState<"Manter valor atual" | "Substituir por..." | "Limpar">("Manter valor atual");
+  const [segValue, setSegValue] = useState("");
+
+  const [porteMode, setPorteMode] = useState<"Manter valor atual" | "Substituir por..." | "Limpar">("Manter valor atual");
+  const [porteValue, setPorteValue] = useState("");
+
+  const [cidadeMode, setCidadeMode] = useState<"Manter valor atual" | "Substituir por..." | "Limpar">("Manter valor atual");
+  const [cidadeValue, setCidadeValue] = useState("");
+
+  const [estMode, setEstMode] = useState<"Manter valor atual" | "Substituir por..." | "Limpar">("Manter valor atual");
+  const [estValue, setEstValue] = useState("");
+
+  const [propMode, setPropMode] = useState<"Manter valor atual" | "Substituir por..." | "Limpar">("Manter valor atual");
+  const [propValue, setPropValue] = useState("");
+
+  const [acaoValue, setAcaoValue] = useState<"Manter valor atual" | "Excluir registros">("Manter valor atual");
+
+  const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
+
+  const resetBulkStates = () => {
+    setSegMode("Manter valor atual");
+    setSegValue("");
+    setPorteMode("Manter valor atual");
+    setPorteValue("");
+    setCidadeMode("Manter valor atual");
+    setCidadeValue("");
+    setEstMode("Manter valor atual");
+    setEstValue("");
+    setPropMode("Manter valor atual");
+    setPropValue("");
+    setAcaoValue("Manter valor atual");
+    setShowDeleteConfirm(false);
+  };
 
   const filtered = useMemo(() => {
     const q = search.toLowerCase();
@@ -165,24 +217,43 @@ export default function EmpresasPage() {
     });
   };
 
-  const bulkChanged = bulkSegmento !== SEGMENTO_BULK_OPTIONS[0] || bulkPorte !== PORTE_BULK_OPTIONS[0] || bulkCidade.trim() !== "" || bulkEstado.trim() !== "" || bulkAcao !== ACAO_OPTIONS[0];
+  const bulkChanged =
+    segMode !== "Manter valor atual" ||
+    porteMode !== "Manter valor atual" ||
+    cidadeMode !== "Manter valor atual" ||
+    estMode !== "Manter valor atual" ||
+    propMode !== "Manter valor atual" ||
+    acaoValue !== "Manter valor atual";
 
   const handleBulkSave = () => {
     selectedIds.forEach(id => {
       const patch: Partial<Company> = {};
-      if (bulkSegmento !== SEGMENTO_BULK_OPTIONS[0]) patch.segment = bulkSegmento;
-      if (bulkPorte !== PORTE_BULK_OPTIONS[0]) patch.size = bulkPorte;
-      if (bulkCidade.trim()) patch.city = bulkCidade.trim();
-      if (bulkEstado.trim()) patch.state = bulkEstado.trim();
+      if (segMode === "Substituir por...") patch.segment = segValue;
+      else if (segMode === "Limpar") patch.segment = "";
+
+      if (porteMode === "Substituir por...") patch.size = porteValue;
+      else if (porteMode === "Limpar") patch.size = "";
+
+      if (cidadeMode === "Substituir por...") patch.city = cidadeValue.trim();
+      else if (cidadeMode === "Limpar") patch.city = "";
+
+      if (estMode === "Substituir por...") patch.state = estValue.trim();
+      else if (estMode === "Limpar") patch.state = "";
+
       updateCompany(id, patch);
     });
     setBulkEditOpen(false);
     setSelectedIds(new Set());
-    setBulkSegmento(SEGMENTO_BULK_OPTIONS[0]);
-    setBulkPorte(PORTE_BULK_OPTIONS[0]);
-    setBulkCidade("");
-    setBulkEstado("");
-    setBulkAcao(ACAO_OPTIONS[0]);
+    resetBulkStates();
+  };
+
+  const handleBulkDelete = () => {
+    selectedIds.forEach(id => {
+      deleteCompany(id);
+    });
+    setBulkEditOpen(false);
+    setSelectedIds(new Set());
+    resetBulkStates();
   };
 
   const handleCreate = (data: Partial<Company> & { name: string }) => {
@@ -379,45 +450,187 @@ export default function EmpresasPage() {
       {bulkEditOpen && (
         <>
           <div className="fixed inset-0 z-40 bg-black/20" onClick={() => setBulkEditOpen(false)} />
-          <div className="fixed right-0 top-0 h-full w-[420px] z-50 bg-white shadow-2xl border-l border-zinc-200 flex flex-col">
-            <div className="flex items-center justify-between px-6 py-5 border-b border-zinc-100">
-              <h2 className="text-[15px] font-bold text-zinc-900">
-                Editar {selectedIds.size} {selectedIds.size === 1 ? "empresa" : "empresas"}
-              </h2>
-              <button onClick={() => setBulkEditOpen(false)} className="p-1.5 text-zinc-400 hover:text-zinc-700 hover:bg-zinc-100 rounded-lg transition-colors">
-                <X size={18} />
+          <aside className="fixed inset-y-0 right-0 z-50 w-[420px] bg-white shadow-2xl border-l border-zinc-200 flex flex-col" role="dialog" aria-label="Editar empresas em massa">
+            <header className="flex items-center justify-between px-5 py-4 border-b border-zinc-200">
+              <div>
+                <h2 className="text-base font-semibold text-zinc-900">
+                  Editar {selectedIds.size} {selectedIds.size === 1 ? "empresa" : "empresas"}
+                </h2>
+                <p className="text-xs text-zinc-500 mt-0.5">Selecione os campos que deseja atualizar</p>
+              </div>
+              <button onClick={() => setBulkEditOpen(false)} className="text-zinc-400 hover:text-zinc-600 transition-colors p-1 -mr-1" aria-label="Fechar">
+                <X className="h-5 w-5" aria-hidden="true" />
               </button>
+            </header>
+            <div className="px-5 py-3 bg-amber-50 border-b border-amber-100 flex gap-2 text-xs text-amber-900">
+              <AlertTriangle className="h-4 w-4 shrink-0 mt-0.5" aria-hidden="true" />
+              <p>Ações em massa não disparam automações, webhooks nem eventos da timeline.</p>
             </div>
-            <div className="px-6 py-4 bg-amber-50 border-b border-amber-100 flex items-start gap-2">
-              <AlertTriangle size={15} className="text-amber-500 shrink-0 mt-0.5" />
-              <p className="text-[12px] text-amber-700 font-medium leading-relaxed">
-                Os campos preenchidos serão aplicados a todas as {selectedIds.size} empresas selecionadas. Campos com "Manter valor atual" não serão alterados.
-              </p>
-            </div>
-            <div className="flex-1 overflow-y-auto px-6 py-5 space-y-5">
-              <BulkFieldSelect label="Segmento" value={bulkSegmento} options={SEGMENTO_BULK_OPTIONS} onChange={setBulkSegmento} />
-              <BulkFieldSelect label="Porte" value={bulkPorte} options={PORTE_BULK_OPTIONS} onChange={setBulkPorte} />
+            <div className="flex-1 overflow-y-auto px-5 py-4 space-y-4">
+              
+              {/* Segmento */}
               <div className="space-y-1.5">
-                <label className="block text-xs font-semibold text-zinc-600">Cidade</label>
-                <input value={bulkCidade} onChange={e => setBulkCidade(e.target.value)} placeholder="Manter valor atual"
-                  className="w-full border border-zinc-200 rounded-xl px-3 py-2.5 text-sm outline-none focus:border-amber-400 placeholder:text-zinc-400 text-zinc-800 transition-colors" />
+                <label className="block text-sm font-medium text-zinc-700">Segmento</label>
+                <BulkFieldSelect
+                  label="Segmento"
+                  value={segMode}
+                  options={["Manter valor atual", "Substituir por...", "Limpar"]}
+                  onChange={setSegMode}
+                />
+                {segMode === "Substituir por..." && (
+                  <input
+                    placeholder=""
+                    className="w-full rounded-lg border border-zinc-200 px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-zinc-300"
+                    type="text"
+                    value={segValue}
+                    onChange={e => setSegValue(e.target.value)}
+                  />
+                )}
               </div>
+
+              {/* Porte */}
               <div className="space-y-1.5">
-                <label className="block text-xs font-semibold text-zinc-600">Estado</label>
-                <input value={bulkEstado} onChange={e => setBulkEstado(e.target.value)} placeholder="Manter valor atual" maxLength={2}
-                  className="w-full border border-zinc-200 rounded-xl px-3 py-2.5 text-sm outline-none focus:border-amber-400 placeholder:text-zinc-400 text-zinc-800 transition-colors" />
+                <label className="block text-sm font-medium text-zinc-700">Porte</label>
+                <BulkFieldSelect
+                  label="Porte"
+                  value={porteMode}
+                  options={["Manter valor atual", "Substituir por...", "Limpar"]}
+                  onChange={setPorteMode}
+                />
+                {porteMode === "Substituir por..." && (
+                  <input
+                    placeholder=""
+                    className="w-full rounded-lg border border-zinc-200 px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-zinc-300"
+                    type="text"
+                    value={porteValue}
+                    onChange={e => setPorteValue(e.target.value)}
+                  />
+                )}
               </div>
-              <BulkFieldSelect label="Proprietário" value="Manter valor atual" options={["Manter valor atual"]} onChange={() => {}} />
-              <BulkFieldSelect label="Ações" value={bulkAcao} options={ACAO_OPTIONS} onChange={setBulkAcao} />
+
+              {/* Cidade */}
+              <div className="space-y-1.5">
+                <label className="block text-sm font-medium text-zinc-700">Cidade</label>
+                <BulkFieldSelect
+                  label="Cidade"
+                  value={cidadeMode}
+                  options={["Manter valor atual", "Substituir por...", "Limpar"]}
+                  onChange={setCidadeMode}
+                />
+                {cidadeMode === "Substituir por..." && (
+                  <input
+                    placeholder=""
+                    className="w-full rounded-lg border border-zinc-200 px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-zinc-300"
+                    type="text"
+                    value={cidadeValue}
+                    onChange={e => setCidadeValue(e.target.value)}
+                  />
+                )}
+              </div>
+
+              {/* Estado */}
+              <div className="space-y-1.5">
+                <label className="block text-sm font-medium text-zinc-700">Estado</label>
+                <BulkFieldSelect
+                  label="Estado"
+                  value={estMode}
+                  options={["Manter valor atual", "Substituir por...", "Limpar"]}
+                  onChange={setEstMode}
+                />
+                {estMode === "Substituir por..." && (
+                  <input
+                    placeholder=""
+                    className="w-full rounded-lg border border-zinc-200 px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-zinc-300"
+                    type="text"
+                    value={estValue}
+                    onChange={e => setEstValue(e.target.value)}
+                  />
+                )}
+              </div>
+
+              {/* Proprietário */}
+              <div className="space-y-1.5">
+                <label className="block text-sm font-medium text-zinc-700">Proprietário</label>
+                <BulkFieldSelect
+                  label="Proprietário"
+                  value={propMode}
+                  options={["Manter valor atual", "Substituir por...", "Limpar"]}
+                  onChange={setPropMode}
+                />
+                {propMode === "Substituir por..." && (
+                  <BulkFieldSelect
+                    label="Selecione Proprietário"
+                    value={propValue || "Selecione..."}
+                    options={["Selecione...", "João Paulo Olivera"]}
+                    onChange={v => setPropValue(v === "Selecione..." ? "" : v)}
+                  />
+                )}
+              </div>
+
+              {/* Ações */}
+              <div className="space-y-1.5">
+                <label className="block text-sm font-medium text-zinc-700">Ações</label>
+                <BulkFieldSelect
+                  label="Ações"
+                  value={acaoValue}
+                  options={["Manter valor atual", "Excluir registros"]}
+                  onChange={setAcaoValue}
+                />
+                {acaoValue === "Excluir registros" && (
+                  <div className="flex items-start gap-2 rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-xs text-red-800">
+                    <AlertTriangle className="h-4 w-4 shrink-0 mt-0.5" aria-hidden="true" />
+                    <span>Esta ação não pode ser revertida. Os registros serão excluídos permanentemente.</span>
+                  </div>
+                )}
+              </div>
+
             </div>
-            <div className="px-6 py-4 border-t border-zinc-100">
-              <button onClick={handleBulkSave} disabled={!bulkChanged}
-                className="w-full py-3 bg-emerald-500 hover:bg-emerald-600 disabled:opacity-40 disabled:cursor-not-allowed text-white font-bold rounded-xl text-sm transition-colors">
-                Salvar alterações
+            <footer className="border-t border-zinc-200 p-4">
+              {acaoValue === "Excluir registros" ? (
+                <button
+                  onClick={() => setShowDeleteConfirm(true)}
+                  disabled={!bulkChanged}
+                  className="w-full flex items-center justify-center gap-2 rounded-lg px-4 py-2.5 text-sm font-semibold text-white transition-colors disabled:bg-zinc-200 disabled:text-zinc-400 disabled:cursor-not-allowed bg-red-600 hover:bg-red-700"
+                >
+                  Excluir {selectedIds.size} {selectedIds.size === 1 ? "empresa" : "empresas"}
+                </button>
+              ) : (
+                <button
+                  onClick={handleBulkSave}
+                  disabled={!bulkChanged}
+                  className="w-full flex items-center justify-center gap-2 rounded-lg px-4 py-2.5 text-sm font-semibold text-white transition-colors disabled:bg-zinc-200 disabled:text-zinc-400 disabled:cursor-not-allowed bg-emerald-500 hover:bg-emerald-600"
+                >
+                  Salvar alterações
+                </button>
+              )}
+            </footer>
+          </aside>
+        </>
+      )}
+
+      {showDeleteConfirm && (
+        <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black/40 backdrop-blur-sm">
+          <div className="relative w-full max-w-md rounded-2xl bg-white p-6 shadow-lg">
+            <h2 className="text-lg font-semibold text-zinc-800">
+              Excluir {selectedIds.size} {selectedIds.size === 1 ? "empresa" : "empresas"}?
+            </h2>
+            <p className="text-sm text-zinc-500 mt-2">Esta ação não pode ser desfeita.</p>
+            <div className="flex justify-end gap-3 mt-6">
+              <button
+                onClick={() => setShowDeleteConfirm(false)}
+                className="px-4 py-2 rounded-lg text-sm font-medium text-zinc-600 border border-zinc-200 hover:bg-zinc-50 transition-colors"
+              >
+                Cancelar
+              </button>
+              <button
+                onClick={handleBulkDelete}
+                className="px-4 py-2 rounded-lg text-sm font-medium text-white transition-colors bg-red-500 hover:bg-red-600"
+              >
+                Excluir
               </button>
             </div>
           </div>
-        </>
+        </div>
       )}
 
       {showModal && <NewCompanyModal onClose={() => setShowModal(false)} onSave={handleCreate} />}

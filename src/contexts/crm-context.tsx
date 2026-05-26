@@ -27,6 +27,7 @@ interface CrmContextType {
   addContact: (contact: Contact) => Promise<string | null>;
   updateCompany: (companyId: string, fields: Partial<Company>) => void;
   addCompany: (company: Company) => Promise<string | null>;
+  deleteCompany: (companyId: string) => void;
   addLabel: (label: Label) => Promise<string | null>;
   addAppointment: (appointment: Omit<Appointment, "id" | "createdAt" | "status">) => void;
   updateAppointment: (appointmentId: string, fields: Partial<Appointment>) => void;
@@ -728,6 +729,12 @@ export function CrmProvider({ children }: { children: ReactNode }) {
     return data.id;
   };
 
+  const deleteCompany = (companyId: string) => {
+    setState((prev) => ({ ...prev, companies: prev.companies.filter((c) => c.id !== companyId) }));
+    supabase.from("companies").delete().eq("id", companyId)
+      .then(({ error }) => { if (error) console.error("[CRM] deleteCompany failed:", error); });
+  };
+
   const addLabel = async (label: Label): Promise<string | null> => {
     if (!userId) return null;
     const { data, error } = await supabase.from("labels").insert({
@@ -989,7 +996,7 @@ export function CrmProvider({ children }: { children: ReactNode }) {
       state, loading,
       moveDeal, markDealStatus, updateDealFields, addDealNote, deleteDealNote, updateDealNote, addDealHistory, addDeal, deleteDeal,
       addPipeline, deletePipeline, updatePipeline,
-      updateContact, addContact, updateCompany, addCompany, addLabel,
+      updateContact, addContact, updateCompany, addCompany, deleteCompany, addLabel,
       addAppointment, updateAppointment, deleteAppointment,
       addActivity, updateActivity, deleteActivity,
       markNotificationAsRead, markAllNotificationsAsRead,
