@@ -53,7 +53,17 @@ function TypeSelector({ value, options, onChange }: { value: string; options: st
   );
 }
 
-function BulkFieldSelect({ label, value, options, onChange }: { label: string; value: string; options: string[]; onChange: (v: string) => void }) {
+function BulkFieldSelect({
+  label,
+  value,
+  options,
+  onChange,
+}: {
+  label: string;
+  value: string;
+  options: string[];
+  onChange: (v: any) => void;
+}) {
   const [open, setOpen] = useState(false);
   const ref = useRef<HTMLDivElement>(null);
   useEffect(() => {
@@ -62,25 +72,37 @@ function BulkFieldSelect({ label, value, options, onChange }: { label: string; v
     return () => document.removeEventListener("mousedown", h);
   }, []);
   return (
-    <div className="space-y-1.5">
-      <label className="block text-xs font-semibold text-zinc-600">{label}</label>
-      <div ref={ref} className="relative">
-        <button type="button" onClick={() => setOpen(o => !o)}
-          className="w-full flex items-center justify-between px-3 py-2.5 border border-zinc-200 rounded-xl text-sm text-zinc-700 bg-white hover:border-zinc-300 transition-colors">
-          <span className={value === options[0] ? "text-zinc-400" : "text-zinc-800"}>{value}</span>
-          <ChevronDown size={14} className="text-zinc-400 shrink-0" />
-        </button>
-        {open && (
-          <div className="absolute left-0 top-full mt-1 z-50 bg-white border border-zinc-200 rounded-xl shadow-lg overflow-hidden w-full">
-            {options.map(o => (
-              <button key={o} type="button" onMouseDown={() => { onChange(o); setOpen(false); }}
-                className={cn("w-full text-left px-3 py-2.5 text-sm hover:bg-amber-50 transition-colors", o === value && "text-amber-600 font-semibold")}>
-                {o}
-              </button>
-            ))}
-          </div>
-        )}
-      </div>
+    <div ref={ref} className="relative w-full">
+      <button
+        type="button"
+        onClick={() => setOpen(o => !o)}
+        className="flex items-center gap-1.5 rounded-lg border border-zinc-200 bg-white px-3 py-1.5 text-sm hover:bg-zinc-50 transition-colors min-w-0 w-full"
+      >
+        <span className="min-w-0 truncate flex-1 text-left text-zinc-800 font-medium">
+          {value}
+        </span>
+        <ChevronDown className="h-3.5 w-3.5 text-zinc-400 shrink-0" aria-hidden="true" />
+      </button>
+      {open && (
+        <div className="absolute left-0 top-full mt-1 z-50 bg-white border border-zinc-200 rounded-xl shadow-lg overflow-hidden w-full">
+          {options.map(o => (
+            <button
+              key={o}
+              type="button"
+              onMouseDown={() => { onChange(o); setOpen(false); }}
+              className={cn(
+                "w-full text-left px-3 py-2.5 text-sm hover:bg-amber-50 transition-colors flex items-center justify-between",
+                o === value && "bg-blue-600 text-white font-semibold hover:bg-blue-600"
+              )}
+            >
+              <span>{o}</span>
+              {o === value && (
+                <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="lucide lucide-check h-3.5 w-3.5 text-white" aria-hidden="true"><path d="M20 6 9 17l-5-5"></path></svg>
+              )}
+            </button>
+          ))}
+        </div>
+      )}
     </div>
   );
 }
@@ -190,13 +212,31 @@ const COLS = ["Nome", "Email", "Telefone", "Cargo", "Empresa", "Negócios", "Pro
 
 export default function ContatosPage() {
   const router = useRouter();
-  const { state, addContact, updateContact } = useCrm();
+  const { state, addContact, updateContact, deleteContact } = useCrm();
   const [search, setSearch] = useState("");
   const [showModal, setShowModal] = useState(false);
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
   const [bulkEditOpen, setBulkEditOpen] = useState(false);
-  const [bulkCargo, setBulkCargo] = useState(CARGO_OPTIONS[0]);
-  const [bulkAcao, setBulkAcao] = useState(ACAO_OPTIONS[0]);
+
+  // Bulk edit field states
+  const [cargoMode, setCargoMode] = useState<"Manter valor atual" | "Substituir por..." | "Limpar">("Manter valor atual");
+  const [cargoValue, setCargoValue] = useState("");
+
+  const [propMode, setPropMode] = useState<"Manter valor atual" | "Substituir por..." | "Limpar">("Manter valor atual");
+  const [propValue, setPropValue] = useState("");
+
+  const [acaoValue, setAcaoValue] = useState<"Manter valor atual" | "Excluir registros">("Manter valor atual");
+
+  const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
+
+  const resetBulkStates = () => {
+    setCargoMode("Manter valor atual");
+    setCargoValue("");
+    setPropMode("Manter valor atual");
+    setPropValue("");
+    setAcaoValue("Manter valor atual");
+    setShowDeleteConfirm(false);
+  };
 
   const filtered = useMemo(() => {
     const q = search.toLowerCase();
@@ -226,18 +266,31 @@ export default function ContatosPage() {
     });
   };
 
-  const bulkChanged = bulkCargo !== CARGO_OPTIONS[0] || bulkAcao !== ACAO_OPTIONS[0];
+  const bulkChanged =
+    cargoMode !== "Manter valor atual" ||
+    propMode !== "Manter valor atual" ||
+    acaoValue !== "Manter valor atual";
 
   const handleBulkSave = () => {
     selectedIds.forEach(id => {
       const patch: Partial<Contact> = {};
-      if (bulkCargo !== CARGO_OPTIONS[0]) patch.role = bulkCargo;
+      if (cargoMode === "Substituir por...") patch.role = cargoValue;
+      else if (cargoMode === "Limpar") patch.role = "";
+      
       updateContact(id, patch);
     });
     setBulkEditOpen(false);
     setSelectedIds(new Set());
-    setBulkCargo(CARGO_OPTIONS[0]);
-    setBulkAcao(ACAO_OPTIONS[0]);
+    resetBulkStates();
+  };
+
+  const handleBulkDelete = () => {
+    selectedIds.forEach(id => {
+      deleteContact(id);
+    });
+    setBulkEditOpen(false);
+    setSelectedIds(new Set());
+    resetBulkStates();
   };
 
   const handleCreate = (data: NewContactData) => {
@@ -416,34 +469,127 @@ export default function ContatosPage() {
       {bulkEditOpen && (
         <>
           <div className="fixed inset-0 z-40 bg-black/20" onClick={() => setBulkEditOpen(false)} />
-          <div className="fixed right-0 top-0 h-full w-[420px] z-50 bg-white shadow-2xl border-l border-zinc-200 flex flex-col">
-            <div className="flex items-center justify-between px-6 py-5 border-b border-zinc-100">
-              <h2 className="text-[15px] font-bold text-zinc-900">
-                Editar {selectedIds.size} {selectedIds.size === 1 ? "contato" : "contatos"}
-              </h2>
-              <button onClick={() => setBulkEditOpen(false)} className="p-1.5 text-zinc-400 hover:text-zinc-700 hover:bg-zinc-100 rounded-lg transition-colors">
-                <X size={18} />
+          <aside className="fixed inset-y-0 right-0 z-50 w-[420px] bg-white shadow-2xl border-l border-zinc-200 flex flex-col" role="dialog" aria-label="Editar contatos em massa">
+            <header className="flex items-center justify-between px-5 py-4 border-b border-zinc-200">
+              <div>
+                <h2 className="text-base font-semibold text-zinc-900">
+                  Editar {selectedIds.size} {selectedIds.size === 1 ? "contato" : "contatos"}
+                </h2>
+                <p className="text-xs text-zinc-500 mt-0.5">Selecione os campos que deseja atualizar</p>
+              </div>
+              <button onClick={() => setBulkEditOpen(false)} className="text-zinc-400 hover:text-zinc-600 transition-colors p-1 -mr-1" aria-label="Fechar">
+                <X className="h-5 w-5" aria-hidden="true" />
               </button>
+            </header>
+            <div className="px-5 py-3 bg-amber-50 border-b border-amber-100 flex gap-2 text-xs text-amber-900">
+              <AlertTriangle className="h-4 w-4 shrink-0 mt-0.5" aria-hidden="true" />
+              <p>Ações em massa não disparam automações, webhooks nem eventos da timeline.</p>
             </div>
-            <div className="px-6 py-4 bg-amber-50 border-b border-amber-100 flex items-start gap-2">
-              <AlertTriangle size={15} className="text-amber-500 shrink-0 mt-0.5" />
-              <p className="text-[12px] text-amber-700 font-medium leading-relaxed">
-                Os campos preenchidos serão aplicados a todos os {selectedIds.size} contatos selecionados. Campos com "Manter valor atual" não serão alterados.
-              </p>
+            <div className="flex-1 overflow-y-auto px-5 py-4 space-y-4">
+              
+              {/* Cargo */}
+              <div className="space-y-1.5">
+                <label className="block text-sm font-medium text-zinc-700">Cargo</label>
+                <BulkFieldSelect
+                  label="Cargo"
+                  value={cargoMode}
+                  options={["Manter valor atual", "Substituir por...", "Limpar"]}
+                  onChange={setCargoMode}
+                />
+                {cargoMode === "Substituir por..." && (
+                  <input
+                    placeholder=""
+                    className="w-full rounded-lg border border-zinc-200 px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-zinc-300"
+                    type="text"
+                    value={cargoValue}
+                    onChange={e => setCargoValue(e.target.value)}
+                  />
+                )}
+              </div>
+
+              {/* Proprietário */}
+              <div className="space-y-1.5">
+                <label className="block text-sm font-medium text-zinc-700">Proprietário</label>
+                <BulkFieldSelect
+                  label="Proprietário"
+                  value={propMode}
+                  options={["Manter valor atual", "Substituir por...", "Limpar"]}
+                  onChange={setPropMode}
+                />
+                {propMode === "Substituir por..." && (
+                  <BulkFieldSelect
+                    label="Selecione Proprietário"
+                    value={propValue || "Selecione..."}
+                    options={["Selecione...", "João Paulo Olivera"]}
+                    onChange={v => setPropValue(v === "Selecione..." ? "" : v)}
+                  />
+                )}
+              </div>
+
+              {/* Ações */}
+              <div className="space-y-1.5">
+                <label className="block text-sm font-medium text-zinc-700">Ações</label>
+                <BulkFieldSelect
+                  label="Ações"
+                  value={acaoValue}
+                  options={["Manter valor atual", "Excluir registros"]}
+                  onChange={setAcaoValue}
+                />
+                {acaoValue === "Excluir registros" && (
+                  <div className="flex items-start gap-2 rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-xs text-red-800">
+                    <AlertTriangle className="h-4 w-4 shrink-0 mt-0.5" aria-hidden="true" />
+                    <span>Esta ação não pode ser revertida. Os registros serão excluídos permanentemente.</span>
+                  </div>
+                )}
+              </div>
+
             </div>
-            <div className="flex-1 overflow-y-auto px-6 py-5 space-y-5">
-              <BulkFieldSelect label="Cargo" value={bulkCargo} options={CARGO_OPTIONS} onChange={setBulkCargo} />
-              <BulkFieldSelect label="Proprietário" value="Manter valor atual" options={["Manter valor atual"]} onChange={() => {}} />
-              <BulkFieldSelect label="Ações" value={bulkAcao} options={ACAO_OPTIONS} onChange={setBulkAcao} />
-            </div>
-            <div className="px-6 py-4 border-t border-zinc-100">
-              <button onClick={handleBulkSave} disabled={!bulkChanged}
-                className="w-full py-3 bg-emerald-500 hover:bg-emerald-600 disabled:opacity-40 disabled:cursor-not-allowed text-white font-bold rounded-xl text-sm transition-colors">
-                Salvar alterações
+            <footer className="border-t border-zinc-200 p-4">
+              {acaoValue === "Excluir registros" ? (
+                <button
+                  onClick={() => setShowDeleteConfirm(true)}
+                  disabled={!bulkChanged}
+                  className="w-full flex items-center justify-center gap-2 rounded-lg px-4 py-2.5 text-sm font-semibold text-white transition-colors disabled:bg-zinc-200 disabled:text-zinc-400 disabled:cursor-not-allowed bg-red-600 hover:bg-red-700"
+                >
+                  Excluir {selectedIds.size} {selectedIds.size === 1 ? "contato" : "contatos"}
+                </button>
+              ) : (
+                <button
+                  onClick={handleBulkSave}
+                  disabled={!bulkChanged}
+                  className="w-full flex items-center justify-center gap-2 rounded-lg px-4 py-2.5 text-sm font-semibold text-white transition-colors disabled:bg-zinc-200 disabled:text-zinc-400 disabled:cursor-not-allowed bg-emerald-500 hover:bg-emerald-600"
+                >
+                  Salvar alterações
+                </button>
+              )}
+            </footer>
+          </aside>
+        </>
+      )}
+
+      {showDeleteConfirm && (
+        <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black/40 backdrop-blur-sm">
+          <div className="relative w-full max-w-md rounded-2xl bg-white p-6 shadow-lg">
+            <h2 className="text-lg font-semibold text-zinc-800">
+              Excluir {selectedIds.size} {selectedIds.size === 1 ? "contato" : "contatos"}?
+            </h2>
+            <p className="text-sm text-zinc-500 mt-2">Esta ação não pode ser desfeita.</p>
+            <div className="flex justify-end gap-3 mt-6">
+              <button
+                onClick={() => setShowDeleteConfirm(false)}
+                className="px-4 py-2 rounded-lg text-sm font-medium text-zinc-600 border border-zinc-200 hover:bg-zinc-50 transition-colors"
+              >
+                Cancelar
+              </button>
+              <button
+                onClick={handleBulkDelete}
+                className="px-4 py-2 rounded-lg text-sm font-medium text-white transition-colors bg-red-500 hover:bg-red-600"
+              >
+                Excluir
               </button>
             </div>
           </div>
-        </>
+        </div>
       )}
 
       {showModal && <NewContactModal onClose={() => setShowModal(false)} onSave={handleCreate} />}

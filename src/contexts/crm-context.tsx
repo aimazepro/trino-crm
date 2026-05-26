@@ -25,6 +25,7 @@ interface CrmContextType {
   updatePipeline: (pipelineId: string, fields: Partial<Pipeline>) => void;
   updateContact: (contactId: string, fields: Partial<Contact>) => void;
   addContact: (contact: Contact) => Promise<string | null>;
+  deleteContact: (contactId: string) => void;
   updateCompany: (companyId: string, fields: Partial<Company>) => void;
   addCompany: (company: Company) => Promise<string | null>;
   deleteCompany: (companyId: string) => void;
@@ -693,6 +694,12 @@ export function CrmProvider({ children }: { children: ReactNode }) {
     return data.id;
   };
 
+  const deleteContact = (contactId: string) => {
+    setState((prev) => ({ ...prev, contacts: prev.contacts.filter((c) => c.id !== contactId) }));
+    supabase.from("contacts").delete().eq("id", contactId)
+      .then(({ error }) => { if (error) console.error("[CRM] deleteContact failed:", error); });
+  };
+
   const updateCompany = (companyId: string, fields: Partial<Company>) => {
     setState((prev) => ({
       ...prev,
@@ -996,7 +1003,7 @@ export function CrmProvider({ children }: { children: ReactNode }) {
       state, loading,
       moveDeal, markDealStatus, updateDealFields, addDealNote, deleteDealNote, updateDealNote, addDealHistory, addDeal, deleteDeal,
       addPipeline, deletePipeline, updatePipeline,
-      updateContact, addContact, updateCompany, addCompany, deleteCompany, addLabel,
+      updateContact, addContact, deleteContact, updateCompany, addCompany, deleteCompany, addLabel,
       addAppointment, updateAppointment, deleteAppointment,
       addActivity, updateActivity, deleteActivity,
       markNotificationAsRead, markAllNotificationsAsRead,
