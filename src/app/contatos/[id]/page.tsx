@@ -114,7 +114,7 @@ function CompanySearch({
   const selected = companies.find(c => c.id === selectedId);
   const filtered = query.trim()
     ? companies.filter(c => c.name.toLowerCase().includes(query.toLowerCase()))
-    : [];
+    : companies;
   const ref = useRef<HTMLDivElement>(null);
   useEffect(() => {
     const h = (e: MouseEvent) => { if (ref.current && !ref.current.contains(e.target as Node)) setOpen(false); };
@@ -124,16 +124,14 @@ function CompanySearch({
 
   if (selected && !open) {
     return (
-      <div className="flex items-center justify-between">
-        <Link href={`/empresas/${selected.id}`} className="flex items-center gap-2 text-sm font-medium text-zinc-800 hover:text-amber-600 transition-colors">
-          <div className="w-5 h-5 rounded bg-orange-100 text-orange-600 text-[10px] font-bold flex items-center justify-center shrink-0">
-            {selected.name.charAt(0)}
-          </div>
+      <div onClick={() => setOpen(true)} className="flex items-center gap-2 w-full">
+        <div className="flex h-7 w-7 items-center justify-center rounded-lg bg-amber-50 text-amber-600 text-xs font-semibold shrink-0">
+          {selected.name.charAt(0).toUpperCase()}
+        </div>
+        <span className="text-sm font-medium text-zinc-800 truncate">
           {selected.name}
-        </Link>
-        <button onClick={() => { onSelect(""); setOpen(false); }} className="text-zinc-300 hover:text-red-400 transition-colors ml-2">
-          <X className="h-3.5 w-3.5" />
-        </button>
+        </span>
+        <Pen className="h-3.5 w-3.5 text-zinc-300 opacity-0 group-hover:opacity-100 ml-auto shrink-0" aria-hidden="true" />
       </div>
     );
   }
@@ -151,15 +149,23 @@ function CompanySearch({
         />
         <Plus className="h-3.5 w-3.5 ml-auto" aria-hidden="true" />
       </div>
-      {open && query.trim() && (
+      {open && (
         <div className="absolute z-50 top-full mt-1 left-0 right-0 bg-white border border-zinc-200 rounded-xl shadow-xl overflow-hidden">
+          {selectedId && (
+            <button
+              onMouseDown={() => { onSelect(""); setQuery(""); setOpen(false); }}
+              className="w-full px-3 py-2.5 hover:bg-red-50 text-left text-sm font-medium text-red-600 transition-colors border-b border-zinc-100"
+            >
+              Desvincular empresa
+            </button>
+          )}
           {filtered.slice(0, 5).map(c => (
             <button
               key={c.id}
               onMouseDown={() => { onSelect(c.id); setQuery(""); setOpen(false); }}
-              className="w-full flex items-center gap-2.5 px-3 py-2.5 hover:bg-amber-50 text-left text-sm font-medium text-zinc-900 transition-colors"
+              className="w-full flex items-center gap-2.5 px-3 py-2.5 hover:bg-amber-50 text-left text-sm font-medium text-zinc-900 transition-colors border-b border-zinc-50 last:border-0"
             >
-              <div className="w-5 h-5 rounded bg-orange-100 text-orange-600 text-[10px] font-bold flex items-center justify-center shrink-0">
+              <div className="w-5 h-5 rounded bg-amber-50 text-amber-600 text-[10px] font-bold flex items-center justify-center shrink-0">
                 {c.name.charAt(0)}
               </div>
               {c.name}
@@ -187,6 +193,7 @@ export default function ContatoPage({ params }: { params: Promise<{ id: string }
   const { state, updateContact } = useCrm();
 
   const contact = state.contacts.find(c => c.id === id);
+  const company = contact ? state.companies.find(c => c.id === contact.companyId) : null;
   const deals = state.deals.filter(d => d.contactId === id);
   const [activeTab, setActiveTab] = useState<Tab>("negocios");
   const [showTemplateModal, setShowTemplateModal] = useState(false);
@@ -249,6 +256,9 @@ export default function ContatoPage({ params }: { params: Promise<{ id: string }
           <h1 className="text-base font-semibold text-zinc-800 cursor-pointer hover:text-amber-600 transition-colors">
             {contact.name}
           </h1>
+          {contact.role && (
+            <p className="text-xs text-zinc-400">{contact.role}</p>
+          )}
         </div>
         <div className="ml-auto flex items-center gap-2">
           {contact.phones?.[0]?.value && (
@@ -273,6 +283,23 @@ export default function ContatoPage({ params }: { params: Promise<{ id: string }
 
         {/* Left: template button + tabs + content */}
         <div className="flex-1 overflow-auto p-6 space-y-5 bg-zinc-50/50">
+
+          {/* Company Card if linked */}
+          {company && (
+            <Link
+              href={`/empresas/${company.id}`}
+              className="flex items-center gap-3 rounded-xl bg-white p-4 cursor-pointer hover:bg-amber-50/30 transition-colors"
+            >
+              <div className="flex h-9 w-9 items-center justify-center rounded-lg bg-amber-50 text-amber-600 font-semibold shrink-0">
+                {company.name.charAt(0).toUpperCase()}
+              </div>
+              <div>
+                <p className="text-xs text-zinc-400">Empresa</p>
+                <p className="text-sm font-medium text-zinc-800">{company.name}</p>
+              </div>
+              <Building2 className="h-4 w-4 text-zinc-300 ml-auto" aria-hidden="true" />
+            </Link>
+          )}
 
           {/* Template button */}
           <div className="flex justify-end">

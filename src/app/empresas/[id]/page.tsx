@@ -7,6 +7,7 @@ import { useCrm } from "@/contexts/crm-context";
 import {
   ArrowLeft, Briefcase, History, ArrowRight, CheckCircle,
   Plus, Search, X, Users, AlertCircle, Link2, Pen,
+  Globe, ExternalLink,
 } from "lucide-react";
 import { Company } from "@/lib/crm-types";
 import { cn } from "@/lib/utils";
@@ -96,6 +97,103 @@ function ContactSearch({ allContacts, onLink, onClose }: { allContacts: { id: st
 }
 
 
+function ParentCompanySelector({
+  companies,
+  currentId,
+  parentCompanyId,
+  onSelect,
+}: {
+  companies: Company[];
+  currentId: string;
+  parentCompanyId: string | null;
+  onSelect: (id: string | null) => void;
+}) {
+  const [open, setOpen] = useState(false);
+  const [query, setQuery] = useState("");
+  const parentCompany = companies.find(c => c.id === parentCompanyId);
+  const filtered = query.trim()
+    ? companies.filter(c => c.id !== currentId && c.name.toLowerCase().includes(query.toLowerCase()))
+    : companies.filter(c => c.id !== currentId);
+  const ref = useRef<HTMLDivElement>(null);
+  useEffect(() => {
+    const h = (e: MouseEvent) => { if (ref.current && !ref.current.contains(e.target as Node)) setOpen(false); };
+    document.addEventListener("mousedown", h);
+    return () => document.removeEventListener("mousedown", h);
+  }, []);
+
+  if (parentCompany && !open) {
+    return (
+      <div onClick={() => setOpen(true)} className="rounded-xl bg-zinc-50 px-4 py-3 cursor-pointer hover:bg-zinc-100 transition-colors group">
+        <div className="flex items-center gap-2">
+          <div className="flex h-7 w-7 items-center justify-center rounded-lg bg-amber-50 text-amber-600 text-xs font-semibold shrink-0">
+            {parentCompany.name.charAt(0).toUpperCase()}
+          </div>
+          <span className="text-sm font-medium text-zinc-800 truncate flex-1">
+            {parentCompany.name}
+          </span>
+          <Pen className="h-3.5 w-3.5 text-zinc-300 opacity-0 group-hover:opacity-100 ml-auto shrink-0" aria-hidden="true" />
+        </div>
+      </div>
+    );
+  }
+
+  return (
+    <div ref={ref} className="relative">
+      {open ? (
+        <div className="absolute z-50 top-full mt-1 left-0 right-0 bg-white border border-zinc-200 rounded-xl shadow-xl overflow-hidden">
+          <div className="flex items-center gap-2 px-3 py-2 border-b border-zinc-100">
+            <Search className="h-3.5 w-3.5 text-zinc-400 shrink-0" />
+            <input
+              value={query}
+              onChange={e => { setQuery(e.target.value); }}
+              placeholder="Buscar empresa..."
+              className="flex-1 text-sm outline-none bg-transparent text-zinc-700 placeholder:text-zinc-400"
+            />
+          </div>
+          {parentCompanyId && (
+            <button
+              onMouseDown={() => { onSelect(null); setQuery(""); setOpen(false); }}
+              className="w-full px-3 py-2.5 hover:bg-red-50 text-left text-sm font-medium text-red-600 transition-colors border-b border-zinc-100"
+            >
+              Remover vínculo
+            </button>
+          )}
+          {filtered.slice(0, 5).map(c => (
+            <button
+              key={c.id}
+              onMouseDown={() => { onSelect(c.id); setQuery(""); setOpen(false); }}
+              className="w-full flex items-center gap-2.5 px-3 py-2.5 hover:bg-amber-50 text-left text-sm font-medium text-zinc-900 transition-colors border-b border-zinc-50 last:border-0"
+            >
+              <div className="w-5 h-5 rounded bg-amber-50 text-amber-600 text-[10px] font-bold flex items-center justify-center shrink-0">
+                {c.name.charAt(0)}
+              </div>
+              {c.name}
+            </button>
+          ))}
+          {filtered.length === 0 && (
+            <div className="px-3 py-2.5 text-xs text-zinc-400">Nenhuma empresa encontrada</div>
+          )}
+          <button
+            onMouseDown={() => { setQuery(""); setOpen(false); }}
+            className="w-full px-3 py-2 text-xs text-zinc-400 hover:bg-zinc-50 text-left border-t border-zinc-100 transition-colors"
+          >
+            Cancelar
+          </button>
+        </div>
+      ) : (
+        <button
+          onClick={() => setOpen(true)}
+          className="flex items-center gap-1.5 w-full rounded-lg border border-dashed border-zinc-200 px-3 py-2 text-sm text-zinc-400 hover:border-amber-300 hover:text-amber-500 transition-colors"
+        >
+          <Plus className="h-3.5 w-3.5" aria-hidden="true" />
+          Vincular empresa mae
+        </button>
+      )}
+    </div>
+  );
+}
+
+
 // ── Main page ──────────────────────────────────────────────────────────────────
 export default function EmpresaPage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = use(params);
@@ -107,6 +205,12 @@ export default function EmpresaPage({ params }: { params: Promise<{ id: string }
   const deals = state.deals.filter(d => d.companyId === id);
   const [activeTab, setActiveTab] = useState<Tab>("negocios");
   const [showVincularPessoa, setShowVincularPessoa] = useState(false);
+  const [parentCompanyId, setParentCompanyId] = useState<string | null>(null);
+
+  useEffect(() => {
+    const stored = localStorage.getItem(`parent_company_${id}`);
+    setParentCompanyId(stored);
+  }, [id]);
 
   const timeline = useMemo(() => {
     const items: { id: string; type: string; title: string; sub: string; dealName: string; dealId: string; date: string }[] = [];
@@ -147,7 +251,22 @@ export default function EmpresaPage({ params }: { params: Promise<{ id: string }
           <h1 className="text-base font-semibold text-zinc-800 cursor-pointer hover:text-amber-600 transition-colors">
             {company.name}
           </h1>
+          {company.segment && (
+            <p className="text-xs text-zinc-400">{company.segment}</p>
+          )}
         </div>
+        {company.website && (
+          <a
+            href={company.website.startsWith("http") ? company.website : `https://${company.website}`}
+            target="_blank"
+            rel="noopener noreferrer"
+            className="ml-auto flex items-center gap-1 text-xs text-amber-500 hover:underline"
+          >
+            <Globe className="h-3.5 w-3.5" aria-hidden="true" />
+            Site
+            <ExternalLink className="h-3 w-3" aria-hidden="true" />
+          </a>
+        )}
       </div>
 
       {/* Body */}
@@ -182,7 +301,15 @@ export default function EmpresaPage({ params }: { params: Promise<{ id: string }
                   </div>
                   <div className="flex-1 min-w-0">
                     <p className="text-sm font-medium text-zinc-800">{linkedContact.name}</p>
+                    {linkedContact.role && (
+                      <p className="text-xs text-zinc-400">{linkedContact.role}</p>
+                    )}
                   </div>
+                  {linkedContact.emails?.[0]?.value && (
+                    <p className="text-xs text-zinc-400 truncate max-w-[140px]">
+                      {linkedContact.emails[0].value}
+                    </p>
+                  )}
                 </Link>
               )}
               {showVincularPessoa && (
@@ -305,6 +432,28 @@ export default function EmpresaPage({ params }: { params: Promise<{ id: string }
 
         {/* Right: sidebar */}
         <div className="w-80 shrink-0 overflow-auto p-5 space-y-5 bg-white">
+
+          {/* EMPRESA MAE */}
+          <div>
+            <h3 className="text-xs font-medium text-zinc-400 tracking-wide mb-3 flex items-center gap-1.5">
+              <Link2 className="h-3.5 w-3.5" aria-hidden="true" />
+              EMPRESA MAE
+            </h3>
+            <ParentCompanySelector
+              companies={state.companies}
+              currentId={id}
+              parentCompanyId={parentCompanyId}
+              onSelect={(parentId) => {
+                if (parentId) {
+                  localStorage.setItem(`parent_company_${id}`, parentId);
+                  setParentCompanyId(parentId);
+                } else {
+                  localStorage.removeItem(`parent_company_${id}`);
+                  setParentCompanyId(null);
+                }
+              }}
+            />
+          </div>
 
           {/* INFORMAÇÕES */}
           <div>
