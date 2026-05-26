@@ -89,7 +89,8 @@ export interface Deal {
   labels: string[];
   daysInStage: number;
   createdAt?: string;
-  
+  updatedAt?: string;
+
   notes: Note[];
   history: HistoryLog[];
   products: DealProduct[];

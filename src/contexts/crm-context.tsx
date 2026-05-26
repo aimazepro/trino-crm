@@ -89,6 +89,7 @@ function transformDeal(row: any): Deal {
     ownerId: row.owner_id ?? undefined,
     daysInStage: row.days_in_stage,
     createdAt: row.created_at,
+    updatedAt: row.updated_at,
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     labels: ((row.deal_labels ?? []) as any[]).map((dl) => dl.label_id),
     // eslint-disable-next-line @typescript-eslint/no-explicit-any

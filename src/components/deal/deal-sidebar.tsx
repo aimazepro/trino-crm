@@ -1,7 +1,7 @@
 "use client";
 
-import { useState, useRef, useEffect } from "react";
-import { DollarSign, Calendar, Clock, Hash, Tag, Plus, Edit2, Check, X, Search, User, Building2, Link2 } from "lucide-react";
+import { useState, useRef, useEffect, useCallback } from "react";
+import { DollarSign, Calendar, Clock, Hash, Tag, Plus, Edit2, Check, X, Search, User, Building2, Link2, CircleX, ChevronDown, Pencil } from "lucide-react";
 import { useCrm } from "@/contexts/crm-context";
 import { InlineEdit } from "./inline-edit";
 import { ContactAccordion } from "./contact-accordion";
@@ -9,6 +9,7 @@ import { CompanyAccordion } from "./company-accordion";
 import { ProductsModal } from "./products-modal";
 import { Contact, Company } from "@/lib/crm-types";
 import { cn } from "@/lib/utils";
+import { createClient } from "@/lib/supabase/client";
 
 interface DealSidebarProps {
   dealId: string;
@@ -184,6 +185,38 @@ export function DealSidebar({ dealId }: DealSidebarProps) {
                />
             </div>
           </div>
+
+          {deal.status === "Perdido" && (() => {
+            const raw = deal.lossReason ?? "";
+            const colonIdx = raw.indexOf(": ");
+            const category = colonIdx > -1 ? raw.slice(0, colonIdx) : raw;
+            const observation = colonIdx > -1 ? raw.slice(colonIdx + 2) : "";
+            const lostDate = deal.updatedAt
+              ? new Intl.DateTimeFormat("pt-BR", { day: "numeric", month: "long", year: "numeric" }).format(new Date(deal.updatedAt))
+              : null;
+            return (
+              <>
+                <div className="flex items-center justify-between gap-2">
+                  <span className="flex items-center gap-1.5 text-sm text-zinc-500 shrink-0">
+                    <CircleX size={16} className="text-red-500 shrink-0" />
+                    Perdido em
+                  </span>
+                  {lostDate && <span className="text-sm font-medium text-zinc-800">{lostDate}</span>}
+                </div>
+                {raw && (
+                  <div className="flex flex-col gap-1 rounded-lg border border-red-100 bg-red-50/50 px-3 py-2">
+                    <div className="flex items-center justify-between gap-2">
+                      <span className="text-xs font-medium uppercase tracking-wide text-red-500">Motivo</span>
+                      {category && <span className="text-sm font-medium text-zinc-800">{category}</span>}
+                    </div>
+                    {observation && (
+                      <p className="text-sm text-zinc-700 whitespace-pre-wrap break-words">{observation}</p>
+                    )}
+                  </div>
+                )}
+              </>
+            );
+          })()}
 
           <div className="flex items-center justify-between">
             <span className="flex items-center gap-1.5 text-sm text-zinc-500">
@@ -384,6 +417,8 @@ export function DealSidebar({ dealId }: DealSidebarProps) {
 
       <div className="h-px bg-zinc-100 my-3"></div>
 
+      <DealCustomFields dealId={dealId} />
+
       {/* Accordions */}
       {contact ? (
         <ContactAccordion contact={contact} dealId={dealId} />
@@ -398,6 +433,138 @@ export function DealSidebar({ dealId }: DealSidebarProps) {
       )}
 
       {isProductsOpen && <ProductsModal deal={deal} onClose={() => setIsProductsOpen(false)} />}
+    </div>
+  );
+}
+
+// ── Deal Custom Fields ───────────────────────────────────────────────────────
+
+type CustomFieldDef = {
+  id: string;
+  label: string;
+  field_type: string;
+  field_group: string;
+  required: boolean;
+};
+
+function DealCustomFields({ dealId }: { dealId: string }) {
+  const supabase = createClient();
+  const [fields, setFields] = useState<CustomFieldDef[]>([]);
+  const [values, setValues] = useState<Record<string, string>>({});
+  const [editingId, setEditingId] = useState<string | null>(null);
+  const [tempVal, setTempVal] = useState("");
+  const [expandedGroups, setExpandedGroups] = useState<Record<string, boolean>>({});
+
+  const load = useCallback(async () => {
+    const { data: { user } } = await supabase.auth.getUser();
+    if (!user) return;
+
+    const [{ data: fRows }, { data: vRows }] = await Promise.all([
+      supabase.from("custom_fields").select("id,label,field_type,field_group,required").eq("user_id", user.id).eq("entity", "deal").order("sort_order"),
+      supabase.from("deal_field_values").select("field_id,value").eq("deal_id", dealId),
+    ]);
+
+    setFields(fRows ?? []);
+    const map: Record<string, string> = {};
+    for (const v of vRows ?? []) map[v.field_id] = v.value ?? "";
+    setValues(map);
+    const groups = [...new Set((fRows ?? []).map(f => f.field_group || "Desagrupado"))];
+    setExpandedGroups(prev => {
+      const next = { ...prev };
+      for (const g of groups) if (!(g in next)) next[g] = true;
+      return next;
+    });
+  }, [supabase, dealId]);
+
+  useEffect(() => { load(); }, [load]);
+
+  const saveValue = async (fieldId: string, val: string) => {
+    const { data: { user } } = await supabase.auth.getUser();
+    if (!user) return;
+    await supabase.from("deal_field_values").upsert(
+      { deal_id: dealId, field_id: fieldId, value: val, updated_at: new Date().toISOString() },
+      { onConflict: "deal_id,field_id" }
+    );
+    setValues(prev => ({ ...prev, [fieldId]: val }));
+  };
+
+  if (fields.length === 0) return null;
+
+  const groups = [...new Set(fields.map(f => f.field_group || "Desagrupado"))];
+
+  return (
+    <div className="rounded-xl overflow-hidden bg-zinc-50">
+      <div className="flex items-center gap-2 px-4 py-3">
+        <ChevronDown size={16} className="text-zinc-500" />
+        <span className="text-sm font-semibold text-zinc-800">Detalhes</span>
+      </div>
+
+      <div className="px-4 py-1">
+        {groups.map(group => {
+          const groupFields = fields.filter(f => (f.field_group || "Desagrupado") === group);
+          const filled = groupFields.filter(f => values[f.id]).length;
+          const expanded = expandedGroups[group] !== false;
+
+          return (
+            <div key={group} className="mt-1">
+              <button
+                onClick={() => setExpandedGroups(prev => ({ ...prev, [group]: !expanded }))}
+                className="flex items-center gap-2 w-full py-2 mt-1 border-t border-zinc-100"
+              >
+                <ChevronDown
+                  size={14}
+                  className={cn("text-zinc-400 transition-transform", !expanded && "-rotate-90")}
+                />
+                <span className="text-xs font-semibold text-zinc-500 uppercase tracking-wider">{group}</span>
+                <span className="text-xs text-zinc-400 ml-auto bg-zinc-100 rounded-full px-1.5 py-0.5">
+                  {filled}/{groupFields.length}
+                </span>
+              </button>
+
+              {expanded && groupFields.map(field => (
+                <div key={field.id} className="grid grid-cols-[72px_1fr] gap-x-2 py-2 border-b border-zinc-100 last:border-0 items-start">
+                  <p className="text-xs text-zinc-500 pt-1.5 break-words leading-tight">{field.label}</p>
+                  <div className="min-w-0">
+                    {editingId === field.id ? (
+                      <div className="flex items-center gap-1">
+                        <input
+                          autoFocus
+                          value={tempVal}
+                          onChange={e => setTempVal(e.target.value)}
+                          className="flex-1 text-sm px-2 py-1 border-2 border-amber-300 rounded outline-none bg-white"
+                          onKeyDown={e => {
+                            if (e.key === "Enter") { saveValue(field.id, tempVal); setEditingId(null); }
+                            if (e.key === "Escape") setEditingId(null);
+                          }}
+                        />
+                        <button onClick={() => { saveValue(field.id, tempVal); setEditingId(null); }} className="text-green-500 p-0.5 rounded hover:bg-zinc-100"><Check size={13} /></button>
+                        <button onClick={() => setEditingId(null)} className="text-red-400 p-0.5 rounded hover:bg-zinc-100"><X size={13} /></button>
+                      </div>
+                    ) : (
+                      <div className="flex items-center gap-1 group -mx-2">
+                        <button
+                          onClick={() => { setTempVal(values[field.id] ?? ""); setEditingId(field.id); }}
+                          className="flex-1 min-w-0 text-left rounded-md px-2 py-1 hover:bg-zinc-100 transition-colors"
+                        >
+                          <span className={cn("text-sm", values[field.id] ? "text-zinc-800" : "text-zinc-300 group-hover:text-zinc-500")}>
+                            {values[field.id] || "-"}
+                          </span>
+                        </button>
+                        <button
+                          onClick={() => { setTempVal(values[field.id] ?? ""); setEditingId(field.id); }}
+                          className="shrink-0 rounded-md p-1 text-zinc-300 opacity-0 group-hover:opacity-100 hover:bg-zinc-100 transition-all"
+                        >
+                          <Pencil size={14} />
+                        </button>
+                      </div>
+                    )}
+                  </div>
+                </div>
+              ))}
+            </div>
+          );
+        })}
+      </div>
     </div>
   );
 }
