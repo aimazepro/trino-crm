@@ -45,7 +45,7 @@ const COLUMN_HEADERS: Record<string, { label: string; align: "left" | "right" | 
 
 export function KanbanListView({ pipelineId, columns = DEFAULT_COLUMNS, statusFilter }: KanbanListViewProps) {
   const { state, markDealStatus, deleteDeal, updateDealFields, addLabel } = useCrm();
-  const { map: ownerNameMap } = useOwnerNameMap();
+  const { map: ownerNameMap, names: ownerNames } = useOwnerNameMap();
   const [activePipelineId, setActivePipelineId] = useState(pipelineId);
   const [stageFilter, setStageFilter] = useState("");
   const [statusLocalFilter, setStatusLocalFilter] = useState("todos");
@@ -414,7 +414,7 @@ export function KanbanListView({ pipelineId, columns = DEFAULT_COLUMNS, statusFi
       }
       
       if (ownerMode === "Substituir por...") {
-        patch.ownerId = ownerValue === "João Paulo Olivera" ? "joao_paulo" : ownerValue;
+        patch.ownerId = ownerValue;
       } else if (ownerMode === "Limpar") {
         patch.ownerId = undefined;
       }
@@ -493,7 +493,7 @@ export function KanbanListView({ pipelineId, columns = DEFAULT_COLUMNS, statusFi
         pipeline.name,
         company?.name || "",
         contact?.name || "",
-        "João Paulo Olivera",
+        ownerNameMap[d.ownerId ?? ""] || "-",
         d.status === "Ativo" ? "Aberto" : d.status,
         d.expectedCloseDate || "",
         d.probability !== undefined ? `${d.probability}%` : ""
@@ -858,7 +858,7 @@ export function KanbanListView({ pipelineId, columns = DEFAULT_COLUMNS, statusFi
                   <BulkFieldSelect
                     label="Selecione Proprietário"
                     value={ownerValue || "Selecione..."}
-                    options={["Selecione...", "João Paulo Olivera"]}
+                    options={["Selecione...", ...ownerNames]}
                     onChange={v => setOwnerValue(v === "Selecione..." ? "" : v)}
                   />
                 )}

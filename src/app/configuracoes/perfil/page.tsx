@@ -1,12 +1,26 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { Camera, Pencil, Lock, LogOut, Trash2 } from "lucide-react";
+import { createClient } from "@/lib/supabase/client";
 
 export default function PerfilPage() {
   const [editingName, setEditingName] = useState(false);
-  const [name, setName] = useState("João Paulo Olivera");
-  const [tempName, setTempName] = useState(name);
+  const [name, setName] = useState("");
+  const [tempName, setTempName] = useState("");
+  const [userEmail, setUserEmail] = useState("");
+
+  useEffect(() => {
+    const supabase = createClient();
+    supabase.auth.getUser().then(({ data: { user } }) => {
+      if (user) {
+        const n = (user.user_metadata?.full_name as string | undefined) || user.email || "";
+        setName(n);
+        setTempName(n);
+        setUserEmail(user.email || "");
+      }
+    });
+  }, []);
 
   const handleSaveName = () => {
     setName(tempName);
@@ -39,11 +53,9 @@ export default function PerfilPage() {
         {/* Avatar and Info Header */}
         <div className="flex items-center gap-5 px-6 pt-6 pb-5 border-b border-zinc-100">
           <div className="relative">
-            <img
-              alt="João Paulo Olivera"
-              className="h-16 w-16 rounded-full object-cover"
-              src="https://img.clerk.com/eyJ0eXBlIjoicHJveHkiLCJzcmMiOiJodHRwczovL2ltYWdlcy5jbGVyay5kZXYvb2F1dGhfZ29vZ2xlL2ltZ18zRTBpS2dTU0NQVllBTEZKNDhOUldaZkh4RE0ifQ"
-            />
+            <div className="h-16 w-16 rounded-full bg-amber-100 flex items-center justify-center">
+              <span className="text-xl font-semibold text-amber-700">{name ? name[0].toUpperCase() : "?"}</span>
+            </div>
             <button
               className="absolute -bottom-1 -right-1 flex h-6 w-6 items-center justify-center rounded-full bg-zinc-900 text-white hover:bg-zinc-700 transition-colors disabled:opacity-50"
               title="Alterar foto"
@@ -55,7 +67,7 @@ export default function PerfilPage() {
           
           <div className="flex-1 min-w-0">
             <p className="text-base font-semibold text-zinc-900 truncate">{name}</p>
-            <p className="text-sm text-zinc-400 truncate">jpotempla@gmail.com</p>
+            <p className="text-sm text-zinc-400 truncate">{userEmail}</p>
             <span className="mt-1.5 inline-block rounded-full px-2.5 py-0.5 text-xs font-semibold bg-amber-100 text-amber-700">
               Administrador
             </span>
@@ -115,7 +127,7 @@ export default function PerfilPage() {
           <div className="px-6 py-4">
             <p className="text-xs font-medium text-zinc-400 tracking-wide uppercase mb-1">Email</p>
             <div className="flex items-center justify-between">
-              <p className="text-sm text-zinc-900">jpotempla@gmail.com</p>
+              <p className="text-sm text-zinc-900">{userEmail}</p>
               <span className="text-xs text-zinc-400">Gerenciado pelo Clerk</span>
             </div>
           </div>

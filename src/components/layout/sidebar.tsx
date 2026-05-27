@@ -3,6 +3,7 @@
 import Link from "next/link";
 import Image from "next/image";
 import { usePathname, useRouter } from "next/navigation";
+import { useState, useEffect } from "react";
 import {
   LayoutDashboard,
   Briefcase,
@@ -22,6 +23,14 @@ import { createClient } from "@/lib/supabase/client";
 export function Sidebar() {
   const pathname = usePathname();
   const router = useRouter();
+  const [displayName, setDisplayName] = useState<string>("");
+
+  useEffect(() => {
+    const supabase = createClient();
+    supabase.auth.getUser().then(({ data: { user } }) => {
+      if (user) setDisplayName((user.user_metadata?.full_name as string | undefined) || user.email || "");
+    });
+  }, []);
 
   const handleLogout = async () => {
     const supabase = createClient();
@@ -240,15 +249,12 @@ export function Sidebar() {
             aria-label="Abrir menu do usuário"
           >
             <span className="cl-userButtonOuterIdentifier text-[13px] font-medium text-zinc-600 truncate">
-              João Paulo Olivera
+              {displayName}
             </span>
-            <span className="cl-avatarBox cl-userButtonAvatarBox relative flex h-7 w-7 shrink-0 overflow-hidden rounded-full border border-zinc-100">
-              <img
-                src="https://img.clerk.com/eyJ0eXBlIjoicHJveHkiLCJzcmMiOiJodHRwczovL2ltYWdlcy5jbGVyay5kZXYvb2F1dGhfZ29vZ2xlL2ltZ18zRTBpS2dTU0NQVllBTEZKNDhOUldaZkh4RE0ifQ?width=80"
-                className="cl-avatarImage h-full w-full object-cover"
-                title="João Paulo Olivera"
-                alt="João Paulo Olivera"
-              />
+            <span className="cl-avatarBox cl-userButtonAvatarBox relative flex h-7 w-7 shrink-0 overflow-hidden rounded-full border border-zinc-100 bg-amber-100 items-center justify-center">
+              <span className="text-xs font-semibold text-amber-700">
+                {displayName ? displayName[0].toUpperCase() : "?"}
+              </span>
             </span>
           </button>
         </div>

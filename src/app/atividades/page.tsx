@@ -9,6 +9,7 @@ import {
   ChevronLeft, ChevronRight, Filter, X, ChevronDown,
 } from "lucide-react";
 import { useCrm } from "@/contexts/crm-context";
+import { useOwnerNameMap } from "@/hooks/use-owner-name-map";
 import { Activity } from "@/lib/crm-types";
 import { ActivityModal } from "@/components/deal/activity-modal";
 import { NextActivityModal } from "@/components/deal/next-activity-modal";
@@ -46,6 +47,7 @@ const DATE_FILTERS: { key: DateFilter; label: string }[] = [
 
 export default function AtividadesPage() {
   const { state, addActivity, updateActivity, deleteActivity } = useCrm();
+  const { selfName } = useOwnerNameMap();
   const [viewMode, setViewMode] = useState<ViewMode>("list");
   const [dateFilter, setDateFilter] = useState<DateFilter>("hoje");
   const [filterType, setFilterType] = useState("Todos");
@@ -347,7 +349,7 @@ export default function AtividadesPage() {
                                 {a.dealTitle}
                               </Link>
                               <span className="flex items-center gap-1 text-xs text-zinc-500">
-                                <Users className="h-3 w-3" aria-hidden="true" /> João Paulo Olivera (você)
+                                <Users className="h-3 w-3" aria-hidden="true" /> {selfName || "Você"} (você)
                               </span>
                             </div>
                           </div>
@@ -527,7 +529,7 @@ export default function AtividadesPage() {
           onClose={() => { setShowModal(false); setEditingActivity(null); }}
           onSave={handleSave}
           deals={dealOptions}
-          userName="João Paulo Olivera"
+          userName={selfName || undefined}
         />
       )}
 

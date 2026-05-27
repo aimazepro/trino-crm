@@ -5,6 +5,7 @@ import { useSearchParams, useRouter, usePathname } from "next/navigation";
 import { formatDistanceToNow } from "date-fns";
 import { ptBR } from "date-fns/locale";
 import { useCrm } from "@/contexts/crm-context";
+import { useOwnerNameMap } from "@/hooks/use-owner-name-map";
 import { createClient } from "@/lib/supabase/client";
 import { ActivityTab } from "./activity-tab";
 import { EmailTab } from "./email-tab";
@@ -32,6 +33,7 @@ const TAB_ACTIVE_COLOR: Record<string, string> = {
 
 export function DealTabs({ dealId }: DealTabsProps) {
   const { state, addDealNote, deleteDealNote, updateDealNote } = useCrm();
+  const { selfName } = useOwnerNameMap();
   const deal = state.deals.find(d => d.id === dealId);
   const contact = deal && deal.contactId ? state.contacts.find(c => c.id === deal.contactId) : null;
   
@@ -114,7 +116,7 @@ export function DealTabs({ dealId }: DealTabsProps) {
       <div className="flex-1 overflow-auto p-6 bg-zinc-50/50">
         
         {/* Atividades Tab */}
-        {activeTab === "Atividades" && <ActivityTab deal={deal} />}
+        {activeTab === "Atividades" && <ActivityTab deal={deal} userName={selfName || undefined} />}
 
         {/* Ligações Tab */}
         {activeTab === "Ligações" && (

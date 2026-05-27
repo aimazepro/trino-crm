@@ -3,6 +3,7 @@
 import { use, useState, useEffect } from "react";
 import Link from "next/link";
 import { useCrm } from "@/contexts/crm-context";
+import { useOwnerNameMap } from "@/hooks/use-owner-name-map";
 import { DealSidebar } from "@/components/deal/deal-sidebar";
 import { DealTabs } from "@/components/deal/deal-tabs";
 import { LossReasonModal } from "@/components/deal/loss-reason-modal";
@@ -14,6 +15,7 @@ export default function DealPage({ params }: { params: Promise<{ id: string }> }
   const { id } = use(params);
   const router = useRouter();
   const { state, markDealStatus, moveDeal, deleteDeal, updateDealFields } = useCrm();
+  const { map: ownerNameMap } = useOwnerNameMap();
   
   const [showLossModal, setShowLossModal] = useState(false);
   const [showDropdown, setShowDropdown] = useState(false);
@@ -127,9 +129,13 @@ export default function DealPage({ params }: { params: Promise<{ id: string }> }
         {/* Owner Info */}
         <div className="relative flex items-center gap-2 shrink-0">
           <div className="flex items-center gap-2">
-            <img src="/avatar_joao.png" alt="Owner" className="h-7 w-7 rounded-full object-cover" />
+            <div className="h-7 w-7 rounded-full bg-amber-100 flex items-center justify-center shrink-0">
+              <span className="text-xs font-semibold text-amber-700">
+                {(ownerNameMap[deal.ownerId ?? ""] || "?")[0].toUpperCase()}
+              </span>
+            </div>
             <div className="hidden sm:block text-left">
-              <p className="text-xs font-medium text-zinc-700 leading-tight">João Paulo Olivera</p>
+              <p className="text-xs font-medium text-zinc-700 leading-tight">{ownerNameMap[deal.ownerId ?? ""] || "—"}</p>
               <p className="text-xs text-zinc-400">Proprietário</p>
             </div>
           </div>

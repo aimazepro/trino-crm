@@ -395,17 +395,9 @@ export default function UsuariosPage() {
                       {/* Usuário */}
                       <td className="px-6 py-4">
                         <div className="flex items-center gap-3">
-                          {m.self ? (
-                            <img
-                              src="https://img.clerk.com/eyJ0eXBlIjoicHJveHkiLCJzcmMiOiJodHRwczovL2ltYWdlcy5jbGVyay5kZXYvb2F1dGhfZ29vZ2xlL2ltZ18zRTBpS2dTU0NQVllBTEZKNDhOUldaZkh4RE0ifQ?width=80"
-                              alt="João Paulo Olivera"
-                              className="w-9 h-9 rounded-full object-cover border-2 border-white ring-1 ring-zinc-200/50 shrink-0"
-                            />
-                          ) : (
-                            <div className="w-9 h-9 rounded-full bg-zinc-50 border border-zinc-200/80 text-zinc-600 flex items-center justify-center font-bold text-xs shrink-0">
-                              {(m.name ?? m.email).substring(0, 2).toUpperCase()}
-                            </div>
-                          )}
+                          <div className={`w-9 h-9 rounded-full flex items-center justify-center font-bold text-xs shrink-0 ${m.self ? "bg-amber-100 text-amber-700 border-2 border-white ring-1 ring-zinc-200/50" : "bg-zinc-50 border border-zinc-200/80 text-zinc-600"}`}>
+                            {(m.name ?? m.email ?? "?").substring(0, 2).toUpperCase()}
+                          </div>
                           <div>
                             <div className="flex items-center gap-1.5">
                               <p className="text-[13px] font-bold text-zinc-900">

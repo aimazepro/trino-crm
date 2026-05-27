@@ -24,12 +24,11 @@ const MOCK_CALENDARS = [
     id: "family10966457121197933005@group.calendar.google.com",
     label: "Family",
   },
-  { id: "jpotempla@gmail.com", label: "jpotempla@gmail.com (Principal)" },
 ];
 
 export default function CalendarioPage() {
   const [pageState, setPageState] = useState<PageState>("disconnected");
-  const [connectedEmail, setConnectedEmail] = useState("jpotempla@gmail.com");
+  const [connectedEmail, setConnectedEmail] = useState("");
   const [selectedCalendar, setSelectedCalendar] = useState(MOCK_CALENDARS[0].id);
   const [syncType, setSyncType] = useState<SyncType>("bidirecional");
   const [banner, setBanner] = useState<string | null>(null);

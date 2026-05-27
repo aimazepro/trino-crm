@@ -3,6 +3,7 @@
 import { useState, useMemo, useRef, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import { useCrm } from "@/contexts/crm-context";
+import { useOwnerNameMap } from "@/hooks/use-owner-name-map";
 import { createClient } from "@/lib/supabase/client";
 import { BulkFieldSelect } from "@/components/ui/BulkFieldSelect";
 import {
@@ -162,6 +163,7 @@ const COLS = ["Nome", "Email", "Telefone", "Cargo", "Empresa", "Negócios", "Pro
 export default function ContatosPage() {
   const router = useRouter();
   const { state, addContact, updateContact, deleteContact } = useCrm();
+  const { names: ownerNames } = useOwnerNameMap();
   const [currentUserName, setCurrentUserName] = useState("");
   useEffect(() => {
     createClient().auth.getUser().then(({ data: { user } }) => {
@@ -475,7 +477,7 @@ export default function ContatosPage() {
                   <BulkFieldSelect
                     label="Selecione Proprietário"
                     value={propValue || "Selecione..."}
-                    options={["Selecione...", "João Paulo Olivera"]}
+                    options={["Selecione...", ...ownerNames]}
                     onChange={v => setPropValue(v === "Selecione..." ? "" : v)}
                   />
                 )}

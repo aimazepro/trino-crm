@@ -22,7 +22,7 @@ const TYPE_ICONS: Record<string, React.ReactNode> = {
 
 const getIcon = (type: string) => TYPE_ICONS[type] ?? <Hash className="h-4 w-4" />;
 
-export function ActivityTab({ deal }: { deal: Deal }) {
+export function ActivityTab({ deal, userName }: { deal: Deal; userName?: string }) {
   const { addActivity, deleteActivity, updateActivity } = useCrm();
   const [showModal, setShowModal] = useState(false);
   const [editingActivity, setEditingActivity] = useState<Activity | null>(null);
@@ -167,7 +167,7 @@ export function ActivityTab({ deal }: { deal: Deal }) {
           onClose={() => setShowModal(false)}
           onSave={saveActivity}
           defaultDealId={deal.id}
-          userName="João Paulo Olivera"
+          userName={userName}
         />
       )}
 
