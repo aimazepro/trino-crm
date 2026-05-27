@@ -146,7 +146,7 @@ export default function PerfilPage() {
                 Sair da conta
               </button>
               <a
-                href="https://wa.me/5511954957051?text=Ol%C3%A1%2C%20gostaria%20de%20solicitar%20a%20exclus%C3%A3o%20da%20minha%20conta%20no%20DMhub."
+                href="https://wa.me/5511954957051?text=Ol%C3%A1%2C%20gostaria%20de%20solicitar%20a%20exclus%C3%A3o%20da%20minha%20conta%20no%20TrinoDeal."
                 target="_blank"
                 rel="noopener noreferrer"
                 className="inline-flex items-center gap-2 rounded-xl bg-zinc-100 px-3 py-1.5 text-sm font-medium text-zinc-500 hover:bg-zinc-200 transition-colors"

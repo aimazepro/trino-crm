@@ -99,7 +99,7 @@ export default function LoginPage() {
         <div className="relative z-10 max-w-md text-center">
           <Image
             src="/logo-white.svg"
-            alt="DMhub"
+            alt="TrinoDeal"
             width={160}
             height={42}
             className="h-12 mx-auto mb-8 object-contain"
@@ -138,7 +138,7 @@ export default function LoginPage() {
         <div className="mb-8 lg:hidden">
           <Image
             src="/logo.svg"
-            alt="DMhub"
+            alt="TrinoDeal"
             width={120}
             height={32}
             className="h-10 object-contain mx-auto"
@@ -153,7 +153,7 @@ export default function LoginPage() {
             <div className="hidden lg:block mb-6">
               <Image
                 src="/logo.svg"
-                alt="DMhub"
+                alt="TrinoDeal"
                 width={120}
                 height={32}
                 className="h-8 object-contain"
@@ -164,7 +164,7 @@ export default function LoginPage() {
               {mode === "login" ? "Entrar na sua conta" : "Criar sua conta"}
             </h1>
             <p className="text-sm text-zinc-500 mt-1">
-              para continuar em DMhub
+              para continuar em TrinoDeal
             </p>
           </div>
 

@@ -63,7 +63,7 @@ export default function IntegracoesPage() {
   }, [searchParams]);
 
   const handleCreate = () => {
-    const url = `https://api.dmhub.ai/webhook/${Date.now().toString(36)}`;
+    const url = `https://api.trinodeal.ai/webhook/${Date.now().toString(36)}`;
     setIntegrations([...integrations, { id: Date.now().toString(), ...form, url }]);
   };
 

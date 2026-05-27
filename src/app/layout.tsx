@@ -6,7 +6,7 @@ import { AppShell } from '@/components/layout/app-shell';
 const inter = Inter({ subsets: ['latin'], variable: '--font-inter' });
 
 export const metadata: Metadata = {
-  title: 'Trino Flow | Marketing Hub',
+  title: 'TrinoDeal | Marketing Hub',
   description: 'CRM e Automações para sua Agência',
 };
 

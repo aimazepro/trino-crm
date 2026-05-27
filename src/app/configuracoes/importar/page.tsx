@@ -178,7 +178,7 @@ export default function ImportacaoPage() {
     const url = URL.createObjectURL(blob);
     const link = document.createElement("a");
     link.setAttribute("href", url);
-    link.setAttribute("download", "modelo_importacao_dmhub.csv");
+    link.setAttribute("download", "modelo_importacao_trinodeal.csv");
     link.style.visibility = "hidden";
     document.body.appendChild(link);
     link.click();
@@ -430,14 +430,14 @@ export default function ImportacaoPage() {
                 <details className="rounded-xl border border-amber-200 bg-amber-50/50 overflow-hidden group">
                   <summary className="flex items-center gap-3 px-4 py-3 cursor-pointer text-sm font-medium text-amber-800 hover:bg-amber-50/80 transition-colors list-none select-none">
                     <Play className="h-4 w-4 text-amber-500 shrink-0 fill-amber-500" />
-                    <span>Como importar dados no DMhub (video tutorial)</span>
+                    <span>Como importar dados no TrinoDeal (video tutorial)</span>
                     <ChevronDown className="h-4 w-4 text-amber-400 ml-auto transition-transform group-open:rotate-180" />
                   </summary>
                   <div className="px-4 pb-4">
                     <div className="rounded-lg overflow-hidden aspect-video border border-amber-200">
                       <iframe 
                         src="https://www.youtube.com/embed/heieGGgbQ6g" 
-                        title="Como importar dados no DMhub" 
+                        title="Como importar dados no TrinoDeal" 
                         allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture" 
                         allowFullScreen
                         className="w-full h-full"
