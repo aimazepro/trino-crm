@@ -1,17 +1,19 @@
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 135 36" width="135" height="36" fill="none">
-  <!-- TrinoDeal Logo Mark -->
+  <!-- Solid Orange Square background with White Logo Mark -->
+  <rect x="0" y="0" width="36" height="36" rx="6" fill="#ff6600" />
+  
   <g transform="translate(18, 18)">
     <g transform="rotate(0)">
-      <path d="M -3.0,-12.8 L -3.0,2.3 L 10.1,-5.2" stroke="#ff6600" stroke-width="4.8" stroke-linecap="butt" stroke-linejoin="round" fill="none"/>
+      <path d="M -3.0,-12.8 L -3.0,2.3 L 10.1,-5.2" stroke="#ffffff" stroke-width="4.8" stroke-linecap="butt" stroke-linejoin="round" fill="none"/>
     </g>
     <g transform="rotate(120)">
-      <path d="M -3.0,-12.8 L -3.0,2.3 L 10.1,-5.2" stroke="#ff6600" stroke-width="4.8" stroke-linecap="butt" stroke-linejoin="round" fill="none"/>
+      <path d="M -3.0,-12.8 L -3.0,2.3 L 10.1,-5.2" stroke="#ffffff" stroke-width="4.8" stroke-linecap="butt" stroke-linejoin="round" fill="none"/>
     </g>
     <g transform="rotate(240)">
-      <path d="M -3.0,-12.8 L -3.0,2.3 L 10.1,-5.2" stroke="#ff6600" stroke-width="4.8" stroke-linecap="butt" stroke-linejoin="round" fill="none"/>
+      <path d="M -3.0,-12.8 L -3.0,2.3 L 10.1,-5.2" stroke="#ffffff" stroke-width="4.8" stroke-linecap="butt" stroke-linejoin="round" fill="none"/>
     </g>
   </g>
 
   <!-- Logo Text -->
-  <text x="42" y="24" font-family="system-ui, -apple-system, sans-serif" font-weight="800" font-size="18" fill="#ffffff">Trino<tspan fill="#ff6600">Deal</tspan></text>
+  <text x="46" y="24" font-family="system-ui, -apple-system, sans-serif" font-weight="800" font-size="18" fill="#ffffff">Trino<tspan fill="#ff6600">Deal</tspan></text>
 </svg>
