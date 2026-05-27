@@ -53,8 +53,8 @@
 ## FASE 6 — MULTI-TENANT / TIMES
 | # | Status | Item | Esforço |
 |---|--------|------|---------|
-| 6.1 | ⬜ TODO | Refatorar RLS para workspace — deals/contacts/companies checar team_members | 1 dia |
-| 6.2 | ⬜ TODO | Ligar team members à UI — proprietário dinâmico | 4h |
+| 6.1 | ✅ DONE | Refatorar RLS para workspace — `is_workspace_member()` helper + policies workspace-aware em deals/contacts/companies/pipelines/labels/activities | migration: fase6_workspace_rls |
+| 6.2 | ✅ DONE | Ligar team members à UI — `ownerNameMap` em kanban-list-view, `owner_id` persistido no addDeal | `kanban-list-view.tsx`, `use-crm-mutations.ts` |
 
 ## FASE 7 — PRODUTO (features)
 | # | Status | Item | Esforço |
@@ -79,5 +79,5 @@
 - Fase 3: 3/3 ✅ COMPLETA
 - Fase 4: 5/6 ✅ (4.3 skip — complexidade alta)
 - Fase 5: 5/5 ✅ COMPLETA
-- Fase 6: 0/2
+- Fase 6: 2/2 ✅ COMPLETA
 - Fase 7: 0/12

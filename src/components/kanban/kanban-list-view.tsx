@@ -9,6 +9,7 @@ import { DEFAULT_COLUMNS } from "@/components/deal/customize-columns-modal";
 import { BulkFieldSelect } from "@/components/ui/BulkFieldSelect";
 import type { Deal } from "@/lib/crm-types";
 import { createClient } from "@/lib/supabase/client";
+import { useOwnerNameMap } from "@/hooks/use-owner-name-map";
 
 interface KanbanListViewProps {
   pipelineId: string;
@@ -44,6 +45,7 @@ const COLUMN_HEADERS: Record<string, { label: string; align: "left" | "right" | 
 
 export function KanbanListView({ pipelineId, columns = DEFAULT_COLUMNS, statusFilter }: KanbanListViewProps) {
   const { state, markDealStatus, deleteDeal, updateDealFields, addLabel } = useCrm();
+  const { map: ownerNameMap } = useOwnerNameMap();
   const [activePipelineId, setActivePipelineId] = useState(pipelineId);
   const [stageFilter, setStageFilter] = useState("");
   const [statusLocalFilter, setStatusLocalFilter] = useState("todos");
@@ -254,7 +256,7 @@ export function KanbanListView({ pipelineId, columns = DEFAULT_COLUMNS, statusFi
           <span className="text-zinc-300">-</span>
         );
       case "owner":
-        return <span className="text-sm text-zinc-650">João Paulo Olivera</span>;
+        return <span className="text-sm text-zinc-650">{ownerNameMap[deal.ownerId ?? ""] || "-"}</span>;
       case "status":
         return (
           <span

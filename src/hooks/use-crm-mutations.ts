@@ -173,6 +173,7 @@ export function useCrmMutations({ state, setState, userId, supabase }: MutationP
       user_id: userId, title: deal.title, value: deal.value,
       contact_id: deal.contactId || null, company_id: deal.companyId || null,
       pipeline_id: deal.pipelineId, stage_id: deal.stageId, status: deal.status, days_in_stage: 0,
+      owner_id: deal.ownerId || userId,
     }).select().single();
     if (error || !data) {
       console.error("[CRM] addDeal failed:", error);
