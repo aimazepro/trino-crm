@@ -2,17 +2,22 @@ import { NextRequest, NextResponse } from "next/server";
 import { createServerClient } from "@supabase/ssr";
 import { createClient as createAdminClient } from "@supabase/supabase-js";
 import { cookies } from "next/headers";
+import { encryptToken } from "@/lib/token-crypto";
 
 export const dynamic = "force-dynamic";
 
 export async function GET(req: NextRequest) {
   const code = req.nextUrl.searchParams.get("code");
   const error = req.nextUrl.searchParams.get("error");
+  const queryState = req.nextUrl.searchParams.get("state");
+  const cookieState = req.cookies.get("gmail_oauth_state")?.value;
 
-  if (error || !code) {
-    return NextResponse.redirect(
+  if (error || !code || !cookieState || cookieState !== queryState) {
+    const redirectRes = NextResponse.redirect(
       new URL("/configuracoes/integracoes?gmail=error", req.url)
     );
+    redirectRes.cookies.delete("gmail_oauth_state");
+    return redirectRes;
   }
 
   const cookieStore = await cookies();
@@ -92,8 +97,8 @@ export async function GET(req: NextRequest) {
       user_id: user.id,
       provider: "gmail",
       account_email: profile.email,
-      access_token: tokens.access_token,
-      refresh_token: refreshToken,
+      access_token: encryptToken(tokens.access_token),
+      refresh_token: refreshToken ? encryptToken(refreshToken) : null,
       expires_at: new Date(Date.now() + tokens.expires_in * 1000).toISOString(),
       scopes: ["gmail.send", "userinfo.email"],
       active: true,
@@ -101,7 +106,9 @@ export async function GET(req: NextRequest) {
     { onConflict: "user_id,provider" }
   );
 
-  return NextResponse.redirect(
+  const successRes = NextResponse.redirect(
     new URL(`/configuracoes/gmail?gmail=connected`, req.url)
   );
+  successRes.cookies.delete("gmail_oauth_state");
+  return successRes;
 }

@@ -28,6 +28,7 @@ export async function GET(req: NextRequest) {
   const { data: emails } = await supabase
     .from("emails")
     .select("id, direction, subject, body_html, from_email, to_email, opened_at, created_at")
+    .eq("user_id", user.id)
     .eq("contact_id", contactId)
     .order("created_at", { ascending: false });
 

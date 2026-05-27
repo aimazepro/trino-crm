@@ -2,6 +2,30 @@ import { createServerClient } from "@supabase/ssr";
 import { cookies } from "next/headers";
 import crypto from "crypto";
 
+const PRIVATE_IP_PATTERNS = [
+  /^127\./,
+  /^10\./,
+  /^172\.(1[6-9]|2\d|3[01])\./,
+  /^192\.168\./,
+  /^169\.254\./,
+  /^::1$/,
+  /^fc00:/i,
+  /^fe80:/i,
+  /^0\./,
+];
+
+function isPrivateOrUnsafeUrl(rawUrl: string): boolean {
+  let parsed: URL;
+  try {
+    parsed = new URL(rawUrl);
+  } catch {
+    return true;
+  }
+  if (parsed.protocol !== "https:") return true;
+  const hostname = parsed.hostname;
+  return PRIVATE_IP_PATTERNS.some((re) => re.test(hostname));
+}
+
 export const dynamic = "force-dynamic";
 
 async function createClient() {
@@ -45,6 +69,10 @@ export async function POST(request: Request) {
 
     if (!url) {
       return Response.json({ error: "Missing destination URL" }, { status: 400 });
+    }
+
+    if (isPrivateOrUnsafeUrl(url)) {
+      return Response.json({ error: "Invalid destination URL" }, { status: 400 });
     }
 
     const bodyString = JSON.stringify(payload);

@@ -1,6 +1,29 @@
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 import { crypto } from "https://deno.land/std@0.177.0/crypto/mod.ts";
 
+const PRIVATE_IP_PATTERNS = [
+  /^127\./,
+  /^10\./,
+  /^172\.(1[6-9]|2\d|3[01])\./,
+  /^192\.168\./,
+  /^169\.254\./,
+  /^::1$/,
+  /^fc00:/i,
+  /^fe80:/i,
+  /^0\./,
+];
+
+function isPrivateOrUnsafeUrl(rawUrl: string): boolean {
+  let parsed: URL;
+  try {
+    parsed = new URL(rawUrl);
+  } catch {
+    return true;
+  }
+  if (parsed.protocol !== "https:") return true;
+  return PRIVATE_IP_PATTERNS.some((re) => re.test(parsed.hostname));
+}
+
 const supabase = createClient(
   Deno.env.get("SUPABASE_URL")!,
   Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!
@@ -32,6 +55,15 @@ Deno.serve(async () => {
   for (const delivery of deliveries) {
     const webhook = delivery.webhooks;
     if (!webhook) continue;
+
+    if (isPrivateOrUnsafeUrl(webhook.url)) {
+      await supabase.from("webhook_deliveries").update({
+        status: "failed",
+        error: "Blocked: unsafe destination URL",
+        attempts: delivery.attempts + 1,
+      }).eq("id", delivery.id);
+      continue;
+    }
 
     const body = JSON.stringify(delivery.payload);
     const signature = webhook.secret ? await hmacSha256(webhook.secret, body) : null;

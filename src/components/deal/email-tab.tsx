@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useEffect, useCallback, useRef } from "react";
+import DOMPurify from "dompurify";
 import { Mail, RefreshCw, Send, Eye, FileText, X, Bold, Italic, Underline, List, ListOrdered, Link2, Braces, ChevronDown, Reply, ArrowDownLeft, SendHorizonal } from "lucide-react";
 import Link from "next/link";
 import { cn } from "@/lib/utils";
@@ -186,7 +187,7 @@ export function EmailTab({ contactId, contactEmail, contactName, dealId, gmailAc
 
   const applyTemplate = (t: EmailTemplate) => {
     setSubject(t.subject);
-    if (editorRef.current) editorRef.current.innerHTML = t.body;
+    if (editorRef.current) editorRef.current.innerHTML = DOMPurify.sanitize(t.body);
     setShowTemplates(false);
   };
 
@@ -488,7 +489,7 @@ export function EmailTab({ contactId, contactEmail, contactName, dealId, gmailAc
                           </div>
                           <div
                             className="text-sm text-zinc-700 leading-relaxed prose prose-sm max-w-none [&_img]:max-w-full [&_a]:text-blue-600 pl-8"
-                            dangerouslySetInnerHTML={{ __html: email.body_html }}
+                            dangerouslySetInnerHTML={{ __html: DOMPurify.sanitize(email.body_html) }}
                           />
                           <div className="pl-8 mt-2">
                             <button

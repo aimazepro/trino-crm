@@ -9,11 +9,7 @@ const WA_TOKEN = Deno.env.get("WHATSAPP_TOKEN")!;
 const WA_PHONE_ID = Deno.env.get("WHATSAPP_PHONE_NUMBER_ID")!;
 
 Deno.serve(async () => {
-  const { data: items, error } = await supabase
-    .from("automation_whatsapp_queue")
-    .select("*")
-    .eq("status", "pending")
-    .limit(50);
+  const { data: items, error } = await supabase.rpc("claim_pending_whatsapp_queue", { p_limit: 50 });
 
   if (error) return new Response(JSON.stringify({ error: error.message }), { status: 500 });
   if (!items || items.length === 0) return new Response(JSON.stringify({ processed: 0 }));

@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { createServerClient } from "@supabase/ssr";
 import { createClient as createAdminClient } from "@supabase/supabase-js";
 import { cookies } from "next/headers";
+import { getValidGmailTokenSendOnly } from "@/lib/gmail-token";
 
 export const dynamic = "force-dynamic";
 
@@ -10,51 +11,6 @@ function makeAdmin() {
     process.env.NEXT_PUBLIC_SUPABASE_URL!,
     process.env.SUPABASE_SERVICE_ROLE_KEY!
   );
-}
-
-async function getValidToken(userId: string): Promise<string | null> {
-  const admin = makeAdmin();
-  const { data } = await admin
-    .from("integrations")
-    .select("access_token, refresh_token, expires_at")
-    .eq("user_id", userId)
-    .eq("provider", "gmail")
-    .eq("active", true)
-    .maybeSingle();
-
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  const integration = data as any;
-  if (!integration) return null;
-
-  const expiresAt = new Date(integration.expires_at as string).getTime();
-  if (Date.now() < expiresAt - 60_000) return integration.access_token as string;
-
-  const res = await fetch("https://oauth2.googleapis.com/token", {
-    method: "POST",
-    headers: { "Content-Type": "application/x-www-form-urlencoded" },
-    body: new URLSearchParams({
-      client_id: process.env.GMAIL_OAUTH_CLIENT_ID!,
-      client_secret: process.env.GMAIL_OAUTH_CLIENT_SECRET!,
-      refresh_token: integration.refresh_token as string,
-      grant_type: "refresh_token",
-    }),
-  });
-  const tokens = await res.json();
-  if (!tokens.access_token) {
-    await admin
-      .from("integrations")
-      .update({ active: false })
-      .eq("user_id", userId)
-      .eq("provider", "gmail");
-    return null;
-  }
-
-  await admin.from("integrations").update({
-    access_token: tokens.access_token,
-    expires_at: new Date(Date.now() + tokens.expires_in * 1000).toISOString(),
-  }).eq("user_id", userId).eq("provider", "gmail");
-
-  return tokens.access_token as string;
 }
 
 export async function POST(req: NextRequest) {
@@ -82,6 +38,9 @@ export async function POST(req: NextRequest) {
 
   const ownerName = user.user_metadata?.full_name ?? user.user_metadata?.name ?? user.email ?? "";
 
+  const escHtml = (s: string) =>
+    s.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;");
+
   const replaceVars = (text: string) =>
     text
       .replace(/\{\{contact_name\}\}/g, contactName ?? "")
@@ -106,10 +65,10 @@ export async function POST(req: NextRequest) {
       ? `<td style="vertical-align:top;padding-right:12px"><img src="${sig.photo_url}" alt="" style="width:70px;height:70px;border-radius:50%;object-fit:cover" /></td>`
       : "";
     const lines: string[] = [];
-    if (sig.name) lines.push(`<strong style="font-size:14px;color:#333">${sig.name}</strong>`);
-    if (sig.role) lines.push(`<span style="font-size:12px;color:#666">${sig.role}</span>`);
-    if (sig.company) lines.push(`<span style="font-size:12px;color:#666">${sig.company}</span>`);
-    if (sig.phone) lines.push(`<span style="font-size:12px;color:#666">${sig.phone}</span>`);
+    if (sig.name) lines.push(`<strong style="font-size:14px;color:#333">${escHtml(sig.name)}</strong>`);
+    if (sig.role) lines.push(`<span style="font-size:12px;color:#666">${escHtml(sig.role)}</span>`);
+    if (sig.company) lines.push(`<span style="font-size:12px;color:#666">${escHtml(sig.company)}</span>`);
+    if (sig.phone) lines.push(`<span style="font-size:12px;color:#666">${escHtml(sig.phone)}</span>`);
     const logoBlock = sig.logo_url
       ? `<div style="margin-top:8px"><img src="${sig.logo_url}" alt="" style="max-height:50px;max-width:200px" /></div>`
       : "";
@@ -117,7 +76,7 @@ export async function POST(req: NextRequest) {
     bodyHtml = bodyHtml + sigHtml;
   }
 
-  const accessToken = await getValidToken(user.id);
+  const accessToken = await getValidGmailTokenSendOnly(user.id);
   if (!accessToken) return NextResponse.json({ error: "Gmail not connected" }, { status: 400 });
 
   const admin = makeAdmin();

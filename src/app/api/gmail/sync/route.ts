@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { createServerClient } from "@supabase/ssr";
 import { createClient as createAdminClient } from "@supabase/supabase-js";
 import { cookies } from "next/headers";
+import { getValidGmailToken } from "@/lib/gmail-token";
 
 export const dynamic = "force-dynamic";
 
@@ -10,53 +11,6 @@ function makeAdmin() {
     process.env.NEXT_PUBLIC_SUPABASE_URL!,
     process.env.SUPABASE_SERVICE_ROLE_KEY!
   );
-}
-
-async function getValidToken(userId: string): Promise<{ token: string; email: string } | null> {
-  const admin = makeAdmin();
-  const { data } = await admin
-    .from("integrations")
-    .select("access_token, refresh_token, expires_at, account_email")
-    .eq("user_id", userId)
-    .eq("provider", "gmail")
-    .eq("active", true)
-    .maybeSingle();
-
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  const integration = data as any;
-  if (!integration) return null;
-
-  const expiresAt = new Date(integration.expires_at as string).getTime();
-  if (Date.now() < expiresAt - 60_000) {
-    return { token: integration.access_token as string, email: integration.account_email as string };
-  }
-
-  const res = await fetch("https://oauth2.googleapis.com/token", {
-    method: "POST",
-    headers: { "Content-Type": "application/x-www-form-urlencoded" },
-    body: new URLSearchParams({
-      client_id: process.env.GMAIL_OAUTH_CLIENT_ID!,
-      client_secret: process.env.GMAIL_OAUTH_CLIENT_SECRET!,
-      refresh_token: integration.refresh_token as string,
-      grant_type: "refresh_token",
-    }),
-  });
-  const tokens = await res.json();
-  if (!tokens.access_token) {
-    await admin
-      .from("integrations")
-      .update({ active: false })
-      .eq("user_id", userId)
-      .eq("provider", "gmail");
-    return null;
-  }
-
-  await admin.from("integrations").update({
-    access_token: tokens.access_token,
-    expires_at: new Date(Date.now() + tokens.expires_in * 1000).toISOString(),
-  }).eq("user_id", userId).eq("provider", "gmail");
-
-  return { token: tokens.access_token as string, email: integration.account_email as string };
 }
 
 type GmailPayload = {
@@ -107,11 +61,30 @@ export async function POST(req: NextRequest) {
   const { contactEmail, contactId, dealId } = await req.json();
   if (!contactEmail || !contactId) return NextResponse.json({ error: "Missing fields" }, { status: 400 });
 
-  const integration = await getValidToken(user.id);
+  const admin = makeAdmin();
+
+  const { data: contactOwner } = await admin
+    .from("contacts")
+    .select("id")
+    .eq("id", contactId)
+    .eq("user_id", user.id)
+    .maybeSingle();
+  if (!contactOwner) return NextResponse.json({ error: "Not found" }, { status: 404 });
+
+  if (dealId) {
+    const { data: dealOwner } = await admin
+      .from("deals")
+      .select("id")
+      .eq("id", dealId)
+      .eq("user_id", user.id)
+      .maybeSingle();
+    if (!dealOwner) return NextResponse.json({ error: "Not found" }, { status: 404 });
+  }
+
+  const integration = await getValidGmailToken(user.id);
   if (!integration) return NextResponse.json({ error: "Gmail not connected" }, { status: 400 });
 
   const { token, email: myEmail } = integration;
-  const admin = makeAdmin();
 
   const query = `from:${contactEmail} OR to:${contactEmail}`;
   const listRes = await fetch(

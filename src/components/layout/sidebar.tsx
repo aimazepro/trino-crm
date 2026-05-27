@@ -1,6 +1,7 @@
 "use client";
 
 import Link from "next/link";
+import Image from "next/image";
 import { usePathname, useRouter } from "next/navigation";
 import {
   LayoutDashboard,
@@ -46,7 +47,7 @@ export function Sidebar() {
       {/* Logo */}
       <div className="flex h-14 items-center px-3 shrink-0">
         <Link href="/">
-          <img alt="DMhub" className="h-7 object-contain" src="/logo.png" />
+          <Image alt="DMhub" className="h-7 object-contain" src="/logo.png" width={120} height={28} />
         </Link>
       </div>
 

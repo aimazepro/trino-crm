@@ -3,6 +3,8 @@
 import { useState, useMemo, useRef, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import { useCrm } from "@/contexts/crm-context";
+import { createClient } from "@/lib/supabase/client";
+import { BulkFieldSelect } from "@/components/ui/BulkFieldSelect";
 import {
   Plus, Search, Download, Settings, X, ChevronDown,
   GripVertical, AlertTriangle, Users, Mail, Phone,
@@ -53,59 +55,6 @@ function TypeSelector({ value, options, onChange }: { value: string; options: st
   );
 }
 
-function BulkFieldSelect({
-  label,
-  value,
-  options,
-  onChange,
-}: {
-  label: string;
-  value: string;
-  options: string[];
-  onChange: (v: any) => void;
-}) {
-  const [open, setOpen] = useState(false);
-  const ref = useRef<HTMLDivElement>(null);
-  useEffect(() => {
-    const h = (e: MouseEvent) => { if (ref.current && !ref.current.contains(e.target as Node)) setOpen(false); };
-    document.addEventListener("mousedown", h);
-    return () => document.removeEventListener("mousedown", h);
-  }, []);
-  return (
-    <div ref={ref} className="relative w-full">
-      <button
-        type="button"
-        onClick={() => setOpen(o => !o)}
-        className="flex items-center gap-1.5 rounded-lg border border-zinc-200 bg-white px-3 py-1.5 text-sm hover:bg-zinc-50 transition-colors min-w-0 w-full"
-      >
-        <span className="min-w-0 truncate flex-1 text-left text-zinc-800 font-medium">
-          {value}
-        </span>
-        <ChevronDown className="h-3.5 w-3.5 text-zinc-400 shrink-0" aria-hidden="true" />
-      </button>
-      {open && (
-        <div className="absolute left-0 top-full mt-1 z-50 bg-white border border-zinc-200 rounded-xl shadow-lg overflow-hidden w-full">
-          {options.map(o => (
-            <button
-              key={o}
-              type="button"
-              onMouseDown={() => { onChange(o); setOpen(false); }}
-              className={cn(
-                "w-full text-left px-3 py-2.5 text-sm hover:bg-amber-50 transition-colors flex items-center justify-between",
-                o === value && "bg-blue-600 text-white font-semibold hover:bg-blue-600"
-              )}
-            >
-              <span>{o}</span>
-              {o === value && (
-                <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="lucide lucide-check h-3.5 w-3.5 text-white" aria-hidden="true"><path d="M20 6 9 17l-5-5"></path></svg>
-              )}
-            </button>
-          ))}
-        </div>
-      )}
-    </div>
-  );
-}
 
 function CompanySearchInput({ companies, selectedId, onSelect }: { companies: { id: string; name: string }[]; selectedId: string; onSelect: (id: string) => void }) {
   const [query, setQuery] = useState("");
@@ -213,6 +162,12 @@ const COLS = ["Nome", "Email", "Telefone", "Cargo", "Empresa", "Negócios", "Pro
 export default function ContatosPage() {
   const router = useRouter();
   const { state, addContact, updateContact, deleteContact } = useCrm();
+  const [currentUserName, setCurrentUserName] = useState("");
+  useEffect(() => {
+    createClient().auth.getUser().then(({ data: { user } }) => {
+      if (user) setCurrentUserName(user.user_metadata?.full_name || user.user_metadata?.name || user.email || "");
+    });
+  }, []);
   const [search, setSearch] = useState("");
   const [showModal, setShowModal] = useState(false);
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
@@ -431,7 +386,7 @@ export default function ContatosPage() {
                       <span className="text-zinc-500">{dealsCount}</span>
                     </td>
                     <td className="px-3 py-1.5 border-r border-zinc-100 truncate overflow-hidden whitespace-nowrap text-zinc-600">
-                      <span className="text-sm text-zinc-600">João Paulo Olivera</span>
+                      <span className="text-sm text-zinc-600">{currentUserName || "—"}</span>
                     </td>
                     <td className="px-3 py-1.5 border-r border-zinc-100 truncate overflow-hidden whitespace-nowrap text-zinc-600">
                       <span className="text-sm text-zinc-600"><span className="text-zinc-300">-</span></span>

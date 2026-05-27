@@ -2,37 +2,11 @@
 
 import { useMemo, useState, useRef, useEffect } from "react";
 import { useCrm } from "@/contexts/crm-context";
-import { createClient } from "@/lib/supabase/client";
-
-function useOwnerNameMap(): { map: Record<string, string>; names: string[]; selfName: string } {
-  const [map, setMap] = useState<Record<string, string>>({});
-  const [selfName, setSelfName] = useState<string>("");
-  useEffect(() => {
-    let cancelled = false;
-    const supabase = createClient();
-    (async () => {
-      const { data: { user } } = await supabase.auth.getUser();
-      if (!user) return;
-      const self = (user.user_metadata?.full_name as string | undefined) || user.email || "Você";
-      const next: Record<string, string> = { [user.id]: self };
-      const { data } = await supabase
-        .from("team_members")
-        .select("member_user_id, name, email, owner_user_id, status")
-        .or(`owner_user_id.eq.${user.id},member_user_id.eq.${user.id}`)
-        .eq("status", "accepted");
-      (data ?? []).forEach((m) => {
-        if (m.member_user_id) next[m.member_user_id] = m.name || m.email;
-      });
-      if (!cancelled) {
-        setMap(next);
-        setSelfName(self);
-      }
-    })();
-    return () => { cancelled = true; };
-  }, []);
-  const names = Object.values(map);
-  return { map, names, selfName };
-}
+import { useOwnerNameMap } from "@/hooks/use-owner-name-map";
+import { useSavedReports } from "@/hooks/use-saved-reports";
+import { DEFAULT_REPORTS, COLORS, type SavedReport } from "./insights-constants";
+import { DashboardGrid } from "./dashboard-grid";
+import { InsightsSidebar } from "./insights-sidebar";
 import {
   BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip,
   ResponsiveContainer, Legend, PieChart, Pie, Cell
@@ -46,224 +20,24 @@ import {
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 
-// ── Types ─────────────────────────────────────────────────────────────────────
-interface SavedReport {
-  id: string;
-  name: string;
-  chartType: "bar" | "stacked" | "funnel" | "pie" | "table" | "number";
-  color: string;
-  pipeline: string;
-  period: string;
-  filters: { field: string; operator: string; value: string }[];
-}
-
-// ── Default Reports list ──────────────────────────────────────────────────────
-const DEFAULT_REPORTS: SavedReport[] = [
-  // ── Prospecção (7 reports) ──────────────────────────────────────────────────
-  {
-    id: "rep_prospec_funil",
-    name: "Funil de Conversao",
-    chartType: "funnel",
-    color: "#eab308",
-    pipeline: "Prospecção",
-    period: "Este mes",
-    filters: []
-  },
-  {
-    id: "rep_prospec_ganhos",
-    name: "Leads Ganhos",
-    chartType: "number",
-    color: "#22c55e",
-    pipeline: "Prospecção",
-    period: "Este mes",
-    filters: [{ field: "Status", operator: "é", value: "Ganho" }]
-  },
-  {
-    id: "rep_prospec_reunioes",
-    name: "Reunioes Agendadas",
-    chartType: "bar",
-    color: "#3b82f6",
-    pipeline: "Prospecção",
-    period: "Este mes",
-    filters: [{ field: "Etapa", operator: "é", value: "Reunião Agendada" }]
-  },
-  {
-    id: "rep_prospec_novos",
-    name: "Novos Leads no Funil",
-    chartType: "bar",
-    color: "#ec4899",
-    pipeline: "Prospecção",
-    period: "Este mes",
-    filters: [{ field: "Etapa", operator: "é", value: "Entrada de Leads" }]
-  },
-  {
-    id: "rep_prospec_mix",
-    name: "Mix de Atividades",
-    chartType: "stacked",
-    color: "#3b82f6",
-    pipeline: "Prospecção",
-    period: "Este mes",
-    filters: []
-  },
-  {
-    id: "rep_prospec_ativ_resp",
-    name: "Atividades por Responsavel",
-    chartType: "stacked",
-    color: "#22c55e",
-    pipeline: "Prospecção",
-    period: "Este mes",
-    filters: []
-  },
-  {
-    id: "rep_prospec_abertos",
-    name: "Negocios Abertos por Etapa",
-    chartType: "bar",
-    color: "#8b5cf6",
-    pipeline: "Prospecção",
-    period: "Este mes",
-    filters: [{ field: "Status", operator: "é", value: "Ativo" }]
-  },
-  // ── Inbound (8 reports) ─────────────────────────────────────────────────────
-  {
-    id: "rep_inbound_funil",
-    name: "Funil de Conversao",
-    chartType: "funnel",
-    color: "#eab308",
-    pipeline: "Inbound",
-    period: "Este mes",
-    filters: []
-  },
-  {
-    id: "rep_inbound_ganhos",
-    name: "Leads Ganhos",
-    chartType: "number",
-    color: "#22c55e",
-    pipeline: "Inbound",
-    period: "Este mes",
-    filters: [{ field: "Status", operator: "é", value: "Ganho" }]
-  },
-  {
-    id: "rep_inbound_reunioes",
-    name: "Reunioes Agendadas",
-    chartType: "bar",
-    color: "#3b82f6",
-    pipeline: "Inbound",
-    period: "Este mes",
-    filters: [{ field: "Etapa", operator: "é", value: "Reunião Agendada" }]
-  },
-  {
-    id: "rep_inbound_qualificados",
-    name: "Leads Qualificados",
-    chartType: "bar",
-    color: "#a855f7",
-    pipeline: "Inbound",
-    period: "Este mes",
-    filters: [{ field: "Etapa", operator: "é", value: "Qualificado pelo formulário" }]
-  },
-  {
-    id: "rep_inbound_formulario",
-    name: "Leads em Formulario",
-    chartType: "bar",
-    color: "#f97316",
-    pipeline: "Inbound",
-    period: "Este mes",
-    filters: [{ field: "Etapa", operator: "é", value: "Formulário Preenchido" }]
-  },
-  {
-    id: "rep_inbound_mix",
-    name: "Mix de Atividades",
-    chartType: "stacked",
-    color: "#3b82f6",
-    pipeline: "Inbound",
-    period: "Este mes",
-    filters: []
-  },
-  {
-    id: "rep_inbound_ativ_resp",
-    name: "Atividades por Responsavel",
-    chartType: "stacked",
-    color: "#22c55e",
-    pipeline: "Inbound",
-    period: "Este mes",
-    filters: []
-  },
-  {
-    id: "rep_inbound_abertos",
-    name: "Negocios Abertos por Etapa",
-    chartType: "bar",
-    color: "#8b5cf6",
-    pipeline: "Inbound",
-    period: "Este mes",
-    filters: [{ field: "Status", operator: "é", value: "Ativo" }]
-  },
-  // ── Social Selling (5 reports) ──────────────────────────────────────────────
-  {
-    id: "rep_social_funil",
-    name: "Funil de Conversao",
-    chartType: "funnel",
-    color: "#eab308",
-    pipeline: "Social Selling",
-    period: "Este mes",
-    filters: []
-  },
-  {
-    id: "rep_social_ganhos",
-    name: "Leads Ganhos",
-    chartType: "number",
-    color: "#22c55e",
-    pipeline: "Social Selling",
-    period: "Este mes",
-    filters: [{ field: "Status", operator: "é", value: "Ganho" }]
-  },
-  {
-    id: "rep_social_reunioes",
-    name: "Reunioes Agendadas",
-    chartType: "bar",
-    color: "#3b82f6",
-    pipeline: "Social Selling",
-    period: "Este mes",
-    filters: [{ field: "Etapa", operator: "é", value: "Reunião Agendada" }]
-  },
-  {
-    id: "rep_social_contatos",
-    name: "Contatos Realizados com Decisor",
-    chartType: "bar",
-    color: "#ec4899",
-    pipeline: "Social Selling",
-    period: "Este mes",
-    filters: [{ field: "Etapa", operator: "é", value: "Conversa Significativa" }]
-  },
-  {
-    id: "rep_social_novos",
-    name: "Novos Leads no Funil",
-    chartType: "bar",
-    color: "#06b6d4",
-    pipeline: "Social Selling",
-    period: "Este mes",
-    filters: [{ field: "Etapa", operator: "é", value: "MQL Cadastrado" }]
-  }
-];
-
-const COLORS = [
-  { name: "Pink", value: "#ec4899" },
-  { name: "Blue", value: "#3b82f6" },
-  { name: "Violet", value: "#8b5cf6" },
-  { name: "Emerald", value: "#22c55e" },
-  { name: "Orange", value: "#f97316" },
-  { name: "Yellow", value: "#eab308" },
-  { name: "Cyan", value: "#06b6d4" },
-  { name: "Red", value: "#ef4444" }
-];
-
-
 export default function InsightsPage() {
   const { state } = useCrm();
   const { map: ownerNameMap, names: ownerNames, selfName: selfOwnerName } = useOwnerNameMap();
 
-  // ── States ──────────────────────────────────────────────────────────────────
-  const [savedReports, setSavedReports] = useState<SavedReport[]>([]);
-  const [dashboardPopulated, setDashboardPopulated] = useState(false);
   const [activeReportId, setActiveReportId] = useState<string | null>(null);
+
+  const {
+    savedReports, setSavedReports,
+    dashboardPopulated, setDashboardPopulated,
+    sync: syncReports, deleteFromDb: deleteReportSupabase,
+  } = useSavedReports((activeReport) => {
+    setActiveReportId(activeReport.id);
+    setEditReportName(activeReport.name);
+    setEditChartType(activeReport.chartType || "bar");
+    setEditColor(activeReport.color || "#ec4899");
+    setEditPeriod(activeReport.period || "Este mes");
+    setEditFilters(activeReport.filters || []);
+  });
   const [searchQuery, setSearchQuery] = useState("");
   const [showCreateDropdown, setShowCreateDropdown] = useState(false);
   const [showDateDropdown, setShowDateDropdown] = useState(false);
@@ -301,55 +75,6 @@ export default function InsightsPage() {
   const colorDropdownRef = useRef<HTMLDivElement>(null);
   const periodDropdownRef = useRef<HTMLDivElement>(null);
 
-  // Load from localStorage on mount in a safe, non-synchronous way
-  useEffect(() => {
-    const storedReports = localStorage.getItem("insights_saved_reports");
-    const storedPopulated = localStorage.getItem("insights_dashboard_populated");
-    const storedActiveReport = localStorage.getItem("insights_active_report_id");
-
-    const timer = setTimeout(() => {
-      let reports = DEFAULT_REPORTS;
-      if (storedReports) {
-        try {
-          const parsed = JSON.parse(storedReports) as SavedReport[];
-          reports = parsed.map(r => ({
-            ...r,
-            chartType: r.chartType || "bar",
-            color: r.color || "#ec4899",
-            pipeline: r.pipeline || "Prospecção",
-            period: r.period || "Este mes",
-            filters: r.filters || []
-          }));
-          setSavedReports(reports);
-        } catch {
-          setSavedReports(DEFAULT_REPORTS);
-        }
-      } else {
-        setSavedReports(DEFAULT_REPORTS);
-        setDashboardPopulated(true);
-        localStorage.setItem("insights_saved_reports", JSON.stringify(DEFAULT_REPORTS));
-        localStorage.setItem("insights_dashboard_populated", "true");
-      }
-
-      if (storedPopulated === "true") {
-        setDashboardPopulated(true);
-      }
-      if (storedActiveReport && storedActiveReport !== "null") {
-        setActiveReportId(storedActiveReport);
-        const activeReport = reports.find(r => r.id === storedActiveReport);
-        if (activeReport) {
-          setEditReportName(activeReport.name);
-          setEditChartType(activeReport.chartType || "bar");
-          setEditColor(activeReport.color || "#ec4899");
-          setEditPeriod(activeReport.period || "Este mes");
-          setEditFilters(activeReport.filters || []);
-        }
-      }
-    }, 0);
-
-    return () => clearTimeout(timer);
-  }, []);
-
   // Handle click outside create dropdown and filter dropdowns
   useEffect(() => {
     function handleClickOutside(event: MouseEvent) {
@@ -376,9 +101,9 @@ export default function InsightsPage() {
   // ── Seeding default reports ──────────────────────────────────────────────────
   const handleCreateDefaultReports = () => {
     setSavedReports(DEFAULT_REPORTS);
+    syncReports(DEFAULT_REPORTS);
     setDashboardPopulated(true);
     setActiveReportId(null);
-    localStorage.setItem("insights_saved_reports", JSON.stringify(DEFAULT_REPORTS));
     localStorage.setItem("insights_dashboard_populated", "true");
     localStorage.setItem("insights_active_report_id", "null");
   };
@@ -405,7 +130,7 @@ export default function InsightsPage() {
     setIsEditingTitle(false);
     setShowAddFilter(false);
     setDashboardPopulated(true);
-    localStorage.setItem("insights_saved_reports", JSON.stringify(updated));
+    syncReports(updated);
     localStorage.setItem("insights_dashboard_populated", "true");
     localStorage.setItem("insights_active_report_id", newId);
     setShowCreateDropdown(false);
@@ -425,11 +150,11 @@ export default function InsightsPage() {
     e.stopPropagation();
     const updated = savedReports.filter(r => r.id !== id);
     setSavedReports(updated);
+    deleteReportSupabase(id);
     if (activeReportId === id) {
       setActiveReportId(null);
       localStorage.setItem("insights_active_report_id", "null");
     }
-    localStorage.setItem("insights_saved_reports", JSON.stringify(updated));
   };
 
   const handleDeleteDashboard = () => {
@@ -456,7 +181,7 @@ export default function InsightsPage() {
       setEditReportName(editingReportName);
     }
     setEditingReportId(null);
-    localStorage.setItem("insights_saved_reports", JSON.stringify(updated));
+    syncReports(updated);
   };
 
   const handleSelectReport = (id: string | null) => {
@@ -505,15 +230,15 @@ export default function InsightsPage() {
       return r;
     });
     setSavedReports(updated);
-    localStorage.setItem("insights_saved_reports", JSON.stringify(updated));
+    syncReports(updated);
   };
 
   const handleDeleteActiveReport = () => {
     if (!activeReportId) return;
     const updated = savedReports.filter(r => r.id !== activeReportId);
     setSavedReports(updated);
+    deleteReportSupabase(activeReportId);
     setActiveReportId(null);
-    localStorage.setItem("insights_saved_reports", JSON.stringify(updated));
     localStorage.setItem("insights_active_report_id", "null");
   };
 
@@ -674,7 +399,6 @@ export default function InsightsPage() {
   }, [state.deals, selfOwnerName]);
 
   // ── Filter and Sort Deals for Editor ────────────────────────────────────────
-  // eslint-disable-next-line react-hooks/preserve-manual-memoization
   const filteredDeals = useMemo(() => {
     return dealsToAnalyze.filter(deal => {
       // 1. Period filter
@@ -800,452 +524,32 @@ export default function InsightsPage() {
     }
   };
 
-  // ── Render Helpers ──────────────────────────────────────────────────────────
-  const renderDashboardContent = () => {
-    if (!dashboardPopulated) {
-      return (
-        <div className="flex flex-col items-center justify-center py-20">
-          <div className="rounded-2xl bg-white border border-zinc-200 p-8 text-center max-w-md">
-            <div className="mx-auto mb-4 flex h-12 w-12 items-center justify-center rounded-full bg-zinc-100">
-              <Settings className="h-6 w-6 text-zinc-400" />
-            </div>
-            <h2 className="text-lg font-semibold text-zinc-900 mb-2">Seu painel esta vazio</h2>
-            <p className="text-sm text-zinc-500 mb-6">Comece com relatorios prontos ou crie do zero.</p>
-            <div className="flex flex-col gap-3">
-              <button
-                onClick={handleCreateDefaultReports}
-                className="inline-flex items-center justify-center gap-2 rounded-lg bg-zinc-900 px-4 py-2.5 text-sm font-medium text-white hover:bg-zinc-800 disabled:opacity-50 transition-colors cursor-pointer"
-              >
-                <Sparkles className="h-4 w-4" />
-                Criar relatorios padrao
-              </button>
-              <button
-                onClick={handleCreateReportZero}
-                className="inline-flex items-center justify-center gap-2 rounded-lg border border-zinc-200 px-4 py-2.5 text-sm font-medium text-zinc-700 hover:bg-zinc-50 transition-colors cursor-pointer"
-              >
-                <Plus className="h-4 w-4" />
-                Criar relatorio do zero
-              </button>
-            </div>
-          </div>
-        </div>
-      );
-    }
-
-    // Default Populated Dashboard Layout
-    return (
-      <div className="p-6 min-h-[calc(100vh-120px)] transition-colors">
-        <div className="mb-6">
-          <h2 className="text-sm font-semibold text-zinc-500 uppercase tracking-wider mb-3">Prospeccao</h2>
-          
-          {/* Stats Grid */}
-          <div className="grid grid-cols-2 md:grid-cols-4 gap-3 mb-4">
-            <div
-              onClick={() => handleSelectReportByNameAndPipeline("Novos Leads no Funil", "Prospecção")}
-              className="rounded-xl border border-zinc-200 bg-white p-4 cursor-pointer hover:shadow-md transition-shadow"
-            >
-              <div className="text-sm font-semibold text-zinc-800 mb-1">Novos Leads no Funil</div>
-              <div className="text-[10px] font-semibold text-zinc-400 uppercase tracking-wider mb-1">ENTRADA DE LEADS</div>
-              <div className="text-3xl font-bold text-zinc-900">{cardStats.leads}</div>
-              <div className="text-xs text-zinc-400 mt-0.5">no periodo</div>
-            </div>
-
-            <div
-              onClick={() => handleSelectReportByNameAndPipeline("Contatos Realizados com Decisor", "Social Selling")}
-              className="rounded-xl border border-zinc-200 bg-white p-4 cursor-pointer hover:shadow-md transition-shadow"
-            >
-              <div className="text-sm font-semibold text-zinc-800 mb-1">Contatos Realizados com Decisor</div>
-              <div className="text-[10px] font-semibold text-zinc-400 uppercase tracking-wider mb-1">CONTATO REALIZADO COM O DECISOR</div>
-              <div className="text-3xl font-bold text-zinc-900">{cardStats.decisor}</div>
-              <div className="text-xs text-zinc-400 mt-0.5">no periodo</div>
-            </div>
-
-            <div
-              onClick={() => handleSelectReportByNameAndPipeline("Reunioes Agendadas", "Prospecção")}
-              className="rounded-xl border border-zinc-200 bg-white p-4 cursor-pointer hover:shadow-md transition-shadow"
-            >
-              <div className="text-sm font-semibold text-zinc-800 mb-1">Reunioes Agendadas</div>
-              <div className="text-[10px] font-semibold text-zinc-400 uppercase tracking-wider mb-1">REUNIÃO AGENDADA</div>
-              <div className="text-3xl font-bold text-zinc-900">{cardStats.reunioes}</div>
-              <div className="text-xs text-zinc-400 mt-0.5">no periodo</div>
-            </div>
-
-            <div
-              onClick={() => handleSelectReportByNameAndPipeline("Leads Ganhos", "Prospecção")}
-              className="rounded-xl border border-zinc-200 bg-white p-4 cursor-pointer hover:shadow-md transition-shadow"
-            >
-              <div className="text-sm font-semibold text-zinc-800 mb-1">Leads Ganhos</div>
-              <div className="text-[10px] font-semibold text-zinc-400 uppercase tracking-wider mb-1">GANHOS</div>
-              <div className="text-3xl font-bold text-zinc-900">{cardStats.ganhos}</div>
-              <div className="text-xs text-zinc-400 mt-0.5">no periodo</div>
-            </div>
-          </div>
-
-          {/* Charts Grid */}
-          <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
-            
-            {/* Funil de Conversao */}
-            <div
-              onClick={() => handleSelectReportByNameAndPipeline("Funil de Conversao", "Prospecção")}
-              className="group rounded-xl border border-zinc-200 bg-white overflow-hidden cursor-pointer hover:shadow-md transition-all"
-            >
-              <div className="h-1 bg-[#f59e0b]"></div>
-              <div className="flex items-center gap-1 px-3 pt-2 pb-1">
-                <h3 className="text-sm font-semibold text-zinc-800 truncate flex-1">Funil de Conversao</h3>
-                <div className="flex items-center gap-0.5 shrink-0" onClick={e => e.stopPropagation()}>
-                  <button className="p-1.5 rounded hover:bg-violet-50 text-zinc-400 hover:text-violet-600 transition-colors" title="Analisar com IA">
-                    <Sparkles className="h-3.5 w-3.5" />
-                  </button>
-                  <button
-                    onClick={() => handleSelectReportByNameAndPipeline("Funil de Conversao", "Prospecção")}
-                    className="p-1.5 rounded hover:bg-zinc-100 text-zinc-400 hover:text-blue-600 transition-colors"
-                    title="Editar relatorio"
-                  >
-                    <Pencil className="h-3.5 w-3.5" />
-                  </button>
-                  <button className="p-1.5 rounded hover:bg-zinc-100 text-zinc-400 hover:text-zinc-600 transition-colors" title="Expandir">
-                    <Maximize2 className="h-3.5 w-3.5" />
-                  </button>
-                  <button role="button" className="p-1.5 rounded cursor-grab active:cursor-grabbing text-zinc-300 hover:text-zinc-500 transition-colors" title="Arrastar para reordenar">
-                    <GripVertical className="h-3.5 w-3.5" />
-                  </button>
-                </div>
-              </div>
-              <div className="flex items-center gap-1.5 px-4 pb-2 flex-wrap">
-                <span className="text-[10px] px-1.5 py-0.5 rounded bg-zinc-100 text-zinc-500 font-semibold">NEGOCIOS</span>
-                <span className="text-[10px] px-1.5 py-0.5 rounded bg-blue-50 text-blue-600 font-medium">PROSPECCAO</span>
-              </div>
-              <div className="px-4 pb-4 overflow-hidden">
-                <div className="recharts-responsive-container" style={{ width: "100%", height: "240px", minWidth: "0px" }}>
-                  <ResponsiveContainer width="100%" height="100%">
-                    <BarChart data={funnelChartData} margin={{ top: 20, right: 10, bottom: 40, left: 10 }}>
-                      <CartesianGrid strokeDasharray="3 3" stroke="#f4f4f5" vertical={false} />
-                      <XAxis dataKey="name" tick={{ fontSize: 11, fill: "#52525b", fontWeight: 600 }} angle={-40} textAnchor="end" interval={0} height={70} />
-                      <YAxis tick={{ fontSize: 11, fill: "#52525b", fontWeight: 600 }} domain={[0, 4]} ticks={[0, 1, 2, 3, 4]} />
-                      <Tooltip />
-                      <Bar dataKey="value" fill="#eab308" radius={[4, 4, 0, 0]} label={{ position: "top", fontSize: 10, fontWeight: 700, fill: "#52525b" }} />
-                    </BarChart>
-                  </ResponsiveContainer>
-                </div>
-              </div>
-            </div>
-
-            {/* Negocios Abertos por Etapa */}
-            <div
-              onClick={() => handleSelectReportByNameAndPipeline("Negocios Abertos por Etapa", "Prospecção")}
-              className="group rounded-xl border border-zinc-200 bg-white overflow-hidden cursor-pointer hover:shadow-md transition-all"
-            >
-              <div className="h-1 bg-[#f59e0b]"></div>
-              <div className="flex items-center gap-1 px-3 pt-2 pb-1">
-                <h3 className="text-sm font-semibold text-zinc-800 truncate flex-1">Negocios Abertos por Etapa</h3>
-                <div className="flex items-center gap-0.5 shrink-0" onClick={e => e.stopPropagation()}>
-                  <button className="p-1.5 rounded hover:bg-violet-50 text-zinc-400 hover:text-violet-600 transition-colors" title="Analisar com IA">
-                    <Sparkles className="h-3.5 w-3.5" />
-                  </button>
-                  <button
-                    onClick={() => handleSelectReportByNameAndPipeline("Negocios Abertos por Etapa", "Prospecção")}
-                    className="p-1.5 rounded hover:bg-zinc-100 text-zinc-400 hover:text-blue-600 transition-colors"
-                    title="Editar relatorio"
-                  >
-                    <Pencil className="h-3.5 w-3.5" />
-                  </button>
-                  <button className="p-1.5 rounded hover:bg-zinc-100 text-zinc-400 hover:text-zinc-600 transition-colors" title="Expandir">
-                    <Maximize2 className="h-3.5 w-3.5" />
-                  </button>
-                  <button role="button" className="p-1.5 rounded cursor-grab active:cursor-grabbing text-zinc-300 hover:text-zinc-500 transition-colors" title="Arrastar para reordenar">
-                    <GripVertical className="h-3.5 w-3.5" />
-                  </button>
-                </div>
-              </div>
-              <div className="flex items-center gap-1.5 px-4 pb-2 flex-wrap">
-                <span className="text-[10px] px-1.5 py-0.5 rounded bg-zinc-100 text-zinc-500 font-semibold">NEGOCIOS</span>
-                <span className="text-[10px] px-1.5 py-0.5 rounded bg-blue-50 text-blue-600 font-medium">PROSPECCAO</span>
-              </div>
-              <div className="px-4 pb-4 overflow-hidden">
-                <div className="recharts-responsive-container" style={{ width: "100%", height: "260px", minWidth: "0px" }}>
-                  <ResponsiveContainer width="100%" height="100%">
-                    <BarChart data={openStageChartData} margin={{ top: 20, right: 10, bottom: 40, left: 10 }}>
-                      <CartesianGrid strokeDasharray="3 3" stroke="#f4f4f5" vertical={false} />
-                      <XAxis dataKey="name" tick={{ fontSize: 11, fill: "#52525b", fontWeight: 600 }} />
-                      <YAxis tick={{ fontSize: 11, fill: "#52525b", fontWeight: 600 }} domain={[0, 2]} ticks={[0, 0.5, 1, 1.5, 2]} />
-                      <Tooltip />
-                      <Bar dataKey="value" fill="#f59e0b" radius={[4, 4, 0, 0]} label={{ position: "top", fontSize: 10, fontWeight: 700, fill: "#52525b" }} />
-                    </BarChart>
-                  </ResponsiveContainer>
-                </div>
-              </div>
-            </div>
-
-            {/* Atividades por Responsavel */}
-            <div
-              onClick={() => handleSelectReportByNameAndPipeline("Atividades por Responsavel", "Prospecção")}
-              className="group rounded-xl border border-zinc-200 bg-white overflow-hidden cursor-pointer hover:shadow-md transition-all"
-            >
-              <div className="h-1 bg-[#22c55e]"></div>
-              <div className="flex items-center gap-1 px-3 pt-2 pb-1">
-                <h3 className="text-sm font-semibold text-zinc-800 truncate flex-1">Atividades por Responsavel</h3>
-                <div className="flex items-center gap-0.5 shrink-0" onClick={e => e.stopPropagation()}>
-                  <button className="p-1.5 rounded hover:bg-violet-50 text-zinc-400 hover:text-violet-600 transition-colors" title="Analisar com IA">
-                    <Sparkles className="h-3.5 w-3.5" />
-                  </button>
-                  <button
-                    onClick={() => handleSelectReportByNameAndPipeline("Atividades por Responsavel", "Prospecção")}
-                    className="p-1.5 rounded hover:bg-zinc-100 text-zinc-400 hover:text-blue-600 transition-colors"
-                    title="Editar relatorio"
-                  >
-                    <Pencil className="h-3.5 w-3.5" />
-                  </button>
-                  <button className="p-1.5 rounded hover:bg-zinc-100 text-zinc-400 hover:text-zinc-600 transition-colors" title="Expandir">
-                    <Maximize2 className="h-3.5 w-3.5" />
-                  </button>
-                  <button role="button" className="p-1.5 rounded cursor-grab active:cursor-grabbing text-zinc-300 hover:text-zinc-500 transition-colors" title="Arrastar para reordenar">
-                    <GripVertical className="h-3.5 w-3.5" />
-                  </button>
-                </div>
-              </div>
-              <div className="flex items-center gap-1.5 px-4 pb-2 flex-wrap">
-                <span className="text-[10px] px-1.5 py-0.5 rounded bg-zinc-100 text-zinc-500 font-semibold">ATIVIDADES</span>
-                <span className="text-[10px] px-1.5 py-0.5 rounded bg-blue-50 text-blue-600 font-medium">PROSPECCAO</span>
-              </div>
-              <div className="px-4 pb-4 overflow-hidden">
-                <div className="recharts-responsive-container" style={{ width: "100%", height: "240px", minWidth: "0px" }}>
-                  <ResponsiveContainer width="100%" height="100%">
-                    <BarChart data={activityOwnerChartData} margin={{ top: 20, right: 10, bottom: 40, left: 10 }}>
-                      <CartesianGrid strokeDasharray="3 3" stroke="#f4f4f5" vertical={false} />
-                      <XAxis dataKey="name" tick={{ fontSize: 11, fill: "#52525b", fontWeight: 600 }} />
-                      <YAxis tick={{ fontSize: 11, fill: "#52525b", fontWeight: 600 }} domain={[0, 8]} ticks={[0, 2, 4, 6, 8]} />
-                      <Tooltip />
-                      <Legend />
-                      <Bar dataKey="Concluídas" stackId="a" fill="#22c55e" />
-                      <Bar dataKey="Pendentes" stackId="a" fill="#3b82f6" radius={[4, 4, 0, 0]} />
-                    </BarChart>
-                  </ResponsiveContainer>
-                </div>
-              </div>
-            </div>
-
-            {/* Mix de Atividades */}
-            <div
-              onClick={() => handleSelectReportByNameAndPipeline("Mix de Atividades", "Prospecção")}
-              className="group rounded-xl border border-zinc-200 bg-white overflow-hidden cursor-pointer hover:shadow-md transition-all"
-            >
-              <div className="h-1 bg-[#3b82f6]"></div>
-              <div className="flex items-center gap-1 px-3 pt-2 pb-1">
-                <h3 className="text-sm font-semibold text-zinc-800 truncate flex-1">Mix de Atividades</h3>
-                <div className="flex items-center gap-0.5 shrink-0" onClick={e => e.stopPropagation()}>
-                  <button className="p-1.5 rounded hover:bg-violet-50 text-zinc-400 hover:text-violet-600 transition-colors" title="Analisar com IA">
-                    <Sparkles className="h-3.5 w-3.5" />
-                  </button>
-                  <button
-                    onClick={() => handleSelectReportByNameAndPipeline("Mix de Atividades", "Prospecção")}
-                    className="p-1.5 rounded hover:bg-zinc-100 text-zinc-400 hover:text-blue-600 transition-colors"
-                    title="Editar relatorio"
-                  >
-                    <Pencil className="h-3.5 w-3.5" />
-                  </button>
-                  <button className="p-1.5 rounded hover:bg-zinc-100 text-zinc-400 hover:text-zinc-600 transition-colors" title="Expandir">
-                    <Maximize2 className="h-3.5 w-3.5" />
-                  </button>
-                  <button role="button" className="p-1.5 rounded cursor-grab active:cursor-grabbing text-zinc-300 hover:text-zinc-500 transition-colors" title="Arrastar para reordenar">
-                    <GripVertical className="h-3.5 w-3.5" />
-                  </button>
-                </div>
-              </div>
-              <div className="flex items-center gap-1.5 px-4 pb-2 flex-wrap">
-                <span className="text-[10px] px-1.5 py-0.5 rounded bg-zinc-100 text-zinc-500 font-semibold">ATIVIDADES</span>
-                <span className="text-[10px] px-1.5 py-0.5 rounded bg-blue-50 text-blue-600 font-medium">PROSPECCAO</span>
-              </div>
-              <div className="px-4 pb-4 overflow-hidden">
-                <div className="recharts-responsive-container" style={{ width: "100%", height: "240px", minWidth: "0px" }}>
-                  <ResponsiveContainer width="100%" height="100%">
-                    <BarChart data={mixActivityChartData} margin={{ top: 20, right: 10, bottom: 40, left: 10 }}>
-                      <CartesianGrid strokeDasharray="3 3" stroke="#f4f4f5" vertical={false} />
-                      <XAxis dataKey="name" tick={{ fontSize: 11, fill: "#52525b", fontWeight: 600 }} />
-                      <YAxis tick={{ fontSize: 11, fill: "#52525b", fontWeight: 600 }} domain={[0, 8]} ticks={[0, 2, 4, 6, 8]} />
-                      <Tooltip />
-                      <Legend />
-                      <Bar dataKey="WhatsApp" stackId="a" fill="#3b82f6" />
-                      <Bar dataKey="Reunião" stackId="a" fill="#22c55e" radius={[4, 4, 0, 0]} />
-                    </BarChart>
-                  </ResponsiveContainer>
-                </div>
-              </div>
-            </div>
-
-          </div>
-        </div>
-      </div>
-    );
-  };
-
   return (
     <div className="flex h-full w-full overflow-hidden bg-zinc-50">
       
-      {/* ── LEFT PANEL (Insights Sidebar w-64) ─────────────────────────────────── */}
-      <div className="w-64 shrink-0 border-r border-zinc-200 bg-white overflow-y-auto flex flex-col">
-        
-        {/* Criar Button and Dropdown */}
-        <div className="p-3 relative" ref={createDropdownRef}>
-          <button
-            onClick={() => setShowCreateDropdown(!showCreateDropdown)}
-            className="flex items-center gap-2 w-full rounded-lg bg-emerald-600 px-3 py-2 text-sm font-medium text-white hover:bg-emerald-700 transition-colors justify-center cursor-pointer"
-          >
-            <Plus className="h-4 w-4 shrink-0" />
-            Criar
-            <ChevronDown className="h-3 w-3 ml-auto shrink-0" />
-          </button>
-          
-          {showCreateDropdown && (
-            <>
-              <div className="fixed inset-0 z-40" onClick={() => setShowCreateDropdown(false)}></div>
-              <div className="absolute left-3 right-3 top-14 z-50 rounded-lg border border-zinc-200 bg-white shadow-lg overflow-hidden">
-                <button
-                  onClick={handleCreateReportZero}
-                  className="flex items-center gap-3 w-full px-3 py-2.5 text-sm text-zinc-700 hover:bg-zinc-50 transition-colors text-left cursor-pointer"
-                >
-                  <BarChart2 className="h-4 w-4 text-zinc-400" />
-                  Novo relatório
-                </button>
-                <button
-                  onClick={handleCreateDashboard}
-                  className="flex items-center gap-3 w-full px-3 py-2.5 text-sm text-zinc-700 hover:bg-zinc-50 transition-colors text-left cursor-pointer"
-                >
-                  <PanelTop className="h-4 w-4 text-zinc-400" />
-                  Novo painel
-                </button>
-              </div>
-            </>
-          )}
-        </div>
-
-        {/* Search Bar */}
-        <div className="px-3 pb-2">
-          <div className="flex items-center gap-2 rounded-lg bg-zinc-50 px-2.5 py-1.5">
-            <Search className="h-3.5 w-3.5 text-zinc-400 shrink-0" />
-            <input
-              placeholder="Buscar no Insights"
-              value={searchQuery}
-              onChange={e => setSearchQuery(e.target.value)}
-              className="bg-transparent text-sm text-zinc-700 outline-none w-full placeholder:text-zinc-400"
-              type="text"
-            />
-          </div>
-        </div>
-
-        {/* Navigation list */}
-        <div className="px-2 flex-1 overflow-y-auto">
-          
-          {/* Painéis */}
-          <button className="flex items-center gap-2 w-full px-2 py-2 text-xs font-semibold text-zinc-500 uppercase tracking-wider hover:text-zinc-700 text-left">
-            <PanelTop className="h-3 w-3" />
-            Painéis
-            <ChevronDown className="h-3 w-3 ml-auto" />
-          </button>
-          
-          <div className="space-y-0.5 mb-3">
-            {dashboardPopulated && (
-              <div className="group relative">
-                <button
-                  onClick={() => handleSelectReport(null)}
-                  className={cn(
-                    "flex items-center gap-2 w-full px-3 py-1.5 rounded-lg text-sm transition-colors font-medium text-left cursor-pointer",
-                    activeReportId === null
-                      ? "bg-emerald-50 text-emerald-700"
-                      : "text-zinc-500 hover:bg-zinc-50 hover:text-zinc-800"
-                  )}
-                >
-                  <LayoutDashboard className={cn("h-4 w-4 shrink-0", activeReportId === null ? "text-emerald-500" : "text-zinc-400")} />
-                  <span className="truncate flex-1 pr-6 font-semibold">Meu Painel</span>
-                </button>
-                <button
-                  onClick={handleDeleteDashboard}
-                  className="absolute right-1 top-1/2 -translate-y-1/2 p-1 rounded opacity-0 group-hover:opacity-100 text-zinc-300 hover:text-red-500 transition-all cursor-pointer"
-                >
-                  <Trash2 className="h-3 w-3" />
-                </button>
-              </div>
-            )}
-          </div>
-
-          {/* Relatórios */}
-          <button className="flex items-center gap-2 w-full px-2 py-2 text-xs font-semibold text-zinc-500 uppercase tracking-wider hover:text-zinc-700 text-left">
-            <FileText className="h-3 w-3" />
-            Relatórios
-            <span className="ml-1 text-[10px] text-zinc-400 font-normal normal-case">
-              {savedReports.length}
-            </span>
-            <ChevronDown className="h-3 w-3 ml-auto" />
-          </button>
-
-          <div className="space-y-0.5 pb-4">
-            {filteredReports.length === 0 ? (
-              <p className="px-3 py-2 text-xs text-zinc-400">Nenhum relatório salvo</p>
-            ) : (
-              filteredReports.map(report => (
-                <div key={report.id} className="group relative">
-                  {editingReportId === report.id ? (
-                    <form
-                      onSubmit={(e) => handleSaveRename(report.id, e)}
-                      className="flex items-center gap-1.5 px-2 py-1 bg-zinc-50 rounded-lg"
-                    >
-                      <input
-                        type="text"
-                        value={editingReportName}
-                        onChange={e => setEditingReportName(e.target.value)}
-                        className="w-full text-xs bg-white border border-zinc-200 rounded px-1.5 py-0.5 outline-none focus:border-emerald-500"
-                        autoFocus
-                      />
-                      <button type="submit" className="p-0.5 text-emerald-600 hover:bg-emerald-50 rounded cursor-pointer">
-                        <Check className="h-3 w-3" />
-                      </button>
-                      <button
-                        type="button"
-                        onClick={() => setEditingReportId(null)}
-                        className="p-0.5 text-zinc-400 hover:bg-zinc-100 rounded cursor-pointer"
-                      >
-                        <X className="h-3 w-3" />
-                      </button>
-                    </form>
-                  ) : (
-                    <>
-                      <button
-                        onClick={() => handleSelectReport(report.id)}
-                        className={cn(
-                          "flex items-center gap-2 w-full px-3 py-1.5 rounded-lg text-[13px] font-medium transition-colors text-left cursor-pointer",
-                          activeReportId === report.id
-                            ? "bg-zinc-100 text-zinc-900 font-semibold"
-                            : "text-zinc-500 hover:bg-zinc-50 hover:text-zinc-800"
-                        )}
-                      >
-                        <BarChart2 className="h-3.5 w-3.5 shrink-0" style={{ color: report.color || "#ec4899" }} />
-                        <span className="truncate flex-1 pr-6">{report.name}</span>
-                      </button>
-                      
-                      <div className="absolute right-1 top-1/2 -translate-y-1/2 flex items-center gap-0.5 opacity-0 group-hover:opacity-100 transition-all bg-white pl-1">
-                        <button
-                          onClick={(e) => handleStartRename(report.id, report.name, e)}
-                          className="p-1 rounded text-zinc-400 hover:text-zinc-600 hover:bg-zinc-50 cursor-pointer"
-                          title="Renomear"
-                        >
-                          <Pencil className="h-3 w-3" />
-                        </button>
-                        <button
-                          onClick={(e) => handleDeleteReport(report.id, e)}
-                          className="p-1 rounded text-zinc-300 hover:text-red-500 hover:bg-zinc-50 cursor-pointer"
-                          title="Excluir"
-                        >
-                          <Trash2 className="h-3 w-3" />
-                        </button>
-                      </div>
-                    </>
-                  )}
-                </div>
-              ))
-            )}
-          </div>
-
-        </div>
-      </div>
+      <InsightsSidebar
+        createDropdownRef={createDropdownRef}
+        showCreateDropdown={showCreateDropdown}
+        onToggleCreateDropdown={() => setShowCreateDropdown(v => !v)}
+        onCloseCreateDropdown={() => setShowCreateDropdown(false)}
+        onCreateReportZero={handleCreateReportZero}
+        onCreateDashboard={handleCreateDashboard}
+        searchQuery={searchQuery}
+        onSearchChange={setSearchQuery}
+        dashboardPopulated={dashboardPopulated}
+        activeReportId={activeReportId}
+        onSelectReport={handleSelectReport}
+        onDeleteDashboard={handleDeleteDashboard}
+        savedReports={savedReports}
+        filteredReports={filteredReports}
+        editingReportId={editingReportId}
+        editingReportName={editingReportName}
+        onEditingReportNameChange={setEditingReportName}
+        onCancelRename={() => setEditingReportId(null)}
+        onStartRename={handleStartRename}
+        onSaveRename={handleSaveRename}
+        onDeleteReport={handleDeleteReport}
+      />
 
       {/* ── MAIN CONTENT (flex-1) ──────────────────────────────────────────────── */}
       {activeReportId === null ? (
@@ -1322,7 +626,17 @@ export default function InsightsPage() {
           </div>
 
           <div className="flex-1 overflow-auto">
-            {renderDashboardContent()}
+            <DashboardGrid
+              dashboardPopulated={dashboardPopulated}
+              onCreateDefaultReports={handleCreateDefaultReports}
+              onCreateReportZero={handleCreateReportZero}
+              onSelectByNameAndPipeline={handleSelectReportByNameAndPipeline}
+              cardStats={cardStats}
+              funnelChartData={funnelChartData}
+              openStageChartData={openStageChartData}
+              activityOwnerChartData={activityOwnerChartData}
+              mixActivityChartData={mixActivityChartData}
+            />
           </div>
         </div>
       ) : (

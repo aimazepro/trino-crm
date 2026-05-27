@@ -6,11 +6,7 @@ const supabase = createClient(
 );
 
 Deno.serve(async () => {
-  const { data: items, error } = await supabase
-    .from("automation_email_queue")
-    .select("*, integrations!inner(access_token, refresh_token, expires_at)")
-    .eq("status", "pending")
-    .limit(50);
+  const { data: items, error } = await supabase.rpc("claim_pending_email_queue", { p_limit: 50 });
 
   if (error) return new Response(JSON.stringify({ error: error.message }), { status: 500 });
   if (!items || items.length === 0) return new Response(JSON.stringify({ processed: 0 }));
@@ -18,18 +14,31 @@ Deno.serve(async () => {
   let processed = 0;
   for (const item of items) {
     try {
-      const integration = item.integrations;
-      let token = integration.access_token;
+      const { data: intRow } = await supabase
+        .from("integrations")
+        .select("access_token, refresh_token, expires_at, id")
+        .eq("user_id", item.user_id)
+        .eq("provider", "gmail")
+        .eq("active", true)
+        .maybeSingle();
 
-      // Refresh token if expired
-      if (integration.expires_at && new Date(integration.expires_at) < new Date()) {
+      if (!intRow) {
+        await supabase.from("automation_email_queue")
+          .update({ status: "failed", error: "No active Gmail integration" })
+          .eq("id", item.id);
+        continue;
+      }
+
+      let token = intRow.access_token;
+
+      if (intRow.expires_at && new Date(intRow.expires_at) < new Date()) {
         const refreshRes = await fetch("https://oauth2.googleapis.com/token", {
           method: "POST",
           headers: { "Content-Type": "application/x-www-form-urlencoded" },
           body: new URLSearchParams({
             client_id: Deno.env.get("GMAIL_OAUTH_CLIENT_ID")!,
             client_secret: Deno.env.get("GMAIL_OAUTH_CLIENT_SECRET")!,
-            refresh_token: integration.refresh_token,
+            refresh_token: intRow.refresh_token,
             grant_type: "refresh_token",
           }),
         });
@@ -38,11 +47,10 @@ Deno.serve(async () => {
           token = refreshData.access_token;
           await supabase.from("integrations")
             .update({ access_token: token, expires_at: new Date(Date.now() + refreshData.expires_in * 1000).toISOString() })
-            .eq("id", integration.id);
+            .eq("id", intRow.id);
         }
       }
 
-      // Build raw email (RFC 2822)
       const raw = btoa(
         `To: ${item.to_email}\r\nSubject: ${item.subject}\r\nContent-Type: text/html; charset=utf-8\r\n\r\n${item.body}`
       ).replace(/\+/g, "-").replace(/\//g, "_");
