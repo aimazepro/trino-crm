@@ -98,7 +98,7 @@ export default function LoginPage() {
 
         <div className="relative z-10 max-w-md text-center">
           <Image
-            src="/logo-white.svg"
+            src="/logo-trino-marca.png"
             alt="TrinoDeal"
             width={160}
             height={42}
@@ -137,7 +137,7 @@ export default function LoginPage() {
         {/* Mobile Header Logo */}
         <div className="mb-8 lg:hidden">
           <Image
-            src="/logo.svg"
+            src="/logo-trino-marca.png"
             alt="TrinoDeal"
             width={120}
             height={32}
@@ -152,7 +152,7 @@ export default function LoginPage() {
             {/* Desktop header logo inside card */}
             <div className="hidden lg:block mb-6">
               <Image
-                src="/logo.svg"
+                src="/logo-trino-marca.png"
                 alt="TrinoDeal"
                 width={120}
                 height={32}

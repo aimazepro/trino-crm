@@ -56,7 +56,7 @@ export function Sidebar() {
       {/* Logo */}
       <div className="flex h-14 items-center px-3 shrink-0">
         <Link href="/">
-          <Image alt="TrinoDeal" className="h-7 object-contain" src="/logo.svg" width={120} height={28} />
+          <Image alt="TrinoDeal" className="h-7 object-contain" src="/logo-trino-marca.png" width={28} height={28} />
         </Link>
       </div>
 
