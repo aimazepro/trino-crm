@@ -3,17 +3,19 @@
 import { useState, useRef, useEffect } from "react";
 import {
   ChevronDown,
-  ChevronUp,
   Download,
   Upload,
   ArrowLeft,
   ArrowRight,
   FileText,
   AlertTriangle,
-  Play
+  Play,
+  Loader2,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { createClient } from "@/lib/supabase/client";
+import { useCrm } from "@/contexts/crm-context";
+import type { ImportRequest } from "@/app/api/import/csv/route";
 
 type OwnerOption = { id: string; name: string };
 
@@ -100,37 +102,37 @@ const DEFAULT_COLUMNS: CSVColumnMapping[] = [
 ];
 
 export default function ImportacaoPage() {
+  const { state } = useCrm();
   const [activeTab, setActiveTab] = useState<"nova" | "historico">("nova");
   const [currentStep, setCurrentStep] = useState<Step>(1);
   const [dragOver, setDragOver] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   // File stats state
-  const [fileName, setFileName] = useState<string>("leads_exemplo.csv");
-  const [rowCount, setRowCount] = useState<number>(3);
-  const [colCount, setColCount] = useState<number>(20);
+  const [fileName, setFileName] = useState<string>("");
+  const [rowCount, setRowCount] = useState<number>(0);
+  const [colCount, setColCount] = useState<number>(0);
   const [columnsList, setColumnsList] = useState<CSVColumnMapping[]>(DEFAULT_COLUMNS);
+
+  // Parsed raw rows: array of {csvHeader: value} maps
+  const [parsedRawRows, setParsedRawRows] = useState<Record<string, string>[]>([]);
 
   // Mappings state
   const [mappings, setMappings] = useState<Record<string, string>>(() => {
     const initial: Record<string, string> = {};
-    DEFAULT_COLUMNS.forEach(col => {
-      initial[col.header] = col.field;
-    });
+    DEFAULT_COLUMNS.forEach(col => { initial[col.header] = col.field; });
     return initial;
   });
 
   // Stage mapping states
   const [isStageMappingOpen, setIsStageMappingOpen] = useState(false);
-  const fileStages = ["Entrada de leads", "Contato feito", "Proposta enviada"];
-  const crmStages = [
-    { id: "stage_leads", name: "Entrada de Leads" },
-    { id: "stage_contact", name: "Tentando contato" },
-    { id: "stage_comp", name: "Contato realizado com a empresa" },
-    { id: "stage_decisor", name: "Contato realizado com o decisor" },
-    { id: "stage_reuniao", name: "Reunião Agendada" },
-  ];
+  const [fileStages, setFileStages] = useState<string[]>([]);
+  const crmStages = (state.pipelines[0]?.stages ?? []).map(s => ({ id: s.id, name: s.name }));
   const [stageMappings, setStageMappings] = useState<Record<string, string>>({});
+
+  // Import result
+  const [isImporting, setIsImporting] = useState(false);
+  const [importResult, setImportResult] = useState<{ contacts: number; companies: number; deals: number; errors: string[] } | null>(null);
 
   // Configuration options
   const [duplicateStrategy, setDuplicateStrategy] = useState<"merge" | "create_all">("merge");
@@ -202,40 +204,73 @@ export default function ImportacaoPage() {
 
   const processFile = (file: File) => {
     setFileName(file.name);
-    // Simple reader to read column header and rows
     const reader = new FileReader();
     reader.onload = (event) => {
       const text = event.target?.result as string;
-      if (text) {
-        const lines = text.split("\n").map(l => l.trim()).filter(Boolean);
-        if (lines.length > 0) {
-          const headers = lines[0].split(/[;,]/).map(h => h.replace(/^["']|["']$/g, "").trim());
-          setColCount(headers.length);
-          setRowCount(lines.length - 1);
-          
-          // Generate mapping rows based on headers
-          const generatedList = headers.map(header => {
-            const matchedDefault = DEFAULT_COLUMNS.find(c => c.header.toLowerCase() === header.toLowerCase());
-            return {
-              header,
-              example: matchedDefault ? matchedDefault.example : "ex: Valor da coluna",
-              field: matchedDefault ? matchedDefault.field : "__ignore__",
-              required: matchedDefault ? matchedDefault.required : false,
-              hasLink: matchedDefault ? matchedDefault.hasLink : (header.toLowerCase() === "etapa")
-            };
-          });
-          setColumnsList(generatedList);
-          
-          const newMappings: Record<string, string> = {};
-          generatedList.forEach(col => {
-            newMappings[col.header] = col.field;
-          });
-          setMappings(newMappings);
+      if (!text) { setCurrentStep(2); return; }
+
+      const lines = text.split(/\r?\n/).map(l => l.trim()).filter(Boolean);
+      if (lines.length === 0) { setCurrentStep(2); return; }
+
+      const splitRow = (line: string): string[] => {
+        const results: string[] = [];
+        let cur = "", inQuote = false;
+        const sep = line.includes(";") ? ";" : ",";
+        for (const ch of line) {
+          if (ch === '"') { inQuote = !inQuote; continue; }
+          if (ch === sep && !inQuote) { results.push(cur.trim()); cur = ""; continue; }
+          cur += ch;
         }
+        results.push(cur.trim());
+        return results;
+      };
+
+      const headers = splitRow(lines[0]);
+      const dataLines = lines.slice(1);
+      setColCount(headers.length);
+      setRowCount(dataLines.length);
+
+      // Parse rows into [{header: value}]
+      const rawRows: Record<string, string>[] = dataLines.map(line => {
+        const vals = splitRow(line);
+        const obj: Record<string, string> = {};
+        headers.forEach((h, i) => { obj[h] = vals[i] ?? ""; });
+        return obj;
+      });
+      setParsedRawRows(rawRows);
+
+      const generatedList = headers.map(header => {
+        const matchedDefault = DEFAULT_COLUMNS.find(c => c.header.toLowerCase() === header.toLowerCase());
+        return {
+          header,
+          example: matchedDefault ? matchedDefault.example : null,
+          field: matchedDefault ? matchedDefault.field : "__ignore__",
+          required: matchedDefault?.required ?? false,
+          hasLink: matchedDefault?.hasLink ?? (header.toLowerCase() === "etapa"),
+        };
+      });
+      setColumnsList(generatedList);
+
+      const newMappings: Record<string, string> = {};
+      generatedList.forEach(col => { newMappings[col.header] = col.field; });
+      setMappings(newMappings);
+
+      // Extract unique stage values from CSV for stage mapping
+      const stageHeader = headers.find(h => {
+        const m = generatedList.find(c => c.header === h);
+        return m?.field === "dealStageName";
+      });
+      if (stageHeader) {
+        const unique = [...new Set(rawRows.map(r => r[stageHeader]).filter(Boolean))];
+        setFileStages(unique);
+      } else {
+        setFileStages([]);
       }
+
+      setStageMappings({});
       setCurrentStep(2);
     };
-    reader.readAsText(file);
+    reader.readAsText(file, "utf-8");
   };
 
   // Simulate drop handler
@@ -249,21 +284,60 @@ export default function ImportacaoPage() {
 
   // Reset import workflow
   const handleReset = () => {
-    setFileName("leads_exemplo.csv");
-    setRowCount(3);
-    setColCount(20);
+    setFileName("");
+    setRowCount(0);
+    setColCount(0);
     setColumnsList(DEFAULT_COLUMNS);
+    setParsedRawRows([]);
     const initial: Record<string, string> = {};
-    DEFAULT_COLUMNS.forEach(col => {
-      initial[col.header] = col.field;
-    });
+    DEFAULT_COLUMNS.forEach(col => { initial[col.header] = col.field; });
     setMappings(initial);
     setStageMappings({});
+    setFileStages([]);
     setIsStageMappingOpen(false);
     setDuplicateStrategy("merge");
     setRecordOwner("");
     setRunAutomations(false);
+    setImportResult(null);
     setCurrentStep(1);
+  };
+
+  const handleConfirmImport = async () => {
+    if (isImporting) return;
+    setIsImporting(true);
+    try {
+      // Map each raw row to ImportRow using current mappings
+      const mappedRows = parsedRawRows.map(raw => {
+        const out: Record<string, string> = {};
+        Object.entries(mappings).forEach(([csvHeader, field]) => {
+          if (field && field !== "__ignore__") out[field] = raw[csvHeader] ?? "";
+        });
+        return out;
+      });
+
+      const pipelineId = state.pipelines[0]?.id ?? "";
+      const body: ImportRequest = {
+        rows: mappedRows,
+        duplicateStrategy,
+        recordOwner,
+        stageMappings,
+        pipelineId,
+      };
+
+      const res = await fetch("/api/import/csv", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(body),
+      });
+      const result = await res.json();
+      setImportResult(result);
+      setCurrentStep(4);
+    } catch (err) {
+      setImportResult({ contacts: 0, companies: 0, deals: 0, errors: [String(err)] });
+      setCurrentStep(4);
+    } finally {
+      setIsImporting(false);
+    }
   };
 
   return (
@@ -832,62 +906,60 @@ export default function ImportacaoPage() {
                 </div>
 
                 {/* Preview Table */}
-                <div className="overflow-x-auto border border-zinc-200 rounded-xl bg-white">
-                  <table className="w-full border-collapse text-left text-xs">
-                    <thead>
-                      <tr className="bg-zinc-50 border-b border-zinc-200">
-                        <th className="px-4 py-3 font-semibold text-zinc-700">Contato</th>
-                        <th className="px-4 py-3 font-semibold text-zinc-700">Email</th>
-                        <th className="px-4 py-3 font-semibold text-zinc-700">Telefone</th>
-                        <th className="px-4 py-3 font-semibold text-zinc-700">Empresa</th>
-                        <th className="px-4 py-3 font-semibold text-zinc-700">Negócio</th>
-                        <th className="px-4 py-3 font-semibold text-zinc-700">Valor</th>
-                        <th className="px-4 py-3 font-semibold text-zinc-700">Etapa Mapeada</th>
-                      </tr>
-                    </thead>
-                    <tbody className="divide-y divide-zinc-100">
-                      <tr className="hover:bg-zinc-50/50">
-                        <td className="px-4 py-3 font-medium text-zinc-900">João Silva</td>
-                        <td className="px-4 py-3 text-zinc-500">joao@acme.com</td>
-                        <td className="px-4 py-3 text-zinc-500">(11)99999-9999</td>
-                        <td className="px-4 py-3 text-zinc-900">Acme Corp</td>
-                        <td className="px-4 py-3 text-zinc-900">Negócio Exemplo</td>
-                        <td className="px-4 py-3 text-zinc-900">R$ 50.000,00</td>
-                        <td className="px-4 py-3 text-zinc-900">
-                          <span className="px-2 py-0.5 rounded-full bg-amber-50 border border-amber-200 text-amber-700 text-[10px] font-semibold">
-                            Entrada de Leads
-                          </span>
-                        </td>
-                      </tr>
-                      <tr className="hover:bg-zinc-50/50">
-                        <td className="px-4 py-3 font-medium text-zinc-900">Maria Santos</td>
-                        <td className="px-4 py-3 text-zinc-500">maria@global.com</td>
-                        <td className="px-4 py-3 text-zinc-500">(21)98888-8888</td>
-                        <td className="px-4 py-3 text-zinc-900">Global S.A.</td>
-                        <td className="px-4 py-3 text-zinc-900">Negócio Global</td>
-                        <td className="px-4 py-3 text-zinc-900">R$ 120.000,00</td>
-                        <td className="px-4 py-3 text-zinc-900">
-                          <span className="px-2 py-0.5 rounded-full bg-amber-50 border border-amber-200 text-amber-700 text-[10px] font-semibold">
-                            Tentando contato
-                          </span>
-                        </td>
-                      </tr>
-                      <tr className="hover:bg-zinc-50/50">
-                        <td className="px-4 py-3 font-medium text-zinc-900">Pedro Souza</td>
-                        <td className="px-4 py-3 text-zinc-500">pedro@tech.com</td>
-                        <td className="px-4 py-3 text-zinc-500">(31)97777-7777</td>
-                        <td className="px-4 py-3 text-zinc-900">Tech Solutions</td>
-                        <td className="px-4 py-3 text-zinc-900">Negócio Tech</td>
-                        <td className="px-4 py-3 text-zinc-900">R$ 35.000,00</td>
-                        <td className="px-4 py-3 text-zinc-900">
-                          <span className="px-2 py-0.5 rounded-full bg-amber-50 border border-amber-200 text-amber-700 text-[10px] font-semibold">
-                            Contato realizado com a empresa
-                          </span>
-                        </td>
-                      </tr>
-                    </tbody>
-                  </table>
-                </div>
+                {(() => {
+                  const fieldOf = (field: string) => Object.entries(mappings).find(([, f]) => f === field)?.[0];
+                  const previewRows = parsedRawRows.length > 0 ? parsedRawRows.slice(0, 5) : [];
+                  const colName = fieldOf("personName");
+                  const colEmail = fieldOf("personEmail");
+                  const colPhone = fieldOf("personPhone");
+                  const colOrg = fieldOf("organizationName");
+                  const colDeal = fieldOf("dealTitle");
+                  const colValue = fieldOf("dealValue");
+                  const colStage = fieldOf("dealStageName");
+                  const stageNameMap = Object.fromEntries(crmStages.map(s => [s.id, s.name]));
+                  return (
+                    <div className="overflow-x-auto border border-zinc-200 rounded-xl bg-white">
+                      <table className="w-full border-collapse text-left text-xs">
+                        <thead>
+                          <tr className="bg-zinc-50 border-b border-zinc-200">
+                            <th className="px-4 py-3 font-semibold text-zinc-700">Contato</th>
+                            <th className="px-4 py-3 font-semibold text-zinc-700">Email</th>
+                            <th className="px-4 py-3 font-semibold text-zinc-700">Empresa</th>
+                            <th className="px-4 py-3 font-semibold text-zinc-700">Negócio</th>
+                            <th className="px-4 py-3 font-semibold text-zinc-700">Valor</th>
+                            <th className="px-4 py-3 font-semibold text-zinc-700">Etapa</th>
+                          </tr>
+                        </thead>
+                        <tbody className="divide-y divide-zinc-100">
+                          {previewRows.length === 0 ? (
+                            <tr><td colSpan={6} className="px-4 py-6 text-center text-zinc-400">Nenhuma linha para pré-visualizar</td></tr>
+                          ) : previewRows.map((row, i) => {
+                            const csvStage = colStage ? row[colStage] : "";
+                            const stageId = stageMappings[csvStage] ?? "";
+                            const stageName = stageNameMap[stageId] ?? csvStage;
+                            return (
+                              <tr key={i} className="hover:bg-zinc-50/50">
+                                <td className="px-4 py-3 font-medium text-zinc-900">{colName ? row[colName] : "—"}</td>
+                                <td className="px-4 py-3 text-zinc-500">{colEmail ? row[colEmail] : "—"}</td>
+                                <td className="px-4 py-3 text-zinc-900">{colOrg ? row[colOrg] : "—"}</td>
+                                <td className="px-4 py-3 text-zinc-900">{colDeal ? row[colDeal] : "—"}</td>
+                                <td className="px-4 py-3 text-zinc-900">{colValue ? row[colValue] : "—"}</td>
+                                <td className="px-4 py-3">
+                                  {stageName ? (
+                                    <span className="px-2 py-0.5 rounded-full bg-amber-50 border border-amber-200 text-amber-700 text-[10px] font-semibold">{stageName}</span>
+                                  ) : "—"}
+                                </td>
+                              </tr>
+                            );
+                          })}
+                        </tbody>
+                      </table>
+                      {parsedRawRows.length > 5 && (
+                        <p className="px-4 py-2 text-xs text-zinc-400 border-t border-zinc-100">+ {parsedRawRows.length - 5} linhas não exibidas</p>
+                      )}
+                    </div>
+                  );
+                })()}
 
                 {/* Footer Buttons */}
                 <div className="flex justify-between pt-6 border-t border-zinc-200">
@@ -898,12 +970,13 @@ export default function ImportacaoPage() {
                     <ArrowLeft className="h-4 w-4" />
                     Voltar
                   </button>
-                  <button 
-                    onClick={() => setCurrentStep(4)}
-                    className="flex items-center gap-2 rounded-lg bg-amber-500 hover:bg-amber-600 text-white px-5 py-2.5 text-sm font-semibold transition-colors"
+                  <button
+                    onClick={handleConfirmImport}
+                    disabled={isImporting}
+                    className="flex items-center gap-2 rounded-lg bg-amber-500 hover:bg-amber-600 disabled:opacity-60 disabled:cursor-not-allowed text-white px-5 py-2.5 text-sm font-semibold transition-colors"
                   >
-                    Confirmar Importação
-                    <ArrowRight className="h-4 w-4" />
+                    {isImporting ? <Loader2 className="h-4 w-4 animate-spin" /> : <ArrowRight className="h-4 w-4" />}
+                    {isImporting ? "Importando..." : "Confirmar Importação"}
                   </button>
                 </div>
 
@@ -931,18 +1004,30 @@ export default function ImportacaoPage() {
                 {/* Import breakdown */}
                 <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
                   <div className="rounded-xl border border-zinc-200 bg-white p-4 text-center">
-                    <p className="text-2xl font-bold text-zinc-900">{rowCount}</p>
-                    <p className="text-xs text-zinc-500 mt-0.5">Contatos processados</p>
+                    <p className="text-2xl font-bold text-zinc-900">{importResult?.contacts ?? 0}</p>
+                    <p className="text-xs text-zinc-500 mt-0.5">Contatos criados</p>
                   </div>
                   <div className="rounded-xl border border-zinc-200 bg-white p-4 text-center">
-                    <p className="text-2xl font-bold text-zinc-900">3</p>
-                    <p className="text-xs text-zinc-500 mt-0.5">Empresas associadas</p>
+                    <p className="text-2xl font-bold text-zinc-900">{importResult?.companies ?? 0}</p>
+                    <p className="text-xs text-zinc-500 mt-0.5">Empresas criadas</p>
                   </div>
                   <div className="rounded-xl border border-zinc-200 bg-white p-4 text-center">
-                    <p className="text-2xl font-bold text-zinc-900">3</p>
-                    <p className="text-xs text-zinc-500 mt-0.5">Negócios gerados no funil</p>
+                    <p className="text-2xl font-bold text-zinc-900">{importResult?.deals ?? 0}</p>
+                    <p className="text-xs text-zinc-500 mt-0.5">Negócios gerados</p>
                   </div>
                 </div>
+
+                {/* Errors */}
+                {importResult?.errors?.length ? (
+                  <div className="rounded-xl border border-red-200 bg-red-50 p-4">
+                    <p className="text-xs font-semibold text-red-700 mb-2">{importResult.errors.length} linha(s) com erro:</p>
+                    <ul className="space-y-1 max-h-40 overflow-y-auto">
+                      {importResult.errors.map((e, i) => (
+                        <li key={i} className="text-xs text-red-600">{e}</li>
+                      ))}
+                    </ul>
+                  </div>
+                ) : null}
 
                 {/* Footer buttons */}
                 <div className="flex justify-between pt-6 border-t border-zinc-200">
