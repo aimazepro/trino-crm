@@ -131,6 +131,7 @@ export function Sidebar() {
           <ul className="space-y-0.5">
             {[
               { href: "/insights", label: "Métricas", icon: BarChart3 },
+              { href: "/forecast", label: "Forecast", icon: Crosshair },
               { href: "/ligacoes", label: "Ligações", icon: Phone },
               { href: "/metas", label: "Metas", icon: Target },
             ].map((item) => {
