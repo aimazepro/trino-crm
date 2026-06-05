@@ -68,6 +68,10 @@ function decodeHtml(html: string) {
 const VARIABLES = [
   { label: "Nome do contato", value: "{{contact_name}}" },
   { label: "Email do contato", value: "{{contact_email}}" },
+  { label: "Telefone do contato", value: "{{contact_phone}}" },
+  { label: "Nome da empresa", value: "{{company_name}}" },
+  { label: "Nome do negócio", value: "{{deal_title}}" },
+  { label: "Valor do negócio", value: "{{deal_value}}" },
   { label: "Seu nome", value: "{{owner_name}}" },
 ];
 

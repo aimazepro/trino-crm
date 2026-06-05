@@ -18,6 +18,7 @@ const EVENTS = [
   { key: "deal_lost", label: "Negocio perdido", code: "DEAL_LOST" },
   { key: "contact_created", label: "Contato criado", code: "CONTACT_CREATED" },
   { key: "activity_created", label: "Atividade criada", code: "ACTIVITY_CREATED" },
+  { key: "email_open", label: "Email aberto", code: "EMAIL_OPENED" },
 ];
 
 const MOCK_PAYLOADS: Record<string, any> = {
@@ -121,6 +122,33 @@ const MOCK_PAYLOADS: Record<string, any> = {
       workspaceId: "cmpeq9xe30nhihyn45v70us45",
       createdAt: new Date().toISOString(),
       updatedAt: new Date().toISOString(),
+    },
+  },
+  email_open: {
+    event: "EMAIL_OPENED",
+    timestamp: new Date().toISOString(),
+    payload: {
+      email: {
+        id: "cmpg7email0180hyn4eml1bb26",
+        subject: "Proposta Comercial — Beta Ltda",
+        to: "pedro@gamma.com",
+        openedAt: new Date().toISOString(),
+      },
+      contact: {
+        id: "cmpg7azos0170hyn4selcbb26",
+        name: "Pedro Lima",
+        email: "pedro@gamma.com",
+        phone: "+55 11 99999-9999",
+      },
+      deal: {
+        id: "cmpga01qo019yhyn4ra8slrc4",
+        title: "negocio teste",
+        value: "1000",
+      },
+      company: {
+        id: "cmpg7azex016shyn4n2ak798q",
+        name: "Beta Ltda",
+      },
     },
   },
 };

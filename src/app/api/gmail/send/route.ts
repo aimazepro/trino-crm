@@ -41,10 +41,56 @@ export async function POST(req: NextRequest) {
   const escHtml = (s: string) =>
     s.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;");
 
+  // Fetch contact + deal + company to resolve template variables
+  const adminVars = makeAdmin();
+  const { data: contactRow } = await adminVars
+    .from("contacts")
+    .select("name, emails, phones, company_id")
+    .eq("id", contactId)
+    .maybeSingle();
+
+  let dealRow: { title?: string; value?: number | string | null; company_id?: string | null } | null = null;
+  if (dealId) {
+    const { data } = await adminVars
+      .from("deals")
+      .select("title, value, company_id")
+      .eq("id", dealId)
+      .maybeSingle();
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    dealRow = data as any;
+  }
+
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const c = contactRow as any;
+  const companyId = dealRow?.company_id ?? c?.company_id ?? null;
+  let companyName = "";
+  if (companyId) {
+    const { data: companyRow } = await adminVars
+      .from("companies")
+      .select("name")
+      .eq("id", companyId)
+      .maybeSingle();
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    companyName = (companyRow as any)?.name ?? "";
+  }
+
+  const resolvedContactName = contactName ?? c?.name ?? "";
+  const resolvedContactEmail = contactEmailVar ?? c?.emails?.[0]?.value ?? to;
+  const contactPhone = c?.phones?.[0]?.value ?? "";
+  const dealTitle = dealRow?.title ?? "";
+  const dealValue =
+    dealRow?.value == null || dealRow?.value === ""
+      ? ""
+      : new Intl.NumberFormat("pt-BR", { style: "currency", currency: "BRL" }).format(Number(dealRow.value));
+
   const replaceVars = (text: string) =>
     text
-      .replace(/\{\{contact_name\}\}/g, contactName ?? "")
-      .replace(/\{\{contact_email\}\}/g, contactEmailVar ?? to)
+      .replace(/\{\{contact_name\}\}/g, resolvedContactName)
+      .replace(/\{\{contact_email\}\}/g, resolvedContactEmail)
+      .replace(/\{\{contact_phone\}\}/g, contactPhone)
+      .replace(/\{\{company_name\}\}/g, companyName)
+      .replace(/\{\{deal_title\}\}/g, dealTitle)
+      .replace(/\{\{deal_value\}\}/g, dealValue)
       .replace(/\{\{owner_name\}\}/g, ownerName);
 
   const subject = replaceVars(rawSubject);
@@ -96,7 +142,13 @@ export async function POST(req: NextRequest) {
 
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const row = emailRow as any;
-  const appUrl = (process.env.NEXT_PUBLIC_APP_URL ?? "https://trino-crm.vercel.app").replace(/\/$/, "");
+  // The tracking pixel is embedded in the recipient's email, so its URL must be
+  // publicly reachable. When sending from local dev, NEXT_PUBLIC_APP_URL points to
+  // localhost — the recipient's mail client can never load that, so opens are never
+  // detected. Fall back to the production domain whenever the host isn't reachable.
+  const rawAppUrl = (process.env.NEXT_PUBLIC_APP_URL ?? "").replace(/\/$/, "");
+  const isPublicHost = rawAppUrl && !/^https?:\/\/(localhost|127\.0\.0\.1|0\.0\.0\.0|\[::1\])/i.test(rawAppUrl);
+  const appUrl = isPublicHost ? rawAppUrl : "https://trino-crm.vercel.app";
   const trackUrl = `${appUrl}/api/track/${row.track_id}`;
   const pixel = `<img src="${trackUrl}" width="1" height="1" style="display:none" />`;
   const trackedHtml = bodyHtml + pixel;
