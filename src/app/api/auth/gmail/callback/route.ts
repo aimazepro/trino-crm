@@ -13,6 +13,12 @@ export async function GET(req: NextRequest) {
   const cookieState = req.cookies.get("gmail_oauth_state")?.value;
 
   if (error || !code || !cookieState || cookieState !== queryState) {
+    console.error("[gmail/callback] state/code check failed", {
+      googleError: error,
+      hasCode: !!code,
+      hasCookieState: !!cookieState,
+      stateMatch: cookieState === queryState,
+    });
     const redirectRes = NextResponse.redirect(
       new URL("/configuracoes/integracoes?gmail=error", req.url)
     );
@@ -45,6 +51,7 @@ export async function GET(req: NextRequest) {
   const { data: { user } } = await supabase.auth.getUser();
 
   if (!user) {
+    console.error("[gmail/callback] no Supabase user session in callback");
     return NextResponse.redirect(
       new URL("/configuracoes/integracoes?gmail=error", req.url)
     );
@@ -64,6 +71,12 @@ export async function GET(req: NextRequest) {
 
   const tokens = await tokenRes.json();
   if (!tokens.access_token) {
+    console.error("[gmail/callback] token exchange failed", {
+      status: tokenRes.status,
+      error: tokens.error,
+      error_description: tokens.error_description,
+      redirect_uri: process.env.NEXT_PUBLIC_APP_URL + "/api/auth/gmail/callback",
+    });
     return NextResponse.redirect(
       new URL("/configuracoes/integracoes?gmail=error", req.url)
     );
