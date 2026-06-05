@@ -9,11 +9,28 @@ const PIXEL = Buffer.from(
   "base64"
 );
 
+// Opens registered within this window after send are treated as automated
+// delivery/scanner prefetches (mail server antivirus, image proxies that fetch
+// at delivery time), NOT a human opening the email.
+const PREFETCH_WINDOW_MS = 15_000;
+
 export async function GET(
-  _req: NextRequest,
+  req: NextRequest,
   { params }: { params: Promise<{ trackId: string }> }
 ) {
   const { trackId } = await params;
+
+  const ua = (req.headers.get("user-agent") || "").toLowerCase();
+  // Pure link-preview / crawler bots that hit the pixel without a human opening
+  // the email. NOTE: GoogleImageProxy is deliberately NOT here — Gmail uses it
+  // for real opens too; the delivery-time prefetch is caught by the time window.
+  const isBotFetch =
+    ua.includes("bingpreview") ||
+    ua.includes("whatsapp") ||
+    ua.includes("facebookexternalhit") ||
+    ua.includes("slackbot") ||
+    ua.includes("telegrambot") ||
+    ua === "";
 
   const admin = createAdminClient(
     process.env.NEXT_PUBLIC_SUPABASE_URL!,
@@ -29,7 +46,11 @@ export async function GET(
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const row = data as any;
 
-  if (row && !row.opened_at) {
+  const tooSoon =
+    row?.created_at != null &&
+    Date.now() - new Date(row.created_at as string).getTime() < PREFETCH_WINDOW_MS;
+
+  if (row && !row.opened_at && !isBotFetch && !tooSoon) {
     const openedAt = new Date().toISOString();
 
     await admin
