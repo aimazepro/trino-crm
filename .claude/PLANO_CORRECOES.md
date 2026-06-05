@@ -59,11 +59,11 @@
 ## FASE 7 — PRODUTO (features)
 | # | Status | Item | Esforço |
 |---|--------|------|---------|
-| 7.1 | ⬜ TODO | Import CSV contatos/empresas/deals | 1 dia |
+| 7.1 | ✅ DONE | Import CSV contatos/empresas/deals | 1 dia |
 | 7.2 | ⬜ TODO | Inbox de email — ligar Gmail sync à UI | 2-3 dias |
 | 7.3 | ⬜ TODO | Inbox WhatsApp — ligar queue à UI de conversas | 2-3 dias |
 | 7.4 | ⬜ TODO | Web forms / lead capture | 2 dias |
-| 7.5 | ⬜ TODO | Forecast de receita — tela usando probability + expected_close_date | 1 dia |
+| 7.5 | ✅ DONE | Forecast de receita — tela usando probability + expected_close_date | 1 dia |
 | 7.6 | ⬜ TODO | Calendar view — ligar appointments table à UI | 1 dia |
 | 7.7 | ⬜ TODO | Duplicate detection — ligar lógica à rota /configuracoes/duplicatas | 1 dia |
 | 7.8 | ⬜ TODO | Lead scoring — campo + regras configuráveis | 2 dias |
