@@ -191,7 +191,18 @@ export function EmailTab({ contactId, contactEmail, contactName, dealId, gmailAc
 
   const applyTemplate = (t: EmailTemplate) => {
     setSubject(t.subject);
-    if (editorRef.current) editorRef.current.innerHTML = DOMPurify.sanitize(t.body);
+    if (editorRef.current) {
+      // Template body is plain text with line breaks. Setting it as innerHTML
+      // collapses the newlines, so it arrives as one run-on block. Escape the
+      // text and turn newlines into <br> so it keeps the template's layout.
+      const html = t.body
+        .replace(/&/g, "&amp;")
+        .replace(/</g, "&lt;")
+        .replace(/>/g, "&gt;")
+        .replace(/\r\n/g, "\n")
+        .replace(/\n/g, "<br>");
+      editorRef.current.innerHTML = DOMPurify.sanitize(html);
+    }
     setShowTemplates(false);
   };
 
