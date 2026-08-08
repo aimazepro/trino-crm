@@ -6,6 +6,7 @@ import { useCrm } from "@/contexts/crm-context";
 import { isToday, isTomorrow, isPast, format } from "date-fns";
 import { TriangleAlert, XCircle, Trophy, Plus, User, Building } from "lucide-react";
 import { LossReasonModal } from "@/components/deal/loss-reason-modal";
+import { getDaysInStage, getStageTimeColor } from "@/lib/stage-time";
 import { cn } from "@/lib/utils";
 
 interface KanbanBoardProps {
@@ -103,6 +104,8 @@ export function KanbanBoard({ pipelineId, onNewDeal, statusFilter = "Ativo" }: K
                         const isActivityToday = nextActivity ? isToday(new Date(nextActivity.date)) : false;
                         const isActivityTomorrow = nextActivity ? isTomorrow(new Date(nextActivity.date)) : false;
                         const isPastTime = nextActivity ? isPast(new Date(nextActivity.date)) : false;
+                        const daysInStage = getDaysInStage(deal.stageEnteredAt);
+                        const stageTimeColor = getStageTimeColor(daysInStage, stage.maxDays);
 
                         return (
                           <Draggable key={deal.id} draggableId={deal.id} index={index}>
@@ -185,8 +188,13 @@ export function KanbanBoard({ pipelineId, onNewDeal, statusFilter = "Ativo" }: K
                                       Sem atividade
                                     </div>
                                   )}
-                                  <span className="shrink-0 text-[11px] font-medium text-zinc-400">
-                                    {deal.daysInStage}d
+                                  <span className={cn(
+                                    "shrink-0 rounded px-1.5 py-0.5 text-[11px] font-semibold",
+                                    stageTimeColor === "red" ? "bg-red-50 text-red-600"
+                                      : stageTimeColor === "yellow" ? "bg-amber-50 text-amber-600"
+                                      : "text-zinc-400"
+                                  )}>
+                                    {daysInStage}d
                                   </span>
                                 </div>
                               </div>

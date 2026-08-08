@@ -50,6 +50,7 @@ export function transformDeal(row: any): Deal {
     probability: row.probability ?? undefined, source: row.source ?? undefined,
     ownerId: row.owner_id ?? undefined,
     daysInStage: row.days_in_stage,
+    stageEnteredAt: row.stage_entered_at ?? row.updated_at ?? row.created_at,
     createdAt: row.created_at,
     updatedAt: row.updated_at,
     // eslint-disable-next-line @typescript-eslint/no-explicit-any

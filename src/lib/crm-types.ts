@@ -88,6 +88,7 @@ export interface Deal {
   ownerId?: string;
   labels: string[];
   daysInStage: number;
+  stageEnteredAt: string;
   createdAt?: string;
   updatedAt?: string;
 

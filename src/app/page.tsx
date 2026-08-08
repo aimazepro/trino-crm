@@ -86,23 +86,27 @@ export default function DashboardPage() {
 
   // ── Stage data grouped by pipeline ───────────────────────────────────────────
   const pipelineStageData = useMemo(() => {
-    return state.pipelines.map((pipeline) => ({
-      pipeline,
-      stages: pipeline.stages.map((stage) => {
-        const stageDeals = state.deals.filter(
-          (d) =>
-            d.pipelineId === pipeline.id &&
-            d.stageId === stage.id &&
-            d.status === "Ativo"
-        );
-        return {
-          ...stage,
-          count: stageDeals.length,
-          value: stageDeals.reduce((s, d) => s + d.value, 0),
-          deals: stageDeals,
-        };
-      }),
-    }));
+    return state.pipelines
+      .map((pipeline) => ({
+        pipeline,
+        stages: pipeline.stages
+          .map((stage) => {
+            const stageDeals = state.deals.filter(
+              (d) =>
+                d.pipelineId === pipeline.id &&
+                d.stageId === stage.id &&
+                d.status === "Ativo"
+            );
+            return {
+              ...stage,
+              count: stageDeals.length,
+              value: stageDeals.reduce((s, d) => s + d.value, 0),
+              deals: stageDeals,
+            };
+          })
+          .filter((stage) => stage.count > 0),
+      }))
+      .filter((p) => p.stages.length > 0);
   }, [state.pipelines, state.deals]);
 
   const allStageCounts = pipelineStageData.flatMap((p) => p.stages.map((s) => s.count));

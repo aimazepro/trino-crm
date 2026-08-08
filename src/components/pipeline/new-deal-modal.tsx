@@ -148,6 +148,7 @@ export function NewDealModal({ onClose, activePipelineId, initialStageId }: NewD
       stageId,
       status: "Ativo",
       daysInStage: 0,
+      stageEnteredAt: new Date().toISOString(),
       labels: [],
       notes: [],
       history: [],

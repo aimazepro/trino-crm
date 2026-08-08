@@ -23,22 +23,51 @@ export function useCrmMutations({ state, setState, userId, supabase }: MutationP
     const newStage = allStages.find((s) => s.id === newStageId);
     const description = "Etapa alterada";
     const subtext = `De ${oldStage?.name ?? "?"} para ${newStage?.name ?? "?"}`;
+    const now = new Date().toISOString();
 
     setState((prev) => {
       const deals = prev.deals.map((d) => {
         if (d.id !== dealId) return d;
-        const log: HistoryLog = { id: `log_${Date.now()}`, description, subtext, createdAt: new Date().toISOString() };
-        return { ...d, stageId: newStageId, daysInStage: 0, history: [log, ...d.history] };
+        const log: HistoryLog = { id: `log_${Date.now()}`, description, subtext, createdAt: now };
+        return { ...d, stageId: newStageId, daysInStage: 0, stageEnteredAt: now, history: [log, ...d.history] };
       });
       return { ...prev, deals };
     });
-    supabase.from("deals").update({ stage_id: newStageId, days_in_stage: 0 }).eq("id", dealId)
+    supabase.from("deals").update({ stage_id: newStageId, days_in_stage: 0, stage_entered_at: now }).eq("id", dealId)
       .then(({ error }) => { if (error) console.error("[CRM] moveDeal failed:", error); });
     supabase.from("deal_history").insert({ deal_id: dealId, description, subtext })
       .then(({ error }) => { if (error) console.error("[CRM] moveDeal history insert failed:", error); });
     if (deal && userId) {
       runAutomations("stage_changed", { ...deal, stageId: newStageId }, { userId, pipelines: state.pipelines });
     }
+  };
+
+  const moveDealToPipeline = (dealId: string, newPipelineId: string, newStageId: string) => {
+    const deal = state.deals.find((d) => d.id === dealId);
+    if (!deal) return;
+    const fromPipeline = state.pipelines.find((p) => p.id === deal.pipelineId);
+    const toPipeline = state.pipelines.find((p) => p.id === newPipelineId);
+    const toStage = toPipeline?.stages.find((s) => s.id === newStageId);
+    const now = new Date().toISOString();
+    const description = `Pipeline alterada: ${fromPipeline?.name ?? "?"} → ${toPipeline?.name ?? "?"}`;
+    const subtext = toStage ? `Etapa: ${toStage.name}` : "";
+
+    setState((prev) => ({
+      ...prev,
+      deals: prev.deals.map((d) => {
+        if (d.id !== dealId) return d;
+        const log: HistoryLog = { id: `log_${Date.now()}`, description, subtext, createdAt: now };
+        return { ...d, pipelineId: newPipelineId, stageId: newStageId, daysInStage: 0, stageEnteredAt: now, history: [log, ...d.history] };
+      }),
+    }));
+
+    supabase.from("deals")
+      .update({ pipeline_id: newPipelineId, stage_id: newStageId, stage_entered_at: now, days_in_stage: 0 })
+      .eq("id", dealId)
+      .then(({ error }) => { if (error) console.error("[CRM] moveDealToPipeline failed:", error); });
+
+    supabase.from("deal_history").insert({ deal_id: dealId, description, subtext })
+      .then(({ error }) => { if (error) console.error("[CRM] moveDealToPipeline history insert failed:", error); });
   };
 
   const markDealStatus = (dealId: string, status: "Ganho" | "Perdido" | "Ativo", reason?: string) => {
@@ -528,7 +557,7 @@ export function useCrmMutations({ state, setState, userId, supabase }: MutationP
   };
 
   return {
-    moveDeal, markDealStatus, updateDealFields,
+    moveDeal, moveDealToPipeline, markDealStatus, updateDealFields,
     addDealNote, deleteDealNote, updateDealNote, addDealHistory,
     addDeal, deleteDeal,
     addPipeline, deletePipeline, updatePipeline,

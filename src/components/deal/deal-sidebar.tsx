@@ -10,6 +10,7 @@ import { ProductsModal } from "./products-modal";
 import { Contact, Company } from "@/lib/crm-types";
 import { cn } from "@/lib/utils";
 import { createClient } from "@/lib/supabase/client";
+import { getDaysInStage, getStageTimeColor } from "@/lib/stage-time";
 
 interface DealSidebarProps {
   dealId: string;
@@ -32,6 +33,8 @@ export function DealSidebar({ dealId }: DealSidebarProps) {
   const deal = state.deals.find(d => d.id === dealId);
   const contact = state.contacts.find(c => c.id === deal?.contactId);
   const company = state.companies.find(c => c.id === deal?.companyId);
+  const pipeline = state.pipelines.find(p => p.id === deal?.pipelineId);
+  const currentStage = pipeline?.stages.find(s => s.id === deal?.stageId);
 
   const [isProductsOpen, setIsProductsOpen] = useState(false);
   const [isEditingValue, setIsEditingValue] = useState(false);
@@ -223,7 +226,18 @@ export function DealSidebar({ dealId }: DealSidebarProps) {
               <Clock size={16} className="text-zinc-300" />
               Na etapa
             </span>
-            <span className="text-sm font-medium text-zinc-800">{deal.daysInStage} dias</span>
+            {(() => {
+              const days = getDaysInStage(deal.stageEnteredAt);
+              const color = getStageTimeColor(days, currentStage?.maxDays ?? 0);
+              return (
+                <span className={cn(
+                  "text-sm font-medium",
+                  color === "red" ? "text-red-600" : color === "yellow" ? "text-amber-600" : "text-zinc-800"
+                )}>
+                  {days} dias
+                </span>
+              );
+            })()}
           </div>
 
           <div>
