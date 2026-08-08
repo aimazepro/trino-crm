@@ -7,19 +7,19 @@ import { useOwnerNameMap } from "@/hooks/use-owner-name-map";
 import { DealSidebar } from "@/components/deal/deal-sidebar";
 import { DealTabs } from "@/components/deal/deal-tabs";
 import { LossReasonModal } from "@/components/deal/loss-reason-modal";
-import { ArrowLeft, ArrowRight, Check, ChevronDown, MoreVertical, Trophy, CircleX, CircleCheck, Trash2, Play, Edit2, X } from "lucide-react";
+import { PipelineSwitchDropdown } from "@/components/deal/pipeline-switch-dropdown";
+import { ArrowLeft, MoreVertical, Trophy, CircleX, CircleCheck, Trash2, Play, Edit2, X } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useRouter } from "next/navigation";
 
 export default function DealPage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = use(params);
   const router = useRouter();
-  const { state, markDealStatus, moveDeal, deleteDeal, updateDealFields } = useCrm();
+  const { state, markDealStatus, moveDeal, moveDealToPipeline, deleteDeal, updateDealFields } = useCrm();
   const { map: ownerNameMap } = useOwnerNameMap();
-  
+
   const [showLossModal, setShowLossModal] = useState(false);
   const [showDropdown, setShowDropdown] = useState(false);
-  const [showStageDropdown, setShowStageDropdown] = useState(false);
 
   const deal = state.deals.find(d => d.id === id);
   const pipeline = state.pipelines.find(p => p.id === deal?.pipelineId);
@@ -79,51 +79,13 @@ export default function DealPage({ params }: { params: Promise<{ id: string }> }
             className="text-base font-semibold text-zinc-800 truncate bg-transparent outline-none border-b border-transparent hover:border-zinc-200 focus:border-amber-400 w-full transition-colors"
           />
           
-          {/* Pipeline & Process stage selection dropdown */}
-          <div className="relative inline-block">
-            <button
-              onClick={() => setShowStageDropdown(!showStageDropdown)}
-              className="flex items-center gap-1 rounded-md px-1.5 py-0.5 text-xs text-zinc-400 hover:text-amber-600 hover:bg-amber-50 transition-colors group"
-            >
-              <span className="font-medium text-zinc-500 group-hover:text-amber-600">{pipeline.name}</span>
-              <ArrowRight size={12} className="h-3 w-3 text-zinc-400 group-hover:text-amber-600" />
-              <span>{pipeline.stages.find(s => s.id === deal.stageId)?.name}</span>
-              <ChevronDown size={12} className="h-3 w-3 ml-0.5" />
-            </button>
-            
-            {showStageDropdown && (
-              <>
-                <div className="fixed inset-0 z-40" onClick={() => setShowStageDropdown(false)} />
-                <div className="absolute left-0 top-full mt-1.5 w-64 bg-white border border-zinc-200 rounded-xl z-50 p-1 normal-case font-medium">
-                  <div className="px-3 py-1.5 text-[10px] font-bold text-zinc-400 uppercase tracking-wider">
-                    Alterar Processo ({pipeline.name})
-                  </div>
-                  <div className="max-h-60 overflow-y-auto">
-                    {pipeline.stages.map((stage) => (
-                      <button
-                        key={stage.id}
-                        onClick={() => {
-                          if (deal.status === "Ativo") {
-                            moveDeal(deal.id, stage.id);
-                          }
-                          setShowStageDropdown(false);
-                        }}
-                        disabled={deal.status !== "Ativo"}
-                        className={cn(
-                          "w-full text-left px-3 py-2 text-xs font-semibold hover:bg-zinc-50 rounded-lg transition-colors flex items-center justify-between",
-                          stage.id === deal.stageId ? "text-amber-600 bg-amber-50/50 font-bold" : "text-zinc-700",
-                          deal.status !== "Ativo" && "opacity-50 cursor-not-allowed"
-                        )}
-                      >
-                        <span>{stage.name}</span>
-                        {stage.id === deal.stageId && <Check size={14} className="text-amber-500" />}
-                      </button>
-                    ))}
-                  </div>
-                </div>
-              </>
-            )}
-          </div>
+          {/* Pipeline & stage switcher */}
+          <PipelineSwitchDropdown
+            deal={deal}
+            pipelines={state.pipelines}
+            onMoveStage={(stageId) => moveDeal(deal.id, stageId)}
+            onMovePipeline={(pipelineId, stageId) => moveDealToPipeline(deal.id, pipelineId, stageId)}
+          />
         </div>
 
         {/* Owner Info */}
