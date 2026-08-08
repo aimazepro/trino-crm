@@ -7,6 +7,7 @@ import { ptBR } from "date-fns/locale";
 import { useCrm } from "@/contexts/crm-context";
 import { useOwnerNameMap } from "@/hooks/use-owner-name-map";
 import { createClient } from "@/lib/supabase/client";
+import { AllTab } from "./all-tab";
 import { ActivityTab } from "./activity-tab";
 import { EmailTab } from "./email-tab";
 import { ArrowRight, MessageCircleOff, Settings, Paperclip, Mic, LayoutTemplate, PhoneOff, WifiOff, Mail, History, Phone, MessageCircle, FileText, Pencil, Trash2, X, Check } from "lucide-react";
@@ -17,7 +18,7 @@ interface DealTabsProps {
   dealId: string;
 }
 
-const TABS = ["Atividades", "Notas", "Histórico", "Ligações", "WhatsApp", "Email"];
+const TABS = ["Todos", "Atividades", "Notas", "Histórico", "Ligações", "WhatsApp", "Email"];
 
 const TAB_ICONS: Record<string, React.ReactNode> = {
   "Histórico": <History className="h-3.5 w-3.5" />,
@@ -37,7 +38,7 @@ export function DealTabs({ dealId }: DealTabsProps) {
   const deal = state.deals.find(d => d.id === dealId);
   const contact = deal && deal.contactId ? state.contacts.find(c => c.id === deal.contactId) : null;
   
-  const [activeTab, setActiveTab] = useState("Atividades");
+  const [activeTab, setActiveTab] = useState("Todos");
   const [gmailAccountEmail, setGmailAccountEmail] = useState<string | null>(null);
 
   useEffect(() => {
@@ -115,6 +116,9 @@ export function DealTabs({ dealId }: DealTabsProps) {
       {/* Tabs Content */}
       <div className="flex-1 overflow-auto p-6 bg-zinc-50/50">
         
+        {/* Todos Tab */}
+        {activeTab === "Todos" && <AllTab deal={deal} userName={selfName || undefined} />}
+
         {/* Atividades Tab */}
         {activeTab === "Atividades" && <ActivityTab deal={deal} userName={selfName || undefined} />}
 
