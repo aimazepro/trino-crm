@@ -1,14 +1,16 @@
 "use client";
 
 import { useState, useEffect, useRef } from "react";
-import { X, Phone, Users, Video, Mail, MessageCircle, Camera, Briefcase, ClipboardList, Search, UserPlus, Plus } from "lucide-react";
+import { X, Phone, Users, Video, Mail, MessageCircle, Camera, Briefcase, ClipboardList, Search, UserPlus, Plus, Paperclip } from "lucide-react";
 import { Activity } from "@/lib/crm-types";
+import { useCrm } from "@/contexts/crm-context";
+import { useOwnerNameMap } from "@/hooks/use-owner-name-map";
 import { cn } from "@/lib/utils";
 
 interface ActivityModalProps {
   activity?: Activity;
   onClose: () => void;
-  onSave: (data: { title: string; type: string; date: string; description: string; dealId: string; guests: string[] }) => void;
+  onSave: (data: { title: string; type: string; date: string; endDate?: string; description: string; dealId: string; guests: string[]; assigneeId: string; markAsDone: boolean }) => void;
   deals?: { id: string; title: string }[];
   defaultDealId?: string;
   userName?: string;
@@ -79,14 +81,34 @@ function DealSearch({ deals, selectedId, onSelect }: { deals: { id: string; titl
   );
 }
 
-export function ActivityModal({ activity, onClose, onSave, deals = [], defaultDealId = "", userName = "Você" }: ActivityModalProps) {
+function toDateInput(iso: string) {
+  const d = new Date(iso);
+  const local = new Date(d.getTime() - d.getTimezoneOffset() * 60000);
+  return local.toISOString().slice(0, 10);
+}
+
+function toTimeInput(iso: string) {
+  const d = new Date(iso);
+  const local = new Date(d.getTime() - d.getTimezoneOffset() * 60000);
+  return local.toISOString().slice(11, 16);
+}
+
+export function ActivityModal({ activity, onClose, onSave, deals = [], defaultDealId = "" }: ActivityModalProps) {
+  const { addActivityAttachment, deleteActivityAttachment } = useCrm();
+  const { map: ownerMap, selfId } = useOwnerNameMap();
+  const fileInputRef = useRef<HTMLInputElement>(null);
+
   const [type, setType] = useState(activity?.type || "Ligação");
   const [title, setTitle] = useState(activity?.title || "Ligação");
-  const [datetime, setDatetime] = useState("");
+  const [date, setDate] = useState("");
+  const [startTime, setStartTime] = useState("");
+  const [endTime, setEndTime] = useState("");
   const [notes, setNotes] = useState(activity?.description || "");
   const [dealId, setDealId] = useState(defaultDealId || activity?.dealId || "");
   const [guests, setGuests] = useState<string[]>(activity?.guests || []);
   const [guestInput, setGuestInput] = useState("");
+  const [assigneeId, setAssigneeId] = useState(activity?.assigneeId || "");
+  const [markAsDone, setMarkAsDone] = useState(false);
 
   const showGuests = type === "Reunião" || type === "Videochamada";
 
@@ -98,16 +120,21 @@ export function ActivityModal({ activity, onClose, onSave, deals = [], defaultDe
 
   useEffect(() => {
     if (activity?.date) {
-      const d = new Date(activity.date);
-      const local = new Date(d.getTime() - d.getTimezoneOffset() * 60000);
-      setDatetime(local.toISOString().slice(0, 16));
+      setDate(toDateInput(activity.date));
+      setStartTime(toTimeInput(activity.date));
+      setEndTime(activity.endDate ? toTimeInput(activity.endDate) : "");
     } else {
       const d = new Date();
       d.setHours(d.getHours() + 1, 0, 0, 0);
-      const local = new Date(d.getTime() - d.getTimezoneOffset() * 60000);
-      setDatetime(local.toISOString().slice(0, 16));
+      setDate(toDateInput(d.toISOString()));
+      setStartTime(toTimeInput(d.toISOString()));
+      setEndTime("");
     }
   }, [activity]);
+
+  useEffect(() => {
+    if (!activity && selfId && !assigneeId) setAssigneeId(selfId);
+  }, [activity, selfId, assigneeId]);
 
   const handleTypeSelect = (newType: string) => {
     setType(newType);
@@ -115,8 +142,15 @@ export function ActivityModal({ activity, onClose, onSave, deals = [], defaultDe
   };
 
   const handleSubmit = () => {
-    if (!title.trim() || !datetime) return;
-    onSave({ title, type, date: new Date(datetime).toISOString(), description: notes, dealId, guests });
+    if (!title.trim() || !date || !startTime) return;
+    const startIso = new Date(`${date}T${startTime}`).toISOString();
+    const endIso = endTime ? new Date(`${date}T${endTime}`).toISOString() : undefined;
+    onSave({ title, type, date: startIso, endDate: endIso, description: notes, dealId, guests, assigneeId: assigneeId || selfId, markAsDone });
+  };
+
+  const handleFiles = (files: FileList | null) => {
+    if (!activity || !files) return;
+    Array.from(files).forEach(f => addActivityAttachment(activity.id, f));
   };
 
   const showDealSearch = !defaultDealId;
@@ -167,15 +201,26 @@ export function ActivityModal({ activity, onClose, onSave, deals = [], defaultDe
             />
           </div>
 
-          {/* Data e hora */}
+          {/* Data e horário */}
           <div>
-            <label className="text-sm font-semibold text-gray-700 block mb-1.5">Data e hora</label>
-            <input
-              type="datetime-local"
-              value={datetime}
-              onChange={e => setDatetime(e.target.value)}
-              className="w-full border border-gray-200 rounded-xl px-4 py-2.5 text-sm outline-none focus:border-amber-400 transition-colors text-gray-800"
-            />
+            <label className="text-sm font-semibold text-gray-700 block mb-1.5">Data e horário</label>
+            <div className="grid grid-cols-[1fr_auto_1fr_auto_1fr] gap-2 items-center">
+              <input
+                type="date" value={date} onChange={e => setDate(e.target.value)}
+                className="border border-gray-200 rounded-xl px-3 py-2.5 text-sm outline-none focus:border-amber-400 transition-colors text-gray-800"
+              />
+              <span className="text-xs text-gray-400">às</span>
+              <input
+                type="time" value={startTime} onChange={e => setStartTime(e.target.value)}
+                className="border border-gray-200 rounded-xl px-3 py-2.5 text-sm outline-none focus:border-amber-400 transition-colors text-gray-800"
+              />
+              <span className="text-xs text-gray-400">–</span>
+              <input
+                type="time" value={endTime} onChange={e => setEndTime(e.target.value)}
+                className="border border-gray-200 rounded-xl px-3 py-2.5 text-sm outline-none focus:border-amber-400 transition-colors text-gray-800"
+              />
+            </div>
+            <p className="text-[11px] text-gray-400 mt-1.5">Deixe a hora em branco para um lembrete sem horário.</p>
           </div>
 
           {/* Convidados — Reunião / Videochamada only */}
@@ -234,18 +279,66 @@ export function ActivityModal({ activity, onClose, onSave, deals = [], defaultDe
             />
           </div>
 
+          {/* Anexos — only once the activity exists */}
+          {activity && (
+            <div>
+              <label className="text-sm font-semibold text-gray-700 block mb-1.5">Anexos</label>
+              <div className="flex items-center gap-2 rounded-lg border border-dashed border-gray-200 bg-gray-50 px-3 py-2">
+                <button
+                  type="button"
+                  onClick={() => fileInputRef.current?.click()}
+                  className="flex items-center gap-1.5 rounded-md bg-white px-2.5 py-1 text-xs font-medium text-gray-700 border border-gray-200 hover:bg-gray-50 transition-colors"
+                >
+                  <Paperclip className="h-3.5 w-3.5" /> Anexar
+                </button>
+                <span className="text-xs text-gray-500">ou arraste</span>
+                <input
+                  ref={fileInputRef} type="file" multiple className="hidden"
+                  onChange={e => { handleFiles(e.target.files); e.target.value = ""; }}
+                />
+              </div>
+              {activity.attachments.length > 0 && (
+                <ul className="mt-2 space-y-1">
+                  {activity.attachments.map(att => (
+                    <li key={att.id} className="flex items-center justify-between text-xs text-gray-600 bg-gray-50 rounded-lg px-3 py-1.5">
+                      <span className="truncate">{att.fileName}</span>
+                      <button onClick={() => deleteActivityAttachment(att.id)} className="text-gray-400 hover:text-red-500 shrink-0 ml-2"><X size={12} /></button>
+                    </li>
+                  ))}
+                </ul>
+              )}
+            </div>
+          )}
+
           {/* Responsável */}
           <div>
             <label className="text-sm font-semibold text-gray-700 block mb-1.5">Responsável</label>
-            <select className="w-full border border-gray-200 rounded-xl px-4 py-2.5 text-sm text-gray-700 outline-none focus:border-amber-400 transition-colors bg-white">
-              <option>{userName} (você)</option>
+            <select
+              value={assigneeId}
+              onChange={e => setAssigneeId(e.target.value)}
+              className="w-full border border-gray-200 rounded-xl px-4 py-2.5 text-sm text-gray-700 outline-none focus:border-amber-400 transition-colors bg-white"
+            >
+              {Object.entries(ownerMap).map(([id, name]) => (
+                <option key={id} value={id}>{id === selfId ? `${name} (você)` : name}</option>
+              ))}
             </select>
           </div>
+
+          {/* Marcar como feito — create only */}
+          {!activity && (
+            <label className="flex items-center gap-2.5 cursor-pointer">
+              <input
+                type="checkbox" checked={markAsDone} onChange={e => setMarkAsDone(e.target.checked)}
+                className="w-4 h-4 accent-amber-500 cursor-pointer"
+              />
+              <span className="text-sm font-medium text-gray-700">Marcar como feito</span>
+            </label>
+          )}
 
           {/* Submit */}
           <button
             onClick={handleSubmit}
-            disabled={!title.trim() || !datetime}
+            disabled={!title.trim() || !date || !startTime}
             className="w-full py-3 bg-amber-400 hover:bg-amber-500 disabled:opacity-60 disabled:cursor-not-allowed text-white font-bold rounded-xl transition-colors"
           >
             {activity ? "Salvar Alterações" : "Salvar Atividade"}

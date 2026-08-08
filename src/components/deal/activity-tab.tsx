@@ -34,11 +34,11 @@ export function ActivityTab({ deal, userName }: { deal: Deal; userName?: string 
     setShowModal(true);
   };
 
-  const saveActivity = (data: { title: string; type: string; date: string; description: string; dealId: string; guests: string[] }) => {
+  const saveActivity = (data: { title: string; type: string; date: string; endDate?: string; description: string; dealId: string; guests: string[]; assigneeId: string; markAsDone: boolean }) => {
     if (editingActivity) {
-      updateActivity(editingActivity.id, { title: data.title, date: data.date, type: data.type, description: data.description, guests: data.guests });
+      updateActivity(editingActivity.id, { title: data.title, date: data.date, endDate: data.endDate, type: data.type, description: data.description, guests: data.guests, assigneeId: data.assigneeId });
     } else {
-      addActivity({ dealId: deal.id, title: data.title, date: data.date, type: data.type, description: data.description, guests: data.guests });
+      addActivity({ dealId: deal.id, title: data.title, date: data.date, endDate: data.endDate, type: data.type, description: data.description, guests: data.guests, assigneeId: data.assigneeId, completed: data.markAsDone });
     }
     setShowModal(false);
     setEditingActivity(null);

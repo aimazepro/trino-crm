@@ -158,13 +158,13 @@ export default function AtividadesPage() {
     else setSelectedDay(day);
   };
 
-  const handleSave = (data: { title: string; type: string; date: string; description: string; dealId: string; guests: string[] }) => {
+  const handleSave = (data: { title: string; type: string; date: string; endDate?: string; description: string; dealId: string; guests: string[]; assigneeId: string; markAsDone: boolean }) => {
     if (editingActivity) {
-      updateActivity(editingActivity.id, { title: data.title, date: data.date, type: data.type, description: data.description, guests: data.guests });
+      updateActivity(editingActivity.id, { title: data.title, date: data.date, endDate: data.endDate, type: data.type, description: data.description, guests: data.guests, assigneeId: data.assigneeId });
     } else {
       const targetDealId = data.dealId || state.deals.find(d => d.status === "Ativo")?.id || state.deals[0]?.id;
       if (!targetDealId) return; // no deals exist — nothing to attach activity to
-      addActivity({ dealId: targetDealId, title: data.title, date: data.date, type: data.type, description: data.description, guests: data.guests });
+      addActivity({ dealId: targetDealId, title: data.title, date: data.date, endDate: data.endDate, type: data.type, description: data.description, guests: data.guests, assigneeId: data.assigneeId, completed: data.markAsDone });
     }
     setShowModal(false);
     setEditingActivity(null);

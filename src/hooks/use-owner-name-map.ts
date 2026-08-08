@@ -3,9 +3,10 @@
 import { useState, useEffect } from "react";
 import { createClient } from "@/lib/supabase/client";
 
-export function useOwnerNameMap(): { map: Record<string, string>; names: string[]; selfName: string } {
+export function useOwnerNameMap(): { map: Record<string, string>; names: string[]; selfName: string; selfId: string } {
   const [map, setMap] = useState<Record<string, string>>({});
   const [selfName, setSelfName] = useState<string>("");
+  const [selfId, setSelfId] = useState<string>("");
   useEffect(() => {
     let cancelled = false;
     const supabase = createClient();
@@ -18,17 +19,18 @@ export function useOwnerNameMap(): { map: Record<string, string>; names: string[
         .from("team_members")
         .select("member_user_id, name, email, owner_user_id, status")
         .or(`owner_user_id.eq.${user.id},member_user_id.eq.${user.id}`)
-        .eq("status", "accepted");
+        .eq("status", "active");
       (data ?? []).forEach((m) => {
         if (m.member_user_id) next[m.member_user_id] = m.name || m.email;
       });
       if (!cancelled) {
         setMap(next);
         setSelfName(self);
+        setSelfId(user.id);
       }
     })();
     return () => { cancelled = true; };
   }, []);
   const names = Object.values(map);
-  return { map, names, selfName };
+  return { map, names, selfName, selfId };
 }
