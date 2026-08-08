@@ -1,135 +1,278 @@
-import { Search, Info, Phone, Video, MoreVertical, CheckCircle2, CircleDashed, Plus } from "lucide-react";
+"use client";
+
+import { useState } from "react";
+import Link from "next/link";
+import {
+  Search, User, Users, ChevronDown, MessageCircle, Paperclip, Mic,
+  Send, Trash2, ExternalLink, Check, CheckCheck,
+} from "lucide-react";
 import { cn } from "@/lib/utils";
 
-const MOCK_CHATS = [
-  { id: 1, name: "Roberto Almeida", message: "Consegue me mandar a proposta hoje?", time: "10:42", unread: 2, platform: "whatsapp", active: true },
-  { id: 2, name: "Juliana Costa", message: "Obrigada! Vou analisar com o time.", time: "Ontem", unread: 0, platform: "instagram", active: false },
-  { id: 3, name: "Carlos Eduardo", message: "Que horas é a nossa call amanhã?", time: "Ontem", unread: 0, platform: "whatsapp", active: false },
-  { id: 4, name: "Clínica Odonto", message: "Fechado! Aguardo o link de pgto.", time: "Segunda", unread: 0, platform: "messenger", active: false },
+// Sample layout data — no WhatsApp integration wired up yet.
+// Swap this for real conversation data once the WhatsApp connection is built.
+const MOCK_CONVERSATIONS = [
+  {
+    id: "1",
+    contactName: "joao",
+    dealName: "TESTE",
+    phone: "5538999225622",
+    ownerName: "joao paulo",
+    lastMessage: "oi",
+    lastMessageMine: true,
+    time: "02:38",
+    unread: 0,
+  },
 ];
 
+const MOCK_TEAM = ["joao paulo"];
+
+type Filter = "Todas" | "Não lidas" | "Fixadas";
+
 export default function ConversasPage() {
+  const [scope, setScope] = useState<"Minhas" | "Time">("Minhas");
+  const [vendorFilter, setVendorFilter] = useState("Todos os vendedores");
+  const [showVendorDropdown, setShowVendorDropdown] = useState(false);
+  const [filter, setFilter] = useState<Filter>("Todas");
+  const [query, setQuery] = useState("");
+  const [selectedId, setSelectedId] = useState<string | null>(null);
+  const [messageInput, setMessageInput] = useState("");
+  const [recording, setRecording] = useState(false);
+
+  const conversations = MOCK_CONVERSATIONS.filter(c =>
+    !query.trim() || c.contactName.toLowerCase().includes(query.toLowerCase()) || c.dealName.toLowerCase().includes(query.toLowerCase())
+  );
+  const selected = conversations.find(c => c.id === selectedId) ?? null;
+
   return (
-    <div className="flex h-[calc(100vh-8rem)] bg-white rounded-2xl border border-gray-200 overflow-hidden shadow-sm">
-      
-      {/* Sidebar de Chats */}
-      <div className="w-80 border-r border-gray-200 flex flex-col bg-gray-50/30">
-        <div className="p-4 border-b border-gray-100">
-          <h2 className="text-lg font-bold text-gray-900 mb-4">Mensagens</h2>
+    <div className="h-full flex bg-background">
+      {/* Lista de conversas */}
+      <div className="w-full md:w-[360px] md:min-w-[360px] md:border-r border-border flex-col flex">
+        <div className="px-4 pt-4 pb-3 border-b border-border space-y-3 shrink-0">
+          <div className="flex items-center justify-between">
+            <h1 className="text-lg font-semibold">Conversas</h1>
+            <div className="flex rounded-lg border border-border p-0.5 text-xs">
+              <button
+                onClick={() => setScope("Minhas")}
+                className={cn(
+                  "flex items-center gap-1.5 px-2.5 py-1 rounded-md transition-colors",
+                  scope === "Minhas" ? "bg-muted font-medium" : "text-muted-foreground hover:text-foreground"
+                )}
+              >
+                <User className="h-3.5 w-3.5" aria-hidden="true" /> Minhas
+              </button>
+              <button
+                onClick={() => setScope("Time")}
+                className={cn(
+                  "flex items-center gap-1.5 px-2.5 py-1 rounded-md transition-colors",
+                  scope === "Time" ? "bg-muted font-medium" : "text-muted-foreground hover:text-foreground"
+                )}
+              >
+                <Users className="h-3.5 w-3.5" aria-hidden="true" /> Time
+              </button>
+            </div>
+          </div>
+
           <div className="relative">
-            <Search size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
-            <input 
-              type="text" 
-              placeholder="Buscar nas conversas..."
-              className="w-full bg-white border border-gray-200 text-sm rounded-xl pl-9 pr-4 py-2 outline-none focus:ring-2 focus:ring-amber-500/20 focus:border-amber-500 transition-all shadow-sm"
+            <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" aria-hidden="true" />
+            <input
+              value={query}
+              onChange={e => setQuery(e.target.value)}
+              placeholder="Buscar contato ou negócio..."
+              className="w-full h-9 pl-8 pr-3 rounded-lg border border-border bg-background text-sm outline-none focus:ring-2 focus:ring-ring"
             />
           </div>
-          
-          <div className="flex items-center gap-2 mt-4 overflow-x-auto pb-1 hide-scrollbar">
-            <span className="px-3 py-1 bg-amber-100 text-amber-700 text-xs font-semibold rounded-full border border-amber-200 cursor-pointer whitespace-nowrap">Todas</span>
-            <span className="px-3 py-1 bg-white text-gray-500 text-xs font-semibold rounded-full border border-gray-200 hover:bg-gray-50 cursor-pointer whitespace-nowrap">Não lidas (2)</span>
-            <span className="px-3 py-1 bg-white text-gray-500 text-xs font-semibold rounded-full border border-gray-200 hover:bg-gray-50 cursor-pointer whitespace-nowrap">Grupos</span>
+
+          {scope === "Time" && (
+            <div className="relative">
+              <button
+                onClick={() => setShowVendorDropdown(v => !v)}
+                className="w-full flex items-center justify-between gap-2 h-9 px-3 rounded-lg border border-border bg-background text-sm"
+              >
+                <span className="flex items-center gap-2 truncate">
+                  <Users className="h-3.5 w-3.5 text-muted-foreground shrink-0" aria-hidden="true" />
+                  {vendorFilter}
+                </span>
+                <ChevronDown className="h-3.5 w-3.5 text-muted-foreground shrink-0" aria-hidden="true" />
+              </button>
+              {showVendorDropdown && (
+                <>
+                  <div className="fixed inset-0 z-40" onClick={() => setShowVendorDropdown(false)} />
+                  <div className="absolute left-0 top-full mt-1 w-full bg-card border border-border rounded-lg z-50 py-1 shadow-lg">
+                    {["Todos os vendedores", ...MOCK_TEAM].map(v => (
+                      <button
+                        key={v}
+                        onClick={() => { setVendorFilter(v); setShowVendorDropdown(false); }}
+                        className={cn(
+                          "w-full flex items-center justify-between px-3 py-2 text-sm text-left hover:bg-muted transition-colors",
+                          v === vendorFilter && "text-green-600 font-medium"
+                        )}
+                      >
+                        {v}
+                        {v === vendorFilter && <Check className="h-3.5 w-3.5" aria-hidden="true" />}
+                      </button>
+                    ))}
+                  </div>
+                </>
+              )}
+            </div>
+          )}
+
+          <div className="flex items-center gap-1.5">
+            {(["Todas", "Não lidas", "Fixadas"] as Filter[]).map(f => (
+              <button
+                key={f}
+                onClick={() => setFilter(f)}
+                className={cn(
+                  "flex items-center gap-1.5 px-2.5 py-1 rounded-full border text-xs transition-colors",
+                  filter === f
+                    ? "border-green-600 bg-green-50 text-green-700 font-medium dark:bg-green-950 dark:text-green-400"
+                    : "border-border text-muted-foreground hover:bg-muted/60"
+                )}
+              >
+                {f}
+              </button>
+            ))}
           </div>
         </div>
 
         <div className="flex-1 overflow-y-auto">
-          {MOCK_CHATS.map((chat) => (
-            <div 
-              key={chat.id} 
-              className={cn(
-                "p-4 border-b border-gray-50 cursor-pointer transition-colors flex gap-3",
-                chat.active ? "bg-amber-50/50 relative" : "hover:bg-gray-50"
-              )}
-            >
-              {chat.active && <div className="absolute left-0 top-0 bottom-0 w-1 bg-amber-500 rounded-r-md"></div>}
-              
-              <div className="w-12 h-12 rounded-full bg-gradient-to-tr from-gray-200 to-gray-300 shrink-0 border border-white shadow-sm flex items-center justify-center font-bold text-gray-500">
-                {chat.name.substring(0,2).toUpperCase()}
+          {conversations.length === 0 ? (
+            <div className="flex flex-col items-center justify-center text-center px-6 py-16">
+              <div className="h-12 w-12 rounded-full bg-muted flex items-center justify-center mb-3">
+                <MessageCircle className="h-6 w-6 text-muted-foreground" aria-hidden="true" />
               </div>
-              
-              <div className="flex-1 min-w-0">
-                <div className="flex justify-between items-baseline mb-0.5">
-                  <h3 className={cn("text-sm truncate", chat.unread > 0 ? "font-bold text-gray-900" : "font-semibold text-gray-700")}>{chat.name}</h3>
-                  <span className={cn("text-[10px] shrink-0", chat.unread > 0 ? "text-amber-600 font-bold" : "text-gray-400 font-medium")}>{chat.time}</span>
+              <p className="text-sm font-medium">Nenhuma conversa ainda</p>
+              <p className="text-xs text-muted-foreground mt-1">As conversas de WhatsApp dos seus negócios aparecem aqui.</p>
+              <Link href="/configuracoes/whatsapp" className="mt-4 text-xs text-green-600 hover:underline">
+                Verificar conexão do WhatsApp
+              </Link>
+            </div>
+          ) : (
+            conversations.map(c => (
+              <button
+                key={c.id}
+                onClick={() => setSelectedId(c.id)}
+                className={cn(
+                  "w-full flex items-start gap-3 px-4 py-3 text-left border-b border-border/60 transition-colors",
+                  selectedId === c.id ? "bg-muted" : "hover:bg-muted/50"
+                )}
+              >
+                <div className="h-10 w-10 rounded-full bg-blue-100 text-blue-700 dark:bg-blue-950 dark:text-blue-400 flex items-center justify-center font-semibold shrink-0">
+                  {c.contactName.charAt(0).toUpperCase()}
                 </div>
-                <div className="flex justify-between items-center">
-                  <p className={cn("text-sm truncate", chat.unread > 0 ? "text-gray-700 font-medium" : "text-gray-500")}>
-                    {chat.message}
+                <div className="flex-1 min-w-0">
+                  <div className="flex items-center justify-between gap-2">
+                    <span className="text-sm font-medium truncate">{c.contactName}</span>
+                    <span className="text-[11px] text-muted-foreground shrink-0">{c.time}</span>
+                  </div>
+                  <p className="text-xs text-muted-foreground truncate">{c.dealName}</p>
+                  <p className="text-xs text-muted-foreground truncate mt-0.5">
+                    {c.lastMessageMine && <span className="text-foreground/70">Você: </span>}
+                    {c.lastMessage}
                   </p>
-                  {chat.unread > 0 && (
-                    <span className="w-5 h-5 rounded-full bg-amber-500 text-white text-[10px] font-bold flex items-center justify-center shrink-0 ml-2 shadow-[0_2px_5px_rgba(245,158,11,0.4)]">
-                      {chat.unread}
-                    </span>
-                  )}
+                  <p className="text-[11px] text-muted-foreground/70 mt-0.5">{c.ownerName}</p>
+                </div>
+                {c.unread > 0 && (
+                  <span className="shrink-0 h-5 min-w-[20px] rounded-full bg-green-600 text-white text-[10px] font-bold flex items-center justify-center px-1">
+                    {c.unread}
+                  </span>
+                )}
+              </button>
+            ))
+          )}
+        </div>
+      </div>
+
+      {/* Thread */}
+      <div className="flex-1 min-w-0 flex-col hidden md:flex">
+        {!selected ? (
+          <div className="flex-1 flex flex-col items-center justify-center text-center px-6">
+            <div className="h-14 w-14 rounded-full bg-muted flex items-center justify-center mb-3">
+              <MessageCircle className="h-7 w-7 text-muted-foreground" aria-hidden="true" />
+            </div>
+            <p className="text-sm font-medium">Selecione uma conversa</p>
+            <p className="text-xs text-muted-foreground mt-1">Escolha uma conversa na lista pra ler e responder por aqui.</p>
+          </div>
+        ) : (
+          <>
+            {/* Header */}
+            <div className="flex items-center justify-between gap-3 px-6 py-3 border-b border-border shrink-0">
+              <div className="flex items-center gap-3 min-w-0">
+                <div className="h-9 w-9 rounded-full bg-blue-100 text-blue-700 dark:bg-blue-950 dark:text-blue-400 flex items-center justify-center font-semibold shrink-0">
+                  {selected.contactName.charAt(0).toUpperCase()}
+                </div>
+                <div className="min-w-0">
+                  <p className="text-sm font-semibold truncate">{selected.contactName} · {selected.dealName}</p>
+                  <p className="text-xs text-muted-foreground truncate">{selected.phone} · {selected.dealName}</p>
+                </div>
+              </div>
+              <Link
+                href={`/negocios`}
+                className="shrink-0 flex items-center gap-1.5 rounded-lg border border-border px-3 py-1.5 text-xs font-medium hover:bg-muted transition-colors"
+              >
+                <ExternalLink className="h-3.5 w-3.5" aria-hidden="true" /> Abrir negócio
+              </Link>
+            </div>
+
+            {/* Messages */}
+            <div className="flex-1 overflow-y-auto px-6 py-4 bg-muted/20">
+              <div className="flex justify-center mb-4">
+                <span className="text-[11px] font-medium text-muted-foreground bg-muted rounded-full px-3 py-1">HOJE</span>
+              </div>
+              <div className="flex justify-end">
+                <div className="max-w-[70%] rounded-2xl rounded-br-sm bg-green-500 text-white px-3.5 py-2 text-sm">
+                  {selected.lastMessage}
+                  <div className="flex items-center justify-end gap-1 mt-1 text-[10px] text-green-50/80">
+                    {selected.time}
+                    <CheckCheck className="h-3 w-3" aria-hidden="true" />
+                  </div>
                 </div>
               </div>
             </div>
-          ))}
-        </div>
+
+            {/* Input */}
+            <div className="px-4 py-3 border-t border-border shrink-0">
+              {recording ? (
+                <div className="flex items-center gap-3 rounded-full border border-border bg-background px-3 py-2">
+                  <button onClick={() => setRecording(false)} className="text-red-500 hover:text-red-600 shrink-0">
+                    <Trash2 className="h-4 w-4" aria-hidden="true" />
+                  </button>
+                  <span className="h-2 w-2 rounded-full bg-red-500 animate-pulse shrink-0" aria-hidden="true" />
+                  <span className="text-sm text-red-500 font-medium shrink-0">00:00</span>
+                  <span className="flex-1 text-sm text-muted-foreground">Gravando áudio...</span>
+                  <button onClick={() => setRecording(false)} className="shrink-0 rounded-full bg-green-600 hover:bg-green-700 text-white p-2 transition-colors">
+                    <Send className="h-4 w-4" aria-hidden="true" />
+                  </button>
+                </div>
+              ) : (
+                <div className="flex items-center gap-2">
+                  <button className="shrink-0 p-2 text-muted-foreground hover:text-foreground transition-colors">
+                    <Paperclip className="h-4 w-4" aria-hidden="true" />
+                  </button>
+                  <button className="shrink-0 hidden sm:flex items-center gap-1.5 rounded-lg border border-border px-2.5 py-1.5 text-xs font-medium text-muted-foreground hover:bg-muted transition-colors">
+                    <MessageCircle className="h-3.5 w-3.5" aria-hidden="true" /> Templates
+                  </button>
+                  <input
+                    value={messageInput}
+                    onChange={e => setMessageInput(e.target.value)}
+                    placeholder="Digite uma mensagem..."
+                    className="flex-1 h-9 px-3 rounded-full border border-border bg-background text-sm outline-none focus:ring-2 focus:ring-ring"
+                  />
+                  {messageInput.trim() ? (
+                    <button className="shrink-0 rounded-full bg-green-600 hover:bg-green-700 text-white p-2 transition-colors">
+                      <Send className="h-4 w-4" aria-hidden="true" />
+                    </button>
+                  ) : (
+                    <button onClick={() => setRecording(true)} className="shrink-0 p-2 text-muted-foreground hover:text-foreground transition-colors">
+                      <Mic className="h-4 w-4" aria-hidden="true" />
+                    </button>
+                  )}
+                </div>
+              )}
+            </div>
+          </>
+        )}
       </div>
-
-      {/* Janela de Chat */}
-      <div className="flex-1 flex flex-col bg-[#F3F4F6] relative">
-        {/* Chat Header */}
-        <div className="h-16 px-6 bg-white border-b border-gray-200 flex items-center justify-between shrink-0 shadow-sm z-10">
-           <div className="flex items-center gap-3">
-              <div className="w-10 h-10 rounded-full bg-gradient-to-tr from-gray-200 to-gray-300 flex items-center justify-center font-bold text-gray-500 shadow-inner">
-                RO
-              </div>
-              <div>
-                <h3 className="font-bold text-gray-900">Roberto Almeida</h3>
-                <p className="text-xs text-green-500 font-medium flex items-center gap-1">
-                  <span className="w-1.5 h-1.5 rounded-full bg-green-500"></span> Online
-                </p>
-              </div>
-           </div>
-           
-           <div className="flex items-center gap-4 text-gray-400">
-              <button className="hover:text-amber-500 transition-colors"><Search size={20}/></button>
-              <div className="w-px h-5 bg-gray-200"></div>
-              <button className="hover:text-amber-500 transition-colors"><Phone size={20}/></button>
-              <button className="hover:text-amber-500 transition-colors"><Video size={20}/></button>
-              <button className="hover:text-gray-700 transition-colors"><Info size={20}/></button>
-              <button className="hover:text-gray-700 transition-colors"><MoreVertical size={20}/></button>
-           </div>
-        </div>
-
-        {/* Mensagens Area - Mock */}
-        <div className="flex-1 overflow-y-auto p-6 space-y-4">
-           <div className="text-center font-medium text-[10px] text-gray-400 uppercase tracking-widest my-6">Hoje</div>
-           
-           {/* Balão 1 - Recebido */}
-           <div className="flex justify-start">
-             <div className="bg-white px-4 py-2.5 rounded-2xl rounded-tl-sm shadow-sm border border-gray-100 max-w-md">
-                <p className="text-sm text-gray-700">Fala João! Tudo bom?</p>
-                <div className="text-right text-[10px] text-gray-400 mt-1">10:40</div>
-             </div>
-           </div>
-
-           {/* Balão 2 - Recebido */}
-           <div className="flex justify-start">
-             <div className="bg-white px-4 py-2.5 rounded-2xl shadow-sm border border-gray-100 max-w-md">
-                <p className="text-sm text-gray-700">Consegue me mandar a proposta hoje?</p>
-                <div className="text-right text-[10px] text-gray-400 mt-1">10:42</div>
-             </div>
-           </div>
-
-        </div>
-
-        {/* Input Area */}
-        <div className="p-4 bg-[#f0f2f5] border-t border-gray-200">
-           <div className="flex items-center gap-3 bg-white px-4 py-2 rounded-2xl shadow-sm border border-gray-200">
-              <button className="text-gray-400 hover:text-amber-500 transition-colors"><Plus size={24}/></button>
-              <input type="text" placeholder="Digite uma mensagem..." className="flex-1 bg-transparent py-2 outline-none text-sm text-gray-700" />
-              <button className="bg-amber-500 text-white p-2 rounded-xl shadow-md hover:bg-amber-600 hover:-translate-y-0.5 transition-all">
-                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="w-4 h-4 ml-1">
-                  <path d="M5 12h14M12 5l7 7-7 7" strokeLinecap="round" strokeLinejoin="round"/>
-                </svg>
-              </button>
-           </div>
-        </div>
-      </div>
-
     </div>
   );
 }
