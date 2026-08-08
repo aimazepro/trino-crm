@@ -13,6 +13,7 @@ import { Company } from "@/lib/crm-types";
 import { cn } from "@/lib/utils";
 import { format, isPast, isToday } from "date-fns";
 import { ptBR } from "date-fns/locale";
+import { createClient } from "@/lib/supabase/client";
 
 type Tab = "negocios" | "timeline";
 
@@ -212,6 +213,15 @@ export default function EmpresaPage({ params }: { params: Promise<{ id: string }
     setParentCompanyId(stored);
   }, [id]);
 
+  const [companyHistory, setCompanyHistory] = useState<{ id: string; description: string; subtext: string; created_at: string }[]>([]);
+
+  useEffect(() => {
+    const supabase = createClient();
+    supabase.from("company_history").select("id, description, subtext, created_at")
+      .eq("company_id", id).order("created_at", { ascending: false })
+      .then(({ data }) => setCompanyHistory(data ?? []));
+  }, [id]);
+
   const timeline = useMemo(() => {
     const items: { id: string; type: string; title: string; sub: string; dealName: string; dealId: string; date: string }[] = [];
     for (const deal of deals) {
@@ -222,8 +232,11 @@ export default function EmpresaPage({ params }: { params: Promise<{ id: string }
         items.push({ id: a.id, type: a.completed ? "activity_done" : "activity", title: a.title, sub: `${a.type} — ${deal.title}`, dealName: deal.title, dealId: deal.id, date: a.date });
       }
     }
+    for (const h of companyHistory) {
+      items.push({ id: h.id, type: "history", title: h.description, sub: h.subtext, dealName: "", dealId: "", date: h.created_at });
+    }
     return items.sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
-  }, [deals]);
+  }, [deals, companyHistory]);
 
   if (!company) {
     return (
@@ -416,10 +429,12 @@ export default function EmpresaPage({ params }: { params: Promise<{ id: string }
                           <span className="text-xs text-zinc-400">
                             {(() => { try { return format(new Date(item.date), "dd/MM/yyyy 'às' HH:mm", { locale: ptBR }); } catch { return item.date; } })()}
                           </span>
-                          <Link href={`/negocios/${item.dealId}`}
-                            className="text-xs text-zinc-500 underline decoration-zinc-300 hover:text-zinc-700 inline-flex items-center gap-1 transition-colors">
-                            <ArrowRight className="h-3 w-3" aria-hidden="true" /> {item.dealName}
-                          </Link>
+                          {item.dealId && (
+                            <Link href={`/negocios/${item.dealId}`}
+                              className="text-xs text-zinc-500 underline decoration-zinc-300 hover:text-zinc-700 inline-flex items-center gap-1 transition-colors">
+                              <ArrowRight className="h-3 w-3" aria-hidden="true" /> {item.dealName}
+                            </Link>
+                          )}
                         </div>
                       </div>
                     </div>
