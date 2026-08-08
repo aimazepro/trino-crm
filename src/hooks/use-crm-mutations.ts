@@ -306,11 +306,36 @@ export function useCrmMutations({ state, setState, userId, supabase }: MutationP
     }
   };
 
+  const logContactHistory = (contactId: string, description: string, subtext = "") => {
+    if (!userId) return;
+    supabase.from("contact_history").insert({ contact_id: contactId, user_id: userId, description, subtext })
+      .then(({ error }) => { if (error) console.error("[CRM] logContactHistory failed:", error); });
+  };
+
+  const logCompanyHistory = (companyId: string, description: string, subtext = "") => {
+    if (!userId) return;
+    supabase.from("company_history").insert({ company_id: companyId, user_id: userId, description, subtext })
+      .then(({ error }) => { if (error) console.error("[CRM] logCompanyHistory failed:", error); });
+  };
+
+  const CONTACT_FIELD_LABELS: Partial<Record<keyof Contact, string>> = {
+    name: "Nome", role: "Cargo", companyId: "Empresa", emails: "Email", phones: "Telefone",
+  };
+
   const updateContact = (contactId: string, fields: Partial<Contact>) => {
+    const contact = state.contacts.find((c) => c.id === contactId);
     setState((prev) => ({
       ...prev,
       contacts: prev.contacts.map((c) => (c.id === contactId ? { ...c, ...fields } : c)),
     }));
+    if (contact) {
+      for (const key of Object.keys(fields) as (keyof Contact)[]) {
+        const label = CONTACT_FIELD_LABELS[key];
+        if (label && JSON.stringify(fields[key]) !== JSON.stringify(contact[key])) {
+          logContactHistory(contactId, `${label} alterado`, "");
+        }
+      }
+    }
     const db: Record<string, unknown> = {};
     if (fields.name !== undefined) db.name = fields.name;
     if (fields.role !== undefined) db.role = fields.role;
@@ -344,11 +369,24 @@ export function useCrmMutations({ state, setState, userId, supabase }: MutationP
       .then(({ error }) => { if (error) console.error("[CRM] deleteContact failed:", error); });
   };
 
+  const COMPANY_FIELD_LABELS: Partial<Record<keyof Company, string>> = {
+    name: "Nome", website: "Site", segment: "Segmento", size: "Porte", city: "Cidade", state: "Estado", cnpj: "CNPJ",
+  };
+
   const updateCompany = (companyId: string, fields: Partial<Company>) => {
+    const company = state.companies.find((c) => c.id === companyId);
     setState((prev) => ({
       ...prev,
       companies: prev.companies.map((c) => (c.id === companyId ? { ...c, ...fields } : c)),
     }));
+    if (company) {
+      for (const key of Object.keys(fields) as (keyof Company)[]) {
+        const label = COMPANY_FIELD_LABELS[key];
+        if (label && fields[key] !== company[key]) {
+          logCompanyHistory(companyId, `${label} alterado`, "");
+        }
+      }
+    }
     const db: Record<string, unknown> = {};
     if (fields.name !== undefined) db.name = fields.name;
     if (fields.website !== undefined) db.website = fields.website ?? null;
