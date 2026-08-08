@@ -115,12 +115,25 @@ export function useCrmMutations({ state, setState, userId, supabase }: MutationP
     }
   };
 
+  const DEAL_FIELD_LABELS: Partial<Record<keyof Deal, string>> = {
+    ownerId: "Proprietário", contactId: "Contato", companyId: "Empresa",
+    value: "Valor", expectedCloseDate: "Previsão de fechamento",
+  };
+
   const updateDealFields = (dealId: string, fields: Partial<Deal>) => {
     const deal = state.deals.find((d) => d.id === dealId);
     setState((prev) => ({
       ...prev,
       deals: prev.deals.map((d) => (d.id === dealId ? { ...d, ...fields } : d)),
     }));
+    if (deal) {
+      for (const key of Object.keys(fields) as (keyof Deal)[]) {
+        const label = DEAL_FIELD_LABELS[key];
+        if (label && fields[key] !== deal[key]) {
+          addDealHistory(dealId, `${label} alterado`, "");
+        }
+      }
+    }
     if (deal && userId) {
       runAutomations("deal_updated", { ...deal, ...fields }, { userId, pipelines: state.pipelines });
     }
@@ -164,6 +177,7 @@ export function useCrmMutations({ state, setState, userId, supabase }: MutationP
               ? { ...d, notes: d.notes.map((n) => n.id === tempNote.id ? { ...n, id: data.id, createdAt: data.created_at } : n) }
               : d),
           }));
+          addDealHistory(dealId, "Nota adicionada", content.slice(0, 80));
         }
       });
   };
@@ -174,7 +188,10 @@ export function useCrmMutations({ state, setState, userId, supabase }: MutationP
       deals: prev.deals.map(d => d.id === dealId ? { ...d, notes: d.notes.filter(n => n.id !== noteId) } : d),
     }));
     supabase.from("deal_notes").delete().eq("id", noteId)
-      .then(({ error }) => { if (error) console.error("[CRM] deleteDealNote failed:", error); });
+      .then(({ error }) => {
+        if (error) { console.error("[CRM] deleteDealNote failed:", error); return; }
+        addDealHistory(dealId, "Nota removida", "");
+      });
   };
 
   const updateDealNote = (dealId: string, noteId: string, content: string) => {
@@ -183,7 +200,10 @@ export function useCrmMutations({ state, setState, userId, supabase }: MutationP
       deals: prev.deals.map(d => d.id === dealId ? { ...d, notes: d.notes.map(n => n.id === noteId ? { ...n, content } : n) } : d),
     }));
     supabase.from("deal_notes").update({ content }).eq("id", noteId)
-      .then(({ error }) => { if (error) console.error("[CRM] updateDealNote failed:", error); });
+      .then(({ error }) => {
+        if (error) { console.error("[CRM] updateDealNote failed:", error); return; }
+        addDealHistory(dealId, "Nota editada", content.slice(0, 80));
+      });
   };
 
   const addDealHistory = (dealId: string, description: string, subtext: string) => {
@@ -467,6 +487,7 @@ export function useCrmMutations({ state, setState, userId, supabase }: MutationP
               ? { ...d, activities: d.activities.map((a) => a.id === newAct.id ? { ...newAct, id: data.id, createdAt: data.created_at } : a) }
               : d),
           }));
+          addDealHistory(activity.dealId, "Atividade criada", activity.title);
         }
       });
 
@@ -511,6 +532,7 @@ export function useCrmMutations({ state, setState, userId, supabase }: MutationP
   };
 
   const updateActivity = (activityId: string, fields: Partial<Activity>) => {
+    const owningDeal = state.deals.find((d) => d.activities.some((a) => a.id === activityId));
     setState((prev) => ({
       ...prev,
       deals: prev.deals.map((d) => ({
@@ -528,17 +550,26 @@ export function useCrmMutations({ state, setState, userId, supabase }: MutationP
     if (fields.assigneeId !== undefined) db.assignee_id = fields.assigneeId ?? null;
     if (Object.keys(db).length > 0) {
       supabase.from("activities").update(db).eq("id", activityId)
-        .then(({ error }) => { if (error) console.error("[CRM] updateActivity failed:", error); });
+        .then(({ error }) => {
+          if (error) { console.error("[CRM] updateActivity failed:", error); return; }
+          if (fields.completed === true && owningDeal) {
+            addDealHistory(owningDeal.id, "Atividade concluída", "");
+          }
+        });
     }
   };
 
   const deleteActivity = (activityId: string) => {
+    const owningDeal = state.deals.find((d) => d.activities.some((a) => a.id === activityId));
     setState((prev) => ({
       ...prev,
       deals: prev.deals.map((d) => ({ ...d, activities: d.activities.filter((a) => a.id !== activityId) })),
     }));
     supabase.from("activities").delete().eq("id", activityId)
-      .then(({ error }) => { if (error) console.error("[CRM] deleteActivity failed:", error); });
+      .then(({ error }) => {
+        if (error) { console.error("[CRM] deleteActivity failed:", error); return; }
+        if (owningDeal) addDealHistory(owningDeal.id, "Atividade removida", "");
+      });
   };
 
   const addActivityAttachment = async (activityId: string, file: File) => {
