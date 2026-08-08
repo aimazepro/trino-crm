@@ -493,6 +493,11 @@ function DealCustomFields({ dealId }: { dealId: string }) {
   useEffect(() => { load(); }, [load]);
 
   const saveValue = async (fieldId: string, val: string) => {
+    const field = fields.find(f => f.id === fieldId);
+    if (field?.required && !val.trim()) {
+      alert(`"${field.label}" é obrigatório.`);
+      return;
+    }
     const { data: { user } } = await supabase.auth.getUser();
     if (!user) return;
     await supabase.from("deal_field_values").upsert(
@@ -560,8 +565,13 @@ function DealCustomFields({ dealId }: { dealId: string }) {
                           onClick={() => { setTempVal(values[field.id] ?? ""); setEditingId(field.id); }}
                           className="flex-1 min-w-0 text-left rounded-md px-2 py-1 hover:bg-zinc-100 transition-colors"
                         >
-                          <span className={cn("text-sm", values[field.id] ? "text-zinc-800" : "text-zinc-300 group-hover:text-zinc-500")}>
-                            {values[field.id] || "-"}
+                          <span className={cn(
+                            "text-sm",
+                            values[field.id] ? "text-zinc-800"
+                              : field.required ? "text-red-400 group-hover:text-red-500"
+                              : "text-zinc-300 group-hover:text-zinc-500"
+                          )}>
+                            {values[field.id] || (field.required ? "Obrigatório" : "-")}
                           </span>
                         </button>
                         <button

@@ -206,32 +206,31 @@ export default function CamposPage() {
       return;
     }
 
-    const { data } = await supabase
-      .from("custom_fields")
-      .select("*")
-      .eq("user_id", user.id)
-      .order("sort_order");
-
-    let savedGroups: Record<string, string[]> = { negocios: [], pessoas: [], empresas: [] };
-    try {
-      const stored = localStorage.getItem(`custom_groups_${user.id}`);
-      if (stored) {
-        savedGroups = JSON.parse(stored);
-      }
-    } catch (e) {}
+    const [{ data }, { data: groupRows }] = await Promise.all([
+      supabase.from("custom_fields").select("*").eq("user_id", user.id).order("sort_order"),
+      supabase.from("custom_field_groups").select("entity, name").eq("user_id", user.id),
+    ]);
 
     const allGroups: Record<string, string[]> = {
-      negocios: savedGroups.negocios?.length ? savedGroups.negocios : ["Desagrupado"],
-      pessoas: savedGroups.pessoas?.length ? savedGroups.pessoas : ["Desagrupado"],
-      empresas: savedGroups.empresas?.length ? savedGroups.empresas : ["Desagrupado"]
+      negocios: ["Desagrupado"],
+      pessoas: ["Desagrupado"],
+      empresas: ["Desagrupado"],
     };
 
+    for (const row of groupRows ?? []) {
+      const tab = Object.keys(TAB_TO_ENTITY).find(k => TAB_TO_ENTITY[k] === row.entity);
+      if (tab && !allGroups[tab].includes(row.name)) {
+        allGroups[tab].push(row.name);
+      }
+    }
+
     const grouped: Record<string, Field[]> = { negocios: [], pessoas: [], empresas: [] };
-    
+
     for (const row of data ?? []) {
       const tab = Object.keys(TAB_TO_ENTITY).find(k => TAB_TO_ENTITY[k] === row.entity);
       if (tab) {
         const fieldGroup = row.field_group || "Desagrupado";
+        // Covers fields whose group predates custom_field_groups or was set inline.
         if (!allGroups[tab].includes(fieldGroup)) {
           allGroups[tab].push(fieldGroup);
         }
@@ -245,9 +244,7 @@ export default function CamposPage() {
         });
       }
     }
-    
-    localStorage.setItem(`custom_groups_${user.id}`, JSON.stringify(allGroups));
-    
+
     setCustomFields(grouped);
     setGroups(allGroups);
     setLoading(false);
@@ -263,11 +260,19 @@ export default function CamposPage() {
     if (!user) return;
 
     const groupName = groupForm.name.trim();
+    const entity = TAB_TO_ENTITY[activeTab];
+    const { error } = await supabase.from("custom_field_groups").insert({
+      user_id: user.id, entity, name: groupName,
+    });
+    if (error) {
+      console.error("[Campos] add group failed:", error);
+      return;
+    }
+
     setGroups(prev => {
       const newGroups = { ...prev };
       if (!newGroups[activeTab].includes(groupName)) {
         newGroups[activeTab] = [...newGroups[activeTab], groupName];
-        localStorage.setItem(`custom_groups_${user.id}`, JSON.stringify(newGroups));
       }
       return newGroups;
     });
@@ -279,13 +284,25 @@ export default function CamposPage() {
   const handleDeleteGroup = async (groupName: string) => {
     const { data: { user } } = await supabase.auth.getUser();
     if (!user) return;
-    
-    setGroups(prev => {
-      const newGroups = { ...prev };
-      newGroups[activeTab] = newGroups[activeTab].filter(g => g !== groupName);
-      localStorage.setItem(`custom_groups_${user.id}`, JSON.stringify(newGroups));
-      return newGroups;
-    });
+
+    const hasFields = (customFields[activeTab] ?? []).some(f => f.group === groupName);
+    if (hasFields) {
+      alert("Mova ou apague os campos deste grupo antes de excluí-lo.");
+      return;
+    }
+
+    const entity = TAB_TO_ENTITY[activeTab];
+    const { error } = await supabase.from("custom_field_groups")
+      .delete().eq("user_id", user.id).eq("entity", entity).eq("name", groupName);
+    if (error) {
+      console.error("[Campos] delete group failed:", error);
+      return;
+    }
+
+    setGroups(prev => ({
+      ...prev,
+      [activeTab]: prev[activeTab].filter(g => g !== groupName),
+    }));
   };
 
   const handleAddField = async () => {
@@ -359,7 +376,12 @@ export default function CamposPage() {
   };
 
   const handleRemoveField = async (id: string) => {
-    await supabase.from("custom_fields").delete().eq("id", id);
+    const { error } = await supabase.from("custom_fields").delete().eq("id", id);
+    if (error) {
+      console.error("[Campos] delete field failed:", error);
+      alert("Não foi possível excluir o campo. Tente novamente.");
+      return;
+    }
     setCustomFields(prev => ({
       ...prev,
       [activeTab]: prev[activeTab].filter(f => f.id !== id)
