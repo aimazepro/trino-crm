@@ -12,6 +12,31 @@ export type Database = {
   __InternalSupabase: {
     PostgrestVersion: "14.5"
   }
+  graphql_public: {
+    Tables: {
+      [_ in never]: never
+    }
+    Views: {
+      [_ in never]: never
+    }
+    Functions: {
+      graphql: {
+        Args: {
+          extensions?: Json
+          operationName?: string
+          query?: string
+          variables?: Json
+        }
+        Returns: Json
+      }
+    }
+    Enums: {
+      [_ in never]: never
+    }
+    CompositeTypes: {
+      [_ in never]: never
+    }
+  }
   public: {
     Tables: {
       activities: {
@@ -60,6 +85,39 @@ export type Database = {
             referencedColumns: ["id"]
           },
         ]
+      }
+      activity_types: {
+        Row: {
+          active: boolean
+          created_at: string
+          icon: string
+          id: string
+          is_system: boolean
+          name: string
+          sort_order: number
+          user_id: string
+        }
+        Insert: {
+          active?: boolean
+          created_at?: string
+          icon?: string
+          id?: string
+          is_system?: boolean
+          name: string
+          sort_order?: number
+          user_id: string
+        }
+        Update: {
+          active?: boolean
+          created_at?: string
+          icon?: string
+          id?: string
+          is_system?: boolean
+          name?: string
+          sort_order?: number
+          user_id?: string
+        }
+        Relationships: []
       }
       api_keys: {
         Row: {
@@ -437,6 +495,48 @@ export type Database = {
         }
         Relationships: []
       }
+      deal_field_values: {
+        Row: {
+          created_at: string | null
+          deal_id: string
+          field_id: string
+          id: string
+          updated_at: string | null
+          value: string | null
+        }
+        Insert: {
+          created_at?: string | null
+          deal_id: string
+          field_id: string
+          id?: string
+          updated_at?: string | null
+          value?: string | null
+        }
+        Update: {
+          created_at?: string | null
+          deal_id?: string
+          field_id?: string
+          id?: string
+          updated_at?: string | null
+          value?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "deal_field_values_deal_id_fkey"
+            columns: ["deal_id"]
+            isOneToOne: false
+            referencedRelation: "deals"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "deal_field_values_field_id_fkey"
+            columns: ["field_id"]
+            isOneToOne: false
+            referencedRelation: "custom_fields"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       deal_history: {
         Row: {
           created_at: string
@@ -655,6 +755,42 @@ export type Database = {
           },
         ]
       }
+      email_signatures: {
+        Row: {
+          company: string
+          enabled: boolean
+          logo_url: string | null
+          name: string
+          phone: string
+          photo_url: string | null
+          role: string
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          company?: string
+          enabled?: boolean
+          logo_url?: string | null
+          name?: string
+          phone?: string
+          photo_url?: string | null
+          role?: string
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          company?: string
+          enabled?: boolean
+          logo_url?: string | null
+          name?: string
+          phone?: string
+          photo_url?: string | null
+          role?: string
+          updated_at?: string
+          user_id?: string
+        }
+        Relationships: []
+      }
       email_templates: {
         Row: {
           body: string
@@ -678,6 +814,54 @@ export type Database = {
           id?: string
           name?: string
           subject?: string
+          user_id?: string
+        }
+        Relationships: []
+      }
+      emails: {
+        Row: {
+          body_html: string
+          contact_id: string
+          created_at: string
+          deal_id: string | null
+          direction: string
+          from_email: string
+          gmail_message_id: string | null
+          id: string
+          opened_at: string | null
+          subject: string
+          to_email: string
+          track_id: string
+          user_id: string
+        }
+        Insert: {
+          body_html?: string
+          contact_id: string
+          created_at?: string
+          deal_id?: string | null
+          direction: string
+          from_email?: string
+          gmail_message_id?: string | null
+          id?: string
+          opened_at?: string | null
+          subject?: string
+          to_email?: string
+          track_id?: string
+          user_id: string
+        }
+        Update: {
+          body_html?: string
+          contact_id?: string
+          created_at?: string
+          deal_id?: string | null
+          direction?: string
+          from_email?: string
+          gmail_message_id?: string | null
+          id?: string
+          opened_at?: string | null
+          subject?: string
+          to_email?: string
+          track_id?: string
           user_id?: string
         }
         Relationships: []
@@ -824,6 +1008,39 @@ export type Database = {
           id?: string
           name?: string
           sort_order?: number
+          user_id?: string
+        }
+        Relationships: []
+      }
+      notifications: {
+        Row: {
+          created_at: string
+          href: string
+          id: string
+          read: boolean
+          subtext: string | null
+          title: string
+          type: string
+          user_id: string
+        }
+        Insert: {
+          created_at?: string
+          href: string
+          id?: string
+          read?: boolean
+          subtext?: string | null
+          title: string
+          type: string
+          user_id: string
+        }
+        Update: {
+          created_at?: string
+          href?: string
+          id?: string
+          read?: boolean
+          subtext?: string | null
+          title?: string
+          type?: string
           user_id?: string
         }
         Relationships: []
@@ -1018,6 +1235,13 @@ export type Database = {
             columns: ["deal_id"]
             isOneToOne: false
             referencedRelation: "deals"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "sequence_enrollments_sequence_id_fkey"
+            columns: ["sequence_id"]
+            isOneToOne: false
+            referencedRelation: "sequences"
             referencedColumns: ["id"]
           },
         ]
@@ -1227,13 +1451,97 @@ export type Database = {
         }
         Relationships: []
       }
+      workspace_settings: {
+        Row: {
+          created_at: string
+          name: string
+          owner_user_id: string
+          plan: string
+          slug: string | null
+          trial_ends_at: string | null
+          updated_at: string
+        }
+        Insert: {
+          created_at?: string
+          name?: string
+          owner_user_id: string
+          plan?: string
+          slug?: string | null
+          trial_ends_at?: string | null
+          updated_at?: string
+        }
+        Update: {
+          created_at?: string
+          name?: string
+          owner_user_id?: string
+          plan?: string
+          slug?: string | null
+          trial_ends_at?: string | null
+          updated_at?: string
+        }
+        Relationships: []
+      }
     }
     Views: {
       [_ in never]: never
     }
     Functions: {
+      claim_pending_email_queue: {
+        Args: { p_limit?: number }
+        Returns: {
+          automation_id: string | null
+          body: string | null
+          created_at: string | null
+          deal_id: string | null
+          error: string | null
+          id: string
+          sent_at: string | null
+          status: string
+          subject: string | null
+          template_id: string | null
+          to_email: string | null
+          user_id: string
+        }[]
+        SetofOptions: {
+          from: "*"
+          to: "automation_email_queue"
+          isOneToOne: false
+          isSetofReturn: true
+        }
+      }
+      claim_pending_whatsapp_queue: {
+        Args: { p_limit?: number }
+        Returns: {
+          automation_id: string | null
+          created_at: string | null
+          deal_id: string | null
+          error: string | null
+          id: string
+          message: string | null
+          phone: string | null
+          sent_at: string | null
+          status: string
+          template_id: string | null
+          user_id: string
+        }[]
+        SetofOptions: {
+          from: "*"
+          to: "automation_whatsapp_queue"
+          isOneToOne: false
+          isSetofReturn: true
+        }
+      }
       enqueue_webhook_delivery: {
         Args: { p_event: string; p_payload: Json; p_user: string }
+        Returns: undefined
+      }
+      is_workspace_member: { Args: { owner_id: string }; Returns: boolean }
+      replace_deal_labels: {
+        Args: { p_deal_id: string; p_label_ids: string[] }
+        Returns: undefined
+      }
+      replace_deal_products: {
+        Args: { p_deal_id: string; p_products: Json }
         Returns: undefined
       }
     }
@@ -1364,6 +1672,9 @@ export type CompositeTypes<
     : never
 
 export const Constants = {
+  graphql_public: {
+    Enums: {},
+  },
   public: {
     Enums: {},
   },
