@@ -1,6 +1,7 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useCallback, useMemo } from "react";
+import { createClient } from "@/lib/supabase/client";
 import {
   Users,
   Phone,
@@ -30,7 +31,7 @@ import {
 } from "lucide-react";
 
 // Custom SVG components to resolve missing icons in standard lucide-react library
-const Instagram = (props: any) => (
+const Instagram = (props: React.SVGProps<SVGSVGElement>) => (
   <svg
     xmlns="http://www.w3.org/2000/svg"
     viewBox="0 0 24 24"
@@ -47,7 +48,7 @@ const Instagram = (props: any) => (
   </svg>
 );
 
-const Linkedin = (props: any) => (
+const Linkedin = (props: React.SVGProps<SVGSVGElement>) => (
   <svg
     xmlns="http://www.w3.org/2000/svg"
     viewBox="0 0 24 24"
@@ -83,7 +84,7 @@ const DEFAULT_TYPES: ActivityType[] = [
   { id: "system_outro", name: "Outro", icon: "Circle", isSystem: true, active: true },
 ];
 
-const ICON_MAP: Record<string, any> = {
+const ICON_MAP: Record<string, React.ComponentType<React.SVGProps<SVGSVGElement>>> = {
   Users, Phone, Video, Mail, MessageCircle, Instagram, Linkedin, Circle,
   Calendar, CheckSquare, ClipboardList, Coffee, FileText, Flag, Gift, Globe,
   Handshake, Headphones, Heart, Home, Image, Key, Lightbulb, Map
@@ -116,9 +117,30 @@ const ALL_ICONS = [
   { name: "Map", label: "map" },
 ];
 
+type ActivityTypeRow = {
+  id: string;
+  name: string;
+  icon: string;
+  is_system: boolean;
+  active: boolean;
+  sort_order: number;
+};
+
+const toRows = (rows: ActivityTypeRow[] | null): ActivityType[] =>
+  (rows ?? []).map((r) => ({
+    id: r.id,
+    name: r.name,
+    icon: r.icon,
+    isSystem: r.is_system,
+    active: r.active,
+  }));
+
 export default function TiposAtividadePage() {
+  const supabase = useMemo(() => createClient(), []);
   const [items, setItems] = useState<ActivityType[]>([]);
   const [loading, setLoading] = useState(true);
+  const [userId, setUserId] = useState<string | null>(null);
+  const [error, setError] = useState<string | null>(null);
   const [draggedIndex, setDraggedIndex] = useState<number | null>(null);
 
   // Modal State
@@ -127,53 +149,72 @@ export default function TiposAtividadePage() {
   const [modalIcon, setModalIcon] = useState("Users");
   const [modalName, setModalName] = useState("");
 
-  useEffect(() => {
-    if (typeof window !== "undefined") {
-      const stored = localStorage.getItem("crm_activity_types");
-      if (stored) {
-        try {
-          const parsed = JSON.parse(stored);
-          if (Array.isArray(parsed) && parsed.length > 0) {
-            const migrated = parsed.map((item: any, idx: number) => {
-              if (item.name && item.id && 'isSystem' in item) return item as ActivityType;
-              
-              const name = item.id;
-              let icon = item.icon;
-              if (icon === "Camera") icon = "Instagram";
-              if (icon === "Briefcase") icon = "Linkedin";
-              if (icon === "ClipboardList" && name === "Outros") icon = "Circle";
-              
-              const isSystem = ["Reunião", "Ligação", "Videochamada", "E-mail", "Email", "WhatsApp", "Instagram", "LinkedIn", "Outro", "Outros"].includes(name);
-              
-              return {
-                id: isSystem ? `system_${name.toLowerCase().replace(/í/g, "i").replace(/ã/g, "a")}` : `custom_${idx}_${Date.now()}`,
-                name: name === "Email" ? "E-mail" : (name === "Outros" ? "Outro" : name),
-                icon: icon,
-                isSystem,
-                active: true
-              };
-            });
-            setItems(migrated);
-            localStorage.setItem("crm_activity_types", JSON.stringify(migrated));
-          } else {
-            setItems(DEFAULT_TYPES);
-            localStorage.setItem("crm_activity_types", JSON.stringify(DEFAULT_TYPES));
-          }
-        } catch (e) {
-          setItems(DEFAULT_TYPES);
-          localStorage.setItem("crm_activity_types", JSON.stringify(DEFAULT_TYPES));
-        }
-      } else {
-        setItems(DEFAULT_TYPES);
-        localStorage.setItem("crm_activity_types", JSON.stringify(DEFAULT_TYPES));
-      }
+  // `loading` starts true, so this must not set it synchronously — doing so
+  // would make the mount effect trigger a cascading render.
+  const load = useCallback(async () => {
+    const {
+      data: { user },
+    } = await supabase.auth.getUser();
+    if (!user) {
+      setItems(DEFAULT_TYPES);
       setLoading(false);
+      return;
     }
-  }, []);
+    setUserId(user.id);
 
-  const saveItems = (newItems: ActivityType[]) => {
+    const { data } = await supabase
+      .from("activity_types")
+      .select("id, name, icon, is_system, active, sort_order")
+      .eq("user_id", user.id)
+      .order("sort_order");
+
+    // First visit for this user: seed the system defaults so the list is never empty.
+    if (!data || data.length === 0) {
+      const seeds = DEFAULT_TYPES.map((t, idx) => ({
+        user_id: user.id,
+        name: t.name,
+        icon: t.icon,
+        is_system: true,
+        active: true,
+        sort_order: idx,
+      }));
+      const { data: inserted } = await supabase
+        .from("activity_types")
+        .insert(seeds)
+        .select("id, name, icon, is_system, active, sort_order");
+      setItems(toRows(inserted));
+      setLoading(false);
+      return;
+    }
+
+    setItems(toRows(data));
+    setLoading(false);
+  }, [supabase]);
+
+  useEffect(() => {
+    load();
+  }, [load]);
+
+  // Persist optimistically: update local state first, then write through.
+  const saveItems = async (newItems: ActivityType[]) => {
+    const previous = items;
     setItems(newItems);
-    localStorage.setItem("crm_activity_types", JSON.stringify(newItems));
+    if (!userId) return;
+    const { error } = await supabase.from("activity_types").upsert(
+      newItems.map((item, idx) => ({
+        id: item.id,
+        user_id: userId,
+        name: item.name,
+        icon: item.icon,
+        is_system: item.isSystem,
+        active: item.active,
+        sort_order: idx,
+      }))
+    );
+    if (error) {
+      setItems(previous);
+      setError("Não foi possível salvar. Tente novamente.");
+    }
   };
 
   const handleDragStart = (e: React.DragEvent, index: number) => {
@@ -181,7 +222,7 @@ export default function TiposAtividadePage() {
     e.dataTransfer.effectAllowed = "move";
   };
 
-  const handleDragOver = (e: React.DragEvent, index: number) => {
+  const handleDragOver = (e: React.DragEvent) => {
     e.preventDefault();
   };
 
@@ -210,36 +251,57 @@ export default function TiposAtividadePage() {
     setModalOpen(true);
   };
 
-  const handleSaveModal = () => {
+  const handleSaveModal = async () => {
     const trimmed = modalName.trim();
     if (!trimmed) return;
+    setError(null);
 
     if (editingType) {
-      const updated = items.map(item => {
-        if (item.id === editingType.id) {
-          return { ...item, name: trimmed, icon: modalIcon };
-        }
-        return item;
-      });
-      saveItems(updated);
+      await saveItems(
+        items.map((item) =>
+          item.id === editingType.id ? { ...item, name: trimmed, icon: modalIcon } : item
+        )
+      );
     } else {
-      if (items.some(i => i.name.toLowerCase() === trimmed.toLowerCase())) return;
-      const newItem: ActivityType = {
-        id: `custom_${Date.now()}`,
-        name: trimmed,
-        icon: modalIcon,
-        isSystem: false,
-        active: true
-      };
-      saveItems([...items, newItem]);
+      if (items.some((i) => i.name.toLowerCase() === trimmed.toLowerCase())) {
+        setError("Já existe um tipo com esse nome.");
+        return;
+      }
+      if (!userId) return;
+      // Let Postgres mint the id so it stays a real uuid.
+      const { data, error: insertError } = await supabase
+        .from("activity_types")
+        .insert({
+          user_id: userId,
+          name: trimmed,
+          icon: modalIcon,
+          is_system: false,
+          active: true,
+          sort_order: items.length,
+        })
+        .select("id, name, icon, is_system, active, sort_order")
+        .single();
+      if (insertError || !data) {
+        setError("Não foi possível criar o tipo.");
+        return;
+      }
+      setItems([...items, ...toRows([data])]);
     }
     setModalOpen(false);
   };
 
-  const handleDeleteModal = () => {
+  const handleDeleteModal = async () => {
     if (!editingType || editingType.isSystem) return;
-    const filtered = items.filter(item => item.id !== editingType.id);
-    saveItems(filtered);
+    setError(null);
+    const { error: deleteError } = await supabase
+      .from("activity_types")
+      .delete()
+      .eq("id", editingType.id);
+    if (deleteError) {
+      setError("Não foi possível excluir o tipo.");
+      return;
+    }
+    setItems(items.filter((item) => item.id !== editingType.id));
     setModalOpen(false);
   };
 
@@ -282,6 +344,10 @@ export default function TiposAtividadePage() {
           </button>
         </div>
 
+        {error && (
+          <div className="rounded-xl bg-red-50 px-4 py-2.5 text-sm text-red-600">{error}</div>
+        )}
+
         <div className="rounded-xl border border-zinc-200 bg-white overflow-hidden">
           <ul className="divide-y divide-zinc-100">
             {items.map((item, idx) => {
@@ -291,7 +357,7 @@ export default function TiposAtividadePage() {
                   key={item.id}
                   draggable
                   onDragStart={e => handleDragStart(e, idx)}
-                  onDragOver={e => handleDragOver(e, idx)}
+                  onDragOver={handleDragOver}
                   onDrop={e => handleDrop(e, idx)}
                   className={`flex items-center gap-3 px-3 py-2.5 hover:bg-zinc-50 transition-colors ${
                     draggedIndex === idx ? "opacity-40 bg-zinc-50" : ""

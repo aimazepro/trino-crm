@@ -63,8 +63,9 @@ export default function ApiKeysPage() {
   const [formName, setFormName] = useState("");
   const [formPerms, setFormPerms] = useState<Set<string>>(new Set(["all"]));
 
+  // `loading` starts true, so this must not set it synchronously — doing so
+  // would make the mount effect trigger a cascading render.
   const load = useCallback(async () => {
-    setLoading(true);
     const {
       data: { user },
     } = await supabase.auth.getUser();
@@ -73,17 +74,12 @@ export default function ApiKeysPage() {
       return;
     }
 
-    // Get current user name from profile
-    const { data: profile } = await supabase
-      .from("profiles")
-      .select("full_name, role")
-      .eq("id", user.id)
-      .single();
-    if (profile?.full_name) {
-      setCurrentUserName(
-        profile.full_name + (profile.role ? ` (${profile.role.toUpperCase()})` : "")
-      );
-    }
+    // Display name comes from auth metadata — there is no `profiles` table.
+    const displayName =
+      (user.user_metadata?.full_name as string | undefined) ||
+      (user.user_metadata?.name as string | undefined) ||
+      user.email;
+    if (displayName) setCurrentUserName(displayName);
 
     // Load keys — only select columns we know exist
     const { data: keysData } = await supabase
