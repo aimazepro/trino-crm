@@ -433,9 +433,12 @@ export function useCrmMutations({ state, setState, userId, supabase }: MutationP
       .then(({ error }) => { if (error) console.error("[CRM] deleteAppointment failed:", error); });
   };
 
-  const addActivity = (activity: Omit<Activity, "id" | "createdAt" | "completed">) => {
+  const addActivity = (activity: Omit<Activity, "id" | "createdAt" | "attachments" | "completed"> & { completed?: boolean }) => {
     const deal = state.deals.find((d) => d.id === activity.dealId);
-    const newAct: Activity = { ...activity, id: `act_${Date.now()}`, completed: false, createdAt: new Date().toISOString() };
+    const newAct: Activity = {
+      ...activity, id: `act_${Date.now()}`, completed: activity.completed ?? false,
+      createdAt: new Date().toISOString(), attachments: [],
+    };
     setState((prev) => ({
       ...prev,
       deals: prev.deals.map((d) => d.id === activity.dealId ? { ...d, activities: [...d.activities, newAct] } : d),
@@ -443,7 +446,9 @@ export function useCrmMutations({ state, setState, userId, supabase }: MutationP
     if (userId) {
       supabase.from("activities").insert({
         deal_id: activity.dealId, user_id: userId, title: activity.title,
-        description: activity.description ?? null, date: activity.date, type: activity.type,
+        description: activity.description ?? null, date: activity.date,
+        end_date: activity.endDate ?? null, type: activity.type,
+        completed: activity.completed ?? false, assignee_id: activity.assigneeId ?? userId,
         guests: activity.guests ?? [],
       }).select().single().then(({ data, error }) => {
         if (error) {
@@ -516,9 +521,11 @@ export function useCrmMutations({ state, setState, userId, supabase }: MutationP
     if (fields.title !== undefined) db.title = fields.title;
     if (fields.description !== undefined) db.description = fields.description ?? null;
     if (fields.date !== undefined) db.date = fields.date;
+    if (fields.endDate !== undefined) db.end_date = fields.endDate ?? null;
     if (fields.type !== undefined) db.type = fields.type;
     if (fields.completed !== undefined) db.completed = fields.completed;
     if (fields.guests !== undefined) db.guests = fields.guests;
+    if (fields.assigneeId !== undefined) db.assignee_id = fields.assigneeId ?? null;
     if (Object.keys(db).length > 0) {
       supabase.from("activities").update(db).eq("id", activityId)
         .then(({ error }) => { if (error) console.error("[CRM] updateActivity failed:", error); });
@@ -532,6 +539,38 @@ export function useCrmMutations({ state, setState, userId, supabase }: MutationP
     }));
     supabase.from("activities").delete().eq("id", activityId)
       .then(({ error }) => { if (error) console.error("[CRM] deleteActivity failed:", error); });
+  };
+
+  const addActivityAttachment = async (activityId: string, file: File) => {
+    if (!userId) return;
+    const path = `${userId}/${activityId}/${Date.now()}_${file.name}`;
+    const { error: uploadError } = await supabase.storage.from("activity-attachments").upload(path, file);
+    if (uploadError) { console.error("[CRM] attachment upload failed:", uploadError); return; }
+    const { data, error } = await supabase.from("activity_attachments").insert({
+      activity_id: activityId, user_id: userId, file_name: file.name, file_path: path, size_bytes: file.size,
+    }).select().single();
+    if (error || !data) { console.error("[CRM] attachment insert failed:", error); return; }
+    setState((prev) => ({
+      ...prev,
+      deals: prev.deals.map((d) => ({
+        ...d,
+        activities: d.activities.map((a) => a.id === activityId
+          ? { ...a, attachments: [...a.attachments, { id: data.id, fileName: data.file_name, filePath: data.file_path, sizeBytes: data.size_bytes }] }
+          : a),
+      })),
+    }));
+  };
+
+  const deleteActivityAttachment = (attachmentId: string) => {
+    setState((prev) => ({
+      ...prev,
+      deals: prev.deals.map((d) => ({
+        ...d,
+        activities: d.activities.map((a) => ({ ...a, attachments: a.attachments.filter((att) => att.id !== attachmentId) })),
+      })),
+    }));
+    supabase.from("activity_attachments").delete().eq("id", attachmentId)
+      .then(({ error }) => { if (error) console.error("[CRM] deleteActivityAttachment failed:", error); });
   };
 
   const markNotificationAsRead = (id: string) => {
@@ -566,6 +605,7 @@ export function useCrmMutations({ state, setState, userId, supabase }: MutationP
     addLabel,
     addAppointment, updateAppointment, deleteAppointment,
     addActivity, updateActivity, deleteActivity,
+    addActivityAttachment, deleteActivityAttachment,
     markNotificationAsRead, markAllNotificationsAsRead,
   };
 }

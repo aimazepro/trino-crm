@@ -60,16 +60,26 @@ export interface Appointment {
   createdAt: string;
 }
 
+export interface ActivityAttachment {
+  id: string;
+  fileName: string;
+  filePath: string;
+  sizeBytes: number;
+}
+
 export interface Activity {
   id: string;
   dealId: string;
   title: string;
   description?: string;
   date: string;
+  endDate?: string;
   type: string;
   completed: boolean;
   createdAt: string;
   guests?: string[];
+  assigneeId?: string;
+  attachments: ActivityAttachment[];
 }
 
 export interface Deal {

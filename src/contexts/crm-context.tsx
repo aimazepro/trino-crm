@@ -36,9 +36,11 @@ interface CrmContextType {
   addAppointment: (appointment: Omit<Appointment, "id" | "createdAt" | "status">) => void;
   updateAppointment: (appointmentId: string, fields: Partial<Appointment>) => void;
   deleteAppointment: (appointmentId: string) => void;
-  addActivity: (activity: Omit<Activity, "id" | "createdAt" | "completed">) => void;
+  addActivity: (activity: Omit<Activity, "id" | "createdAt" | "attachments" | "completed"> & { completed?: boolean }) => void;
   updateActivity: (activityId: string, fields: Partial<Activity>) => void;
   deleteActivity: (activityId: string) => void;
+  addActivityAttachment: (activityId: string, file: File) => Promise<void>;
+  deleteActivityAttachment: (attachmentId: string) => void;
   markNotificationAsRead: (id: string) => void;
   markAllNotificationsAsRead: () => void;
 }

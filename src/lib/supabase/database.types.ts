@@ -16,11 +16,13 @@ export type Database = {
     Tables: {
       activities: {
         Row: {
+          assignee_id: string | null
           completed: boolean
           created_at: string
           date: string
           deal_id: string
           description: string | null
+          end_date: string | null
           guests: Json
           id: string
           title: string
@@ -28,11 +30,13 @@ export type Database = {
           user_id: string
         }
         Insert: {
+          assignee_id?: string | null
           completed?: boolean
           created_at?: string
           date: string
           deal_id: string
           description?: string | null
+          end_date?: string | null
           guests?: Json
           id?: string
           title: string
@@ -40,11 +44,13 @@ export type Database = {
           user_id: string
         }
         Update: {
+          assignee_id?: string | null
           completed?: boolean
           created_at?: string
           date?: string
           deal_id?: string
           description?: string | null
+          end_date?: string | null
           guests?: Json
           id?: string
           title?: string
@@ -57,6 +63,44 @@ export type Database = {
             columns: ["deal_id"]
             isOneToOne: false
             referencedRelation: "deals"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      activity_attachments: {
+        Row: {
+          activity_id: string
+          created_at: string
+          file_name: string
+          file_path: string
+          id: string
+          size_bytes: number
+          user_id: string
+        }
+        Insert: {
+          activity_id: string
+          created_at?: string
+          file_name: string
+          file_path: string
+          id?: string
+          size_bytes?: number
+          user_id: string
+        }
+        Update: {
+          activity_id?: string
+          created_at?: string
+          file_name?: string
+          file_path?: string
+          id?: string
+          size_bytes?: number
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "activity_attachments_activity_id_fkey"
+            columns: ["activity_id"]
+            isOneToOne: false
+            referencedRelation: "activities"
             referencedColumns: ["id"]
           },
         ]
