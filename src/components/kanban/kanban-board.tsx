@@ -25,6 +25,7 @@ export function KanbanBoard({ pipelineId, onNewDeal, statusFilter = "Ativo" }: K
 
   const dealsByStage = pipeline.stages.reduce((acc, stage) => {
     acc[stage.id] = state.deals.filter(d =>
+      !d.deletedAt &&
       d.pipelineId === pipelineId &&
       d.stageId === stage.id &&
       d.status === statusFilter

@@ -53,6 +53,10 @@ export function transformDeal(row: any): Deal {
     stageEnteredAt: row.stage_entered_at ?? row.updated_at ?? row.created_at,
     createdAt: row.created_at,
     updatedAt: row.updated_at,
+    deletedAt: row.deleted_at ?? undefined,
+    deletedBy: row.deleted_by ?? undefined,
+    deleteReason: row.delete_reason ?? undefined,
+    deleteNote: row.delete_note ?? undefined,
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     labels: ((row.deal_labels ?? []) as any[]).map((dl) => dl.label_id),
     // eslint-disable-next-line @typescript-eslint/no-explicit-any

@@ -22,7 +22,10 @@ interface CrmContextType {
   updateDealNote: (dealId: string, noteId: string, content: string) => void;
   addDealHistory: (dealId: string, description: string, subtext: string) => void;
   addDeal: (deal: Deal) => Promise<string | null>;
-  deleteDeal: (dealId: string) => void;
+  deleteDeal: (dealId: string, reason: string, note?: string) => void;
+  restoreDeal: (dealId: string) => void;
+  duplicateDeal: (dealId: string) => Promise<string | null>;
+  mergeDeals: (survivorId: string, loserId: string, resultFields: Partial<Deal>) => Promise<void>;
   addPipeline: (pipeline: Pipeline) => Promise<string | null>;
   deletePipeline: (pipelineId: string) => void;
   updatePipeline: (pipelineId: string, fields: Partial<Pipeline>) => void;

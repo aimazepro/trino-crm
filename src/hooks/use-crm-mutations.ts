@@ -3,7 +3,7 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
 import type {
   CrmState, Pipeline, PipelineStage, Deal, Contact, Company,
-  Label, HistoryLog, Note, Appointment, Activity, CrmNotification,
+  Label, HistoryLog, Note, DealProduct, Appointment, Activity, CrmNotification,
 } from "@/lib/crm-types";
 import { dealToDb } from "@/lib/crm-transforms";
 import { runAutomations } from "@/lib/run-automations";
@@ -246,10 +246,132 @@ export function useCrmMutations({ state, setState, userId, supabase }: MutationP
     return data.id;
   };
 
-  const deleteDeal = (dealId: string) => {
-    setState((prev) => ({ ...prev, deals: prev.deals.filter((d) => d.id !== dealId) }));
-    supabase.from("deals").delete().eq("id", dealId)
+  // Soft delete: leaves lists/reports but stays around for consulta + restauração.
+  const deleteDeal = (dealId: string, reason: string, note = "") => {
+    if (!userId) return;
+    const deletedAt = new Date().toISOString();
+    setState((prev) => ({
+      ...prev,
+      deals: prev.deals.map((d) => d.id === dealId
+        ? { ...d, deletedAt, deletedBy: userId, deleteReason: reason, deleteNote: note }
+        : d),
+    }));
+    supabase.from("deals")
+      .update({ deleted_at: deletedAt, deleted_by: userId, delete_reason: reason, delete_note: note || null })
+      .eq("id", dealId)
       .then(({ error }) => { if (error) console.error("[CRM] deleteDeal failed:", error); });
+    addDealHistory(dealId, "Negócio excluído", note ? `Motivo: ${reason} — ${note}` : `Motivo: ${reason}`);
+  };
+
+  const restoreDeal = (dealId: string) => {
+    setState((prev) => ({
+      ...prev,
+      deals: prev.deals.map((d) => d.id === dealId
+        ? { ...d, deletedAt: undefined, deletedBy: undefined, deleteReason: undefined, deleteNote: undefined }
+        : d),
+    }));
+    supabase.from("deals")
+      .update({ deleted_at: null, deleted_by: null, delete_reason: null, delete_note: null })
+      .eq("id", dealId)
+      .then(({ error }) => { if (error) console.error("[CRM] restoreDeal failed:", error); });
+    addDealHistory(dealId, "Negócio restaurado", "");
+  };
+
+  const duplicateDeal = async (dealId: string): Promise<string | null> => {
+    const source = state.deals.find((d) => d.id === dealId);
+    if (!source || !userId) return null;
+    const { data, error } = await supabase.from("deals").insert({
+      user_id: userId, title: `${source.title} (cópia)`, value: source.value,
+      contact_id: source.contactId || null, company_id: source.companyId || null,
+      pipeline_id: source.pipelineId, stage_id: source.stageId, status: "Ativo", days_in_stage: 0,
+      owner_id: source.ownerId || userId, source: source.source || null, probability: source.probability ?? null,
+    }).select().single();
+    if (error || !data) {
+      console.error("[CRM] duplicateDeal failed:", error);
+      alert(`Erro ao duplicar negócio: ${error?.message ?? "desconhecido"}`);
+      return null;
+    }
+    if (source.labels.length > 0) {
+      await supabase.from("deal_labels").insert(source.labels.map((lid) => ({ deal_id: data.id, label_id: lid })));
+    }
+    let notes: Note[] = [];
+    if (source.notes.length > 0) {
+      const { data: noteRows } = await supabase.from("deal_notes")
+        .insert(source.notes.map((n) => ({ deal_id: data.id, content: n.content }))).select();
+      notes = (noteRows ?? []).map((n): Note => ({ id: n.id, content: n.content, createdAt: n.created_at }));
+    }
+    let products: DealProduct[] = [];
+    if (source.products.length > 0) {
+      const { data: productRows } = await supabase.from("deal_products")
+        .insert(source.products.map((p) => ({ deal_id: data.id, name: p.name, quantity: p.quantity, price: p.price }))).select();
+      products = (productRows ?? []).map((p): DealProduct => ({ id: p.id, name: p.name, quantity: p.quantity, price: p.price }));
+    }
+    const subtext = `Duplicado de "${source.title}"`;
+    const { data: histRow } = await supabase.from("deal_history").insert({
+      deal_id: data.id, description: "Negócio criado", subtext,
+    }).select().single();
+    const firstLog: HistoryLog = {
+      id: histRow?.id ?? `h_${Date.now()}`, description: "Negócio criado", subtext,
+      createdAt: histRow?.created_at ?? new Date().toISOString(),
+    };
+    const newDeal: Deal = {
+      ...source, id: data.id, title: `${source.title} (cópia)`, status: "Ativo", labels: [...source.labels],
+      notes, products, activities: [], appointments: [], history: [firstLog],
+      deletedAt: undefined, deletedBy: undefined, deleteReason: undefined, deleteNote: undefined,
+      createdAt: data.created_at, updatedAt: data.updated_at,
+    };
+    setState((prev) => ({ ...prev, deals: [...prev.deals, newDeal] }));
+    return data.id;
+  };
+
+  // Keeps `survivorId`, applies the chosen field values onto it, reassigns the
+  // other deal's notes/activities/products/appointments over, then archives it
+  // (soft delete) so an admin can still restore/consult it later.
+  const mergeDeals = async (survivorId: string, loserId: string, resultFields: Partial<Deal>) => {
+    const survivor = state.deals.find((d) => d.id === survivorId);
+    const loser = state.deals.find((d) => d.id === loserId);
+    if (!survivor || !loser || !userId) return;
+
+    updateDealFields(survivorId, resultFields);
+
+    const [notesRes, activitiesRes, productsRes, appointmentsRes] = await Promise.all([
+      supabase.from("deal_notes").update({ deal_id: survivorId }).eq("deal_id", loserId),
+      supabase.from("activities").update({ deal_id: survivorId }).eq("deal_id", loserId),
+      supabase.from("deal_products").update({ deal_id: survivorId }).eq("deal_id", loserId),
+      supabase.from("appointments").update({ deal_id: survivorId }).eq("deal_id", loserId),
+    ]);
+    for (const res of [notesRes, activitiesRes, productsRes, appointmentsRes]) {
+      if (res.error) console.error("[CRM] mergeDeals transfer failed:", res.error);
+    }
+
+    const deletedAt = new Date().toISOString();
+    const deleteReason = "Mesclado";
+    const deleteNote = `Mesclado com "${survivor.title}"`;
+    const { error: archiveErr } = await supabase.from("deals")
+      .update({ deleted_at: deletedAt, deleted_by: userId, delete_reason: deleteReason, delete_note: deleteNote })
+      .eq("id", loserId);
+    if (archiveErr) console.error("[CRM] mergeDeals archive loser failed:", archiveErr);
+
+    setState((prev) => ({
+      ...prev,
+      deals: prev.deals.map((d) => {
+        if (d.id === survivorId) {
+          return {
+            ...d,
+            notes: [...loser.notes, ...d.notes],
+            activities: [...loser.activities, ...d.activities],
+            products: [...loser.products, ...d.products],
+            appointments: [...loser.appointments, ...d.appointments],
+          };
+        }
+        if (d.id === loserId) {
+          return { ...d, deletedAt, deletedBy: userId, deleteReason, deleteNote, notes: [], activities: [], products: [], appointments: [] };
+        }
+        return d;
+      }),
+    }));
+
+    addDealHistory(survivorId, "Negócios mesclados", `"${loser.title}" foi mesclado neste negócio`);
   };
 
   const addPipeline = async (pipeline: Pipeline): Promise<string | null> => {
@@ -667,7 +789,7 @@ export function useCrmMutations({ state, setState, userId, supabase }: MutationP
   return {
     moveDeal, moveDealToPipeline, markDealStatus, updateDealFields,
     addDealNote, deleteDealNote, updateDealNote, addDealHistory,
-    addDeal, deleteDeal,
+    addDeal, deleteDeal, restoreDeal, duplicateDeal, mergeDeals,
     addPipeline, deletePipeline, updatePipeline,
     updateContact, addContact, deleteContact,
     updateCompany, addCompany, deleteCompany,

@@ -6,6 +6,7 @@ import { MoreHorizontal, Pencil, Trophy, CircleX, Trash2, Search, ChevronDown, X
 import { format } from "date-fns";
 import { cn } from "@/lib/utils";
 import { DEFAULT_COLUMNS } from "@/components/deal/customize-columns-modal";
+import { DeleteDealModal } from "@/components/deal/delete-deal-modal";
 import { BulkFieldSelect } from "@/components/ui/BulkFieldSelect";
 import type { Deal } from "@/lib/crm-types";
 import { createClient } from "@/lib/supabase/client";
@@ -182,6 +183,7 @@ export function KanbanListView({ pipelineId, columns = DEFAULT_COLUMNS, statusFi
   if (!pipeline) return null;
 
   const filteredDeals = state.deals.filter(d => {
+    if (d.deletedAt) return false;
     if (d.pipelineId !== activePipelineId) return false;
     if (statusLocalFilter === "aberto" && d.status !== "Ativo") return false;
     if (statusLocalFilter === "ganho" && d.status !== "Ganho") return false;
@@ -471,10 +473,11 @@ export function KanbanListView({ pipelineId, columns = DEFAULT_COLUMNS, statusFi
     resetBulkStates();
   };
 
-  const handleBulkDelete = () => {
+  const handleBulkDelete = (reason: string, note: string) => {
     selectedIds.forEach(id => {
-      deleteDeal(id);
+      deleteDeal(id, reason, note);
     });
+    setShowDeleteConfirm(false);
     setBulkEditOpen(false);
     setSelectedIds(new Set());
     resetBulkStates();
@@ -698,7 +701,7 @@ export function KanbanListView({ pipelineId, columns = DEFAULT_COLUMNS, statusFi
                           <div className="border-t border-zinc-100 mt-1 pt-1">
                             <button
                               className="w-full flex items-center gap-2 px-3 py-2 text-sm text-red-500 hover:bg-red-50 text-left"
-                              onClick={() => { deleteDeal(deal.id); setOpenDropdownId(null); }}
+                              onClick={() => { setSelectedIds(new Set([deal.id])); setShowDeleteConfirm(true); setOpenDropdownId(null); }}
                             >
                               <Trash2 className="h-3.5 w-3.5" aria-hidden="true" />
                               Excluir
@@ -1099,28 +1102,11 @@ export function KanbanListView({ pipelineId, columns = DEFAULT_COLUMNS, statusFi
       )}
 
       {showDeleteConfirm && (
-        <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black/40 backdrop-blur-sm">
-          <div className="relative w-full max-w-md rounded-2xl bg-white p-6 shadow-lg">
-            <h2 className="text-lg font-semibold text-zinc-800">
-              Excluir {selectedIds.size} {selectedIds.size === 1 ? "negócio" : "negócios"}?
-            </h2>
-            <p className="text-sm text-zinc-500 mt-2">Esta ação não pode ser desfeita.</p>
-            <div className="flex justify-end gap-3 mt-6">
-              <button
-                onClick={() => setShowDeleteConfirm(false)}
-                className="px-4 py-2 rounded-lg text-sm font-medium text-zinc-650 border border-zinc-200 hover:bg-zinc-50 transition-colors"
-              >
-                Cancelar
-              </button>
-              <button
-                onClick={handleBulkDelete}
-                className="px-4 py-2 rounded-lg text-sm font-medium text-white transition-colors bg-red-500 hover:bg-red-600"
-              >
-                Excluir
-              </button>
-            </div>
-          </div>
-        </div>
+        <DeleteDealModal
+          count={selectedIds.size}
+          onConfirm={(reason, note) => handleBulkDelete(reason, note)}
+          onCancel={() => setShowDeleteConfirm(false)}
+        />
       )}
     </>
   );

@@ -29,7 +29,7 @@ export default function ForecastPage() {
   const windowEnd = addMonths(startOfMonth(now), MONTHS_AHEAD);
 
   const activeDeals = useMemo(() =>
-    state.deals.filter(d => d.status === "Ativo"),
+    state.deals.filter(d => d.status === "Ativo" && !d.deletedAt),
   [state.deals]);
 
   const filteredDeals = useMemo(() =>

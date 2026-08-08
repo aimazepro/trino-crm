@@ -101,6 +101,10 @@ export interface Deal {
   stageEnteredAt: string;
   createdAt?: string;
   updatedAt?: string;
+  deletedAt?: string;
+  deletedBy?: string;
+  deleteReason?: string;
+  deleteNote?: string;
 
   notes: Note[];
   history: HistoryLog[];

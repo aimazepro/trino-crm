@@ -21,6 +21,7 @@ const SECTIONS = [
       { label: "Importar dados", href: "/configuracoes/importar" },
       { label: "Produtos", href: "/configuracoes/produtos" },
       { label: "Motivos de Perda", href: "/configuracoes/motivos-perda" },
+      { label: "Motivos de Exclusão", href: "/configuracoes/motivos-exclusao" },
       { label: "Tipos de Atividade", href: "/configuracoes/tipos-atividade" },
       { label: "Duplicatas", href: "/configuracoes/duplicatas" },
       { label: "Sequências", href: "/configuracoes/sequencias" },

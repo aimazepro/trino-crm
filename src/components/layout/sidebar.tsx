@@ -16,6 +16,7 @@ import {
   Crosshair,
   Mic,
   ChevronLeft,
+  MessageCircle,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { createClient } from "@/lib/supabase/client";
@@ -73,6 +74,7 @@ export function Sidebar() {
               { href: "/pipeline", label: "Negócios", icon: Briefcase },
               { href: "/contatos", label: "Contatos", icon: Users, sub: [{ href: "/contatos", label: "Pessoas" }, { href: "/empresas", label: "Empresas" }] },
               { href: "/atividades", label: "Atividades", icon: CheckCircle2 },
+              { href: "/conversas", label: "Conversas", icon: MessageCircle },
             ].map((item) => {
               const active = isActive(item.href);
               const hasSub = "sub" in item && item.sub;

@@ -19,7 +19,7 @@ export async function loadCrmData(supabase: SupabaseClient, userId: string): Pro
     supabase.from("deals").select(`
       *, deal_notes(*), deal_history(*), deal_products(*),
       deal_labels(label_id), activities(*, activity_attachments(*)), appointments(*)
-    `).order("created_at"),
+    `).is("deleted_at", null).order("created_at"),
     supabase.from("notifications").select("*").order("created_at", { ascending: false }),
   ]);
 

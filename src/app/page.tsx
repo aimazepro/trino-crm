@@ -56,18 +56,26 @@ export default function DashboardPage() {
 
   const activePipeline = state.pipelines[0];
 
+  // Soft-deleted deals can still be in local state right after a same-session
+  // delete (the mutation updates in place instead of removing) — filter them
+  // out here so dashboard aggregates don't double-count until next reload.
+  const deals = useMemo(
+    () => state.deals.filter((d) => !d.deletedAt),
+    [state.deals]
+  );
+
   // ── Metrics ──────────────────────────────────────────────────────────────────
   const stats = useMemo(() => {
-    const activeDeals = state.deals.filter((d) => d.status === "Ativo");
-    const wonDeals = state.deals.filter((d) => d.status === "Ganho");
-    const lostDeals = state.deals.filter((d) => d.status === "Perdido");
+    const activeDeals = deals.filter((d) => d.status === "Ativo");
+    const wonDeals = deals.filter((d) => d.status === "Ganho");
+    const lostDeals = deals.filter((d) => d.status === "Perdido");
     const totalPipeline = activeDeals.reduce((s, d) => s + d.value, 0);
     const wonValue = wonDeals.reduce((s, d) => s + d.value, 0);
     const convRate =
-      state.deals.length > 0
-        ? Math.round((wonDeals.length / state.deals.length) * 100)
+      deals.length > 0
+        ? Math.round((wonDeals.length / deals.length) * 100)
         : 0;
-    const allActivities = state.deals.flatMap((d) => d.activities);
+    const allActivities = deals.flatMap((d) => d.activities);
     const todayPending = allActivities.filter(
       (a) => !a.completed && isToday(new Date(a.date))
     );
@@ -82,7 +90,7 @@ export default function DashboardPage() {
       todayPending,
       todayAll,
     };
-  }, [state.deals]);
+  }, [deals]);
 
   // ── Stage data grouped by pipeline ───────────────────────────────────────────
   const pipelineStageData = useMemo(() => {
@@ -91,7 +99,7 @@ export default function DashboardPage() {
         pipeline,
         stages: pipeline.stages
           .map((stage) => {
-            const stageDeals = state.deals.filter(
+            const stageDeals = deals.filter(
               (d) =>
                 d.pipelineId === pipeline.id &&
                 d.stageId === stage.id &&
@@ -107,7 +115,7 @@ export default function DashboardPage() {
           .filter((stage) => stage.count > 0),
       }))
       .filter((p) => p.stages.length > 0);
-  }, [state.pipelines, state.deals]);
+  }, [state.pipelines, deals]);
 
   const allStageCounts = pipelineStageData.flatMap((p) => p.stages.map((s) => s.count));
   const maxCount = Math.max(...allStageCounts, 1);
@@ -146,7 +154,7 @@ export default function DashboardPage() {
     return (
       <div className="divide-y divide-zinc-100">
         {state.pipelines.map((pipeline) => {
-          const pipelineDeals = state.deals.filter(
+          const pipelineDeals = deals.filter(
             (d) => d.pipelineId === pipeline.id && d.status === "Ativo"
           );
           if (pipelineDeals.length === 0) return null;
@@ -207,7 +215,7 @@ export default function DashboardPage() {
   }
 
   function StageDrawerContent({ stageId }: { stageId: string }) {
-    const stageDeals = state.deals.filter(
+    const stageDeals = deals.filter(
       (d) => d.stageId === stageId && d.status === "Ativo"
     );
     return <DealsDrawerContent deals={stageDeals} />;

@@ -1,11 +1,32 @@
 "use client";
 
 import { useState } from "react";
-import { ChevronDown, ListTodo, ArrowRight, Calendar } from "lucide-react";
+import {
+  ChevronDown, ListTodo, ArrowRight, Calendar, CalendarPlus, Pencil,
+  FileText, Plus, Trash2, CheckCircle2, RotateCcw, CircleCheck, CircleX, GitMerge,
+  type LucideIcon,
+} from "lucide-react";
 import { formatDistanceToNow } from "date-fns";
 import { ptBR } from "date-fns/locale";
 import { Deal } from "@/lib/crm-types";
 import { cn } from "@/lib/utils";
+
+// Picks an icon per event category so the timeline reads at a glance
+// instead of every entry sharing the same generic arrow.
+function historyIcon(description: string): LucideIcon {
+  if (description === "Negócio criado") return Plus;
+  if (description === "Negócio reaberto" || description === "Negócio restaurado") return RotateCcw;
+  if (description === "Negócio excluído") return Trash2;
+  if (description === "Negócios mesclados") return GitMerge;
+  if (description.startsWith("Negócio marcado como")) return description.includes("Ganho") ? CircleCheck : CircleX;
+  if (description === "Nota adicionada" || description === "Nota editada") return FileText;
+  if (description === "Nota removida") return Trash2;
+  if (description === "Atividade criada") return CalendarPlus;
+  if (description === "Atividade concluída") return CheckCircle2;
+  if (description === "Atividade removida") return Trash2;
+  if (description.endsWith(" alterado")) return Pencil;
+  return ArrowRight; // Etapa alterada, Pipeline alterada, fallback
+}
 
 export function AllTab({ deal }: { deal: Deal; userName?: string }) {
   const [activitiesOpen, setActivitiesOpen] = useState(true);
@@ -55,10 +76,12 @@ export function AllTab({ deal }: { deal: Deal; userName?: string }) {
         </button>
         {timelineOpen && (
           <div className="space-y-6 pl-4 border-l-2 border-gray-100 ml-4 py-2">
-            {deal.history.map(log => (
+            {deal.history.map(log => {
+              const Icon = historyIcon(log.description);
+              return (
               <div key={log.id} className="relative">
-                <div className="absolute -left-[27px] top-0 w-8 h-8 bg-blue-50 text-blue-500 rounded-full flex items-center justify-center border-4 border-white">
-                  <ArrowRight size={14} className="opacity-70" />
+                <div className="absolute -left-[27px] top-0 w-8 h-8 bg-zinc-100 text-zinc-500 rounded-full flex items-center justify-center border-4 border-white">
+                  <Icon size={14} />
                 </div>
                 <div className="pl-6">
                   <h5 className="font-bold text-gray-900 text-sm">{log.description}</h5>
@@ -68,7 +91,8 @@ export function AllTab({ deal }: { deal: Deal; userName?: string }) {
                   </p>
                 </div>
               </div>
-            ))}
+              );
+            })}
             {deal.history.length === 0 && (
               <p className="pl-6 text-sm text-gray-400 font-medium">Nenhum evento registrado ainda.</p>
             )}

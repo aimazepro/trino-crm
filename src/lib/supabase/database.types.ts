@@ -469,6 +469,41 @@ export type Database = {
           },
         ]
       }
+      contact_history: {
+        Row: {
+          contact_id: string
+          created_at: string
+          description: string
+          id: string
+          subtext: string
+          user_id: string
+        }
+        Insert: {
+          contact_id: string
+          created_at?: string
+          description: string
+          id?: string
+          subtext?: string
+          user_id: string
+        }
+        Update: {
+          contact_id?: string
+          created_at?: string
+          description?: string
+          id?: string
+          subtext?: string
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "contact_history_contact_id_fkey"
+            columns: ["contact_id"]
+            isOneToOne: false
+            referencedRelation: "contacts"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       contacts: {
         Row: {
           company_id: string | null
@@ -506,41 +541,6 @@ export type Database = {
             columns: ["company_id"]
             isOneToOne: false
             referencedRelation: "companies"
-            referencedColumns: ["id"]
-          },
-        ]
-      }
-      contact_history: {
-        Row: {
-          contact_id: string
-          created_at: string
-          description: string
-          id: string
-          subtext: string
-          user_id: string
-        }
-        Insert: {
-          contact_id: string
-          created_at?: string
-          description: string
-          id?: string
-          subtext?: string
-          user_id: string
-        }
-        Update: {
-          contact_id?: string
-          created_at?: string
-          description?: string
-          id?: string
-          subtext?: string
-          user_id?: string
-        }
-        Relationships: [
-          {
-            foreignKeyName: "contact_history_contact_id_fkey"
-            columns: ["contact_id"]
-            isOneToOne: false
-            referencedRelation: "contacts"
             referencedColumns: ["id"]
           },
         ]
@@ -785,6 +785,10 @@ export type Database = {
           contact_id: string | null
           created_at: string
           days_in_stage: number
+          delete_note: string | null
+          delete_reason: string | null
+          deleted_at: string | null
+          deleted_by: string | null
           expected_close_date: string | null
           id: string
           loss_reason: string | null
@@ -805,6 +809,10 @@ export type Database = {
           contact_id?: string | null
           created_at?: string
           days_in_stage?: number
+          delete_note?: string | null
+          delete_reason?: string | null
+          deleted_at?: string | null
+          deleted_by?: string | null
           expected_close_date?: string | null
           id?: string
           loss_reason?: string | null
@@ -825,6 +833,10 @@ export type Database = {
           contact_id?: string | null
           created_at?: string
           days_in_stage?: number
+          delete_note?: string | null
+          delete_reason?: string | null
+          deleted_at?: string | null
+          deleted_by?: string | null
           expected_close_date?: string | null
           id?: string
           loss_reason?: string | null
@@ -870,6 +882,33 @@ export type Database = {
             referencedColumns: ["id"]
           },
         ]
+      }
+      delete_reasons: {
+        Row: {
+          active: boolean
+          created_at: string
+          id: string
+          name: string
+          sort_order: number
+          user_id: string
+        }
+        Insert: {
+          active?: boolean
+          created_at?: string
+          id?: string
+          name: string
+          sort_order?: number
+          user_id: string
+        }
+        Update: {
+          active?: boolean
+          created_at?: string
+          id?: string
+          name?: string
+          sort_order?: number
+          user_id?: string
+        }
+        Relationships: []
       }
       email_signatures: {
         Row: {
