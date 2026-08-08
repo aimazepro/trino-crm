@@ -434,6 +434,41 @@ export type Database = {
         }
         Relationships: []
       }
+      company_history: {
+        Row: {
+          company_id: string
+          created_at: string
+          description: string
+          id: string
+          subtext: string
+          user_id: string
+        }
+        Insert: {
+          company_id: string
+          created_at?: string
+          description: string
+          id?: string
+          subtext?: string
+          user_id: string
+        }
+        Update: {
+          company_id?: string
+          created_at?: string
+          description?: string
+          id?: string
+          subtext?: string
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "company_history_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "companies"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       contacts: {
         Row: {
           company_id: string | null
@@ -471,6 +506,41 @@ export type Database = {
             columns: ["company_id"]
             isOneToOne: false
             referencedRelation: "companies"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      contact_history: {
+        Row: {
+          contact_id: string
+          created_at: string
+          description: string
+          id: string
+          subtext: string
+          user_id: string
+        }
+        Insert: {
+          contact_id: string
+          created_at?: string
+          description: string
+          id?: string
+          subtext?: string
+          user_id: string
+        }
+        Update: {
+          contact_id?: string
+          created_at?: string
+          description?: string
+          id?: string
+          subtext?: string
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "contact_history_contact_id_fkey"
+            columns: ["contact_id"]
+            isOneToOne: false
+            referencedRelation: "contacts"
             referencedColumns: ["id"]
           },
         ]
