@@ -25,7 +25,8 @@ export function DeleteDealModal({ count = 1, onConfirm, onCancel }: DeleteDealMo
       if (!user) return;
       const { data } = await supabase.from("delete_reasons").select("name").eq("user_id", user.id).eq("active", true).order("sort_order");
       if (data && data.length > 0) {
-        setReasons([...data.map(r => r.name), "Outros"]);
+        const unique = Array.from(new Set([...data.map(r => r.name), "Outros"]));
+        setReasons(unique);
       }
     }
     load();
@@ -58,8 +59,8 @@ export function DeleteDealModal({ count = 1, onConfirm, onCancel }: DeleteDealMo
                 className="w-full px-4 py-3 bg-white border border-zinc-200 rounded-xl text-[14px] text-zinc-800 outline-none focus:border-red-400 appearance-none cursor-pointer pr-10"
               >
                 <option value="" disabled hidden>Selecione um motivo...</option>
-                {reasons.map(r => (
-                  <option key={r} value={r}>{r}</option>
+                {reasons.map((r, i) => (
+                  <option key={`${r}_${i}`} value={r}>{r}</option>
                 ))}
               </select>
               <ChevronDown className="absolute right-3.5 top-1/2 -translate-y-1/2 h-4 w-4 text-zinc-400 pointer-events-none" />
