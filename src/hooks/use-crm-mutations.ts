@@ -144,13 +144,14 @@ export function useCrmMutations({ state, setState, userId, supabase }: MutationP
     }
     if (fields.labels !== undefined) {
       supabase.rpc("replace_deal_labels", { p_deal_id: dealId, p_label_ids: fields.labels })
-        .then(({ error }) => { if (error) console.error("[CRM] replace_deal_labels failed:", error); });
+        .then(({ error }) => { if (error) console.error("[CRM] replace_deal_labels failed:", error.message || error); });
     }
     if (fields.products !== undefined) {
+      const payload = fields.products.map((p) => ({ name: p.name, quantity: p.quantity, price: p.price }));
       supabase.rpc("replace_deal_products", {
         p_deal_id: dealId,
-        p_products: JSON.stringify(fields.products.map((p) => ({ name: p.name, quantity: p.quantity, price: p.price }))),
-      }).then(({ error }) => { if (error) console.error("[CRM] replace_deal_products failed:", error); });
+        p_products: payload as any,
+      }).then(({ error }) => { if (error) console.error("[CRM] replace_deal_products failed:", error.message || error); });
     }
   };
 
