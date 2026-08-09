@@ -1,129 +1,61 @@
 "use client";
 
 import { useState, useEffect, useCallback } from "react";
-import { Plus, X, Pencil, Trash2, GripVertical, Play, CircleCheck } from "lucide-react";
+import { Plus, X, Pencil, Trash2, GripVertical, Play, CircleCheck, Lock, Share2, Users, Globe } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { createClient } from "@/lib/supabase/client";
-
-type StepType = "Ligação" | "Reunião" | "Videochamada" | "Email" | "WhatsApp" | "Instagram" | "LinkedIn" | "Outros";
-
-type Step = {
-  id: string;
-  type: StepType;
-  title: string;
-  notes: string;
-  unitValue: number;
-  unit: "DAYS" | "WEEKS" | "MONTHS";
-  time: string;
-};
-
-type Sequence = {
-  id: string;
-  name: string;
-  description: string;
-  skip_weekends: boolean;
-  tags: string[];
-  sequence_steps?: { id: string; step_type: string; day_offset: number; note: string; sort_order: number }[];
-};
-
-const STEP_TYPES: StepType[] = [
-  "Ligação",
-  "Reunião",
-  "Videochamada",
-  "Email",
-  "WhatsApp",
-  "Instagram",
-  "LinkedIn",
-  "Outros"
-];
-
-const STEP_TYPE_COLORS: Record<string, { bg: string; text: string; border: string }> = {
-  "Ligação": { bg: "bg-blue-100", text: "text-blue-700", border: "border-blue-200" },
-  "Reunião": { bg: "bg-purple-100", text: "text-purple-700", border: "border-purple-200" },
-  "Videochamada": { bg: "bg-pink-100", text: "text-pink-700", border: "border-pink-200" },
-  "Email": { bg: "bg-amber-100", text: "text-amber-700", border: "border-amber-200" },
-  "WhatsApp": { bg: "bg-green-100", text: "text-green-700", border: "border-green-200" },
-  "Instagram": { bg: "bg-rose-100", text: "text-rose-700", border: "border-rose-200" },
-  "LinkedIn": { bg: "bg-sky-100", text: "text-sky-700", border: "border-sky-200" },
-  "Outros": { bg: "bg-zinc-100", text: "text-zinc-700", border: "border-zinc-200" },
-};
-
-// Simulation date calculations starting from today
-const getSimulationDays = () => {
-  const today = new Date();
-  const start = new Date(today);
-  const dayOfWeek = today.getDay(); // 0 = Sunday, 1 = Monday, etc.
-  start.setDate(today.getDate() - dayOfWeek);
-
-  const days = [];
-  for (let i = 0; i < 35; i++) {
-    const d = new Date(start);
-    d.setDate(start.getDate() + i);
-    days.push(d);
-  }
-  return { today, days };
-};
-
-const formatDayLabel = (date: Date, index: number) => {
-  const day = date.getDate();
-  const monthNames = ["Jan", "Fev", "Mar", "Abr", "Mai", "Jun", "Jul", "Ago", "Set", "Out", "Nov", "Dez"];
-  const monthStr = monthNames[date.getMonth()];
-
-  if (index === 0 || date.getDate() === 1) {
-    return `${day} ${monthStr}`;
-  }
-  return `${day}`;
-};
-
-const formatSimStartLabel = (today: Date) => {
-  const shortDays = ["dom", "seg", "ter", "qua", "qui", "sex", "sáb"];
-  const dayOfWeek = shortDays[today.getDay()];
-  const day = String(today.getDate()).padStart(2, "0");
-  const month = String(today.getMonth() + 1).padStart(2, "0");
-  return `Simulação a partir de hoje (${dayOfWeek} ${day}/${month})`;
-};
-
-const getStepDate = (today: Date, unit: string, unitValue: number, skipWeekends: boolean) => {
-  let offsetDays = 0;
-  if (unit === "DAYS") offsetDays = unitValue;
-  else if (unit === "WEEKS") offsetDays = unitValue * 7;
-  else if (unit === "MONTHS") offsetDays = unitValue * 30;
-
-  const baseDate = new Date(today.getFullYear(), today.getMonth(), today.getDate());
-  baseDate.setDate(baseDate.getDate() + offsetDays);
-
-  if (skipWeekends) {
-    const day = baseDate.getDay();
-    if (day === 6) {
-      baseDate.setDate(baseDate.getDate() + 2); // Sat -> Mon
-    } else if (day === 0) {
-      baseDate.setDate(baseDate.getDate() + 1); // Sun -> Mon
-    }
-  }
-  return baseDate;
-};
-
-const getCalendarBadgeText = (step: Step) => {
-  if (step.time) {
-    const shortType = step.type.slice(0, 3);
-    return `${step.time} ${shortType}...`;
-  }
-  return step.type;
-};
+import { useCrm } from "@/contexts/crm-context";
+import {
+  StepType,
+  StepUnit,
+  SequenceStepItem,
+  SequenceSharing,
+  SequenceItem,
+  STEP_TYPES,
+  getStepColors,
+  parseSequenceStepNote,
+  getStepPreviewSubtext,
+  enrollDealInSequence,
+} from "@/lib/sequence-helpers";
 
 export default function SequenciasPage() {
   const supabase = createClient();
-  const [sequences, setSequences] = useState<Sequence[]>([]);
-  const [loading, setLoading] = useState(true);
-  const [showModal, setShowModal] = useState(false);
-  const [saving, setSaving] = useState(false);
-  const [editingSequenceId, setEditingSequenceId] = useState<string | null>(null);
+  const { state: crmState, addActivity } = useCrm();
 
-  const [form, setForm] = useState({ name: "", description: "", skipWeekends: false });
-  const [steps, setSteps] = useState<Step[]>([]);
+  const [sequences, setSequences] = useState<SequenceItem[]>([]);
+  const [loading, setLoading] = useState(true);
+
+  // Modal 1: Create / Edit Sequence
+  const [showModal, setShowModal] = useState(false);
+  const [editingSequenceId, setEditingSequenceId] = useState<string | null>(null);
+  const [form, setForm] = useState<{
+    name: string;
+    description: string;
+    skipWeekends: boolean;
+    sharing: SequenceSharing;
+  }>({
+    name: "",
+    description: "",
+    skipWeekends: false,
+    sharing: "ONLY_ME",
+  });
+  const [steps, setSteps] = useState<SequenceStepItem[]>([]);
+  const [saving, setSaving] = useState(false);
+
+  // Modal 2: Iniciar Sequência
+  const [startModalSequence, setStartModalSequence] = useState<SequenceItem | null>(null);
+  const [dealSearchQuery, setDealSearchQuery] = useState("");
+  const [selectedDealId, setSelectedDealId] = useState<string | null>(null);
+
+  // Modal 3: Compartilhar Template
+  const [shareModalSequence, setShareModalSequence] = useState<SequenceItem | null>(null);
+  const [selectedSharing, setSelectedSharing] = useState<SequenceSharing>("ONLY_ME");
+  const [savingShare, setSavingShare] = useState(false);
+
+  // Toast State
   const [toast, setToast] = useState<{ message: string; visible: boolean } | null>(null);
 
-  // Drag and drop state
+  // Drag and drop state for sequence steps
   const [draggedIndex, setDraggedIndex] = useState<number | null>(null);
   const [dragEnabledIndex, setDragEnabledIndex] = useState<number | null>(null);
 
@@ -131,7 +63,7 @@ export default function SequenciasPage() {
     setToast({ message, visible: true });
     setTimeout(() => {
       setToast(null);
-    }, 3000);
+    }, 4000);
   };
 
   const loadSequences = useCallback(async () => {
@@ -142,14 +74,20 @@ export default function SequenciasPage() {
       return;
     }
 
-    const { data } = await supabase
+    const { data, error } = await supabase
       .from("sequences")
       .select("*, sequence_steps(*)")
-      .eq("user_id", user.id)
       .order("created_at");
 
-    const sortedData = (data ?? []).map(seq => ({
+    if (error) {
+      console.error("Error loading sequences:", error);
+      setLoading(false);
+      return;
+    }
+
+    const sortedData: SequenceItem[] = (data ?? []).map(seq => ({
       ...seq,
+      sharing: (seq.tags?.find((t: string) => t.startsWith("sharing:"))?.replace("sharing:", "") as SequenceSharing) || "ONLY_ME",
       sequence_steps: seq.sequence_steps
         ? [...seq.sequence_steps].sort((a, b) => a.sort_order - b.sort_order)
         : []
@@ -182,60 +120,48 @@ export default function SequenciasPage() {
     setSteps(steps.filter(s => s.id !== id));
   };
 
-  const updateStep = (id: string, changes: Partial<Step>) => {
+  const updateStep = (id: string, changes: Partial<SequenceStepItem>) => {
     setSteps(steps.map(s => s.id === id ? { ...s, ...changes } : s));
   };
 
   const openNewModal = () => {
     setEditingSequenceId(null);
-    setForm({ name: "", description: "", skipWeekends: false });
+    setForm({ name: "", description: "", skipWeekends: false, sharing: "ONLY_ME" });
     setSteps([
       {
         id: crypto.randomUUID(),
         type: "Ligação",
-        title: "",
+        title: "cold call",
         notes: "",
-        unitValue: 0,
+        unitValue: 1,
         unit: "DAYS",
-        time: "",
+        time: "09:00",
       }
     ]);
     setShowModal(true);
   };
 
-  const openEditModal = (seq: Sequence) => {
+  const openEditModal = (seq: SequenceItem) => {
     setEditingSequenceId(seq.id);
     setForm({
       name: seq.name,
       description: seq.description || "",
       skipWeekends: seq.skip_weekends || false,
+      sharing: seq.sharing || "ONLY_ME",
     });
 
-    const mappedSteps = (seq.sequence_steps || [])
+    const mappedSteps: SequenceStepItem[] = (seq.sequence_steps || [])
       .map(step => {
-        let title = "";
-        let notes = "";
-        let time = "";
-        let unit: "DAYS" | "WEEKS" | "MONTHS" = "DAYS";
-        let unitValue = step.day_offset;
-        try {
-          const parsed = JSON.parse(step.note);
-          title = parsed.title || "";
-          notes = parsed.notes || "";
-          time = parsed.time || "";
-          unit = parsed.unit || "DAYS";
-          unitValue = typeof parsed.unitValue === "number" ? parsed.unitValue : step.day_offset;
-        } catch {
-          title = step.note || "";
-        }
+        const parsed = parseSequenceStepNote(step.note, step.day_offset);
         return {
           id: step.id || crypto.randomUUID(),
           type: step.step_type as StepType,
-          title,
-          notes,
-          time,
-          unit,
-          unitValue,
+          title: parsed.title,
+          notes: parsed.notes,
+          time: parsed.time,
+          unit: parsed.unit,
+          unitValue: parsed.unitValue,
+          emailTemplateId: parsed.emailTemplateId,
         };
       });
 
@@ -243,7 +169,7 @@ export default function SequenciasPage() {
     setShowModal(true);
   };
 
-  const handleSave = async () => {
+  const handleSaveSequence = async () => {
     if (!form.name.trim() || steps.length === 0) return;
     setSaving(true);
 
@@ -254,7 +180,10 @@ export default function SequenciasPage() {
         return;
       }
 
-      const tags = Array.from(new Set(steps.map(s => s.type))).slice(0, 3);
+      // Build tags array preserving step type tags + sharing tag
+      const typeTags = Array.from(new Set(steps.map(s => s.type))).slice(0, 3);
+      const tags = [...typeTags, `sharing:${form.sharing}`];
+
       let seqId = editingSequenceId;
 
       if (editingSequenceId) {
@@ -306,6 +235,7 @@ export default function SequenciasPage() {
             time: step.time,
             unit: step.unit,
             unitValue: step.unitValue,
+            emailTemplateId: step.emailTemplateId,
           });
 
           return {
@@ -334,7 +264,7 @@ export default function SequenciasPage() {
     }
   };
 
-  const handleDelete = async (id: string) => {
+  const handleDeleteSequence = async (id: string) => {
     try {
       const { error } = await supabase.from("sequences").delete().eq("id", id);
       if (error) throw error;
@@ -370,17 +300,79 @@ export default function SequenciasPage() {
     setDragEnabledIndex(null);
   };
 
-  // Calendar Preview parameters
-  const { today, days } = getSimulationDays();
-  const uniqueTypes = Array.from(new Set(steps.map(s => s.type)));
+  // Handlers for "Iniciar Sequência"
+  const openStartModal = (seq: SequenceItem) => {
+    setStartModalSequence(seq);
+    setSelectedDealId(null);
+    setDealSearchQuery("");
+  };
+
+  const handleStartSequenceOnDeal = async () => {
+    if (!startModalSequence || !selectedDealId) return;
+
+    await enrollDealInSequence({
+      dealId: selectedDealId,
+      sequence: startModalSequence,
+      addActivity,
+      supabase,
+    });
+
+    setStartModalSequence(null);
+  };
+
+  // Handlers for "Compartilhar template"
+  const openShareModal = (seq: SequenceItem) => {
+    setShareModalSequence(seq);
+    setSelectedSharing(seq.sharing || "ONLY_ME");
+  };
+
+  const handleSaveShare = async () => {
+    if (!shareModalSequence) return;
+    setSavingShare(true);
+
+    try {
+      // Update tags array with new sharing tag
+      const existingTags = (shareModalSequence.tags || []).filter(t => !t.startsWith("sharing:"));
+      const newTags = [...existingTags, `sharing:${selectedSharing}`];
+
+      const { error } = await supabase
+        .from("sequences")
+        .update({ tags: newTags })
+        .eq("id", shareModalSequence.id);
+
+      if (error) throw error;
+
+      showToast("Permissões de compartilhamento salvas.");
+      setShareModalSequence(null);
+      await loadSequences();
+    } catch (err) {
+      console.error("Error saving sequence sharing:", err);
+    } finally {
+      setSavingShare(false);
+    }
+  };
+
+  const isSearchEmpty = !dealSearchQuery.trim();
+  const filteredDeals = isSearchEmpty
+    ? []
+    : crmState.deals.filter(d => {
+        const q = dealSearchQuery.toLowerCase();
+        const contact = d.contactId ? crmState.contacts.find(c => c.id === d.contactId) : null;
+        const company = d.companyId ? crmState.companies.find(c => c.id === d.companyId) : null;
+        return (
+          d.title.toLowerCase().includes(q) ||
+          (contact?.name && contact.name.toLowerCase().includes(q)) ||
+          (company?.name && company.name.toLowerCase().includes(q))
+        );
+      });
 
   return (
     <main className="flex-1 overflow-y-auto bg-zinc-50/30">
       <div className="p-8 max-w-4xl mx-auto space-y-6">
         
-        {/* Toast Notification Component */}
+        {/* Toast Notification */}
         {toast && toast.visible && (
-          <div className="fixed bottom-6 right-6 z-50 bg-zinc-900 text-white text-sm px-4 py-3 rounded-lg flex items-center gap-3 border border-zinc-800">
+          <div className="fixed bottom-6 right-6 z-50 bg-zinc-900 text-white text-sm px-4 py-3 rounded-lg shadow-lg flex items-center gap-3 border border-zinc-800">
             <CircleCheck className="h-4 w-4 text-green-400 shrink-0" />
             <span>{toast.message}</span>
             <button onClick={() => setToast(null)} className="ml-2 text-zinc-400 hover:text-white">
@@ -396,13 +388,14 @@ export default function SequenciasPage() {
           </div>
           <button
             onClick={openNewModal}
-            className="flex items-center gap-2 bg-gradient-to-r from-amber-500 to-amber-400 hover:from-amber-600 hover:to-amber-500 text-white text-sm font-medium px-4 py-2 rounded-lg transition-colors border-0 outline-none"
+            className="flex items-center gap-2 bg-gradient-to-r from-amber-500 to-amber-400 hover:from-amber-600 hover:to-amber-500 shadow-sm hover:shadow-md text-white text-sm font-medium px-4 py-2 rounded-lg transition-colors border-0 outline-none cursor-pointer"
           >
             <Plus className="h-4 w-4" />
             Nova Sequência
           </button>
         </div>
 
+        {/* Sequences Cards List */}
         <div className="grid gap-4">
           {loading ? (
             <div className="flex items-center justify-center py-16">
@@ -417,8 +410,21 @@ export default function SequenciasPage() {
               const stepCount = seq.sequence_steps?.length ?? 0;
               const stepText = stepCount === 1 ? "1 passo" : `${stepCount} passos`;
               
-              // Unique tags in this sequence
-              const seqTags = Array.from(new Set(seq.sequence_steps?.map(s => s.step_type) || []));
+              // Filter out internal sharing tag for step tags preview
+              const stepTypes = Array.from(
+                new Set(seq.sequence_steps?.map(s => s.step_type) || [])
+              );
+
+              // Sharing label and icon
+              let sharingLabel = "Só eu";
+              let SharingIcon = Lock;
+              if (seq.sharing === "SPECIFIC_USERS") {
+                sharingLabel = "Usuários específicos";
+                SharingIcon = Users;
+              } else if (seq.sharing === "WORKSPACE") {
+                sharingLabel = "Todo o workspace";
+                SharingIcon = Globe;
+              }
 
               return (
                 <div
@@ -426,12 +432,18 @@ export default function SequenciasPage() {
                   className="border border-zinc-200 rounded-xl p-5 flex items-start justify-between gap-4 bg-white"
                 >
                   <div className="flex-1 min-w-0">
-                    <h3 className="font-medium text-zinc-900">{seq.name}</h3>
+                    <div className="flex items-center gap-2">
+                      <h3 className="font-medium text-zinc-900">{seq.name}</h3>
+                      <span className="inline-flex items-center gap-1 rounded px-1.5 py-0.5 text-xs font-medium bg-zinc-100 text-zinc-500">
+                        <SharingIcon className="h-3 w-3" />
+                        {sharingLabel}
+                      </span>
+                    </div>
                     {seq.description && <p className="text-sm text-zinc-500 mt-0.5">{seq.description}</p>}
                     <p className="text-xs text-zinc-400 mt-1">{stepText}</p>
-                    {seqTags.length > 0 && (
+                    {stepTypes.length > 0 && (
                       <div className="flex flex-wrap gap-1 mt-2">
-                        {seqTags.map((tag) => {
+                        {stepTypes.map((tag) => {
                           const tagColors = getStepColors(tag);
                           return (
                             <span
@@ -454,23 +466,32 @@ export default function SequenciasPage() {
                   <div className="flex items-center gap-2 shrink-0">
                     <button
                       type="button"
-                      className="flex items-center gap-1.5 text-sm font-medium text-amber-600 border border-amber-300 hover:bg-amber-50 px-3 py-1.5 rounded-lg transition-colors"
+                      onClick={() => openStartModal(seq)}
+                      className="flex items-center gap-1.5 text-sm font-medium text-amber-600 border border-amber-300 hover:bg-amber-50 px-3 py-1.5 rounded-lg transition-colors cursor-pointer"
                     >
                       <Play className="h-3.5 w-3.5" />
                       Iniciar
                     </button>
                     <button
                       type="button"
+                      onClick={() => openShareModal(seq)}
+                      className="flex items-center gap-1.5 text-sm text-zinc-600 border border-zinc-200 hover:bg-zinc-50 px-3 py-1.5 rounded-lg transition-colors cursor-pointer"
+                    >
+                      <Share2 className="h-3.5 w-3.5" />
+                      Compartilhar
+                    </button>
+                    <button
+                      type="button"
                       onClick={() => openEditModal(seq)}
-                      className="flex items-center gap-1.5 text-sm text-zinc-600 border border-zinc-200 hover:bg-zinc-50 px-3 py-1.5 rounded-lg transition-colors"
+                      className="flex items-center gap-1.5 text-sm text-zinc-600 border border-zinc-200 hover:bg-zinc-50 px-3 py-1.5 rounded-lg transition-colors cursor-pointer"
                     >
                       <Pencil className="h-3.5 w-3.5" />
                       Editar
                     </button>
                     <button
                       type="button"
-                      onClick={() => handleDelete(seq.id)}
-                      className="text-zinc-300 hover:text-red-400 transition-colors"
+                      onClick={() => handleDeleteSequence(seq.id)}
+                      className="text-zinc-300 hover:text-red-400 transition-colors border-0 bg-transparent p-1 cursor-pointer"
                     >
                       <Trash2 className="h-4 w-4" />
                     </button>
@@ -482,17 +503,17 @@ export default function SequenciasPage() {
         </div>
       </div>
 
-      {/* Modal Dialog Component */}
+      {/* Modal 1: Nova / Editar Sequência */}
       {showModal && (
         <div
           className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4"
           onClick={() => setShowModal(false)}
         >
           <div
-            className="bg-white rounded-xl w-full max-w-xl max-h-[90vh] flex flex-col border border-zinc-200"
+            className="bg-white rounded-xl shadow-2xl w-full max-w-xl max-h-[90vh] flex flex-col border border-zinc-200"
             onClick={(e) => e.stopPropagation()}
           >
-            {/* Modal Header */}
+            {/* Header */}
             <div className="flex items-center justify-between px-6 py-4 border-b border-zinc-100">
               <h2 className="font-semibold text-zinc-900">
                 {editingSequenceId ? "Editar Sequência" : "Nova Sequência"}
@@ -500,13 +521,13 @@ export default function SequenciasPage() {
               <button
                 type="button"
                 onClick={() => setShowModal(false)}
-                className="text-zinc-400 hover:text-zinc-600"
+                className="text-zinc-400 hover:text-zinc-600 border-0 bg-transparent cursor-pointer"
               >
                 <X className="h-5 w-5" />
               </button>
             </div>
 
-            {/* Scrollable Modal Body */}
+            {/* Scrollable Body */}
             <div className="overflow-y-auto flex-1 px-6 py-4 space-y-4">
               
               {/* Name */}
@@ -544,7 +565,7 @@ export default function SequenciasPage() {
                     type="checkbox"
                     checked={form.skipWeekends}
                     onChange={(e) => setForm({ ...form, skipWeekends: e.target.checked })}
-                    className="h-4 w-4 rounded border-zinc-300 text-amber-500 focus:ring-amber-300 accent-amber-500"
+                    className="h-4 w-4 rounded border-zinc-300 text-amber-500 focus:ring-amber-300 accent-amber-500 cursor-pointer"
                   />
                   <span className="text-sm text-zinc-700 font-medium">Pular finais de semana</span>
                 </label>
@@ -598,7 +619,7 @@ export default function SequenciasPage() {
                                   type="button"
                                   onClick={() => updateStep(step.id, { type: t })}
                                   className={cn(
-                                    "text-xs font-medium px-2 py-0.5 rounded-full transition-colors",
+                                    "text-xs font-medium px-2 py-0.5 rounded-full transition-colors cursor-pointer border-0",
                                     isSelected
                                       ? cn(tColors.bg, tColors.text)
                                       : "bg-zinc-100 text-zinc-400 hover:bg-zinc-200"
@@ -613,13 +634,13 @@ export default function SequenciasPage() {
                           <button
                             type="button"
                             onClick={() => removeStep(step.id)}
-                            className="text-zinc-300 hover:text-red-400"
+                            className="text-zinc-300 hover:text-red-400 border-0 bg-transparent cursor-pointer"
                           >
                             <X className="h-4 w-4" />
                           </button>
                         </div>
 
-                        {/* Step Title */}
+                        {/* Title */}
                         <input
                           type="text"
                           value={step.title}
@@ -628,7 +649,23 @@ export default function SequenciasPage() {
                           placeholder="Titulo da atividade"
                         />
 
-                        {/* Step Notes */}
+                        {/* Email Template selector if type === "Email" */}
+                        {step.type === "Email" && (
+                          <div>
+                            <label className="text-[11px] font-medium text-zinc-500 uppercase tracking-wide">
+                              Template de email
+                            </label>
+                            <select
+                              value={step.emailTemplateId || ""}
+                              onChange={(e) => updateStep(step.id, { emailTemplateId: e.target.value })}
+                              className="mt-1 w-full border border-zinc-200 rounded px-2 py-1.5 text-sm outline-none focus:ring-2 focus:ring-amber-200 bg-white"
+                            >
+                              <option value="">Sem template (descrição manual abaixo)</option>
+                            </select>
+                          </div>
+                        )}
+
+                        {/* Notes */}
                         <textarea
                           rows={2}
                           value={step.notes}
@@ -637,7 +674,7 @@ export default function SequenciasPage() {
                           placeholder="Observacao (ex: script de ligacao, instrucoes para o vendedor...)"
                         />
 
-                        {/* Step Timing & Offset */}
+                        {/* Timing */}
                         <div className="flex items-center gap-2 text-sm text-zinc-500 flex-wrap">
                           <span>em</span>
                           <input
@@ -649,8 +686,8 @@ export default function SequenciasPage() {
                           />
                           <select
                             value={step.unit}
-                            onChange={(e) => updateStep(step.id, { unit: e.target.value as "DAYS" | "WEEKS" | "MONTHS" })}
-                            className="border border-zinc-200 rounded px-2 py-1 text-sm outline-none focus:ring-2 focus:ring-amber-200 bg-white"
+                            onChange={(e) => updateStep(step.id, { unit: e.target.value as StepUnit })}
+                            className="border border-zinc-200 rounded px-2 py-1 text-sm outline-none focus:ring-2 focus:ring-amber-200 bg-white cursor-pointer"
                           >
                             <option value="DAYS">Dias</option>
                             <option value="WEEKS">Semanas</option>
@@ -668,20 +705,11 @@ export default function SequenciasPage() {
                       </div>
                     );
                   })}
-                  
-                  {/* DnD descriptors for accessibility styling compatibility */}
-                  <div id="DndDescribedBy-5" style={{ display: "none" }}>
-                    To pick up a draggable item, press the space bar.
-                    While dragging, use the arrow keys to move the item.
-                    Press space again to drop the item in its new position, or press escape to cancel.
-                  </div>
-                  <div id="DndLiveRegion-5" role="status" aria-live="assertive" aria-atomic="true" style={{ position: "fixed", top: 0, left: 0, width: 1, height: 1, margin: -1, border: 0, padding: 0, overflow: "hidden", clip: "rect(0px, 0px, 0px, 0px)", clipPath: "inset(100%)", whiteSpace: "nowrap" }} />
 
-                  {/* Add Step Button */}
                   <button
                     type="button"
                     onClick={addStep}
-                    className="flex items-center gap-1.5 text-sm text-amber-600 hover:text-amber-700 font-medium bg-transparent border-0"
+                    className="flex items-center gap-1.5 text-sm text-amber-600 hover:text-amber-700 font-medium bg-transparent border-0 cursor-pointer"
                   >
                     <Plus className="h-4 w-4" />
                     Adicionar passo
@@ -689,118 +717,73 @@ export default function SequenciasPage() {
                 </div>
               </div>
 
-              {/* Calendar Simulation Preview */}
+              {/* Prévia da sequência */}
               <div className="mt-2 border border-zinc-200 rounded-lg overflow-hidden bg-zinc-50/50">
-                
-                {/* Preview Header */}
-                <div className="flex items-center justify-between px-3 py-2 border-b border-zinc-200 bg-white">
-                  <div>
-                    <p className="text-xs font-semibold text-zinc-700">Preview no calendário</p>
-                    <p className="text-[10px] text-zinc-400">
-                      {formatSimStartLabel(today)}
-                    </p>
-                  </div>
-                  
-                  {/* Selected Tags Legend in Preview */}
-                  <div className="flex flex-wrap gap-1 justify-end max-w-[55%]">
-                    {uniqueTypes.map((type) => {
-                      const colors = getStepColors(type);
-                      return (
-                        <span
-                          key={type}
-                          className={cn(
-                            "text-[9px] font-medium px-1.5 py-0.5 rounded border",
-                            colors.bg,
-                            colors.text,
-                            colors.border
-                          )}
-                        >
-                          {type}
-                        </span>
-                      );
-                    })}
-                  </div>
+                <div className="px-3 py-2 border-b border-zinc-200 bg-white">
+                  <p className="text-xs font-semibold text-zinc-700">Prévia da sequência</p>
+                  <p className="text-[10px] text-zinc-400">
+                    Uma atividade de cada vez: o próximo passo nasce quando você conclui o anterior.
+                  </p>
                 </div>
 
-                {/* Weekdays Row */}
-                <div className="grid grid-cols-7 gap-px bg-zinc-200 border-b border-zinc-200 text-[10px] font-medium text-zinc-500">
-                  <div className="text-center py-1 bg-zinc-50">Dom</div>
-                  <div className="text-center py-1 bg-zinc-50">Seg</div>
-                  <div className="text-center py-1 bg-zinc-50">Ter</div>
-                  <div className="text-center py-1 bg-zinc-50">Qua</div>
-                  <div className="text-center py-1 bg-zinc-50">Qui</div>
-                  <div className="text-center py-1 bg-zinc-50">Sex</div>
-                  <div className="text-center py-1 bg-zinc-50">Sáb</div>
-                </div>
-
-                {/* Grid Cells */}
-                <div className="grid grid-cols-7 gap-px bg-zinc-200">
-                  {days.map((d, idx) => {
-                    const isToday = d.toDateString() === today.toDateString();
-                    const isPast = d < new Date(today.getFullYear(), today.getMonth(), today.getDate());
-                    const dayLabel = formatDayLabel(d, idx);
-                    
-                    // Filter steps scheduled on this day
-                    const daySteps = steps.filter((step) => {
-                      const stepDate = getStepDate(today, step.unit, step.unitValue, form.skipWeekends);
-                      return stepDate.getFullYear() === d.getFullYear() &&
-                             stepDate.getMonth() === d.getMonth() &&
-                             stepDate.getDate() === d.getDate();
-                    });
+                <ol className="p-3 space-y-0">
+                  {steps.map((step, idx) => {
+                    const colors = getStepColors(step.type);
+                    const isLast = idx === steps.length - 1;
+                    const displayTitle = step.title.trim() || step.type;
+                    const subtext = getStepPreviewSubtext(step, idx);
 
                     return (
-                      <div
-                        key={idx}
-                        className={cn(
-                          "min-h-[58px] bg-white px-1 py-1 transition-all",
-                          isPast ? "opacity-40" : "",
-                          isToday ? "ring-2 ring-inset ring-amber-400" : ""
+                      <li key={step.id || idx} className="relative flex gap-3 pb-3 last:pb-0">
+                        {!isLast && (
+                          <span
+                            className="absolute left-[11px] top-6 bottom-0 w-px bg-zinc-200"
+                            aria-hidden="true"
+                          />
                         )}
-                      >
-                        <div className={cn("text-[10px] font-semibold", isToday ? "text-amber-600" : "text-zinc-500")}>
-                          {dayLabel}
+                        <span className="relative z-10 flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-white border border-zinc-300 text-[10px] font-semibold text-zinc-600">
+                          {idx + 1}
+                        </span>
+                        <div className="min-w-0 flex-1 pt-0.5">
+                          <div className="flex items-center gap-2">
+                            <span
+                              className={cn(
+                                "text-[9px] font-medium px-1.5 py-0.5 rounded border",
+                                colors.bg,
+                                colors.text,
+                                colors.border
+                              )}
+                            >
+                              {step.type}
+                            </span>
+                            <span className="text-xs font-medium text-zinc-700 truncate">
+                              {displayTitle}
+                            </span>
+                          </div>
+                          <p className="text-[10px] text-zinc-400 mt-0.5">{subtext}</p>
                         </div>
-                        <div className="mt-0.5 space-y-0.5">
-                          {daySteps.map((step) => {
-                            const stepColors = getStepColors(step.type);
-                            return (
-                              <div
-                                key={step.id}
-                                title={`${step.type}${step.title ? `: ${step.title}` : ""}`}
-                                className={cn(
-                                  "text-[9px] font-medium px-1 py-0.5 rounded border truncate",
-                                  stepColors.bg,
-                                  stepColors.text,
-                                  stepColors.border
-                                )}
-                              >
-                                {getCalendarBadgeText(step)}
-                              </div>
-                            );
-                          })}
-                        </div>
-                      </div>
+                      </li>
                     );
                   })}
-                </div>
+                </ol>
               </div>
 
             </div>
 
-            {/* Modal Footer */}
+            {/* Footer */}
             <div className="px-6 py-4 border-t border-zinc-100 flex justify-end gap-2 shrink-0">
               <button
                 type="button"
                 onClick={() => setShowModal(false)}
-                className="px-4 py-2 text-sm text-zinc-600 hover:bg-zinc-50 rounded-lg"
+                className="px-4 py-2 text-sm text-zinc-600 hover:bg-zinc-50 rounded-lg border-0 bg-transparent cursor-pointer"
               >
                 Cancelar
               </button>
               <button
                 type="button"
-                onClick={handleSave}
+                onClick={handleSaveSequence}
                 disabled={!form.name.trim() || saving || steps.length === 0}
-                className="px-4 py-2 text-sm font-medium bg-gradient-to-r from-amber-500 to-amber-400 hover:from-amber-600 hover:to-amber-500 text-white rounded-lg disabled:opacity-60 transition-colors"
+                className="px-4 py-2 text-sm font-medium bg-gradient-to-r from-amber-500 to-amber-400 hover:from-amber-600 hover:to-amber-500 shadow-sm hover:shadow-md text-white rounded-lg disabled:opacity-60 transition-colors border-0 cursor-pointer"
               >
                 {saving ? "Salvando..." : "Salvar"}
               </button>
@@ -809,11 +792,215 @@ export default function SequenciasPage() {
           </div>
         </div>
       )}
+
+      {/* Modal 2: Iniciar Sequência */}
+      {startModalSequence && (
+        <div
+          className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4"
+          onClick={() => setStartModalSequence(null)}
+        >
+          <div
+            className="relative w-full max-w-md rounded-xl border border-zinc-200 bg-white p-6 shadow-xl max-h-[90vh] flex flex-col"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <button
+              type="button"
+              onClick={() => setStartModalSequence(null)}
+              className="absolute right-4 top-4 text-zinc-400 hover:text-zinc-600 border-0 bg-transparent cursor-pointer"
+            >
+              <X className="h-5 w-5" />
+            </button>
+
+            <h2 className="text-lg font-bold text-zinc-900">Iniciar Sequência</h2>
+            <p className="text-sm text-zinc-500 mt-1">
+              Selecione o negócio que receberá as atividades de{" "}
+              <strong className="font-semibold text-zinc-900">{startModalSequence.name}</strong>.
+            </p>
+
+            <div className="mt-4">
+              <input
+                type="text"
+                placeholder="Buscar negócio..."
+                value={dealSearchQuery}
+                onChange={(e) => setDealSearchQuery(e.target.value)}
+                className="w-full border border-zinc-200 rounded-lg px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-amber-300"
+              />
+            </div>
+
+            <div className="mt-3 overflow-y-auto max-h-[220px] space-y-2 pr-1">
+              {isSearchEmpty ? null : filteredDeals.length === 0 ? (
+                <p className="text-xs text-zinc-400 py-4 text-center">Nenhum negócio encontrado.</p>
+              ) : (
+                filteredDeals.map((deal) => {
+                  const isSelected = selectedDealId === deal.id;
+                  const contact = deal.contactId ? crmState.contacts.find(c => c.id === deal.contactId) : null;
+                  const company = deal.companyId ? crmState.companies.find(c => c.id === deal.companyId) : null;
+                  const subText = contact?.name || company?.name;
+
+                  return (
+                    <button
+                      key={deal.id}
+                      type="button"
+                      onClick={() => setSelectedDealId(deal.id)}
+                      className={cn(
+                        "w-full text-left p-3 rounded-lg border text-sm transition-colors cursor-pointer flex items-center justify-between",
+                        isSelected
+                          ? "border-amber-500 bg-amber-50/50 text-zinc-900"
+                          : "border-zinc-200 hover:border-zinc-300 text-zinc-700 bg-white"
+                      )}
+                    >
+                      <div className="min-w-0 flex-1">
+                        <p className="font-medium truncate">{deal.title}</p>
+                        {subText && (
+                          <p className="text-xs text-zinc-400 truncate mt-0.5">
+                            {subText}
+                          </p>
+                        )}
+                      </div>
+                      {typeof deal.value === "number" && deal.value > 0 && (
+                        <span className="text-xs font-semibold text-zinc-500 shrink-0 ml-2">
+                          R$ {deal.value.toLocaleString("pt-BR")}
+                        </span>
+                      )}
+                    </button>
+                  );
+                })
+              )}
+            </div>
+
+            <div className="mt-6 flex justify-end gap-2">
+              <button
+                type="button"
+                onClick={() => setStartModalSequence(null)}
+                className="px-4 py-2 text-sm font-medium text-zinc-600 hover:bg-zinc-50 rounded-lg border-0 bg-transparent cursor-pointer"
+              >
+                Cancelar
+              </button>
+              <button
+                type="button"
+                onClick={handleStartSequenceOnDeal}
+                disabled={!selectedDealId}
+                className="px-4 py-2 text-sm font-bold bg-gradient-to-r from-amber-500 to-amber-400 hover:from-amber-600 hover:to-amber-500 shadow-sm hover:shadow-md text-white rounded-lg disabled:opacity-40 disabled:cursor-not-allowed transition-colors border-0 cursor-pointer"
+              >
+                Iniciar
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Modal 3: Compartilhar Template */}
+      {shareModalSequence && (
+        <div
+          className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4"
+          onClick={() => setShareModalSequence(null)}
+        >
+          <div
+            className="relative w-full max-w-md rounded-xl border border-zinc-200 bg-white p-6 shadow-xl max-h-[90vh] overflow-y-auto"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <button
+              type="button"
+              onClick={() => setShareModalSequence(null)}
+              className="absolute right-4 top-4 text-zinc-400 hover:text-zinc-600 border-0 bg-transparent cursor-pointer"
+            >
+              <X className="h-5 w-5" />
+            </button>
+
+            <h2 className="text-lg font-bold text-zinc-900">Compartilhar template</h2>
+            <p className="text-sm text-zinc-500 mt-1 truncate">{shareModalSequence.name}</p>
+
+            <div className="mt-5 space-y-2">
+              {/* Option 1: Só eu */}
+              <button
+                type="button"
+                onClick={() => setSelectedSharing("ONLY_ME")}
+                className={cn(
+                  "flex w-full items-start gap-3 rounded-lg border p-3 text-left transition-colors cursor-pointer",
+                  selectedSharing === "ONLY_ME"
+                    ? "border-amber-500 bg-amber-50/50"
+                    : "border-zinc-200 hover:border-zinc-300"
+                )}
+              >
+                <Lock
+                  className={cn(
+                    "h-5 w-5 shrink-0 mt-0.5",
+                    selectedSharing === "ONLY_ME" ? "text-amber-500" : "text-zinc-400"
+                  )}
+                />
+                <div className="min-w-0">
+                  <p className="text-sm font-semibold text-zinc-900">Só eu</p>
+                  <p className="text-xs text-zinc-500">Apenas você vê e usa este template.</p>
+                </div>
+              </button>
+
+              {/* Option 2: Usuários específicos */}
+              <button
+                type="button"
+                onClick={() => setSelectedSharing("SPECIFIC_USERS")}
+                className={cn(
+                  "flex w-full items-start gap-3 rounded-lg border p-3 text-left transition-colors cursor-pointer",
+                  selectedSharing === "SPECIFIC_USERS"
+                    ? "border-amber-500 bg-amber-50/50"
+                    : "border-zinc-200 hover:border-zinc-300"
+                )}
+              >
+                <Users
+                  className={cn(
+                    "h-5 w-5 shrink-0 mt-0.5",
+                    selectedSharing === "SPECIFIC_USERS" ? "text-amber-500" : "text-zinc-400"
+                  )}
+                />
+                <div className="min-w-0">
+                  <p className="text-sm font-semibold text-zinc-900">Usuários específicos</p>
+                  <p className="text-xs text-zinc-500">Escolha quem da equipe pode usar.</p>
+                </div>
+              </button>
+
+              {/* Option 3: Todo o workspace */}
+              <button
+                type="button"
+                onClick={() => setSelectedSharing("WORKSPACE")}
+                className={cn(
+                  "flex w-full items-start gap-3 rounded-lg border p-3 text-left transition-colors cursor-pointer",
+                  selectedSharing === "WORKSPACE"
+                    ? "border-amber-500 bg-amber-50/50"
+                    : "border-zinc-200 hover:border-zinc-300"
+                )}
+              >
+                <Globe
+                  className={cn(
+                    "h-5 w-5 shrink-0 mt-0.5",
+                    selectedSharing === "WORKSPACE" ? "text-amber-500" : "text-zinc-400"
+                  )}
+                />
+                <div className="min-w-0">
+                  <p className="text-sm font-semibold text-zinc-900">Todo o workspace</p>
+                  <p className="text-xs text-zinc-500">Todos da equipe podem usar.</p>
+                </div>
+              </button>
+            </div>
+
+            <div className="mt-6 flex gap-3">
+              <button
+                type="button"
+                onClick={() => setShareModalSequence(null)}
+                className="flex-1 rounded-lg border border-zinc-200 py-2.5 text-sm font-medium text-zinc-600 hover:bg-zinc-50 transition-colors border-0 bg-transparent cursor-pointer"
+              >
+                Cancelar
+              </button>
+              <button
+                type="button"
+                onClick={handleSaveShare}
+                disabled={savingShare}
+                className="flex-1 rounded-lg bg-gradient-to-r from-amber-500 to-amber-400 py-2.5 text-sm font-bold text-white hover:from-amber-600 hover:to-amber-500 shadow-sm hover:shadow-md disabled:opacity-40 disabled:cursor-not-allowed flex items-center justify-center gap-2 transition-colors border-0 cursor-pointer"
+              >
+                {savingShare ? "Salvando..." : "Salvar"}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </main>
   );
 }
-
-// Helpers
-const getStepColors = (type: string) => {
-  return STEP_TYPE_COLORS[type] || { bg: "bg-zinc-100", text: "text-zinc-700", border: "border-zinc-200" };
-};

@@ -4,7 +4,7 @@ import { createContext, useContext, useState, useEffect, useMemo, ReactNode } fr
 import { createClient } from "@/lib/supabase/client";
 import type {
   CrmState, Pipeline, Deal, Contact, Company,
-  Label, Appointment, Activity,
+  Label, Appointment, Activity, CrmNotification,
 } from "@/lib/crm-types";
 import { loadCrmData } from "@/lib/crm-loader";
 import { useCrmMutations } from "@/hooks/use-crm-mutations";
@@ -78,6 +78,117 @@ export function CrmProvider({ children }: { children: ReactNode }) {
 
   const mutations = useCrmMutations({ state, setState, userId, supabase });
   useRealtimeNotifications(userId, supabase, setState);
+
+  // Real-time check for due activities (triggers notification at exact date & time in real-time without needing page refresh)
+  useEffect(() => {
+    if (!userId || loading) return;
+
+    const checkDueActivities = async () => {
+      const now = new Date();
+      let notifiedSet: Set<string>;
+      try {
+        notifiedSet = new Set(JSON.parse(localStorage.getItem("crm_notified_activities") || "[]"));
+      } catch {
+        notifiedSet = new Set();
+      }
+
+      let updatedNotified = false;
+
+      for (const deal of state.deals) {
+        for (const activity of deal.activities || []) {
+          if (activity.completed) continue;
+          const actDate = new Date(activity.date);
+          if (actDate.getTime() <= now.getTime()) {
+            const notifKey = `act_notif_${deal.id}_${activity.id || activity.title}_${activity.date}`;
+            if (!notifiedSet.has(notifKey)) {
+              notifiedSet.add(notifKey);
+              updatedNotified = true;
+
+              const isToday = actDate.toDateString() === now.toDateString();
+              let subtext = "";
+              if (isToday) {
+                subtext = `Hoje às ${actDate.toLocaleTimeString("pt-BR", { hour: "2-digit", minute: "2-digit" })}`;
+              } else {
+                const diffDays = Math.floor((now.getTime() - actDate.getTime()) / (1000 * 60 * 60 * 24));
+                if (diffDays > 0) {
+                  subtext = `${diffDays} ${diffDays === 1 ? "dia" : "dias"} atrasado`;
+                } else {
+                  subtext = `${actDate.toLocaleDateString("pt-BR")} às ${actDate.toLocaleTimeString("pt-BR", { hour: "2-digit", minute: "2-digit" })}`;
+                }
+              }
+
+              let newNotif: CrmNotification;
+
+              try {
+                const { data, error } = await supabase.from("notifications").insert({
+                  user_id: userId,
+                  type: "activity",
+                  title: activity.title,
+                  subtext,
+                  href: "/atividades",
+                  read: false,
+                }).select().single();
+
+                if (data && !error) {
+                  newNotif = {
+                    id: data.id,
+                    userId: data.user_id,
+                    type: data.type,
+                    title: data.title,
+                    subtext: data.subtext ?? "",
+                    href: data.href,
+                    read: data.read,
+                    createdAt: data.created_at,
+                  };
+                } else {
+                  newNotif = {
+                    id: `local_act_${Date.now()}_${Math.random().toString(36).substring(2, 6)}`,
+                    userId,
+                    type: "activity",
+                    title: activity.title,
+                    subtext,
+                    href: "/atividades",
+                    read: false,
+                    createdAt: new Date().toISOString(),
+                  };
+                }
+              } catch {
+                newNotif = {
+                  id: `local_act_${Date.now()}_${Math.random().toString(36).substring(2, 6)}`,
+                  userId,
+                  type: "activity",
+                  title: activity.title,
+                  subtext,
+                  href: "/atividades",
+                  read: false,
+                  createdAt: new Date().toISOString(),
+                };
+              }
+
+              // Immediately update state in real-time
+              setState(prev => {
+                if (prev.notifications.some(n => n.id === newNotif.id)) return prev;
+                const updated = [newNotif, ...prev.notifications];
+                localStorage.setItem("crm_notifications", JSON.stringify(updated));
+                return { ...prev, notifications: updated };
+              });
+
+              // Instantly dispatch real-time toast banner in Topbar
+              window.dispatchEvent(new CustomEvent("new-notification", { detail: newNotif }));
+            }
+          }
+        }
+      }
+
+      if (updatedNotified) {
+        localStorage.setItem("crm_notified_activities", JSON.stringify(Array.from(notifiedSet)));
+      }
+    };
+
+    checkDueActivities();
+    const interval = setInterval(checkDueActivities, 5000); // Check every 5s for real-time delivery
+    return () => clearInterval(interval);
+  }, [userId, loading, state.deals, supabase]);
 
   const ctxValue = useMemo(() => ({
     state, loading, ...mutations,

@@ -667,41 +667,6 @@ export function useCrmMutations({ state, setState, userId, supabase }: MutationP
           addDealHistory(activity.dealId, "Atividade criada", activity.title);
         }
       });
-
-      const activityDate = new Date(activity.date);
-      const today = new Date();
-      const isToday = activityDate.toDateString() === today.toDateString();
-      let subtext = "";
-      if (isToday) {
-        subtext = `Hoje as ${activityDate.toLocaleTimeString("pt-BR", { hour: "2-digit", minute: "2-digit" })}`;
-      } else {
-        const diffDays = Math.floor((today.getTime() - activityDate.getTime()) / (1000 * 60 * 60 * 24));
-        if (diffDays > 0) {
-          subtext = `${diffDays} ${diffDays === 1 ? "dia" : "dias"} atrasado`;
-        } else {
-          subtext = `${activityDate.toLocaleDateString("pt-BR")} as ${activityDate.toLocaleTimeString("pt-BR", { hour: "2-digit", minute: "2-digit" })}`;
-        }
-      }
-
-      supabase.from("notifications").insert({
-        user_id: userId, type: "activity", title: activity.title,
-        subtext, href: "/atividades", read: false,
-      }).then(({ error }) => {
-        if (error) {
-          console.warn("[CRM] insert activity notification failed, pushing locally:", error);
-          const localNotif: CrmNotification = {
-            id: `local_act_${Date.now()}`, userId, type: "activity",
-            title: activity.title, subtext, href: "/atividades",
-            read: false, createdAt: new Date().toISOString(),
-          };
-          setState(prev => {
-            const updated = [localNotif, ...prev.notifications];
-            localStorage.setItem("crm_notifications", JSON.stringify(updated));
-            return { ...prev, notifications: updated };
-          });
-          window.dispatchEvent(new CustomEvent("new-notification", { detail: localNotif }));
-        }
-      });
     }
     if (deal && userId) {
       runAutomations("activity_created", deal, { userId, pipelines: state.pipelines });
