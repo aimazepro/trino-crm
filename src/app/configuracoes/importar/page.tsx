@@ -887,36 +887,7 @@ export default function ImportacaoPage() {
                   </div>
                 </div>
 
-                {/* Pipeline destination */}
-                <div className="border-t border-zinc-200 pt-6">
-                  <label className="block text-sm font-semibold text-zinc-950 mb-1">Funil de destino</label>
-                  <p className="text-xs text-zinc-400 mb-2">Os negócios importados serão criados neste funil.</p>
-                  <select
-                    value={selectedPipelineId}
-                    onChange={(e) => { setSelectedPipelineId(e.target.value); setStageMappings({}); }}
-                    className="w-full max-w-xs rounded-lg border border-zinc-200 bg-white px-3 py-2 text-sm text-zinc-950 outline-none focus:border-amber-400 focus:ring-2 focus:ring-amber-100"
-                  >
-                    {state.pipelines.length === 0 && <option value="">Nenhum funil encontrado</option>}
-                    {state.pipelines.map(p => (
-                      <option key={p.id} value={p.id}>{p.name}</option>
-                    ))}
-                  </select>
-                </div>
 
-                {/* Owner of records */}
-                <div className="border-t border-zinc-200 pt-6">
-                  <label className="block text-sm font-semibold text-zinc-950 mb-2">Proprietário dos registros</label>
-                  <select 
-                    value={recordOwner}
-                    onChange={(e) => setRecordOwner(e.target.value)}
-                    className="w-full max-w-xs rounded-lg border border-zinc-200 bg-white px-3 py-2 text-sm text-zinc-950 outline-none focus:border-amber-400 focus:ring-2 focus:ring-amber-100"
-                  >
-                    <option value="">Eu mesmo</option>
-                    {ownerOptions.map((o) => (
-                      <option key={o.id} value={o.id}>{o.name}</option>
-                    ))}
-                  </select>
-                </div>
 
                 {/* Automations */}
                 <div className="border-t border-zinc-200 pt-6">
