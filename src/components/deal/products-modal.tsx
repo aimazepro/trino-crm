@@ -81,8 +81,23 @@ export function ProductsModal({ deal, onClose }: ProductsModalProps) {
   };
 
   const handleSave = () => {
-    const total = products.reduce((acc, p) => acc + (p.price * p.quantity), 0);
-    updateDealFields(deal.id, { products, value: total });
+    let finalProducts = [...products];
+
+    if (newName.trim()) {
+      const priceNum = parseFloat(String(newPrice).replace(/[^0-9.-]+/g, "")) || 0;
+      const discountNum = parseFloat(String(newDiscount)) || 0;
+      const finalPrice = priceNum * (1 - discountNum / 100);
+
+      finalProducts.push({
+        id: `prod_${Date.now()}`,
+        name: newName.trim(),
+        quantity: newQuantity,
+        price: finalPrice
+      });
+    }
+
+    const total = finalProducts.reduce((acc, p) => acc + (p.price * p.quantity), 0);
+    updateDealFields(deal.id, { products: finalProducts, value: total });
     onClose();
   };
 
