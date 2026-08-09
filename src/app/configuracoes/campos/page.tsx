@@ -18,7 +18,8 @@ import {
   Link as LinkIcon,
   Trash2,
   Pencil,
-  Check
+  Check,
+  GripVertical
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { createClient } from "@/lib/supabase/client";
@@ -175,6 +176,9 @@ export default function CamposPage() {
   const [showGroupModal, setShowGroupModal] = useState(false);
   const [showFieldModal, setShowFieldModal] = useState(false);
   const [saving, setSaving] = useState(false);
+  
+  const [confirmDeleteGroup, setConfirmDeleteGroup] = useState<string | null>(null);
+  const [confirmDeleteField, setConfirmDeleteField] = useState<string | null>(null);
   
   const [editingField, setEditingField] = useState<Field | null>(null);
 
@@ -517,25 +521,54 @@ export default function CamposPage() {
             }
 
             return (
-              <div key={groupName}>
+              <div key={groupName} className="group/section">
                 <div className="flex items-center justify-between mb-2">
-                  <button 
-                    onClick={() => toggleGroup(groupName)}
-                    className="flex items-center gap-2 group outline-none"
-                  >
-                    <ChevronDown className={cn("h-3.5 w-3.5 text-zinc-400 transition-transform", !isGroupExpanded(groupName) && "-rotate-90")} />
-                    <span className="text-xs font-medium tracking-wide text-zinc-400 uppercase">{groupName}</span>
-                    <span className="text-xs text-zinc-300">{groupFields.length}</span>
-                  </button>
+                  <div className="flex items-center gap-1">
+                    <button
+                      type="button"
+                      aria-label="Arrastar para reordenar"
+                      className="touch-none cursor-grab active:cursor-grabbing text-zinc-200 hover:text-zinc-400 transition-colors opacity-0 group-hover/section:opacity-100"
+                    >
+                      <GripVertical className="h-3.5 w-3.5" />
+                    </button>
+                    <button 
+                      onClick={() => toggleGroup(groupName)}
+                      className="flex items-center gap-2 group outline-none"
+                    >
+                      <ChevronDown className={cn("h-3.5 w-3.5 text-zinc-400 transition-transform", !isGroupExpanded(groupName) && "-rotate-90")} />
+                      <span className="text-xs font-medium tracking-wide text-zinc-400 uppercase">{groupName}</span>
+                      <span className="text-xs text-zinc-300">{groupFields.length}</span>
+                    </button>
+                  </div>
                   {groupName !== "Desagrupado" && (
                     <div className="flex items-center gap-1">
-                      <button 
-                        onClick={() => handleDeleteGroup(groupName)}
-                        className="text-zinc-300 hover:text-red-400 transition-colors"
-                        title="Excluir grupo"
-                      >
-                        <Trash2 className="h-3.5 w-3.5" />
-                      </button>
+                      {confirmDeleteGroup === groupName ? (
+                        <div className="flex items-center gap-1">
+                          <button 
+                            onClick={() => {
+                              handleDeleteGroup(groupName);
+                              setConfirmDeleteGroup(null);
+                            }}
+                            className="text-xs text-red-500 hover:text-red-600 font-medium"
+                          >
+                            Excluir
+                          </button>
+                          <button 
+                            onClick={() => setConfirmDeleteGroup(null)}
+                            className="text-zinc-400 hover:text-zinc-600"
+                          >
+                            <X className="h-3.5 w-3.5" />
+                          </button>
+                        </div>
+                      ) : (
+                        <button 
+                          onClick={() => setConfirmDeleteGroup(groupName)}
+                          className="text-zinc-300 hover:text-red-400 transition-colors"
+                          title="Excluir grupo"
+                        >
+                          <Trash2 className="h-3.5 w-3.5" />
+                        </button>
+                      )}
                     </div>
                   )}
                 </div>
@@ -566,20 +599,42 @@ export default function CamposPage() {
                               </td>
                               <td className="px-4 py-3">
                                 <div className="flex items-center justify-end gap-1.5 opacity-0 group-hover/row:opacity-100 transition-opacity">
-                                  <button
-                                    onClick={() => openEditModal(field)}
-                                    className="p-1 text-zinc-300 hover:text-zinc-600 transition-colors rounded"
-                                    title="Editar campo"
-                                  >
-                                    <Pencil className="h-3.5 w-3.5" />
-                                  </button>
-                                  <button
-                                    onClick={() => handleRemoveField(field.id)}
-                                    className="p-1 text-zinc-300 hover:text-red-400 transition-colors rounded"
-                                    title="Excluir campo"
-                                  >
-                                    <Trash2 className="h-3.5 w-3.5" />
-                                  </button>
+                                  {confirmDeleteField === field.id ? (
+                                    <div className="flex items-center gap-1">
+                                      <button
+                                        onClick={() => {
+                                          handleRemoveField(field.id);
+                                          setConfirmDeleteField(null);
+                                        }}
+                                        className="text-xs text-red-500 hover:text-red-600 font-medium"
+                                      >
+                                        Excluir
+                                      </button>
+                                      <button
+                                        onClick={() => setConfirmDeleteField(null)}
+                                        className="text-zinc-400 hover:text-zinc-600"
+                                      >
+                                        <X className="h-3.5 w-3.5" />
+                                      </button>
+                                    </div>
+                                  ) : (
+                                    <>
+                                      <button
+                                        onClick={() => openEditModal(field)}
+                                        className="p-1 text-zinc-300 hover:text-zinc-600 transition-colors rounded"
+                                        title="Editar campo"
+                                      >
+                                        <Pencil className="h-3.5 w-3.5" />
+                                      </button>
+                                      <button
+                                        onClick={() => setConfirmDeleteField(field.id)}
+                                        className="p-1 text-zinc-300 hover:text-red-400 transition-colors rounded"
+                                        title="Excluir campo"
+                                      >
+                                        <Trash2 className="h-3.5 w-3.5" />
+                                      </button>
+                                    </>
+                                  )}
                                 </div>
                               </td>
                             </tr>
