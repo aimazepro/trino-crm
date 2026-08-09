@@ -5,15 +5,16 @@ import { Plus, Target, TrendingUp, Trophy, DollarSign, Activity, X, ArrowRight, 
 import { cn } from "@/lib/utils";
 import { useRouter } from "next/navigation";
 import { createClient } from "@/lib/supabase/client";
+import { fetchGoalProgress } from "@/lib/goals-helpers";
 
 type GoalType = "Negócios Adicionados" | "Negócios em Andamento" | "Negócios Ganhos" | "Receita" | "Atividades";
 
 const GOAL_TYPES = [
-  { id: "Negócios Adicionados", title: "Negócios Adicionados", desc: "Quantidade ou valor de negócios criados", icon: Plus },
-  { id: "Negócios em Andamento", title: "Negócios em Andamento", desc: "Negócios que atingiram determinada etapa", icon: TrendingUp },
-  { id: "Negócios Ganhos", title: "Negócios Ganhos", desc: "Quantidade ou valor de negócios fechados", icon: Trophy },
-  { id: "Receita", title: "Receita", desc: "Valor total de receita gerada", icon: DollarSign },
-  { id: "Atividades", title: "Atividades", desc: "Quantidade de atividades concluídas", icon: Activity },
+  { id: "Negócios Adicionados", title: "Negócios Adicionados", desc: "Quantidade ou valor de negócios criados", icon: Plus, defaultPlaceholder: "Negocios Adicionados" },
+  { id: "Negócios em Andamento", title: "Negócios em Andamento", desc: "Negócios que atingiram determinada etapa", icon: TrendingUp, defaultPlaceholder: "Negocios em Andamento" },
+  { id: "Negócios Ganhos", title: "Negócios Ganhos", desc: "Quantidade ou valor de negócios fechados", icon: Trophy, defaultPlaceholder: "Negocios Ganhos" },
+  { id: "Receita", title: "Receita", desc: "Valor total de receita gerada", icon: DollarSign, defaultPlaceholder: "Receita" },
+  { id: "Atividades", title: "Atividades", desc: "Quantidade de atividades concluídas", icon: Activity, defaultPlaceholder: "Atividades Concluidas" },
 ];
 
 const PERIOD_LABELS: Record<string, string> = {
@@ -25,7 +26,10 @@ const PERIOD_LABELS: Record<string, string> = {
 export default function MetasPage() {
   const router = useRouter();
   const supabase = createClient();
+  
   const [goals, setGoals] = useState<any[]>([]);
+  const [pipelines, setPipelines] = useState<any[]>([]);
+  const [users, setUsers] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
 
   const [showModal, setShowModal] = useState(false);
@@ -33,83 +37,170 @@ export default function MetasPage() {
   const [goalToDelete, setGoalToDelete] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
   const [step, setStep] = useState(1);
-  const [selectedType, setSelectedType] = useState<GoalType | "">("Negócios Ganhos");
+  const [selectedType, setSelectedType] = useState<GoalType>("Negócios Adicionados");
 
   const [formData, setFormData] = useState({
-    name: "Negócios Ganhos",
+    name: "",
     metric: "COUNT",
     period: "MONTHLY",
-    target: "10",
+    target: "",
+    pipelineId: "",
+    ownerUserId: "",
     startDate: "",
     endDate: "",
   });
 
+  // Load pipelines and team members/users for selects
+  const loadOptionsData = useCallback(async (userId: string) => {
+    const { data: pData } = await supabase
+      .from("pipelines")
+      .select("id, name")
+      .order("sort_order");
+    setPipelines(pData ?? []);
+
+    const { data: { user } } = await supabase.auth.getUser();
+    const selfName = user?.user_metadata?.full_name || user?.email || "joao paulo";
+    const userList = [{ id: userId, name: selfName }];
+
+    const { data: members } = await supabase
+      .from("team_members")
+      .select("member_user_id, name, email")
+      .or(`owner_user_id.eq.${userId},member_user_id.eq.${userId}`)
+      .eq("status", "active");
+
+    (members ?? []).forEach((m) => {
+      if (m.member_user_id && m.member_user_id !== userId) {
+        userList.push({ id: m.member_user_id, name: m.name || m.email });
+      }
+    });
+
+    setUsers(userList);
+  }, [supabase]);
+
   const loadGoals = useCallback(async () => {
     setLoading(true);
     const { data: { user } } = await supabase.auth.getUser();
-    if (!user) { setLoading(false); return; }
+    if (!user) {
+      setLoading(false);
+      return;
+    }
 
-    const { data } = await supabase
+    await loadOptionsData(user.id);
+
+    const { data: goalsData } = await supabase
       .from("goals")
       .select("*")
       .eq("user_id", user.id)
-      .order("created_at");
+      .order("created_at", { ascending: false });
 
-    setGoals(data ?? []);
+    const loadedGoals = goalsData ?? [];
+
+    // Calculate real progress for each goal from Supabase
+    const goalsWithProgress = await Promise.all(
+      loadedGoals.map(async (goal) => {
+        const { currentValue } = await fetchGoalProgress(supabase, goal);
+        return { ...goal, current_value: currentValue };
+      })
+    );
+
+    setGoals(goalsWithProgress);
     setLoading(false);
-  }, [supabase]);
+  }, [supabase, loadOptionsData]);
 
-  useEffect(() => { loadGoals(); }, [loadGoals]);
+  useEffect(() => {
+    loadGoals();
+  }, [loadGoals]);
 
   const openModal = () => {
     setStep(1);
-    setSelectedType("Negócios Ganhos");
-    setFormData({ name: "Negócios Ganhos", metric: "COUNT", period: "MONTHLY", target: "10", startDate: "", endDate: "" });
+    setSelectedType("Negócios Adicionados");
+    setFormData({
+      name: "",
+      metric: "COUNT",
+      period: "MONTHLY",
+      target: "",
+      pipelineId: "",
+      ownerUserId: "",
+      startDate: "",
+      endDate: "",
+    });
     setShowModal(true);
   };
 
+  const handleSelectType = (typeId: GoalType) => {
+    setSelectedType(typeId);
+  };
+
   const handleNextStep = () => {
-    if (selectedType) {
-      setFormData(prev => ({ ...prev, name: selectedType }));
-      setStep(2);
-    }
+    const config = GOAL_TYPES.find((t) => t.id === selectedType);
+    const defaultMetric = selectedType === "Receita" ? "VALUE" : "COUNT";
+    setFormData((prev) => ({
+      ...prev,
+      name: prev.name || "",
+      metric: defaultMetric,
+    }));
+    setStep(2);
   };
 
   const handleCreateGoal = async () => {
     setSaving(true);
     const { data: { user } } = await supabase.auth.getUser();
-    if (!user) { setSaving(false); return; }
+    if (!user) {
+      setSaving(false);
+      return;
+    }
 
-    const { data, error } = await supabase.from("goals").insert({
-      user_id: user.id,
-      title: formData.name || selectedType,
-      goal_type: selectedType,
-      metric: formData.metric,
-      period: formData.period,
-      target_value: parseFloat(formData.target) || 0,
-      start_date: formData.startDate || null,
-      end_date: formData.endDate || null,
-    }).select().single();
+    const config = GOAL_TYPES.find((t) => t.id === selectedType);
+    const finalName = formData.name.trim() || config?.defaultPlaceholder || selectedType;
+    const finalMetric = selectedType === "Receita" ? "VALUE" : (selectedType === "Atividades" ? "COUNT" : formData.metric);
+
+    const { data, error } = await supabase
+      .from("goals")
+      .insert({
+        user_id: user.id,
+        title: finalName,
+        goal_type: selectedType,
+        metric: finalMetric,
+        period: formData.period,
+        target_value: parseFloat(formData.target) || 0,
+        pipeline_id: selectedType === "Atividades" ? null : (formData.pipelineId || null),
+        owner_user_id: formData.ownerUserId || null,
+        start_date: formData.startDate || null,
+        end_date: formData.endDate || null,
+      })
+      .select()
+      .single();
 
     setSaving(false);
     if (!error && data) {
-      setGoals(prev => [...prev, data]);
+      const { currentValue } = await fetchGoalProgress(supabase, data);
+      setGoals((prev) => [{ ...data, current_value: currentValue }, ...prev]);
+      setShowModal(false);
     }
-    setShowModal(false);
   };
 
   const handleDeleteGoal = async () => {
     if (!goalToDelete) return;
     await supabase.from("goals").delete().eq("id", goalToDelete);
-    setGoals(prev => prev.filter(g => g.id !== goalToDelete));
+    setGoals((prev) => prev.filter((g) => g.id !== goalToDelete));
     setShowDeleteModal(false);
     setGoalToDelete(null);
   };
 
-  return (
-    <div className="flex-1 overflow-y-auto bg-[#F3F4F6] border-l border-zinc-200">
-      <div className="p-6 max-w-6xl mx-auto space-y-6">
+  const getGoalIcon = (type: string) => {
+    switch (type) {
+      case "Negócios Adicionados": return Plus;
+      case "Negócios em Andamento": return TrendingUp;
+      case "Negócios Ganhos": return Trophy;
+      case "Receita": return DollarSign;
+      case "Atividades": return Activity;
+      default: return Target;
+    }
+  };
 
+  return (
+    <div className="flex-1 overflow-y-auto bg-[#F3F4F6] border-l border-zinc-200 min-h-screen">
+      <div className="p-6 max-w-6xl mx-auto space-y-6">
         <div className="flex items-center justify-between">
           <div>
             <h1 className="text-xl font-semibold text-zinc-900">Metas</h1>
@@ -145,45 +236,67 @@ export default function MetasPage() {
           </div>
         ) : (
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
-            {goals.map(goal => (
-              <div
-                key={goal.id}
-                onClick={() => router.push(`/metas/${goal.id}`)}
-                className="bg-white rounded-xl p-5 flex flex-col gap-4 cursor-pointer hover:shadow-md transition-shadow border border-zinc-100"
-              >
-                <div className="flex items-start justify-between">
-                  <div className="flex items-center gap-2.5">
-                    <div className="flex h-9 w-9 items-center justify-center rounded-lg bg-green-50 text-green-600">
-                      <Trophy className="h-5 w-5" />
+            {goals.map((goal) => {
+              const IconComp = getGoalIcon(goal.goal_type);
+              const targetVal = Number(goal.target_value) || 1;
+              const curVal = Number(goal.current_value) || 0;
+              const pct = Math.min(100, Math.round((curVal / targetVal) * 100));
+              const isValueMetric = goal.metric === "VALUE" || goal.goal_type === "Receita";
+
+              return (
+                <div
+                  key={goal.id}
+                  onClick={() => router.push(`/metas/${goal.id}`)}
+                  className="bg-white rounded-xl p-5 flex flex-col gap-4 cursor-pointer hover:shadow-md transition-shadow border border-zinc-100"
+                >
+                  <div className="flex items-start justify-between">
+                    <div className="flex items-center gap-2.5">
+                      <div className="flex h-9 w-9 items-center justify-center rounded-lg bg-amber-50 text-amber-600">
+                        <IconComp className="h-5 w-5" />
+                      </div>
+                      <div>
+                        <p className="text-sm font-semibold text-zinc-900">{goal.title}</p>
+                        <p className="text-xs text-zinc-400">
+                          {goal.goal_type} | {PERIOD_LABELS[goal.period] ?? goal.period}
+                        </p>
+                      </div>
                     </div>
-                    <div>
-                      <p className="text-sm font-semibold text-zinc-900">{goal.title}</p>
-                      <p className="text-xs text-zinc-400">{goal.goal_type} | {PERIOD_LABELS[goal.period] ?? goal.period}</p>
+                    <button
+                      onClick={(e) => {
+                        e.preventDefault();
+                        e.stopPropagation();
+                        setGoalToDelete(goal.id);
+                        setShowDeleteModal(true);
+                      }}
+                      className="p-1.5 rounded-md text-zinc-400 hover:bg-red-50 hover:text-red-600 transition-colors"
+                      aria-label="Excluir meta"
+                    >
+                      <Trash2 className="h-3.5 w-3.5" />
+                    </button>
+                  </div>
+                  <div>
+                    <div className="flex items-end justify-between mb-2">
+                      <span className="text-xl font-bold text-zinc-900">
+                        {isValueMetric ? `R$ ${curVal.toLocaleString("pt-BR")}` : curVal.toLocaleString("pt-BR")}
+                      </span>
+                      <span className="text-xs text-zinc-400">
+                        de {isValueMetric ? `R$ ${targetVal.toLocaleString("pt-BR")}` : targetVal.toLocaleString("pt-BR")}
+                      </span>
+                    </div>
+                    <div className="h-2 w-full rounded-full bg-zinc-100">
+                      <div
+                        className="h-2 rounded-full transition-all bg-amber-500"
+                        style={{ width: `${pct}%` }}
+                      />
+                    </div>
+                    <div className="flex items-center justify-between mt-1.5">
+                      <span className="text-xs text-zinc-400">Em andamento</span>
+                      <span className="text-xs font-bold text-amber-600">{pct}%</span>
                     </div>
                   </div>
-                  <button
-                    onClick={(e) => { e.preventDefault(); e.stopPropagation(); setGoalToDelete(goal.id); setShowDeleteModal(true); }}
-                    className="p-1.5 rounded-md text-zinc-400 hover:bg-red-50 hover:text-red-600 transition-colors"
-                    aria-label="Excluir meta"
-                  >
-                    <Trash2 className="h-3.5 w-3.5" />
-                  </button>
                 </div>
-                <div>
-                  <div className="flex items-end justify-between mb-2">
-                    <span className="text-xl font-bold text-zinc-900">0</span>
-                    <span className="text-xs text-zinc-400">de {Number(goal.target_value).toLocaleString("pt-BR")}</span>
-                  </div>
-                  <div className="h-2 w-full rounded-full bg-zinc-100">
-                    <div className="h-2 rounded-full transition-all bg-amber-500" style={{ width: "0%" }} />
-                  </div>
-                  <div className="flex items-center justify-between mt-1.5">
-                    <span className="text-xs text-zinc-400">Em andamento</span>
-                    <span className="text-xs font-bold text-amber-600">0%</span>
-                  </div>
-                </div>
-              </div>
-            ))}
+              );
+            })}
           </div>
         )}
       </div>
@@ -202,105 +315,175 @@ export default function MetasPage() {
               </button>
             </div>
             <div className="mx-6 h-1 rounded-full bg-zinc-100 mb-5">
-              <div className="h-1 rounded-full bg-amber-500 transition-all" style={{ width: step === 1 ? "50%" : "100%" }} />
+              <div
+                className="h-1 rounded-full bg-amber-500 transition-all"
+                style={{ width: step === 1 ? "50%" : "100%" }}
+              />
             </div>
-            <div className="px-6 pb-6 space-y-2">
+            <div className="px-6 pb-6 space-y-4">
               {step === 1 ? (
                 <>
-                  <p className="text-sm text-zinc-600 mb-3">Que tipo de meta você quer acompanhar?</p>
-                  {GOAL_TYPES.map((type) => {
-                    const isSelected = selectedType === type.id;
-                    return (
-                      <button
-                        key={type.id}
-                        onClick={() => setSelectedType(type.id as GoalType)}
-                        className={cn(
-                          "w-full flex items-center gap-3 p-3 rounded-xl border transition-all text-left",
-                          isSelected
-                            ? "border-amber-400 bg-amber-50/50 ring-1 ring-amber-400"
-                            : "border-zinc-200 hover:border-zinc-300"
-                        )}
-                      >
-                        <div className={cn(
-                          "flex h-9 w-9 items-center justify-center rounded-lg shrink-0",
-                          isSelected ? "bg-amber-100 text-amber-600" : "bg-zinc-100 text-zinc-500"
-                        )}>
-                          <type.icon className="h-4 w-4" />
-                        </div>
-                        <div>
-                          <p className={cn("text-sm font-medium", isSelected ? "text-amber-700" : "text-zinc-700")}>{type.title}</p>
-                          <p className="text-xs text-zinc-400">{type.desc}</p>
-                        </div>
-                      </button>
-                    );
-                  })}
+                  <p className="text-xs font-medium text-zinc-600 mb-3">Que tipo de meta voce quer acompanhar?</p>
+                  <div className="space-y-2">
+                    {GOAL_TYPES.map((type) => {
+                      const isSelected = selectedType === type.id;
+                      const IconComponent = type.icon;
+                      return (
+                        <button
+                          key={type.id}
+                          onClick={() => handleSelectType(type.id as GoalType)}
+                          className={cn(
+                            "w-full flex items-center gap-3 p-3 rounded-xl border transition-all text-left",
+                            isSelected
+                              ? "border-amber-400 bg-amber-50/50 ring-1 ring-amber-400"
+                              : "border-zinc-200 hover:border-zinc-300"
+                          )}
+                        >
+                          <div
+                            className={cn(
+                              "flex h-9 w-9 items-center justify-center rounded-lg shrink-0",
+                              isSelected ? "bg-amber-100 text-amber-600" : "bg-zinc-100 text-zinc-500"
+                            )}
+                          >
+                            <IconComponent className="h-4 w-4" />
+                          </div>
+                          <div>
+                            <p className={cn("text-sm font-medium", isSelected ? "text-amber-700" : "text-zinc-700")}>
+                              {type.title}
+                            </p>
+                            <p className="text-xs text-zinc-400">{type.desc}</p>
+                          </div>
+                        </button>
+                      );
+                    })}
+                  </div>
                   <div className="flex justify-end pt-3">
                     <button
                       onClick={handleNextStep}
                       disabled={!selectedType}
-                      className="flex items-center gap-2 px-4 py-2 text-sm font-medium text-white bg-gradient-to-r from-amber-500 to-amber-400 rounded-lg hover:from-amber-600 hover:to-amber-500 shadow-sm hover:shadow-md transition-colors disabled:opacity-50"
+                      className="flex items-center gap-2 px-5 py-2 text-sm font-medium text-white bg-gradient-to-r from-amber-500 to-amber-400 rounded-lg hover:from-amber-600 hover:to-amber-500 shadow-sm hover:shadow-md transition-colors disabled:opacity-50"
                     >
-                      Próximo <ArrowRight className="h-4 w-4" />
+                      Proximo <ArrowRight className="h-4 w-4" />
                     </button>
                   </div>
                 </>
               ) : (
                 <div className="space-y-4">
+                  {/* Nome da Meta */}
                   <div>
                     <label className="block text-xs font-medium text-zinc-600 mb-1.5">Nome da meta</label>
                     <input
                       type="text"
-                      placeholder="Negócios Ganhos"
+                      placeholder={GOAL_TYPES.find((t) => t.id === selectedType)?.defaultPlaceholder || "Nome da meta"}
                       value={formData.name}
-                      onChange={(e) => setFormData(prev => ({ ...prev, name: e.target.value }))}
+                      onChange={(e) => setFormData((prev) => ({ ...prev, name: e.target.value }))}
                       className="w-full rounded-lg border border-zinc-200 px-3 py-2 text-sm text-zinc-900 focus:outline-none focus:ring-2 focus:ring-amber-400"
                     />
                   </div>
-                  <div className="grid grid-cols-2 gap-3">
-                    <div>
-                      <label className="block text-xs font-medium text-zinc-600 mb-1.5">Métrica</label>
-                      <select
-                        value={formData.metric}
-                        onChange={(e) => setFormData(prev => ({ ...prev, metric: e.target.value }))}
-                        className="w-full rounded-lg border border-zinc-200 px-3 py-2 text-sm text-zinc-900 focus:outline-none focus:ring-2 focus:ring-amber-400"
-                      >
-                        <option value="COUNT">Quantidade</option>
-                        <option value="VALUE">Valor (R$)</option>
-                      </select>
+
+                  {/* Metrica & Periodo */}
+                  {selectedType === "Receita" || selectedType === "Atividades" ? (
+                    <div className="grid grid-cols-2 gap-3">
+                      <div>
+                        <label className="block text-xs font-medium text-zinc-600 mb-1.5">Periodo</label>
+                        <select
+                          value={formData.period}
+                          onChange={(e) => setFormData((prev) => ({ ...prev, period: e.target.value }))}
+                          className="w-full rounded-lg border border-zinc-200 px-3 py-2 text-sm text-zinc-900 focus:outline-none focus:ring-2 focus:ring-amber-400"
+                        >
+                          <option value="WEEKLY">Semanal</option>
+                          <option value="MONTHLY">Mensal</option>
+                          <option value="QUARTERLY">Trimestral</option>
+                        </select>
+                      </div>
                     </div>
-                    <div>
-                      <label className="block text-xs font-medium text-zinc-600 mb-1.5">Período</label>
-                      <select
-                        value={formData.period}
-                        onChange={(e) => setFormData(prev => ({ ...prev, period: e.target.value }))}
-                        className="w-full rounded-lg border border-zinc-200 px-3 py-2 text-sm text-zinc-900 focus:outline-none focus:ring-2 focus:ring-amber-400"
-                      >
-                        <option value="WEEKLY">Semanal</option>
-                        <option value="MONTHLY">Mensal</option>
-                        <option value="QUARTERLY">Trimestral</option>
-                      </select>
+                  ) : (
+                    <div className="grid grid-cols-2 gap-3">
+                      <div>
+                        <label className="block text-xs font-medium text-zinc-600 mb-1.5">Metrica</label>
+                        <select
+                          value={formData.metric}
+                          onChange={(e) => setFormData((prev) => ({ ...prev, metric: e.target.value }))}
+                          className="w-full rounded-lg border border-zinc-200 px-3 py-2 text-sm text-zinc-900 focus:outline-none focus:ring-2 focus:ring-amber-400"
+                        >
+                          <option value="COUNT">Quantidade</option>
+                          <option value="VALUE">Valor (R$)</option>
+                        </select>
+                      </div>
+                      <div>
+                        <label className="block text-xs font-medium text-zinc-600 mb-1.5">Periodo</label>
+                        <select
+                          value={formData.period}
+                          onChange={(e) => setFormData((prev) => ({ ...prev, period: e.target.value }))}
+                          className="w-full rounded-lg border border-zinc-200 px-3 py-2 text-sm text-zinc-900 focus:outline-none focus:ring-2 focus:ring-amber-400"
+                        >
+                          <option value="WEEKLY">Semanal</option>
+                          <option value="MONTHLY">Mensal</option>
+                          <option value="QUARTERLY">Trimestral</option>
+                        </select>
+                      </div>
                     </div>
-                  </div>
+                  )}
+
+                  {/* Quantidade alvo / Valor alvo (R$) */}
                   <div>
                     <label className="block text-xs font-medium text-zinc-600 mb-1.5">
-                      {formData.metric === "VALUE" ? "Valor alvo (R$)" : "Quantidade alvo"}
+                      {selectedType === "Receita" || formData.metric === "VALUE" ? "Valor alvo (R$)" : "Quantidade alvo"}
                     </label>
                     <input
                       type="number"
                       min="0"
-                      placeholder="10"
+                      placeholder={selectedType === "Receita" ? "100000" : "10"}
                       value={formData.target}
-                      onChange={(e) => setFormData(prev => ({ ...prev, target: e.target.value }))}
+                      onChange={(e) => setFormData((prev) => ({ ...prev, target: e.target.value }))}
                       className="w-full rounded-lg border border-zinc-200 px-3 py-2 text-sm text-zinc-900 focus:outline-none focus:ring-2 focus:ring-amber-400"
                     />
                   </div>
+
+                  {/* Pipeline (opcional) - Omitted for Atividades */}
+                  {selectedType !== "Atividades" && (
+                    <div>
+                      <label className="block text-xs font-medium text-zinc-600 mb-1.5">Pipeline (opcional)</label>
+                      <select
+                        value={formData.pipelineId}
+                        onChange={(e) => setFormData((prev) => ({ ...prev, pipelineId: e.target.value }))}
+                        className="w-full rounded-lg border border-zinc-200 px-3 py-2 text-sm text-zinc-900 focus:outline-none focus:ring-2 focus:ring-amber-400"
+                      >
+                        <option value="">Todos os pipelines</option>
+                        {pipelines.map((p) => (
+                          <option key={p.id} value={p.id}>
+                            {p.name}
+                          </option>
+                        ))}
+                      </select>
+                    </div>
+                  )}
+
+                  {/* Responsavel (opcional) */}
+                  <div>
+                    <label className="block text-xs font-medium text-zinc-600 mb-1.5">Responsavel (opcional)</label>
+                    <select
+                      value={formData.ownerUserId}
+                      onChange={(e) => setFormData((prev) => ({ ...prev, ownerUserId: e.target.value }))}
+                      className="w-full rounded-lg border border-zinc-200 px-3 py-2 text-sm text-zinc-900 focus:outline-none focus:ring-2 focus:ring-amber-400"
+                    >
+                      <option value="">Todos os usuarios</option>
+                      {users.map((u) => (
+                        <option key={u.id} value={u.id}>
+                          {u.name}
+                        </option>
+                      ))}
+                    </select>
+                  </div>
+
+                  {/* Datas */}
                   <div className="grid grid-cols-2 gap-3">
                     <div>
-                      <label className="block text-xs font-medium text-zinc-600 mb-1.5">Data início (opcional)</label>
+                      <label className="block text-xs font-medium text-zinc-600 mb-1.5">Data inicio (opcional)</label>
                       <input
                         type="date"
                         value={formData.startDate}
-                        onChange={(e) => setFormData(prev => ({ ...prev, startDate: e.target.value }))}
+                        onChange={(e) => setFormData((prev) => ({ ...prev, startDate: e.target.value }))}
                         className="w-full rounded-lg border border-zinc-200 px-3 py-2 text-sm text-zinc-900 focus:outline-none focus:ring-2 focus:ring-amber-400"
                       />
                     </div>
@@ -309,11 +492,13 @@ export default function MetasPage() {
                       <input
                         type="date"
                         value={formData.endDate}
-                        onChange={(e) => setFormData(prev => ({ ...prev, endDate: e.target.value }))}
+                        onChange={(e) => setFormData((prev) => ({ ...prev, endDate: e.target.value }))}
                         className="w-full rounded-lg border border-zinc-200 px-3 py-2 text-sm text-zinc-900 focus:outline-none focus:ring-2 focus:ring-amber-400"
                       />
                     </div>
                   </div>
+
+                  {/* Action Buttons */}
                   <div className="flex justify-between pt-2">
                     <button
                       onClick={() => setStep(1)}
@@ -323,7 +508,7 @@ export default function MetasPage() {
                     </button>
                     <button
                       onClick={handleCreateGoal}
-                      disabled={!formData.name || !formData.target || saving}
+                      disabled={!formData.target || saving}
                       className="px-5 py-2 text-sm font-medium text-white bg-gradient-to-r from-amber-500 to-amber-400 rounded-lg hover:from-amber-600 hover:to-amber-500 shadow-sm hover:shadow-md disabled:opacity-50 transition-colors"
                     >
                       {saving ? "Criando..." : "Criar Meta"}
@@ -336,7 +521,7 @@ export default function MetasPage() {
         </div>
       )}
 
-      {/* Modal de Exclusão */}
+      {/* Modal de Exclusao */}
       {showDeleteModal && (
         <div className="fixed inset-0 z-[60] flex items-center justify-center p-4">
           <div className="absolute inset-0 bg-zinc-900/20 backdrop-blur-sm" onClick={() => setShowDeleteModal(false)} />
@@ -349,7 +534,10 @@ export default function MetasPage() {
             </div>
             <div className="flex items-center justify-end gap-3 mt-2">
               <button
-                onClick={() => { setShowDeleteModal(false); setGoalToDelete(null); }}
+                onClick={() => {
+                  setShowDeleteModal(false);
+                  setGoalToDelete(null);
+                }}
                 className="px-4 py-2 text-[13px] font-medium text-zinc-600 bg-amber-50 border border-amber-200 hover:bg-amber-100 rounded-lg transition-colors"
               >
                 Cancelar
