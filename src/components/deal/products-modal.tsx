@@ -4,6 +4,7 @@ import { useState, useEffect, useRef } from "react";
 import { X, Trash2, Plus, Search } from "lucide-react";
 import { useCrm } from "@/contexts/crm-context";
 import { DealProduct, Deal } from "@/lib/crm-types";
+import { createClient } from "@/lib/supabase/client";
 
 interface ProductsModalProps {
   deal: Deal;
@@ -24,14 +25,22 @@ export function ProductsModal({ deal, onClose }: ProductsModalProps) {
   const dropdownRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
-    const saved = localStorage.getItem("crm_catalog_products");
-    if (saved) {
-      try {
-        setCatalogProducts(JSON.parse(saved));
-      } catch (e) {
-        console.error(e);
+    const fetchCatalog = async () => {
+      const supabase = createClient();
+      const { data: { user } } = await supabase.auth.getUser();
+      if (!user) return;
+
+      const { data } = await supabase
+        .from("products")
+        .select("*")
+        .eq("user_id", user.id)
+        .order("name");
+
+      if (data) {
+        setCatalogProducts(data);
       }
-    }
+    };
+    fetchCatalog();
   }, []);
 
   useEffect(() => {
@@ -80,8 +89,11 @@ export function ProductsModal({ deal, onClose }: ProductsModalProps) {
   const totalCurrentValue = products.reduce((acc, p) => acc + (p.price * p.quantity), 0);
 
   const filteredCatalog = newName.trim()
-    ? catalogProducts.filter(p => p.name.toLowerCase().includes(newName.toLowerCase()))
-    : [];
+    ? catalogProducts.filter(p => 
+        p.name.toLowerCase().includes(newName.toLowerCase()) || 
+        (p.sku && p.sku.toLowerCase().includes(newName.toLowerCase()))
+      )
+    : catalogProducts;
 
   return (
     <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-gray-900/40 backdrop-blur-sm animate-in fade-in">
@@ -120,19 +132,23 @@ export function ProductsModal({ deal, onClose }: ProductsModalProps) {
                 </div>
 
                 {isDropdownOpen && filteredCatalog.length > 0 && (
-                  <div className="absolute z-50 top-full left-0 right-0 mt-1 bg-white border border-gray-200 rounded-xl overflow-hidden max-h-48 overflow-y-auto">
+                  <div className="absolute z-50 top-full left-0 right-0 mt-1 bg-white border border-gray-200 rounded-xl overflow-hidden max-h-48 overflow-y-auto shadow-lg">
                     {filteredCatalog.map(p => (
                       <button
                         key={p.id}
-                        onClick={() => {
+                        type="button"
+                        onMouseDown={() => {
                           setNewName(p.name);
                           setNewPrice(String(p.price));
                           setIsDropdownOpen(false);
                         }}
-                        className="w-full flex items-center justify-between px-4 py-2.5 hover:bg-amber-50 text-left text-xs font-semibold text-gray-900 transition-colors"
+                        className="w-full flex items-center justify-between px-4 py-2.5 hover:bg-amber-50 text-left text-xs font-semibold text-gray-900 transition-colors cursor-pointer border-b border-gray-50 last:border-0"
                       >
-                        <span>{p.name}</span>
-                        <span className="text-amber-600">R$ {p.price.toLocaleString("pt-BR", { minimumFractionDigits: 2 })}</span>
+                        <div className="flex flex-col">
+                          <span>{p.name}</span>
+                          {p.sku && <span className="text-[10px] text-gray-400">{p.sku}</span>}
+                        </div>
+                        <span className="text-amber-600 font-bold">R$ {Number(p.price ?? 0).toLocaleString("pt-BR", { minimumFractionDigits: 2 })}</span>
                       </button>
                     ))}
                   </div>
@@ -172,7 +188,7 @@ export function ProductsModal({ deal, onClose }: ProductsModalProps) {
 
              <button 
                onClick={handleAddProduct}
-               className="w-full bg-amber-500 text-white font-bold py-2.5 px-4 rounded-lg hover:bg-amber-600 transition-colors flex items-center justify-center gap-1.5 text-sm"
+               className="w-full bg-amber-500 text-white font-bold py-2.5 px-4 rounded-lg hover:bg-amber-600 transition-colors flex items-center justify-center gap-1.5 text-sm cursor-pointer"
              >
                 <Plus size={16} /> Adicionar produto
              </button>
@@ -211,8 +227,8 @@ export function ProductsModal({ deal, onClose }: ProductsModalProps) {
              Total: <strong className="text-gray-900 text-lg ml-1">{new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(totalCurrentValue)}</strong>
            </div>
            <div className="flex gap-3">
-             <button onClick={onClose} className="px-4 py-2 border rounded-lg text-sm font-bold text-gray-600 bg-white hover:bg-gray-50">Cancelar</button>
-             <button onClick={handleSave} className="px-6 py-2 rounded-lg text-sm font-bold text-white bg-amber-500 hover:bg-amber-600">Salvar Produtos</button>
+             <button onClick={onClose} className="px-4 py-2 border rounded-lg text-sm font-bold text-gray-600 bg-white hover:bg-gray-50 cursor-pointer">Cancelar</button>
+             <button onClick={handleSave} className="px-6 py-2 rounded-lg text-sm font-bold text-white bg-amber-500 hover:bg-amber-600 cursor-pointer">Salvar Produtos</button>
            </div>
         </div>
 
