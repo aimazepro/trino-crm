@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState, useEffect, useCallback } from "react";
+import React, { useState, useEffect, useCallback, useMemo } from "react";
 import { 
   Plus, 
   X, 
@@ -19,7 +19,8 @@ import {
   Trash2,
   Pencil,
   Check,
-  GripVertical
+  GripVertical,
+  User
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { createClient } from "@/lib/supabase/client";
@@ -28,21 +29,27 @@ type FieldType =
   | "Texto" 
   | "Número" 
   | "Data" 
+  | "Moeda"
   | "Seleção" 
+  | "Multi-seleção"
   | "Booleano" 
-  | "Moeda" 
-  | "Email" 
   | "Telefone" 
-  | "URL"
-  | "Multi-seleção";
+  | "Email" 
+  | "Usuário"
+  | "URL";
 
 type Field = {
   id: string;
   name: string;
   type: FieldType;
   required: boolean;
+  requiredOnGanho?: boolean;
+  requiredOnPerdido?: boolean;
+  allPipelinesSelected?: boolean;
+  requiredPipelineIds?: string[];
   system: boolean;
   group: string;
+  options?: string[];
 };
 
 const SYSTEM_FIELDS: Record<string, Field[]> = {
@@ -99,13 +106,13 @@ const FIELD_TYPES: FieldType[] = [
   "Texto",
   "Número",
   "Data",
-  "Seleção",
-  "Booleano",
   "Moeda",
-  "Email",
+  "Seleção",
+  "Multi-seleção",
+  "Booleano",
   "Telefone",
-  "URL",
-  "Multi-seleção"
+  "Email",
+  "Usuário"
 ];
 
 const TAB_ENTITY_LABEL: Record<string, string> = {
@@ -116,16 +123,17 @@ const TAB_ENTITY_LABEL: Record<string, string> = {
 
 function normalizeFieldType(type: string): FieldType {
   const t = type.toLowerCase();
-  if (t === "texto") return "Texto";
-  if (t === "número" || t === "numero") return "Número";
-  if (t === "data") return "Data";
-  if (t === "seleção" || t === "selecao") return "Seleção";
-  if (t === "booleano") return "Booleano";
-  if (t === "moeda") return "Moeda";
+  if (t === "texto" || t === "text") return "Texto";
+  if (t === "número" || t === "numero" || t === "number") return "Número";
+  if (t === "data" || t === "date") return "Data";
+  if (t === "moeda" || t === "currency") return "Moeda";
+  if (t === "seleção" || t === "selecao" || t === "select") return "Seleção";
+  if (t === "multi-seleção" || t === "multi-selecao" || t === "multiselect") return "Multi-seleção";
+  if (t === "booleano" || t === "boolean") return "Booleano";
+  if (t === "telefone" || t === "phone") return "Telefone";
   if (t === "email") return "Email";
-  if (t === "telefone") return "Telefone";
+  if (t === "usuário" || t === "usuario" || t === "user") return "Usuário";
   if (t === "url") return "URL";
-  if (t === "multi-seleção" || t === "multi-selecao") return "Multi-seleção";
   return "Texto";
 }
 
@@ -147,6 +155,8 @@ function getFieldIcon(type: FieldType) {
       return <Mail className="h-4 w-4 text-zinc-400 shrink-0" />;
     case "Telefone":
       return <Phone className="h-4 w-4 text-zinc-400 shrink-0" />;
+    case "Usuário":
+      return <User className="h-4 w-4 text-zinc-400 shrink-0" />;
     case "URL":
       return <LinkIcon className="h-4 w-4 text-zinc-400 shrink-0" />;
     case "Multi-seleção":
@@ -156,9 +166,50 @@ function getFieldIcon(type: FieldType) {
   }
 }
 
+function parseFieldOptions(rawOptions: any) {
+  let choices: string[] = [];
+  let requiredOnGanho = true;
+  let requiredOnPerdido = true;
+  let allPipelinesSelected = true;
+  let requiredPipelineIds: string[] = [];
+
+  if (Array.isArray(rawOptions)) {
+    choices = rawOptions;
+  } else if (rawOptions && typeof rawOptions === "object") {
+    choices = Array.isArray(rawOptions.choices) ? rawOptions.choices : (Array.isArray(rawOptions.options) ? rawOptions.options : []);
+    if (typeof rawOptions.requiredOnGanho === "boolean") requiredOnGanho = rawOptions.requiredOnGanho;
+    if (typeof rawOptions.requiredOnPerdido === "boolean") requiredOnPerdido = rawOptions.requiredOnPerdido;
+    if (typeof rawOptions.allPipelinesSelected === "boolean") allPipelinesSelected = rawOptions.allPipelinesSelected;
+    if (Array.isArray(rawOptions.requiredPipelineIds)) requiredPipelineIds = rawOptions.requiredPipelineIds;
+  } else if (typeof rawOptions === "string") {
+    try {
+      const parsed = JSON.parse(rawOptions);
+      return parseFieldOptions(parsed);
+    } catch {
+      choices = [];
+    }
+  }
+
+  return { choices, requiredOnGanho, requiredOnPerdido, allPipelinesSelected, requiredPipelineIds };
+}
+
+function buildOptionsPayload(fieldForm: any) {
+  const isSelectType = fieldForm.type === "Seleção" || fieldForm.type === "Multi-seleção";
+  const choices = isSelectType ? (fieldForm.options || []) : [];
+
+  return {
+    choices,
+    requiredOnGanho: fieldForm.requiredOnGanho ?? true,
+    requiredOnPerdido: fieldForm.requiredOnPerdido ?? true,
+    allPipelinesSelected: fieldForm.allPipelinesSelected ?? true,
+    requiredPipelineIds: fieldForm.requiredPipelineIds ?? [],
+  };
+}
+
 export default function CamposPage() {
-  const supabase = createClient();
+  const supabase = useMemo(() => createClient(), []);
   const [activeTab, setActiveTab] = useState("negocios");
+  const [dbPipelines, setDbPipelines] = useState<Array<{ id: string; name: string }>>([]);
   const [customFields, setCustomFields] = useState<Record<string, Field[]>>({
     negocios: [],
     pessoas: [],
@@ -186,9 +237,52 @@ export default function CamposPage() {
     name: "",
     type: "Texto" as FieldType,
     group: "Desagrupado",
-    required: false
+    required: false,
+    requiredOnGanho: true,
+    requiredOnPerdido: true,
+    allPipelinesSelected: true,
+    requiredPipelineIds: [] as string[],
+    options: [] as string[]
   });
   const [groupForm, setGroupForm] = useState({ name: "" });
+
+  const [newOptionInput, setNewOptionInput] = useState("");
+  const [editingOptionIndex, setEditingOptionIndex] = useState<number | null>(null);
+  const [editingOptionText, setEditingOptionText] = useState("");
+
+  const handleAddOption = () => {
+    const val = newOptionInput.trim();
+    if (!val) return;
+    const currentOpts = fieldForm.options || [];
+    if (!currentOpts.includes(val)) {
+      setFieldForm(prev => ({ ...prev, options: [...(prev.options || []), val] }));
+    }
+    setNewOptionInput("");
+  };
+
+  const handleRemoveOption = (index: number) => {
+    setFieldForm(prev => ({
+      ...prev,
+      options: (prev.options || []).filter((_, i) => i !== index)
+    }));
+  };
+
+  const handleStartEditOption = (index: number, text: string) => {
+    setEditingOptionIndex(index);
+    setEditingOptionText(text);
+  };
+
+  const handleSaveEditOption = (index: number) => {
+    const val = editingOptionText.trim();
+    if (val) {
+      setFieldForm(prev => ({
+        ...prev,
+        options: (prev.options || []).map((opt, i) => (i === index ? val : opt))
+      }));
+    }
+    setEditingOptionIndex(null);
+    setEditingOptionText("");
+  };
 
   const [expandedGroups, setExpandedGroups] = useState<Record<string, boolean>>({
     "Campos padrao": true
@@ -204,54 +298,65 @@ export default function CamposPage() {
 
   const loadCustomFields = useCallback(async () => {
     setLoading(true);
-    const { data: { user } } = await supabase.auth.getUser();
-    if (!user) {
-      setLoading(false);
-      return;
-    }
+    try {
+      const { data: { user } } = await supabase.auth.getUser();
+      if (!user) return;
 
-    const [{ data }, { data: groupRows }] = await Promise.all([
-      supabase.from("custom_fields").select("*").eq("user_id", user.id).order("sort_order"),
-      supabase.from("custom_field_groups").select("entity, name").eq("user_id", user.id),
-    ]);
+      const [{ data }, { data: groupRows }, { data: pipelineRows }] = await Promise.all([
+        supabase.from("custom_fields").select("*").eq("user_id", user.id).order("sort_order"),
+        supabase.from("custom_field_groups").select("entity, name").eq("user_id", user.id),
+        supabase.from("pipelines").select("id, name").order("sort_order"),
+      ]);
 
-    const allGroups: Record<string, string[]> = {
-      negocios: ["Desagrupado"],
-      pessoas: ["Desagrupado"],
-      empresas: ["Desagrupado"],
-    };
+      setDbPipelines(pipelineRows ?? []);
 
-    for (const row of groupRows ?? []) {
-      const tab = Object.keys(TAB_TO_ENTITY).find(k => TAB_TO_ENTITY[k] === row.entity);
-      if (tab && !allGroups[tab].includes(row.name)) {
-        allGroups[tab].push(row.name);
-      }
-    }
+      const allGroups: Record<string, string[]> = {
+        negocios: ["Desagrupado"],
+        pessoas: ["Desagrupado"],
+        empresas: ["Desagrupado"],
+      };
 
-    const grouped: Record<string, Field[]> = { negocios: [], pessoas: [], empresas: [] };
-
-    for (const row of data ?? []) {
-      const tab = Object.keys(TAB_TO_ENTITY).find(k => TAB_TO_ENTITY[k] === row.entity);
-      if (tab) {
-        const fieldGroup = row.field_group || "Desagrupado";
-        // Covers fields whose group predates custom_field_groups or was set inline.
-        if (!allGroups[tab].includes(fieldGroup)) {
-          allGroups[tab].push(fieldGroup);
+      for (const row of groupRows ?? []) {
+        const tab = Object.keys(TAB_TO_ENTITY).find(k => TAB_TO_ENTITY[k] === row.entity);
+        if (tab && !allGroups[tab].includes(row.name)) {
+          allGroups[tab].push(row.name);
         }
-        grouped[tab].push({
-          id: row.id,
-          name: row.label,
-          type: normalizeFieldType(row.field_type),
-          required: row.required ?? false,
-          system: false,
-          group: fieldGroup
-        });
       }
-    }
 
-    setCustomFields(grouped);
-    setGroups(allGroups);
-    setLoading(false);
+      const grouped: Record<string, Field[]> = { negocios: [], pessoas: [], empresas: [] };
+
+      for (const row of data ?? []) {
+        const tab = Object.keys(TAB_TO_ENTITY).find(k => TAB_TO_ENTITY[k] === row.entity);
+        if (tab) {
+          const fieldGroup = row.field_group || "Desagrupado";
+          if (!allGroups[tab].includes(fieldGroup)) {
+            allGroups[tab].push(fieldGroup);
+          }
+          const { choices, requiredOnGanho, requiredOnPerdido, allPipelinesSelected, requiredPipelineIds } = parseFieldOptions(row.options);
+
+          grouped[tab].push({
+            id: row.id,
+            name: row.label,
+            type: normalizeFieldType(row.field_type),
+            required: row.required ?? false,
+            requiredOnGanho,
+            requiredOnPerdido,
+            allPipelinesSelected,
+            requiredPipelineIds,
+            system: false,
+            group: fieldGroup,
+            options: choices
+          });
+        }
+      }
+
+      setCustomFields(grouped);
+      setGroups(allGroups);
+    } catch (err) {
+      console.error("[Campos] error loading custom fields:", err);
+    } finally {
+      setLoading(false);
+    }
   }, [supabase]);
 
   useEffect(() => {
@@ -320,6 +425,7 @@ export default function CamposPage() {
 
     const entity = TAB_TO_ENTITY[activeTab];
     const sortOrder = (customFields[activeTab] ?? []).length;
+    const optionsPayload = buildOptionsPayload(fieldForm);
 
     const { data, error } = await supabase.from("custom_fields").insert({
       user_id: user.id,
@@ -328,25 +434,44 @@ export default function CamposPage() {
       field_type: fieldForm.type.toLowerCase(),
       required: fieldForm.required,
       field_group: fieldForm.group,
+      options: optionsPayload,
       sort_order: sortOrder,
     }).select().single();
 
     setSaving(false);
     if (!error && data) {
+      const isSelectType = fieldForm.type === "Seleção" || fieldForm.type === "Multi-seleção";
       const newField: Field = {
         id: data.id,
         name: data.label,
         type: normalizeFieldType(data.field_type),
         required: data.required,
+        requiredOnGanho: fieldForm.requiredOnGanho,
+        requiredOnPerdido: fieldForm.requiredOnPerdido,
+        allPipelinesSelected: fieldForm.allPipelinesSelected,
+        requiredPipelineIds: fieldForm.requiredPipelineIds,
         system: false,
-        group: data.field_group || "Desagrupado"
+        group: data.field_group || "Desagrupado",
+        options: isSelectType ? (fieldForm.options || []) : []
       };
       setCustomFields(prev => ({
         ...prev,
         [activeTab]: [...prev[activeTab], newField]
       }));
     }
-    setFieldForm({ name: "", type: "Texto", group: "Desagrupado", required: false });
+    setFieldForm({
+      name: "",
+      type: "Texto",
+      group: "Desagrupado",
+      required: false,
+      requiredOnGanho: true,
+      requiredOnPerdido: true,
+      allPipelinesSelected: true,
+      requiredPipelineIds: [],
+      options: []
+    });
+    setNewOptionInput("");
+    setEditingOptionIndex(null);
     setShowFieldModal(false);
   };
 
@@ -354,15 +479,19 @@ export default function CamposPage() {
     if (!editingField || !fieldForm.name.trim()) return;
     setSaving(true);
     
+    const optionsPayload = buildOptionsPayload(fieldForm);
+
     const { error } = await supabase.from("custom_fields").update({
       label: fieldForm.name.trim(),
       field_type: fieldForm.type.toLowerCase(),
       required: fieldForm.required,
       field_group: fieldForm.group,
+      options: optionsPayload,
     }).eq("id", editingField.id);
 
     setSaving(false);
     if (!error) {
+      const isSelectType = fieldForm.type === "Seleção" || fieldForm.type === "Multi-seleção";
       setCustomFields(prev => ({
         ...prev,
         [activeTab]: prev[activeTab].map(f => f.id === editingField.id ? {
@@ -370,13 +499,30 @@ export default function CamposPage() {
           name: fieldForm.name.trim(),
           type: fieldForm.type,
           required: fieldForm.required,
-          group: fieldForm.group
+          requiredOnGanho: fieldForm.requiredOnGanho,
+          requiredOnPerdido: fieldForm.requiredOnPerdido,
+          allPipelinesSelected: fieldForm.allPipelinesSelected,
+          requiredPipelineIds: fieldForm.requiredPipelineIds,
+          group: fieldForm.group,
+          options: isSelectType ? (fieldForm.options || []) : []
         } : f)
       }));
     }
     
     setEditingField(null);
-    setFieldForm({ name: "", type: "Texto", group: "Desagrupado", required: false });
+    setFieldForm({
+      name: "",
+      type: "Texto",
+      group: "Desagrupado",
+      required: false,
+      requiredOnGanho: true,
+      requiredOnPerdido: true,
+      allPipelinesSelected: true,
+      requiredPipelineIds: [],
+      options: []
+    });
+    setNewOptionInput("");
+    setEditingOptionIndex(null);
   };
 
   const handleRemoveField = async (id: string) => {
@@ -398,8 +544,15 @@ export default function CamposPage() {
       name: field.name,
       type: field.type,
       group: field.group,
-      required: field.required
+      required: field.required,
+      requiredOnGanho: field.requiredOnGanho ?? true,
+      requiredOnPerdido: field.requiredOnPerdido ?? true,
+      allPipelinesSelected: field.allPipelinesSelected ?? true,
+      requiredPipelineIds: field.requiredPipelineIds ?? [],
+      options: field.options ?? []
     });
+    setNewOptionInput("");
+    setEditingOptionIndex(null);
   };
 
   const standardFields = SYSTEM_FIELDS[activeTab] ?? [];
@@ -427,7 +580,19 @@ export default function CamposPage() {
           <button
             onClick={() => {
               setEditingField(null);
-              setFieldForm({ name: "", type: "Texto", group: "Desagrupado", required: false });
+              setFieldForm({
+                name: "",
+                type: "Texto",
+                group: "Desagrupado",
+                required: false,
+                requiredOnGanho: true,
+                requiredOnPerdido: true,
+                allPipelinesSelected: true,
+                requiredPipelineIds: [],
+                options: []
+              });
+              setNewOptionInput("");
+              setEditingOptionIndex(null);
               setShowFieldModal(true);
             }}
             className="flex items-center gap-2 rounded-lg bg-gradient-to-r from-amber-500 to-amber-400 px-4 py-2 text-sm font-semibold text-white hover:from-amber-600 hover:to-amber-500 transition-colors"
@@ -698,76 +863,248 @@ export default function CamposPage() {
       {/* Field Modal (New / Edit) */}
       {(showFieldModal || editingField) && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40" onClick={() => { setShowFieldModal(false); setEditingField(null); }}>
-          <div className="bg-white rounded-2xl border border-zinc-200 w-full max-w-sm mx-4 p-6 shadow-none" onClick={e => e.stopPropagation()}>
+          <div className="w-full max-w-md rounded-2xl bg-white shadow-xl p-6" onClick={e => e.stopPropagation()}>
             <div className="flex items-center justify-between mb-5">
-              <h2 className="text-base font-bold text-zinc-900">
+              <h2 className="text-base font-semibold text-zinc-900">
                 {editingField ? "Editar campo" : "Novo campo personalizado"}
               </h2>
-              <button onClick={() => { setShowFieldModal(false); setEditingField(null); }} className="p-1 text-zinc-400 hover:text-zinc-700 rounded-lg hover:bg-zinc-100">
-                <X size={18} />
+              <button 
+                onClick={() => { setShowFieldModal(false); setEditingField(null); }} 
+                className="text-zinc-400 hover:text-zinc-600"
+              >
+                <X className="h-5 w-5" />
               </button>
             </div>
             <div className="space-y-4">
-              <div className="space-y-1.5">
-                <label className="text-[13px] font-bold text-zinc-700">
-                  Nome do campo <span className="text-red-400">*</span>
+              <div>
+                <label className="block text-sm font-medium text-zinc-700 mb-1.5">
+                  Nome do campo
                 </label>
                 <input
                   type="text"
-                  placeholder="Ex: Data de Vencimento"
+                  placeholder="Ex: Origem do lead"
                   value={fieldForm.name}
                   onChange={e => setFieldForm({ ...fieldForm, name: e.target.value })}
-                  className={cn(
-                    "w-full bg-white border text-[13px] font-medium rounded-lg px-4 py-2 outline-none focus:border-amber-500 transition-all shadow-none",
-                    fieldForm.name === "" ? "border-red-300 bg-red-50" : "border-zinc-200"
-                  )}
+                  className="w-full rounded-lg border border-zinc-200 px-3 py-2 text-sm text-zinc-900 outline-none focus:border-amber-400 focus:ring-2 focus:ring-amber-100"
                 />
               </div>
-              <div className="space-y-1.5">
-                <label className="text-[13px] font-bold text-zinc-700">Tipo</label>
-                <select
-                  value={fieldForm.type}
-                  onChange={e => setFieldForm({ ...fieldForm, type: e.target.value as FieldType })}
-                  className="w-full bg-white border border-zinc-200 text-[13px] font-medium rounded-lg px-4 py-2 outline-none focus:border-amber-500 transition-all cursor-pointer shadow-none"
-                >
-                  {FIELD_TYPES.map(t => <option key={t} value={t}>{t}</option>)}
-                </select>
-              </div>
-              <div className="space-y-1.5">
-                <label className="text-[13px] font-bold text-zinc-700">Grupo de campo</label>
+
+              {!editingField && (
+                <div>
+                  <label className="block text-sm font-medium text-zinc-700 mb-1.5">Tipo</label>
+                  <select
+                    value={fieldForm.type}
+                    onChange={e => setFieldForm({ ...fieldForm, type: e.target.value as FieldType })}
+                    className="w-full rounded-lg border border-zinc-200 px-3 py-2 text-sm text-zinc-900 outline-none focus:border-amber-400 focus:ring-2 focus:ring-amber-100 cursor-pointer"
+                  >
+                    {FIELD_TYPES.map(t => <option key={t} value={t}>{t}</option>)}
+                  </select>
+                </div>
+              )}
+
+              <div>
+                <label className="block text-sm font-medium text-zinc-700 mb-1.5">Grupo de campo</label>
                 <select
                   value={fieldForm.group}
                   onChange={e => setFieldForm({ ...fieldForm, group: e.target.value })}
-                  className="w-full bg-white border border-zinc-200 text-[13px] font-medium rounded-lg px-4 py-2 outline-none focus:border-amber-500 transition-all cursor-pointer shadow-none"
+                  className="w-full rounded-lg border border-zinc-200 px-3 py-2 text-sm text-zinc-900 outline-none focus:border-amber-400 focus:ring-2 focus:ring-amber-100 cursor-pointer"
                 >
                   {currentTabGroups.map(g => (
                     <option key={g} value={g}>{g}</option>
                   ))}
                 </select>
               </div>
-              <label className="flex items-center gap-3 cursor-pointer">
-                <input
-                  type="checkbox"
-                  checked={fieldForm.required}
-                  onChange={e => setFieldForm({ ...fieldForm, required: e.target.checked })}
-                  className="w-4 h-4 accent-amber-500 cursor-pointer"
-                />
-                <span className="text-[13px] font-semibold text-zinc-700">Obrigatório</span>
-              </label>
+
+              {(fieldForm.type === "Seleção" || fieldForm.type === "Multi-seleção") && (
+                <div>
+                  <label className="block text-sm font-medium text-zinc-700 mb-1.5">Opcoes</label>
+                  <div className="space-y-1.5 mb-2">
+                    {(fieldForm.options || []).map((opt, index) => (
+                      <div key={index} className="flex items-center justify-between gap-2 rounded-lg border border-zinc-100 bg-zinc-50 px-3 py-1.5">
+                        {editingOptionIndex === index ? (
+                          <input
+                            type="text"
+                            value={editingOptionText}
+                            onChange={e => setEditingOptionText(e.target.value)}
+                            onKeyDown={e => {
+                              if (e.key === "Enter") handleSaveEditOption(index);
+                              if (e.key === "Escape") setEditingOptionIndex(null);
+                            }}
+                            autoFocus
+                            className="flex-1 text-sm text-zinc-700 bg-white border border-zinc-200 rounded px-2 py-0.5 outline-none"
+                          />
+                        ) : (
+                          <span className="flex-1 text-sm text-zinc-700">{opt}</span>
+                        )}
+                        <div className="flex items-center gap-1.5 shrink-0">
+                          {editingOptionIndex === index ? (
+                            <button
+                              onClick={() => handleSaveEditOption(index)}
+                              className="text-xs font-semibold text-amber-600 hover:text-amber-700"
+                            >
+                              Salvar
+                            </button>
+                          ) : (
+                            <button
+                              onClick={() => handleStartEditOption(index, opt)}
+                              title="Renomear opção (os registros que usam este valor acompanham)"
+                              className="text-zinc-300 hover:text-zinc-500 transition-colors"
+                            >
+                              <Pencil className="h-3.5 w-3.5" />
+                            </button>
+                          )}
+                          <button
+                            onClick={() => handleRemoveOption(index)}
+                            className="text-zinc-300 hover:text-red-400 transition-colors"
+                          >
+                            <X className="h-3.5 w-3.5" />
+                          </button>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <input
+                      placeholder="Nova opcao..."
+                      value={newOptionInput}
+                      onChange={e => setNewOptionInput(e.target.value)}
+                      onKeyDown={e => {
+                        if (e.key === "Enter") {
+                          e.preventDefault();
+                          handleAddOption();
+                        }
+                      }}
+                      className="flex-1 rounded-lg border border-zinc-200 px-3 py-2 text-sm outline-none focus:border-amber-400 focus:ring-2 focus:ring-amber-100"
+                      type="text"
+                    />
+                    <button
+                      type="button"
+                      onClick={handleAddOption}
+                      className="rounded-lg bg-zinc-100 px-3 py-2 text-sm font-medium text-zinc-600 hover:bg-zinc-200 transition-colors shrink-0"
+                    >
+                      Adicionar
+                    </button>
+                  </div>
+                </div>
+              )}
+
+              <div className="flex items-center gap-6 pt-1">
+                <label className="flex items-center gap-2 cursor-pointer">
+                  <input
+                    type="checkbox"
+                    checked={fieldForm.required}
+                    onChange={e => setFieldForm(prev => ({ ...prev, required: e.target.checked }))}
+                    className="rounded border-zinc-300 accent-amber-500 h-4 w-4 cursor-pointer"
+                  />
+                  <span className="text-sm text-zinc-700 font-medium">Obrigatorio</span>
+                </label>
+              </div>
+
+              {fieldForm.required && (
+                <div className="rounded-lg bg-zinc-50 border border-zinc-100 px-3 py-2.5 space-y-3">
+                  <div>
+                    <p className="text-xs font-medium text-zinc-500 mb-2">
+                      Exigir o preenchimento ao marcar o negocio como:
+                    </p>
+                    <div className="flex items-center gap-6">
+                      <label className="flex items-center gap-2 cursor-pointer">
+                        <input
+                          type="checkbox"
+                          checked={fieldForm.requiredOnGanho}
+                          onChange={e => setFieldForm(prev => ({ ...prev, requiredOnGanho: e.target.checked }))}
+                          className="rounded border-zinc-300 accent-amber-500 h-4 w-4 cursor-pointer"
+                        />
+                        <span className="text-sm text-zinc-700">Ganho</span>
+                      </label>
+                      <label className="flex items-center gap-2 cursor-pointer">
+                        <input
+                          type="checkbox"
+                          checked={fieldForm.requiredOnPerdido}
+                          onChange={e => setFieldForm(prev => ({ ...prev, requiredOnPerdido: e.target.checked }))}
+                          className="rounded border-zinc-300 accent-amber-500 h-4 w-4 cursor-pointer"
+                        />
+                        <span className="text-sm text-zinc-700">Perdido</span>
+                      </label>
+                    </div>
+                  </div>
+
+                  <div className="pt-3 border-t border-zinc-100">
+                    <p className="text-xs font-medium text-zinc-500 mb-2">Em quais funis:</p>
+                    <label className="flex items-center gap-2 cursor-pointer mb-1.5">
+                      <input
+                        type="checkbox"
+                        checked={fieldForm.allPipelinesSelected}
+                        onChange={e => {
+                          if (e.target.checked) {
+                            setFieldForm(prev => ({
+                              ...prev,
+                              allPipelinesSelected: true,
+                              requiredPipelineIds: []
+                            }));
+                          } else {
+                            setFieldForm(prev => ({
+                              ...prev,
+                              allPipelinesSelected: false
+                            }));
+                          }
+                        }}
+                        className="rounded border-zinc-300 accent-amber-500 h-4 w-4 cursor-pointer"
+                      />
+                      <span className="text-sm text-zinc-700 font-medium">Todos os funis</span>
+                    </label>
+                    <div className="flex flex-col gap-1.5 max-h-40 overflow-y-auto pl-0.5">
+                      {(dbPipelines || []).map(p => {
+                        const isChecked = !fieldForm.allPipelinesSelected && (fieldForm.requiredPipelineIds || []).includes(p.id);
+                        return (
+                          <label key={p.id} className="flex items-center gap-2 cursor-pointer">
+                            <input
+                              type="checkbox"
+                              checked={isChecked}
+                              onChange={e => {
+                                if (e.target.checked) {
+                                  const currentIds = fieldForm.requiredPipelineIds || [];
+                                  const nextIds = [...currentIds, p.id];
+                                  const allSelected = (dbPipelines || []).length > 0 && nextIds.length === dbPipelines.length;
+                                  setFieldForm(prev => ({
+                                    ...prev,
+                                    allPipelinesSelected: allSelected,
+                                    requiredPipelineIds: allSelected ? [] : nextIds
+                                  }));
+                                } else {
+                                  const currentIds = fieldForm.requiredPipelineIds || [];
+                                  const nextIds = currentIds.filter(id => id !== p.id);
+                                  setFieldForm(prev => ({
+                                    ...prev,
+                                    allPipelinesSelected: false,
+                                    requiredPipelineIds: nextIds
+                                  }));
+                                }
+                              }}
+                              className="rounded border-zinc-300 accent-amber-500 h-4 w-4 cursor-pointer"
+                            />
+                            <span className="text-sm text-zinc-600">{p.name}</span>
+                          </label>
+                        );
+                      })}
+                    </div>
+                  </div>
+                </div>
+              )}
             </div>
-            <div className="flex items-center justify-end gap-3 mt-6">
+
+            <div className="flex items-center justify-end gap-2 mt-6 pt-5">
               <button 
                 onClick={() => { setShowFieldModal(false); setEditingField(null); }} 
-                className="px-4 py-2 text-[13px] font-bold text-zinc-600 bg-zinc-100 rounded-lg hover:bg-zinc-200 transition-colors shadow-none"
+                className="rounded-xl bg-zinc-100 px-4 py-2 text-sm font-medium text-zinc-600 hover:bg-zinc-200 transition-colors"
               >
                 Cancelar
               </button>
               <button
                 onClick={editingField ? handleUpdateField : handleAddField}
                 disabled={!fieldForm.name.trim() || saving}
-                className="px-5 py-2 bg-amber-500 text-white text-[13px] font-bold rounded-lg hover:bg-amber-600 transition-colors shadow-none disabled:opacity-50"
+                className="rounded-lg bg-gradient-to-r from-amber-500 to-amber-400 px-4 py-2 text-sm font-semibold text-white hover:from-amber-600 hover:to-amber-500 shadow-sm hover:shadow-md disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
               >
-                {saving ? "Salvando..." : editingField ? "Salvar" : "Adicionar"}
+                {saving ? "Salvando..." : editingField ? "Salvar alteracoes" : "Criar campo"}
               </button>
             </div>
           </div>
