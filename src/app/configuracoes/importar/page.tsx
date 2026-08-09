@@ -11,6 +11,8 @@ import {
   AlertTriangle,
   Play,
   Loader2,
+  X,
+  Check,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { createClient } from "@/lib/supabase/client";
@@ -683,13 +685,24 @@ export default function ImportacaoPage() {
 
                             {/* "Vincular etapas" button if mapped to dealStageName */}
                             {mappedField === "dealStageName" && (
-                              <button 
-                                type="button"
-                                onClick={() => setIsStageMappingOpen(true)}
-                                className="rounded-lg px-3 py-2 text-xs font-semibold bg-amber-500 text-white hover:bg-amber-600 transition-colors whitespace-nowrap"
-                              >
-                                Vincular etapas ({linkedStagesCount}/{fileStages.length})
-                              </button>
+                              linkedStagesCount === fileStages.length && fileStages.length > 0 ? (
+                                <button 
+                                  type="button"
+                                  onClick={() => setIsStageMappingOpen(true)}
+                                  className="rounded-lg px-3 py-2 text-xs font-semibold bg-emerald-50 text-emerald-700 border border-emerald-200 hover:bg-emerald-100 transition-colors whitespace-nowrap cursor-pointer flex items-center gap-1.5 shrink-0"
+                                >
+                                  <Check className="h-3.5 w-3.5" />
+                                  <span>{linkedStagesCount}/{fileStages.length} vinculadas</span>
+                                </button>
+                              ) : (
+                                <button 
+                                  type="button"
+                                  onClick={() => setIsStageMappingOpen(true)}
+                                  className="rounded-lg px-3 py-2 text-xs font-semibold bg-amber-500 text-white hover:bg-amber-600 transition-colors whitespace-nowrap cursor-pointer shrink-0"
+                                >
+                                  Vincular etapas ({linkedStagesCount}/{fileStages.length})
+                                </button>
+                              )
                             )}
                           </div>
 
@@ -707,60 +720,93 @@ export default function ImportacaoPage() {
                   {/* Stage Mapping Sub-View (Modal) */}
                   {isStageMappingOpen && (
                     <div className="fixed inset-0 z-50 bg-black/40 flex items-center justify-center p-4">
-                      <div className="bg-white rounded-xl border border-zinc-200 w-full max-w-lg overflow-hidden flex flex-col">
-                        <div className="px-6 py-4 border-b border-zinc-100 flex items-center justify-between">
-                          <h4 className="text-sm font-bold text-zinc-900">Vincular etapas do arquivo</h4>
-                          <button 
-                            onClick={() => setIsStageMappingOpen(false)}
-                            className="text-zinc-400 hover:text-zinc-600 text-xs"
-                          >
-                            Fechar
-                          </button>
+                      <div data-testid="stage-mapping-modal" className="bg-white rounded-2xl shadow-2xl w-full max-w-xl max-h-[85vh] flex flex-col animate-in fade-in zoom-in-95 duration-200">
+                        
+                        {/* Header */}
+                        <div className="px-6 pt-6 pb-4">
+                          <div className="flex items-center justify-between mb-2">
+                            <h2 className="text-lg font-bold text-zinc-900">Mapear etapas do negócio</h2>
+                            <button 
+                              data-testid="stage-mapping-close"
+                              onClick={() => setIsStageMappingOpen(false)}
+                              className="rounded-lg p-1 text-zinc-400 hover:text-zinc-600 hover:bg-zinc-100 transition-colors"
+                            >
+                              <X className="h-5 w-5" />
+                            </button>
+                          </div>
+                          {fileStages.length - linkedStagesCount > 0 && (
+                            <div data-testid="stage-mapping-warning" className="rounded-lg bg-red-50 border border-red-200 px-4 py-3">
+                              <p className="text-sm text-red-800">
+                                <span className="font-semibold">{fileStages.length - linkedStagesCount}</span> {fileStages.length - linkedStagesCount === 1 ? "etapa ainda sem vinculação" : "etapas ainda sem vinculação"}. Esses negócios <span className="font-semibold">não serão importados</span>.
+                              </p>
+                            </div>
+                          )}
                         </div>
-                        <div className="p-6 space-y-4 max-h-[300px] overflow-y-auto">
-                          <p className="text-xs text-zinc-400">
-                            Mapeie os valores encontrados na coluna do arquivo CSV para as etapas correspondentes do seu pipeline de Prospecção.
-                          </p>
-                          <div className="space-y-3">
+
+                        {/* Column Headers */}
+                        <div className="px-6 pb-2">
+                          <div className="grid grid-cols-2 gap-4">
+                            <p className="text-xs font-semibold text-zinc-500 uppercase tracking-wide">Etapa no arquivo</p>
+                            <p className="text-xs font-semibold text-zinc-500 uppercase tracking-wide">Etapa no CRM</p>
+                          </div>
+                        </div>
+
+                        {/* Stage Selectors Body */}
+                        <div className="flex-1 overflow-y-auto px-6 pb-4">
+                          <div className="space-y-2">
                             {fileStages.map((fileStage, idx) => (
-                              <div key={idx} className="flex items-center justify-between gap-4 p-3 bg-zinc-50 border border-zinc-200 rounded-lg">
-                                <span className="text-xs font-semibold text-zinc-700 truncate max-w-[150px]">
-                                  {fileStage}
-                                </span>
-                                <div className="text-zinc-300 text-sm">→</div>
+                              <div key={idx} className="grid grid-cols-2 gap-4 items-center">
+                                <div className="rounded-lg border border-zinc-200 bg-zinc-50 px-4 py-2.5">
+                                  <p className="text-sm font-medium text-zinc-800 truncate" title={fileStage}>
+                                    {fileStage}
+                                  </p>
+                                </div>
                                 <select 
                                   value={stageMappings[fileStage] || ""}
                                   onChange={(e) => {
                                     const val = e.target.value;
                                     setStageMappings(prev => ({ ...prev, [fileStage]: val }));
                                   }}
-                                  className="w-56 rounded-lg border border-zinc-200 bg-white px-3 py-1.5 text-xs text-zinc-900 outline-none focus:border-amber-400 focus:ring-2 focus:ring-amber-100"
+                                  className={cn(
+                                    "w-full rounded-lg border px-3 py-2.5 text-sm outline-none transition-colors border-zinc-200 bg-white cursor-pointer focus:border-amber-400 focus:ring-2 focus:ring-amber-100",
+                                    stageMappings[fileStage] ? "text-zinc-900 font-medium" : "text-zinc-500"
+                                  )}
                                 >
-                                  <option value="">-- Selecione uma etapa --</option>
-                                  {crmStages.map((stage) => (
-                                    <option key={stage.id} value={stage.id}>
-                                      {stage.name}
-                                    </option>
+                                  <option value="">Selecione a etapa correta</option>
+                                  {state.pipelines.map((pipeline) => (
+                                    <optgroup key={pipeline.id} label={pipeline.name}>
+                                      {(pipeline.stages || []).map((stage) => (
+                                        <option key={stage.id} value={stage.id}>
+                                          {stage.name}
+                                        </option>
+                                      ))}
+                                    </optgroup>
                                   ))}
                                 </select>
                               </div>
                             ))}
                           </div>
                         </div>
-                        <div className="px-6 py-3.5 bg-zinc-50/50 border-t border-zinc-100 flex justify-end gap-2">
+
+                        {/* Footer */}
+                        <div className="px-6 py-4 border-t border-zinc-100 flex items-center justify-between">
+                          <div className="flex items-center gap-2">
+                            <div className={cn("h-2 w-2 rounded-full", linkedStagesCount === fileStages.length && fileStages.length > 0 ? "bg-emerald-500" : "bg-red-500")} />
+                            <p className="text-sm text-zinc-600">
+                              <span className="font-semibold">{linkedStagesCount}</span> de <span className="font-semibold">{fileStages.length}</span> etapas vinculadas
+                            </p>
+                          </div>
                           <button 
+                            data-testid="stage-mapping-confirm"
                             onClick={() => setIsStageMappingOpen(false)}
-                            className="px-4 py-2 rounded-lg border border-zinc-200 bg-white text-xs font-medium text-zinc-600 hover:bg-zinc-50"
+                            disabled={linkedStagesCount === 0 && fileStages.length > 0}
+                            title={linkedStagesCount < fileStages.length ? "Vincule todas as etapas antes de continuar" : "Confirmar"}
+                            className="rounded-lg bg-zinc-900 px-5 py-2.5 text-sm font-semibold text-white hover:bg-zinc-800 transition-colors disabled:bg-zinc-300 disabled:cursor-not-allowed disabled:hover:bg-zinc-300 cursor-pointer"
                           >
-                            Cancelar
-                          </button>
-                          <button 
-                            onClick={() => setIsStageMappingOpen(false)}
-                            className="px-4 py-2 rounded-lg bg-amber-500 hover:bg-amber-600 text-white text-xs font-bold"
-                          >
-                            Salvar vínculos
+                            Confirmar
                           </button>
                         </div>
+
                       </div>
                     </div>
                   )}
@@ -935,7 +981,8 @@ export default function ImportacaoPage() {
                   const colDeal = fieldOf("dealTitle");
                   const colValue = fieldOf("dealValue");
                   const colStage = fieldOf("dealStageName");
-                  const stageNameMap = Object.fromEntries(crmStages.map(s => [s.id, s.name]));
+                  const allStages = state.pipelines.flatMap(p => p.stages || []);
+                  const stageNameMap = Object.fromEntries(allStages.map(s => [s.id, s.name]));
                   return (
                     <div className="overflow-x-auto border border-zinc-200 rounded-xl bg-white">
                       <table className="w-full border-collapse text-left text-xs">

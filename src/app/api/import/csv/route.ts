@@ -82,6 +82,15 @@ export async function POST(req: NextRequest) {
   const companyCache: Record<string, string> = {};
   const contactCache: Record<string, string> = {};
 
+  // Fetch stage -> pipeline mapping
+  const { data: allStagesData } = await supabase
+    .from("pipeline_stages")
+    .select("id, pipeline_id");
+  const stageIdToPipelineMap: Record<string, string> = {};
+  for (const s of allStagesData ?? []) {
+    if (s.id && s.pipeline_id) stageIdToPipelineMap[s.id] = s.pipeline_id;
+  }
+
   for (let i = 0; i < rows.length; i++) {
     const row = rows[i];
     const rowLabel = `Linha ${i + 2}`;
@@ -170,9 +179,11 @@ export async function POST(req: NextRequest) {
       }
 
       // ── Deal ─────────────────────────────────────────────────────────
-      if (row.dealTitle?.trim() && pipelineId) {
-        const rawStage = row.dealStageName?.trim() || "";
-        const stageId = stageMappings[rawStage] || null;
+      const rawStage = row.dealStageName?.trim() || "";
+      const stageId = stageMappings[rawStage] || null;
+      const targetPipelineId = (stageId && stageIdToPipelineMap[stageId]) || pipelineId;
+
+      if (row.dealTitle?.trim() && targetPipelineId) {
         if (!stageId && rawStage) {
           errors.push(`${rowLabel}: etapa "${rawStage}" não mapeada — negócio ignorado`);
           continue;
@@ -192,7 +203,7 @@ export async function POST(req: NextRequest) {
           value,
           contact_id: contactId,
           company_id: companyId,
-          pipeline_id: pipelineId,
+          pipeline_id: targetPipelineId,
           stage_id: stageId,
           status,
           days_in_stage: 0,
