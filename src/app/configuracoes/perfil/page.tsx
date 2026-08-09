@@ -6,6 +6,8 @@ import { Camera, Pencil, Lock, LogOut, Trash2 } from "lucide-react";
 import { createClient } from "@/lib/supabase/client";
 import { useCrm } from "@/contexts/crm-context";
 
+import { getInitials } from "@/hooks/use-owner-name-map";
+
 export default function PerfilPage() {
   const router = useRouter();
   const { state } = useCrm();
@@ -166,7 +168,7 @@ export default function PerfilPage() {
         {/* Avatar and Info Header */}
         <div className="flex items-center gap-5 px-6 pt-6 pb-5 border-b border-zinc-100">
           <div className="relative">
-            <div className="h-16 w-16 rounded-full bg-amber-100 flex items-center justify-center overflow-hidden">
+            <div className="h-16 w-16 rounded-full bg-gradient-to-tr from-purple-600 to-indigo-500 flex items-center justify-center overflow-hidden shrink-0 ring-1 ring-zinc-200 shadow-sm">
               {avatarUrl ? (
                 // eslint-disable-next-line @next/next/no-img-element
                 <img
@@ -175,8 +177,8 @@ export default function PerfilPage() {
                   className="h-full w-full object-cover"
                 />
               ) : (
-                <span className="text-xl font-semibold text-amber-700">
-                  {name ? name[0].toUpperCase() : "?"}
+                <span className="text-xl font-extrabold text-white uppercase tracking-tighter">
+                  {getInitials(name)}
                 </span>
               )}
             </div>

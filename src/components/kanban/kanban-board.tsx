@@ -11,6 +11,8 @@ import { NextActivityModal } from "@/components/deal/next-activity-modal";
 import { getDaysInStage, getStageTimeColor } from "@/lib/stage-time";
 import { cn } from "@/lib/utils";
 
+import { useOwnerNameMap, getInitials } from "@/hooks/use-owner-name-map";
+
 interface KanbanBoardProps {
   pipelineId: string;
   onNewDeal?: (stageId?: string) => void;
@@ -19,6 +21,7 @@ interface KanbanBoardProps {
 
 export function KanbanBoard({ pipelineId, onNewDeal, statusFilter = "Ativo" }: KanbanBoardProps) {
   const { state, moveDeal, markDealStatus, addActivity, updateActivity } = useCrm();
+  const { map: ownerNameMap, avatars: ownerAvatars, selfId, selfName } = useOwnerNameMap();
   const [isDragging, setIsDragging] = useState(false);
   const [lossModalDealId, setLossModalDealId] = useState<string | null>(null);
   const [activityPopoverDealId, setActivityPopoverDealId] = useState<string | null>(null);
@@ -127,6 +130,24 @@ export function KanbanBoard({ pipelineId, onNewDeal, statusFilter = "Ativo" }: K
                                 style={{ ...provided.draggableProps.style, opacity: 1 }}
                                 onClick={() => window.location.href = `/negocios/${deal.id}`}
                               >
+                                {/* Labels/Tags color bars */}
+                                {deal.labels && deal.labels.length > 0 && (
+                                  <div className="flex gap-1 mb-2.5 flex-wrap">
+                                    {deal.labels.map(labelId => {
+                                      const labelObj = state.labels.find(l => l.id === labelId);
+                                      if (!labelObj) return null;
+                                      return (
+                                        <div
+                                          key={labelId}
+                                          className="h-[3px] w-8 rounded-full"
+                                          title={labelObj.name}
+                                          style={{ backgroundColor: labelObj.color }}
+                                        />
+                                      );
+                                    })}
+                                  </div>
+                                )}
+
                                 <div className="flex items-start justify-between gap-2">
                                   <h3
                                     className="text-[13px] font-semibold leading-snug text-zinc-800 line-clamp-2"
@@ -134,16 +155,43 @@ export function KanbanBoard({ pipelineId, onNewDeal, statusFilter = "Ativo" }: K
                                   >
                                     {deal.title}
                                   </h3>
-                                  {deal.status === "Ganho" && (
-                                    <span className="bg-emerald-50 text-emerald-600 text-[9px] font-extrabold px-1.5 py-0.5 rounded-md tracking-wider shrink-0">
-                                      GANHO
-                                    </span>
-                                  )}
-                                  {deal.status === "Perdido" && (
-                                    <span className="bg-red-50 text-red-600 text-[9px] font-extrabold px-1.5 py-0.5 rounded-md tracking-wider shrink-0">
-                                      PERDIDO
-                                    </span>
-                                  )}
+                                  <div className="flex items-center gap-1.5 shrink-0">
+                                    {deal.status === "Ganho" && (
+                                      <span className="bg-emerald-50 text-emerald-600 text-[9px] font-extrabold px-1.5 py-0.5 rounded-md tracking-wider shrink-0">
+                                        GANHO
+                                      </span>
+                                    )}
+                                    {deal.status === "Perdido" && (
+                                      <span className="bg-red-50 text-red-600 text-[9px] font-extrabold px-1.5 py-0.5 rounded-md tracking-wider shrink-0">
+                                        PERDIDO
+                                      </span>
+                                    )}
+                                     {(() => {
+                                       const ownerId = deal.ownerId || selfId;
+                                       const ownerName = ownerNameMap[ownerId] || selfName || "Vendedor";
+                                       const avatarUrl = ownerAvatars[ownerId];
+
+                                       if (avatarUrl) {
+                                         return (
+                                           <img
+                                             src={avatarUrl}
+                                             alt={ownerName}
+                                             title={ownerName}
+                                             className="h-6 w-6 rounded-full object-cover shrink-0 ring-1 ring-zinc-200"
+                                           />
+                                         );
+                                       }
+
+                                       return (
+                                         <div
+                                           title={ownerName}
+                                           className="h-6 w-6 rounded-full bg-gradient-to-tr from-purple-600 to-indigo-500 text-white text-[10px] font-extrabold flex items-center justify-center shrink-0 ring-1 ring-zinc-200 uppercase tracking-tighter"
+                                         >
+                                           {getInitials(ownerName)}
+                                         </div>
+                                       );
+                                     })()}
+                                  </div>
                                 </div>
 
                                 {contact && (

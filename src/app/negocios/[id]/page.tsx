@@ -3,7 +3,7 @@
 import { use, useState, useEffect } from "react";
 import Link from "next/link";
 import { useCrm } from "@/contexts/crm-context";
-import { useOwnerNameMap } from "@/hooks/use-owner-name-map";
+import { useOwnerNameMap, getInitials } from "@/hooks/use-owner-name-map";
 import { createClient } from "@/lib/supabase/client";
 import { transformDeal } from "@/lib/crm-transforms";
 import type { Deal } from "@/lib/crm-types";
@@ -27,7 +27,7 @@ export default function DealPage({ params }: { params: Promise<{ id: string }> }
     state, loading, markDealStatus, moveDeal, moveDealToPipeline,
     deleteDeal, restoreDeal, duplicateDeal, updateDealFields,
   } = useCrm();
-  const { map: ownerNameMap } = useOwnerNameMap();
+  const { map: ownerNameMap, avatars: ownerAvatars, selfId, selfName } = useOwnerNameMap();
 
   const [showLossModal, setShowLossModal] = useState(false);
   const [showDropdown, setShowDropdown] = useState(false);
@@ -210,11 +210,31 @@ export default function DealPage({ params }: { params: Promise<{ id: string }> }
         {/* Owner Info */}
         <div className="relative flex items-center gap-2 shrink-0">
           <div className="flex items-center gap-2">
-            <div className="h-7 w-7 rounded-full bg-amber-100 flex items-center justify-center shrink-0">
-              <span className="text-xs font-semibold text-amber-700">
-                {(ownerNameMap[deal.ownerId ?? ""] || "?")[0].toUpperCase()}
-              </span>
-            </div>
+            {(() => {
+              const ownerId = deal.ownerId || selfId;
+              const ownerName = ownerNameMap[ownerId] || selfName || "—";
+              const avatarUrl = ownerAvatars ? ownerAvatars[ownerId] : null;
+
+              if (avatarUrl) {
+                return (
+                  <img
+                    src={avatarUrl}
+                    alt={ownerName}
+                    title={ownerName}
+                    className="h-7 w-7 rounded-full object-cover shrink-0 ring-1 ring-zinc-200"
+                  />
+                );
+              }
+
+              return (
+                <div
+                  title={ownerName}
+                  className="h-7 w-7 rounded-full bg-gradient-to-tr from-purple-600 to-indigo-500 text-white text-[11px] font-extrabold flex items-center justify-center shrink-0 ring-1 ring-zinc-200 uppercase tracking-tighter shadow-xs"
+                >
+                  {getInitials(ownerName)}
+                </div>
+              );
+            })()}
             <div className="hidden sm:block text-left">
               <p className="text-xs font-medium text-zinc-700 leading-tight">{ownerNameMap[deal.ownerId ?? ""] || "—"}</p>
               <p className="text-xs text-zinc-400">Proprietário</p>

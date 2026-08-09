@@ -21,15 +21,21 @@ import {
 import { cn } from "@/lib/utils";
 import { createClient } from "@/lib/supabase/client";
 
+import { getInitials } from "@/hooks/use-owner-name-map";
+
 export function Sidebar() {
   const pathname = usePathname();
   const router = useRouter();
   const [displayName, setDisplayName] = useState<string>("");
+  const [avatarUrl, setAvatarUrl] = useState<string | null>(null);
 
   useEffect(() => {
     const supabase = createClient();
     supabase.auth.getUser().then(({ data: { user } }) => {
-      if (user) setDisplayName((user.user_metadata?.full_name as string | undefined) || user.email || "");
+      if (user) {
+        setDisplayName((user.user_metadata?.full_name as string | undefined) || user.email || "");
+        setAvatarUrl((user.user_metadata?.avatar_url as string | undefined) || null);
+      }
     });
   }, []);
 
@@ -254,10 +260,15 @@ export function Sidebar() {
             <span className="cl-userButtonOuterIdentifier text-[13px] font-medium text-zinc-600 truncate">
               {displayName}
             </span>
-            <span className="cl-avatarBox cl-userButtonAvatarBox relative flex h-7 w-7 shrink-0 overflow-hidden rounded-full border border-zinc-100 bg-amber-100 items-center justify-center">
-              <span className="text-xs font-semibold text-amber-700">
-                {displayName ? displayName[0].toUpperCase() : "?"}
-              </span>
+            <span className="cl-avatarBox cl-userButtonAvatarBox relative flex h-7 w-7 shrink-0 overflow-hidden rounded-full border border-zinc-100 bg-gradient-to-tr from-purple-600 to-indigo-500 items-center justify-center shadow-xs">
+              {avatarUrl ? (
+                // eslint-disable-next-line @next/next/no-img-element
+                <img src={avatarUrl} alt={displayName} className="h-full w-full object-cover" />
+              ) : (
+                <span className="text-[10px] font-extrabold text-white uppercase tracking-tighter">
+                  {getInitials(displayName)}
+                </span>
+              )}
             </span>
           </button>
         </div>
