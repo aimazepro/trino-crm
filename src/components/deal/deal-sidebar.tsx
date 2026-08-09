@@ -480,12 +480,252 @@ type CustomFieldDef = {
   field_type: string;
   field_group: string;
   required: boolean;
+  options?: any;
 };
+
+function getChoices(rawOptions: any): string[] {
+  if (Array.isArray(rawOptions)) return rawOptions;
+  if (rawOptions && typeof rawOptions === "object") {
+    if (Array.isArray(rawOptions.choices)) return rawOptions.choices;
+    if (Array.isArray(rawOptions.options)) return rawOptions.options;
+  }
+  if (typeof rawOptions === "string") {
+    try {
+      const parsed = JSON.parse(rawOptions);
+      return getChoices(parsed);
+    } catch {
+      return [];
+    }
+  }
+  return [];
+}
+
+function parseMultiValue(val: string): string[] {
+  if (!val) return [];
+  try {
+    const parsed = JSON.parse(val);
+    if (Array.isArray(parsed)) return parsed;
+  } catch {
+    // Fallback
+  }
+  return val.split(",").map(s => s.trim()).filter(Boolean);
+}
+
+function formatCustomFieldValue(field: CustomFieldDef, rawVal: string, usersList: Array<{ id: string; name: string }>) {
+  if (!rawVal) return null;
+  const type = field.field_type.toLowerCase();
+
+  if (type === "multi-seleção" || type === "multi-selecao" || type === "multiselect") {
+    const arr = parseMultiValue(rawVal);
+    if (arr.length === 0) return null;
+    return (
+      <div className="flex flex-wrap gap-1 py-0.5">
+        {arr.map(item => (
+          <span key={item} className="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-amber-100/90 text-amber-800 border border-amber-200">
+            {item}
+          </span>
+        ))}
+      </div>
+    );
+  }
+
+  if (type === "booleano" || type === "boolean") {
+    const isTrue = rawVal === "true" || rawVal.toLowerCase() === "sim";
+    return (
+      <span className={cn("inline-flex items-center px-2 py-0.5 rounded text-xs font-medium", isTrue ? "bg-emerald-100 text-emerald-800" : "bg-zinc-100 text-zinc-600")}>
+        {isTrue ? "Sim" : "Não"}
+      </span>
+    );
+  }
+
+  if (type === "moeda" || type === "currency") {
+    const num = parseFloat(rawVal);
+    if (isNaN(num)) return rawVal;
+    return new Intl.NumberFormat("pt-BR", { style: "currency", currency: "BRL" }).format(num);
+  }
+
+  if (type === "data" || type === "date") {
+    const parts = rawVal.split("-");
+    if (parts.length === 3) {
+      return `${parts[2]}/${parts[1]}/${parts[0]}`;
+    }
+    return rawVal;
+  }
+
+  if (type === "usuário" || type === "usuario" || type === "user") {
+    const u = usersList.find(u => u.id === rawVal);
+    return u ? u.name : rawVal;
+  }
+
+  if (type === "email") {
+    return <a href={`mailto:${rawVal}`} onClick={e => e.stopPropagation()} className="text-amber-600 hover:underline">{rawVal}</a>;
+  }
+
+  if (type === "telefone" || type === "phone") {
+    return <a href={`tel:${rawVal}`} onClick={e => e.stopPropagation()} className="text-amber-600 hover:underline">{rawVal}</a>;
+  }
+
+  return rawVal;
+}
+
+function renderCustomFieldInput(
+  field: CustomFieldDef,
+  tempVal: string,
+  setTempVal: React.Dispatch<React.SetStateAction<string>>,
+  saveValue: (fieldId: string, val: string) => Promise<void>,
+  setEditingId: React.Dispatch<React.SetStateAction<string | null>>,
+  usersList: Array<{ id: string; name: string }>
+) {
+  const type = field.field_type.toLowerCase();
+  const choices = getChoices(field.options);
+
+  if (type === "seleção" || type === "selecao" || type === "select") {
+    return (
+      <div className="flex items-center gap-1">
+        <select
+          autoFocus
+          value={tempVal}
+          onChange={e => setTempVal(e.target.value)}
+          className="flex-1 text-sm px-2 py-1 border-2 border-amber-300 rounded outline-none bg-white cursor-pointer"
+        >
+          <option value="">Selecione...</option>
+          {choices.map(c => (
+            <option key={c} value={c}>{c}</option>
+          ))}
+        </select>
+        <button onClick={() => { saveValue(field.id, tempVal); setEditingId(null); }} className="text-green-500 p-1 rounded hover:bg-zinc-100"><Check size={14} /></button>
+        <button onClick={() => setEditingId(null)} className="text-red-400 p-1 rounded hover:bg-zinc-100"><X size={14} /></button>
+      </div>
+    );
+  }
+
+  if (type === "multi-seleção" || type === "multi-selecao" || type === "multiselect") {
+    const currentSelected = parseMultiValue(tempVal);
+    const toggleOpt = (opt: string) => {
+      const next = currentSelected.includes(opt)
+        ? currentSelected.filter(o => o !== opt)
+        : [...currentSelected, opt];
+      setTempVal(JSON.stringify(next));
+    };
+
+    return (
+      <div className="p-2 border-2 border-amber-300 rounded bg-white space-y-2">
+        <p className="text-xs font-semibold text-zinc-500">Selecione uma ou mais opções:</p>
+        <div className="flex flex-wrap gap-1.5 max-h-36 overflow-y-auto">
+          {choices.length === 0 ? (
+            <span className="text-xs text-zinc-400 italic">Nenhuma opção cadastrada</span>
+          ) : (
+            choices.map(c => {
+              const selected = currentSelected.includes(c);
+              return (
+                <button
+                  key={c}
+                  type="button"
+                  onClick={() => toggleOpt(c)}
+                  className={cn(
+                    "px-2.5 py-1 rounded-md text-xs font-medium transition-colors cursor-pointer border",
+                    selected
+                      ? "bg-amber-500 text-white border-amber-500"
+                      : "bg-zinc-50 text-zinc-700 border-zinc-200 hover:bg-zinc-100"
+                  )}
+                >
+                  {c}
+                </button>
+              );
+            })
+          )}
+        </div>
+        <div className="flex items-center justify-end gap-2 pt-1 border-t border-zinc-100">
+          <button
+            type="button"
+            onClick={() => setEditingId(null)}
+            className="px-2 py-0.5 text-xs text-zinc-500 hover:text-zinc-700"
+          >
+            Cancelar
+          </button>
+          <button
+            type="button"
+            onClick={() => { saveValue(field.id, tempVal); setEditingId(null); }}
+            className="px-3 py-0.5 bg-amber-500 text-white rounded text-xs font-semibold hover:bg-amber-600"
+          >
+            Salvar
+          </button>
+        </div>
+      </div>
+    );
+  }
+
+  if (type === "booleano" || type === "boolean") {
+    return (
+      <div className="flex items-center gap-1">
+        <select
+          autoFocus
+          value={tempVal}
+          onChange={e => setTempVal(e.target.value)}
+          className="flex-1 text-sm px-2 py-1 border-2 border-amber-300 rounded outline-none bg-white cursor-pointer"
+        >
+          <option value="">Selecione...</option>
+          <option value="true">Sim</option>
+          <option value="false">Não</option>
+        </select>
+        <button onClick={() => { saveValue(field.id, tempVal); setEditingId(null); }} className="text-green-500 p-1 rounded hover:bg-zinc-100"><Check size={14} /></button>
+        <button onClick={() => setEditingId(null)} className="text-red-400 p-1 rounded hover:bg-zinc-100"><X size={14} /></button>
+      </div>
+    );
+  }
+
+  if (type === "usuário" || type === "usuario" || type === "user") {
+    return (
+      <div className="flex items-center gap-1">
+        <select
+          autoFocus
+          value={tempVal}
+          onChange={e => setTempVal(e.target.value)}
+          className="flex-1 text-sm px-2 py-1 border-2 border-amber-300 rounded outline-none bg-white cursor-pointer"
+        >
+          <option value="">Selecione um usuário...</option>
+          {usersList.map(u => (
+            <option key={u.id} value={u.id}>{u.name}</option>
+          ))}
+        </select>
+        <button onClick={() => { saveValue(field.id, tempVal); setEditingId(null); }} className="text-green-500 p-1 rounded hover:bg-zinc-100"><Check size={14} /></button>
+        <button onClick={() => setEditingId(null)} className="text-red-400 p-1 rounded hover:bg-zinc-100"><X size={14} /></button>
+      </div>
+    );
+  }
+
+  const inputType =
+    type === "data" || type === "date" ? "date"
+    : type === "moeda" || type === "currency" || type === "número" || type === "numero" || type === "number" ? "number"
+    : type === "email" ? "email"
+    : type === "telefone" || type === "phone" ? "tel"
+    : "text";
+
+  return (
+    <div className="flex items-center gap-1">
+      <input
+        autoFocus
+        type={inputType}
+        step={type === "moeda" || type === "currency" ? "0.01" : undefined}
+        value={tempVal}
+        onChange={e => setTempVal(e.target.value)}
+        className="flex-1 text-sm px-2 py-1 border-2 border-amber-300 rounded outline-none bg-white"
+        onKeyDown={e => {
+          if (e.key === "Enter") { saveValue(field.id, tempVal); setEditingId(null); }
+          if (e.key === "Escape") setEditingId(null);
+        }}
+      />
+      <button onClick={() => { saveValue(field.id, tempVal); setEditingId(null); }} className="text-green-500 p-1 rounded hover:bg-zinc-100"><Check size={14} /></button>
+      <button onClick={() => setEditingId(null)} className="text-red-400 p-1 rounded hover:bg-zinc-100"><X size={13} /></button>
+    </div>
+  );
+}
 
 function DealCustomFields({ dealId }: { dealId: string }) {
   const supabase = createClient();
   const [fields, setFields] = useState<CustomFieldDef[]>([]);
   const [values, setValues] = useState<Record<string, string>>({});
+  const [usersList, setUsersList] = useState<Array<{ id: string; name: string }>>([]);
   const [editingId, setEditingId] = useState<string | null>(null);
   const [tempVal, setTempVal] = useState("");
   const [expandedGroups, setExpandedGroups] = useState<Record<string, boolean>>({});
@@ -494,15 +734,26 @@ function DealCustomFields({ dealId }: { dealId: string }) {
     const { data: { user } } = await supabase.auth.getUser();
     if (!user) return;
 
-    const [{ data: fRows }, { data: vRows }] = await Promise.all([
-      supabase.from("custom_fields").select("id,label,field_type,field_group,required").eq("user_id", user.id).eq("entity", "deal").order("sort_order"),
+    const [{ data: fRows }, { data: vRows }, { data: members }] = await Promise.all([
+      supabase.from("custom_fields").select("id,label,field_type,field_group,required,options").eq("user_id", user.id).eq("entity", "deal").order("sort_order"),
       supabase.from("deal_field_values").select("field_id,value").eq("deal_id", dealId),
+      supabase.from("team_members").select("member_user_id, name, email").eq("status", "active"),
     ]);
 
     setFields(fRows ?? []);
     const map: Record<string, string> = {};
     for (const v of vRows ?? []) map[v.field_id] = v.value ?? "";
     setValues(map);
+
+    const selfName = user.user_metadata?.full_name || user.email || "Você";
+    const uList = [{ id: user.id, name: selfName }];
+    (members ?? []).forEach(m => {
+      if (m.member_user_id && m.member_user_id !== user.id) {
+        uList.push({ id: m.member_user_id, name: m.name || m.email });
+      }
+    });
+    setUsersList(uList);
+
     const groups = [...new Set((fRows ?? []).map(f => f.field_group || "Desagrupado"))];
     setExpandedGroups(prev => {
       const next = { ...prev };
@@ -561,51 +812,46 @@ function DealCustomFields({ dealId }: { dealId: string }) {
                 </span>
               </button>
 
-              {expanded && groupFields.map(field => (
-                <div key={field.id} className="grid grid-cols-[72px_1fr] gap-x-2 py-2 border-b border-zinc-100 last:border-0 items-start">
-                  <p className="text-xs text-zinc-500 pt-1.5 break-words leading-tight">{field.label}</p>
-                  <div className="min-w-0">
-                    {editingId === field.id ? (
-                      <div className="flex items-center gap-1">
-                        <input
-                          autoFocus
-                          value={tempVal}
-                          onChange={e => setTempVal(e.target.value)}
-                          className="flex-1 text-sm px-2 py-1 border-2 border-amber-300 rounded outline-none bg-white"
-                          onKeyDown={e => {
-                            if (e.key === "Enter") { saveValue(field.id, tempVal); setEditingId(null); }
-                            if (e.key === "Escape") setEditingId(null);
-                          }}
-                        />
-                        <button onClick={() => { saveValue(field.id, tempVal); setEditingId(null); }} className="text-green-500 p-0.5 rounded hover:bg-zinc-100"><Check size={13} /></button>
-                        <button onClick={() => setEditingId(null)} className="text-red-400 p-0.5 rounded hover:bg-zinc-100"><X size={13} /></button>
-                      </div>
-                    ) : (
-                      <div className="flex items-center gap-1 group -mx-2">
-                        <button
-                          onClick={() => { setTempVal(values[field.id] ?? ""); setEditingId(field.id); }}
-                          className="flex-1 min-w-0 text-left rounded-md px-2 py-1 hover:bg-zinc-100 transition-colors"
-                        >
-                          <span className={cn(
-                            "text-sm",
-                            values[field.id] ? "text-zinc-800"
-                              : field.required ? "text-red-400 group-hover:text-red-500"
-                              : "text-zinc-300 group-hover:text-zinc-500"
-                          )}>
-                            {values[field.id] || (field.required ? "Obrigatório" : "-")}
-                          </span>
-                        </button>
-                        <button
-                          onClick={() => { setTempVal(values[field.id] ?? ""); setEditingId(field.id); }}
-                          className="shrink-0 rounded-md p-1 text-zinc-300 opacity-0 group-hover:opacity-100 hover:bg-zinc-100 transition-all"
-                        >
-                          <Pencil size={14} />
-                        </button>
-                      </div>
-                    )}
+              {expanded && groupFields.map(field => {
+                const val = values[field.id] ?? "";
+                const formattedVal = formatCustomFieldValue(field, val, usersList);
+
+                return (
+                  <div key={field.id} className="grid grid-cols-[72px_1fr] gap-x-2 py-2 border-b border-zinc-100 last:border-0 items-start">
+                    <p className="text-xs text-zinc-500 pt-1.5 break-words leading-tight">{field.label}</p>
+                    <div className="min-w-0">
+                      {editingId === field.id ? (
+                        renderCustomFieldInput(field, tempVal, setTempVal, saveValue, setEditingId, usersList)
+                      ) : (
+                        <div className="flex items-center gap-1 group -mx-2">
+                          <button
+                            onClick={() => { setTempVal(values[field.id] ?? ""); setEditingId(field.id); }}
+                            className="flex-1 min-w-0 text-left rounded-md px-2 py-1 hover:bg-zinc-100 transition-colors"
+                          >
+                            {formattedVal !== null ? (
+                              typeof formattedVal === "string" ? (
+                                <span className="text-sm text-zinc-800">{formattedVal}</span>
+                              ) : (
+                                formattedVal
+                              )
+                            ) : (
+                              <span className={cn("text-sm", field.required ? "text-red-400 group-hover:text-red-500" : "text-zinc-300 group-hover:text-zinc-500")}>
+                                {field.required ? "Obrigatório" : "-"}
+                              </span>
+                            )}
+                          </button>
+                          <button
+                            onClick={() => { setTempVal(values[field.id] ?? ""); setEditingId(field.id); }}
+                            className="shrink-0 rounded-md p-1 text-zinc-300 opacity-0 group-hover:opacity-100 hover:bg-zinc-100 transition-all"
+                          >
+                            <Pencil size={14} />
+                          </button>
+                        </div>
+                      )}
+                    </div>
                   </div>
-                </div>
-              ))}
+                );
+              })}
             </div>
           );
         })}
