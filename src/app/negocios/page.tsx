@@ -1,8 +1,8 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import { useRouter } from "next/navigation";
-import { LayoutGrid, List, Eye, Trophy, XCircle, Download, Plus, Settings as SettingsIcon } from "lucide-react";
+import { LayoutGrid, List, Eye, Trophy, XCircle, Download, Plus, Settings as SettingsIcon, ChevronDown, Check } from "lucide-react";
 import { useCrm } from "@/contexts/crm-context";
 import { PipelineSelector } from "@/components/kanban/pipeline-selector";
 import { PipelineModal } from "@/components/kanban/pipeline-modal";
@@ -12,6 +12,12 @@ import { NewDealModal } from "@/components/pipeline/new-deal-modal";
 import { CustomizeColumnsModal, DEFAULT_COLUMNS } from "@/components/deal/customize-columns-modal";
 import { cn } from "@/lib/utils";
 import { LeadStatus } from "@/lib/crm-types";
+
+const STATUS_OPTIONS: { value: LeadStatus; label: string; icon: typeof Eye }[] = [
+  { value: "Ativo", label: "Ativos", icon: Eye },
+  { value: "Ganho", label: "Ganhos", icon: Trophy },
+  { value: "Perdido", label: "Perdidos", icon: XCircle },
+];
 
 export default function KanbanPage() {
   const router = useRouter();
@@ -25,6 +31,18 @@ export default function KanbanPage() {
     return "kanban";
   });
   const [statusFilter, setStatusFilter] = useState<LeadStatus>("Ativo");
+  const [showStatusMenu, setShowStatusMenu] = useState(false);
+  const statusMenuRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    function handleClickOutside(event: MouseEvent) {
+      if (statusMenuRef.current && !statusMenuRef.current.contains(event.target as Node)) {
+        setShowStatusMenu(false);
+      }
+    }
+    document.addEventListener("mousedown", handleClickOutside);
+    return () => document.removeEventListener("mousedown", handleClickOutside);
+  }, []);
 
   // Modals
   const [showNewPipelineModal, setShowNewPipelineModal] = useState(false);
@@ -131,43 +149,41 @@ export default function KanbanPage() {
                </button>
             </div>
 
-            {/* Stage Filters */}
-            <button
-               onClick={() => setStatusFilter("Ativo")}
-               className={cn(
-                 "flex items-center gap-1.5 rounded-lg border px-3 py-1.5 text-sm font-medium transition-colors",
-                 statusFilter === "Ativo"
-                   ? "border-zinc-300 bg-zinc-100 text-zinc-800"
-                   : "border-zinc-200 text-zinc-500 hover:bg-zinc-50 bg-white"
-               )}
-             >
-                <Eye size={14} /> 
-                Ativos
-             </button>
-             <button
-               onClick={() => setStatusFilter("Ganho")}
-               className={cn(
-                 "flex items-center gap-1.5 rounded-lg border px-3 py-1.5 text-sm font-medium transition-colors",
-                 statusFilter === "Ganho"
-                   ? "border-zinc-300 bg-zinc-100 text-zinc-800"
-                   : "border-zinc-200 text-zinc-500 hover:bg-zinc-50 bg-white"
-               )}
-             >
-                <Trophy size={14} /> 
-                Ganhos
-             </button>
-             <button
-               onClick={() => setStatusFilter("Perdido")}
-               className={cn(
-                 "flex items-center gap-1.5 rounded-lg border px-3 py-1.5 text-sm font-medium transition-colors",
-                 statusFilter === "Perdido"
-                   ? "border-zinc-300 bg-zinc-100 text-zinc-800"
-                   : "border-zinc-200 text-zinc-500 hover:bg-zinc-50 bg-white"
-               )}
-             >
-                <XCircle size={14} /> 
-                Perdidos
-             </button>
+            {/* Stage Filter */}
+            <div className="relative" ref={statusMenuRef}>
+              <button
+                onClick={() => setShowStatusMenu(v => !v)}
+                className="flex items-center gap-1.5 rounded-lg border border-zinc-200 bg-white px-2.5 py-1.5 text-sm font-medium text-zinc-600 hover:bg-zinc-50 transition-colors"
+              >
+                {(() => { const Icon = STATUS_OPTIONS.find(o => o.value === statusFilter)?.icon ?? Eye; return <Icon size={14} className="text-zinc-400 shrink-0" />; })()}
+                {STATUS_OPTIONS.find(o => o.value === statusFilter)?.label}
+                <ChevronDown size={14} className="text-zinc-400" />
+              </button>
+
+              {showStatusMenu && (
+                <div className="absolute left-0 top-full z-50 mt-2 w-40 rounded-xl border border-zinc-100 bg-white py-1.5 shadow-xl animate-in fade-in slide-in-from-top-2 duration-200">
+                  {STATUS_OPTIONS.map(opt => {
+                    const Icon = opt.icon;
+                    const isActive = opt.value === statusFilter;
+                    return (
+                      <div
+                        key={opt.value}
+                        onClick={() => { setStatusFilter(opt.value); setShowStatusMenu(false); }}
+                        className="flex cursor-pointer items-center gap-2 px-3 py-2 text-sm hover:bg-zinc-50"
+                      >
+                        <div className="flex w-4 shrink-0 justify-center">
+                          {isActive && <Check size={14} className="text-zinc-900" />}
+                        </div>
+                        <Icon size={14} className={isActive ? "text-zinc-900" : "text-zinc-400"} />
+                        <span className={cn(isActive ? "font-semibold text-zinc-900" : "font-medium text-zinc-600")}>
+                          {opt.label}
+                        </span>
+                      </div>
+                    );
+                  })}
+                </div>
+              )}
+            </div>
 
             {/* Exportar */}
             <button disabled className="flex items-center gap-1.5 rounded-lg border border-zinc-200 px-3 py-1.5 text-sm font-medium text-zinc-500 hover:bg-zinc-50 transition-colors disabled:opacity-50">

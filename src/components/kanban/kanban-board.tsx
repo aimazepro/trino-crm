@@ -6,6 +6,8 @@ import { useCrm } from "@/contexts/crm-context";
 import { isToday, isTomorrow, isPast, format } from "date-fns";
 import { TriangleAlert, XCircle, Trophy, Plus, User, Building } from "lucide-react";
 import { LossReasonModal } from "@/components/deal/loss-reason-modal";
+import { ActivityModal } from "@/components/deal/activity-modal";
+import { NextActivityModal } from "@/components/deal/next-activity-modal";
 import { getDaysInStage, getStageTimeColor } from "@/lib/stage-time";
 import { cn } from "@/lib/utils";
 
@@ -16,9 +18,12 @@ interface KanbanBoardProps {
 }
 
 export function KanbanBoard({ pipelineId, onNewDeal, statusFilter = "Ativo" }: KanbanBoardProps) {
-  const { state, moveDeal, markDealStatus } = useCrm();
+  const { state, moveDeal, markDealStatus, addActivity, updateActivity } = useCrm();
   const [isDragging, setIsDragging] = useState(false);
   const [lossModalDealId, setLossModalDealId] = useState<string | null>(null);
+  const [activityPopoverDealId, setActivityPopoverDealId] = useState<string | null>(null);
+  const [activityModalDealId, setActivityModalDealId] = useState<string | null>(null);
+  const [nextActivityDealId, setNextActivityDealId] = useState<string | null>(null);
 
   const pipeline = state.pipelines.find(p => p.id === pipelineId);
   if (!pipeline) return null;
@@ -159,36 +164,102 @@ export function KanbanBoard({ pipelineId, onNewDeal, statusFilter = "Ativo" }: K
                                 </p>
 
                                 <div className="mt-3 flex items-center justify-between gap-2">
-                                  {nextActivity ? (
-                                    <div className="flex-1 min-w-0">
-                                      <div className={cn(
-                                        "flex items-center justify-between rounded-lg px-2.5 py-1.5 text-xs font-medium transition-all duration-200",
-                                        isPastTime
-                                          ? "bg-red-50 text-red-600"
-                                          : isActivityToday
-                                          ? "bg-emerald-50 text-emerald-600"
-                                          : "bg-zinc-50 text-zinc-500"
-                                      )}>
-                                        <span className="truncate">
-                                          {isActivityToday
-                                            ? `Hoje: ${nextActivity.type}`
-                                            : isActivityTomorrow
-                                            ? `Amanhã: ${nextActivity.type}`
-                                            : `${format(new Date(nextActivity.date), "dd/MM HH:mm")}: ${nextActivity.type}`}
-                                        </span>
-                                        {(isActivityToday || isActivityTomorrow) && (
-                                          <span className="shrink-0 ml-1">
-                                            {format(new Date(nextActivity.date), "HH:mm")}
+                                  <div className="relative min-w-0">
+                                    <div
+                                      role="button"
+                                      tabIndex={0}
+                                      title="Atividades deste negócio"
+                                      onClick={(e) => {
+                                        e.stopPropagation();
+                                        setActivityPopoverDealId(v => v === deal.id ? null : deal.id);
+                                      }}
+                                      className="group cursor-pointer"
+                                    >
+                                      {nextActivity ? (
+                                        <div className={cn(
+                                          "flex items-center justify-between gap-1 rounded-lg px-2.5 py-1.5 text-xs font-medium transition-all duration-200 ring-1 ring-transparent group-hover:ring-current/20",
+                                          isPastTime
+                                            ? "bg-red-50 text-red-600"
+                                            : isActivityToday
+                                            ? "bg-emerald-50 text-emerald-600"
+                                            : "bg-zinc-50 text-zinc-500"
+                                        )}>
+                                          <span className="truncate">
+                                            {isActivityToday
+                                              ? `Hoje: ${nextActivity.type}`
+                                              : isActivityTomorrow
+                                              ? `Amanhã: ${nextActivity.type}`
+                                              : `${format(new Date(nextActivity.date), "dd/MM HH:mm")}: ${nextActivity.type}`}
                                           </span>
-                                        )}
-                                      </div>
+                                          {(isActivityToday || isActivityTomorrow) && (
+                                            <span className="shrink-0 ml-1">
+                                              {format(new Date(nextActivity.date), "HH:mm")}
+                                            </span>
+                                          )}
+                                        </div>
+                                      ) : (
+                                        <div className="flex items-center gap-1 rounded-lg px-2 py-1 text-[11px] text-amber-500 ring-1 ring-transparent transition group-hover:bg-amber-50 group-hover:ring-amber-200">
+                                          <TriangleAlert className="h-3 w-3 shrink-0" aria-hidden="true" />
+                                          Sem atividade
+                                        </div>
+                                      )}
                                     </div>
-                                  ) : (
-                                    <div className="flex items-center gap-1 text-[11px] text-amber-500">
-                                      <TriangleAlert className="h-3 w-3" aria-hidden="true" />
-                                      Sem atividade
-                                    </div>
-                                  )}
+
+                                    {activityPopoverDealId === deal.id && (
+                                      <>
+                                        <div
+                                          className="fixed inset-0 z-40"
+                                          onClick={(e) => { e.stopPropagation(); setActivityPopoverDealId(null); }}
+                                        />
+                                        <div
+                                          onClick={(e) => e.stopPropagation()}
+                                          className="absolute left-0 top-full z-50 mt-1 w-64 overflow-hidden rounded-xl border border-zinc-100 bg-white shadow-lg"
+                                        >
+                                          {pendingActivities.length > 0 ? (
+                                            <div className="max-h-48 overflow-y-auto py-1">
+                                              {pendingActivities.map(a => (
+                                                <div key={a.id} className="flex items-start gap-2 px-3 py-2 text-xs hover:bg-zinc-50">
+                                                  <button
+                                                    type="button"
+                                                    role="checkbox"
+                                                    aria-checked={false}
+                                                    title="Concluir atividade"
+                                                    onClick={(e) => {
+                                                      e.stopPropagation();
+                                                      updateActivity(a.id, { completed: true });
+                                                      setActivityPopoverDealId(null);
+                                                      setNextActivityDealId(deal.id);
+                                                    }}
+                                                    className="mt-0.5 h-3.5 w-3.5 shrink-0 rounded-full border-2 border-zinc-300 hover:border-amber-500 hover:bg-amber-50 transition-colors"
+                                                  />
+                                                  <div className="min-w-0">
+                                                    <p className="font-medium text-zinc-700 truncate">{a.title}</p>
+                                                    <p className="text-zinc-400">{format(new Date(a.date), "dd/MM")}</p>
+                                                  </div>
+                                                </div>
+                                              ))}
+                                            </div>
+                                          ) : (
+                                            <p className="px-3 py-3 text-center text-xs text-zinc-400">
+                                              Você não tem nenhuma atividade programada para esse negócio
+                                            </p>
+                                          )}
+                                          <div className="border-t border-zinc-100">
+                                            <button
+                                              onClick={(e) => {
+                                                e.stopPropagation();
+                                                setActivityPopoverDealId(null);
+                                                setActivityModalDealId(deal.id);
+                                              }}
+                                              className="flex w-full items-center gap-2 px-3 py-2.5 text-left text-sm font-medium text-amber-600 hover:bg-amber-50 transition-colors"
+                                            >
+                                              <Plus className="h-4 w-4 shrink-0" aria-hidden="true" /> Agendar uma atividade
+                                            </button>
+                                          </div>
+                                        </div>
+                                      </>
+                                    )}
+                                  </div>
                                   <span className={cn(
                                     "shrink-0 rounded px-1.5 py-0.5 text-[11px] font-semibold",
                                     stageTimeColor === "red" ? "bg-red-50 text-red-600"
@@ -270,6 +341,32 @@ export function KanbanBoard({ pipelineId, onNewDeal, statusFilter = "Ativo" }: K
             setLossModalDealId(null);
           }}
           onCancel={() => setLossModalDealId(null)}
+        />
+      )}
+
+      {activityModalDealId && (
+        <ActivityModal
+          onClose={() => setActivityModalDealId(null)}
+          onSave={(data) => {
+            addActivity({
+              dealId: data.dealId, title: data.title, date: data.date, endDate: data.endDate,
+              type: data.type, description: data.description, guests: data.guests,
+              assigneeId: data.assigneeId, completed: data.markAsDone,
+            });
+            setActivityModalDealId(null);
+          }}
+          defaultDealId={activityModalDealId}
+        />
+      )}
+
+      {nextActivityDealId && (
+        <NextActivityModal
+          dealId={nextActivityDealId}
+          onClose={() => setNextActivityDealId(null)}
+          onSave={(data) => {
+            addActivity({ dealId: nextActivityDealId, ...data });
+            setNextActivityDealId(null);
+          }}
         />
       )}
     </>
