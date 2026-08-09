@@ -131,6 +131,23 @@ export default function KanbanPage() {
               onNew={() => setShowNewPipelineModal(true)}
               onEdit={(id) => setEditPipelineId(id)}
             />
+
+            {(() => {
+              const activeDeals = state.deals.filter(d =>
+                !d.deletedAt &&
+                d.pipelineId === activePipelineId &&
+                d.status === statusFilter
+              );
+              const count = activeDeals.length;
+              const totalVal = activeDeals.reduce((sum, d) => sum + (Number(d.value) || 0), 0);
+              const formattedVal = totalVal.toLocaleString("pt-BR", { style: "currency", currency: "BRL" }).replace(",00", "");
+
+              return (
+                <span className="text-sm text-zinc-400 whitespace-nowrap">
+                  {count} {count === 1 ? "negócio" : "negócios"} <span className="text-zinc-300">·</span> {formattedVal}
+                </span>
+              );
+            })()}
          </div>
 
          {/* Toolbar */}

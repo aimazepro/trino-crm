@@ -63,53 +63,63 @@ export function PipelineSelector({ activeId, onChange, onNew, onEdit }: Pipeline
                      ref={dropProvided.innerRef}
                      {...dropProvided.droppableProps}
                    >
-                     {state.pipelines.map((pipe, index) => (
-                       <Draggable key={pipe.id} draggableId={pipe.id} index={index}>
-                         {(dragProvided, dragSnapshot) => (
-                           <div
-                             ref={dragProvided.innerRef}
-                             {...dragProvided.draggableProps}
-                             className={cn(
-                               "group flex items-center justify-between px-2 py-2 cursor-pointer",
-                               dragSnapshot.isDragging ? "bg-gray-50 rounded-lg shadow-sm" : "hover:bg-gray-50"
-                             )}
-                             onClick={() => { onChange(pipe.id); setOpen(false); }}
-                           >
-                             <div className="flex items-center gap-1.5 min-w-0">
-                               <div
-                                 {...dragProvided.dragHandleProps}
-                                 onClick={(e) => e.stopPropagation()}
-                                 className="p-1 text-gray-300 hover:text-gray-500 cursor-grab active:cursor-grabbing shrink-0"
-                                 title="Arrastar para reordenar"
-                               >
-                                 <GripVertical size={14} />
-                               </div>
-                               <div className="w-4 flex justify-center shrink-0">
-                                 {pipe.id === activeId && <Check size={14} className="text-gray-900" />}
-                               </div>
-                               <span className={cn("text-sm truncate", pipe.id === activeId ? "font-bold text-gray-900" : "font-medium text-gray-600")}>
-                                 {pipe.name}
-                               </span>
-                             </div>
+                     {state.pipelines.map((pipe, index) => {
+                       const pipeDeals = state.deals.filter(d => !d.deletedAt && d.pipelineId === pipe.id && d.status === "Ativo");
+                       const pipeVal = pipeDeals.reduce((sum, d) => sum + (Number(d.value) || 0), 0);
+                       const formattedPipeVal = pipeVal.toLocaleString("pt-BR", { style: "currency", currency: "BRL" }).replace(",00", "");
 
-                             {/* Delete Icon (hidden unless hovered, but don't delete if it's the last one) */}
-                             {state.pipelines.length > 1 && (
-                               <button
-                                 onClick={(e) => {
-                                   e.stopPropagation(); // Avoid triggering select
-                                   deletePipeline(pipe.id);
-                                   if (pipe.id === activeId) onChange(state.pipelines.filter(p => p.id !== pipe.id)[0].id);
-                                 }}
-                                 className="p-1 text-gray-300 hover:text-red-500 hover:bg-red-50 rounded opacity-0 group-hover:opacity-100 transition-all mr-1 shrink-0"
-                                 title="Apagar Pipeline"
-                               >
-                                 <Trash2 size={14} />
-                               </button>
-                             )}
-                           </div>
-                         )}
-                       </Draggable>
-                     ))}
+                       return (
+                         <Draggable key={pipe.id} draggableId={pipe.id} index={index}>
+                           {(dragProvided, dragSnapshot) => (
+                             <div
+                               ref={dragProvided.innerRef}
+                               {...dragProvided.draggableProps}
+                               className={cn(
+                                 "group flex items-center justify-between px-2 py-2 cursor-pointer",
+                                 dragSnapshot.isDragging ? "bg-gray-50 rounded-lg shadow-sm" : "hover:bg-gray-50"
+                               )}
+                               onClick={() => { onChange(pipe.id); setOpen(false); }}
+                             >
+                               <div className="flex items-center gap-1.5 min-w-0 flex-1">
+                                 <div
+                                   {...dragProvided.dragHandleProps}
+                                   onClick={(e) => e.stopPropagation()}
+                                   className="p-1 text-gray-300 hover:text-gray-500 cursor-grab active:cursor-grabbing shrink-0"
+                                   title="Arrastar para reordenar"
+                                 >
+                                   <GripVertical size={14} />
+                                 </div>
+                                 <div className="w-4 flex justify-center shrink-0">
+                                   {pipe.id === activeId && <Check size={14} className="text-gray-900" />}
+                                 </div>
+                                 <span className={cn("text-sm truncate", pipe.id === activeId ? "font-bold text-gray-900" : "font-medium text-gray-600")}>
+                                   {pipe.name}
+                                 </span>
+                               </div>
+
+                               <span className="text-[11px] text-zinc-400 font-medium ml-2 shrink-0 group-hover:text-zinc-500">
+                                 {pipeDeals.length} · {formattedPipeVal}
+                               </span>
+
+                               {/* Delete Icon (hidden unless hovered, but don't delete if it's the last one) */}
+                               {state.pipelines.length > 1 && (
+                                 <button
+                                   onClick={(e) => {
+                                     e.stopPropagation(); // Avoid triggering select
+                                     deletePipeline(pipe.id);
+                                     if (pipe.id === activeId) onChange(state.pipelines.filter(p => p.id !== pipe.id)[0].id);
+                                   }}
+                                   className="p-1 text-gray-300 hover:text-red-500 hover:bg-red-50 rounded opacity-0 group-hover:opacity-100 transition-all ml-1 shrink-0"
+                                   title="Apagar Pipeline"
+                                 >
+                                   <Trash2 size={14} />
+                                 </button>
+                               )}
+                             </div>
+                           )}
+                         </Draggable>
+                       );
+                     })}
                      {dropProvided.placeholder}
                    </div>
                  )}
