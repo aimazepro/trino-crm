@@ -1,8 +1,9 @@
 "use client";
 
 import { useState, useEffect, useCallback } from "react";
-import { Plus, Search, Edit2, Trash2, Package, X } from "lucide-react";
+import { Plus, Search, Edit2, Trash2, Package } from "lucide-react";
 import { createClient } from "@/lib/supabase/client";
+import { cn } from "@/lib/utils";
 
 type Product = {
   id: string;
@@ -38,7 +39,8 @@ export default function ProdutosConfigPage() {
     description: "", 
     price: "", 
     code: "", 
-    unit: "" 
+    unit: "",
+    active: true,
   });
   const [editingProduct, setEditingProduct] = useState<Product | null>(null);
 
@@ -70,7 +72,8 @@ export default function ProdutosConfigPage() {
       description: product.description || "",
       price: product.price.toString(),
       code: product.sku || "",
-      unit: product.unit || ""
+      unit: product.unit || "",
+      active: product.active ?? true,
     });
     setShowModal(true);
   };
@@ -79,7 +82,7 @@ export default function ProdutosConfigPage() {
   const handleCloseModal = () => {
     setShowModal(false);
     setEditingProduct(null);
-    setForm({ name: "", description: "", price: "", code: "", unit: "" });
+    setForm({ name: "", description: "", price: "", code: "", unit: "", active: true });
   };
 
   // Handle Create or Update Save
@@ -98,7 +101,7 @@ export default function ProdutosConfigPage() {
       sku: form.code.trim() || null,
       price: parseFloat(form.price) || 0,
       unit: form.unit || null,
-      active: true,
+      active: form.active,
     };
 
     if (editingProduct) {
@@ -155,9 +158,10 @@ export default function ProdutosConfigPage() {
           <button 
             onClick={() => {
               setEditingProduct(null);
+              setForm({ name: "", description: "", price: "", code: "", unit: "", active: true });
               setShowModal(true);
             }}
-            className="flex items-center gap-2 rounded-lg bg-gradient-to-r from-amber-500 to-amber-400 px-4 py-2 text-sm font-semibold text-white hover:from-amber-600 hover:to-amber-500 transition-colors"
+            className="flex items-center gap-2 rounded-lg bg-gradient-to-r from-amber-500 to-amber-400 px-4 py-2 text-sm font-semibold text-white hover:from-amber-600 hover:to-amber-500 shadow-sm hover:shadow-md transition-colors cursor-pointer"
           >
             <Plus className="h-4 w-4" />
             Novo Produto
@@ -172,7 +176,7 @@ export default function ProdutosConfigPage() {
             placeholder="Buscar por nome..."
             value={search}
             onChange={e => setSearch(e.target.value)}
-            className="w-full rounded-xl bg-white border border-zinc-200 pl-9 pr-3 py-2.5 text-sm text-zinc-900 placeholder-zinc-400 outline-none focus:ring-2 focus:ring-amber-100 focus:border-amber-400 transition-colors"
+            className="w-full rounded-xl bg-white pl-9 pr-3 py-2.5 text-sm text-zinc-900 placeholder-zinc-400 outline-none focus:ring-2 focus:ring-amber-100 border border-zinc-200/80 transition-colors"
           />
         </div>
 
@@ -182,61 +186,77 @@ export default function ProdutosConfigPage() {
             <div className="h-6 w-6 animate-spin rounded-full border-2 border-amber-400 border-t-transparent" />
           </div>
         ) : filtered.length === 0 ? (
-          <div className="flex flex-col items-center justify-center py-20 gap-3 text-zinc-400 border border-zinc-200 bg-white rounded-xl">
+          <div className="flex flex-col items-center justify-center py-20 gap-3 text-zinc-400 border border-zinc-200 bg-white rounded-2xl">
             <Package className="h-10 w-10 text-zinc-300" />
             <p className="text-sm font-medium">Nenhum produto cadastrado</p>
             <button 
               onClick={() => {
                 setEditingProduct(null);
+                setForm({ name: "", description: "", price: "", code: "", unit: "", active: true });
                 setShowModal(true);
               }}
-              className="text-sm text-amber-500 hover:underline font-medium"
+              className="text-sm text-amber-500 hover:underline font-medium cursor-pointer"
             >
               Criar primeiro produto
             </button>
           </div>
         ) : (
-          <div className="bg-white border border-zinc-200 rounded-xl overflow-hidden">
-            <table className="w-full text-left">
+          <div className="rounded-2xl bg-white overflow-hidden border border-zinc-100 shadow-xs">
+            <table className="w-full text-sm">
               <thead>
-                <tr className="border-b border-zinc-200 bg-zinc-50">
-                  <th className="px-6 py-3 text-[11px] font-bold text-zinc-500 uppercase tracking-wider">NOME</th>
-                  <th className="px-6 py-3 text-[11px] font-bold text-zinc-500 uppercase tracking-wider">CÓDIGO</th>
-                  <th className="px-6 py-3 text-[11px] font-bold text-zinc-500 uppercase tracking-wider">PREÇO</th>
-                  <th className="px-6 py-3 text-[11px] font-bold text-zinc-500 uppercase tracking-wider">UNIDADE</th>
-                  <th className="px-6 py-3 text-[11px] font-bold text-zinc-500 uppercase tracking-wider">STATUS</th>
-                  <th className="px-6 py-3 w-20"></th>
+                <tr className="bg-zinc-50/50">
+                  <th className="text-left px-4 py-3 text-xs font-medium text-zinc-400 uppercase tracking-wide">Nome</th>
+                  <th className="text-left px-4 py-3 text-xs font-medium text-zinc-400 uppercase tracking-wide">Código</th>
+                  <th className="text-left px-4 py-3 text-xs font-medium text-zinc-400 uppercase tracking-wide">Preço</th>
+                  <th className="text-left px-4 py-3 text-xs font-medium text-zinc-400 uppercase tracking-wide">Unidade</th>
+                  <th className="text-left px-4 py-3 text-xs font-medium text-zinc-400 uppercase tracking-wide">Status</th>
+                  <th className="px-4 py-3"></th>
                 </tr>
               </thead>
-              <tbody className="divide-y divide-zinc-100">
+              <tbody className="divide-y divide-zinc-50">
                 {filtered.map(p => {
                   const unitObj = UNITS.find(u => u.value === p.unit);
-                  const unitLabel = unitObj ? unitObj.label : "—";
+                  const unitLabel = unitObj ? unitObj.label.toLowerCase() : p.unit;
                   
                   return (
-                    <tr key={p.id} className="hover:bg-zinc-50/50 transition-colors group">
-                      <td className="px-6 py-3 text-sm font-semibold text-zinc-900">{p.name}</td>
-                      <td className="px-6 py-3 text-sm font-medium text-zinc-400">{p.sku || "—"}</td>
-                      <td className="px-6 py-3 text-sm font-medium text-zinc-700">
-                        R$ {Number(p.price ?? 0).toLocaleString("pt-BR", { minimumFractionDigits: 2 })}
+                    <tr key={p.id} className="hover:bg-zinc-50 group transition-colors">
+                      <td className="px-4 py-3">
+                        <p className="font-medium text-zinc-900">{p.name}</p>
+                        {p.description && (
+                          <p className="text-xs text-zinc-400 mt-0.5 truncate max-w-[200px]">{p.description}</p>
+                        )}
                       </td>
-                      <td className="px-6 py-3 text-sm font-medium text-zinc-600">{p.unit ? unitLabel : "—"}</td>
-                      <td className="px-6 py-3">
-                        <span className="text-[11px] font-bold text-green-700 bg-green-50 px-2.5 py-1 rounded-full border border-green-200/50">
-                          {p.active ? "Ativo" : "Inativo"}
-                        </span>
+                      <td className="px-4 py-3 text-zinc-500">
+                        {p.sku ? p.sku : <span className="text-zinc-300">—</span>}
                       </td>
-                      <td className="px-6 py-3">
-                        <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-all justify-end">
+                      <td className="px-4 py-3 font-medium text-zinc-900">
+                        R$&nbsp;{Number(p.price ?? 0).toLocaleString("pt-BR", { minimumFractionDigits: 2 })}
+                      </td>
+                      <td className="px-4 py-3 text-zinc-500">{p.unit ? unitLabel : "—"}</td>
+                      <td className="px-4 py-3">
+                        {p.active !== false ? (
+                          <span className="inline-flex items-center rounded-full bg-green-100 px-2 py-0.5 text-xs font-medium text-green-700">
+                            Ativo
+                          </span>
+                        ) : (
+                          <span className="inline-flex items-center rounded-full bg-zinc-100 px-2 py-0.5 text-xs font-medium text-zinc-600">
+                            Inativo
+                          </span>
+                        )}
+                      </td>
+                      <td className="px-4 py-3">
+                        <div className="flex items-center gap-1 justify-end opacity-0 group-hover:opacity-100 transition-opacity">
                           <button 
                             onClick={() => handleStartEdit(p)}
-                            className="p-1.5 text-zinc-400 hover:text-amber-600 hover:bg-amber-50 rounded-lg transition-colors"
+                            className="rounded-md p-1.5 text-zinc-400 hover:bg-amber-50 hover:text-amber-600 transition-colors"
+                            title="Editar"
                           >
                             <Edit2 className="h-3.5 w-3.5" />
                           </button>
                           <button 
                             onClick={() => handleDelete(p.id)} 
-                            className="p-1.5 text-zinc-400 hover:text-red-500 hover:bg-red-50 rounded-lg transition-colors"
+                            className="rounded-md p-1.5 text-zinc-400 hover:bg-red-50 hover:text-red-500 transition-colors"
+                            title="Excluir"
                           >
                             <Trash2 className="h-3.5 w-3.5" />
                           </button>
@@ -255,18 +275,10 @@ export default function ProdutosConfigPage() {
       {/* Modal */}
       {showModal && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/20 backdrop-blur-sm" onClick={handleCloseModal}>
-          <div className="w-full max-w-md rounded-2xl bg-white p-6 border border-zinc-200/80 mx-4" onClick={e => e.stopPropagation()}>
-            <div className="flex items-center justify-between mb-4">
-              <h2 className="text-base font-semibold text-zinc-900">
-                {editingProduct ? "Editar Produto" : "Novo Produto"}
-              </h2>
-              <button 
-                onClick={handleCloseModal}
-                className="text-zinc-400 hover:text-zinc-600 p-1 rounded-lg hover:bg-zinc-100 transition-colors"
-              >
-                <X className="h-4 w-4" />
-              </button>
-            </div>
+          <div className="w-full max-w-md rounded-2xl bg-white p-6 shadow-xl border border-zinc-200/80 mx-4" onClick={e => e.stopPropagation()}>
+            <h2 className="text-base font-semibold text-zinc-900 mb-4">
+              {editingProduct ? "Editar Produto" : "Novo Produto"}
+            </h2>
 
             <form onSubmit={handleSave} className="space-y-4">
               <div>
@@ -337,18 +349,37 @@ export default function ProdutosConfigPage() {
                 </select>
               </div>
 
+              <div className="flex items-center gap-3">
+                <button
+                  type="button"
+                  onClick={() => setForm(prev => ({ ...prev, active: !prev.active }))}
+                  className={cn(
+                    "relative inline-flex h-5 w-9 items-center rounded-full transition-colors cursor-pointer",
+                    form.active ? "bg-amber-500" : "bg-zinc-300"
+                  )}
+                >
+                  <span
+                    className={cn(
+                      "inline-block h-3.5 w-3.5 rounded-full bg-white shadow transition-transform",
+                      form.active ? "translate-x-4.5" : "translate-x-1"
+                    )}
+                  />
+                </button>
+                <span className="text-sm text-zinc-700">{form.active ? "Ativo" : "Inativo"}</span>
+              </div>
+
               <div className="flex gap-2 pt-1">
                 <button 
                   type="submit" 
                   disabled={saving || !form.name.trim() || !form.price}
-                  className="flex-1 rounded-lg bg-gradient-to-r from-amber-500 to-amber-400 py-2 text-sm font-semibold text-white hover:from-amber-600 hover:to-amber-500 disabled:opacity-50 transition-colors"
+                  className="flex-1 rounded-lg bg-gradient-to-r from-amber-500 to-amber-400 py-2 text-sm font-semibold text-white hover:from-amber-600 hover:to-amber-500 shadow-sm hover:shadow-md disabled:opacity-50 transition-colors cursor-pointer"
                 >
-                  {saving ? "Salvando..." : (editingProduct ? "Salvar Alterações" : "Criar Produto")}
+                  {saving ? "Salvando..." : "Salvar"}
                 </button>
                 <button 
                   type="button" 
                   onClick={handleCloseModal}
-                  className="rounded-xl bg-zinc-100 px-4 py-2 text-sm text-zinc-600 hover:bg-zinc-200 transition-colors"
+                  className="rounded-xl bg-zinc-100 px-4 py-2 text-sm text-zinc-600 hover:bg-zinc-200 transition-colors cursor-pointer"
                 >
                   Cancelar
                 </button>
