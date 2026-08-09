@@ -29,6 +29,7 @@ interface CrmContextType {
   addPipeline: (pipeline: Pipeline) => Promise<string | null>;
   deletePipeline: (pipelineId: string) => void;
   updatePipeline: (pipelineId: string, fields: Partial<Pipeline>) => void;
+  reorderPipelines: (orderedIds: string[]) => void;
   updateContact: (contactId: string, fields: Partial<Contact>) => void;
   addContact: (contact: Contact) => Promise<string | null>;
   deleteContact: (contactId: string) => void;

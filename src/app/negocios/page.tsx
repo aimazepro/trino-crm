@@ -22,7 +22,11 @@ const STATUS_OPTIONS: { value: LeadStatus; label: string; icon: typeof Eye }[] =
 export default function KanbanPage() {
   const router = useRouter();
   const { state, loading } = useCrm();
-  const [activePipelineId, setActivePipelineId] = useState<string>("");
+  const [activePipelineId, setActivePipelineIdState] = useState<string>("");
+  const setActivePipelineId = (id: string) => {
+    setActivePipelineIdState(id);
+    localStorage.setItem("trino_crm_active_pipeline_id", id);
+  };
   const [viewMode, setViewMode] = useState<"kanban" | "list">(() => {
     if (typeof window !== "undefined") {
       const saved = localStorage.getItem("trino_crm_view_mode");
@@ -77,11 +81,12 @@ export default function KanbanPage() {
      setShowNewDealModal(true);
   };
 
-  // set initial pipeline safely
+  // set initial pipeline safely, restoring last selection if still valid
   useEffect(() => {
-    if (!activePipelineId && state.pipelines.length > 0) {
-      setActivePipelineId(state.pipelines[0].id);
-    }
+    if (activePipelineId || state.pipelines.length === 0) return;
+    const saved = localStorage.getItem("trino_crm_active_pipeline_id");
+    const restored = saved && state.pipelines.some((p) => p.id === saved) ? saved : state.pipelines[0].id;
+    setActivePipelineIdState(restored);
   }, [state.pipelines, activePipelineId]);
 
   if (loading) {

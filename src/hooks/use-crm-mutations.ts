@@ -428,6 +428,22 @@ export function useCrmMutations({ state, setState, userId, supabase }: MutationP
     }
   };
 
+  const reorderPipelines = (orderedIds: string[]) => {
+    setState((prev) => {
+      const byId = new Map(prev.pipelines.map((p) => [p.id, p]));
+      const pipelines = orderedIds.map((id) => byId.get(id)).filter((p): p is Pipeline => !!p);
+      return { ...prev, pipelines };
+    });
+    Promise.all(
+      orderedIds.map((id, index) =>
+        supabase.from("pipelines").update({ sort_order: index }).eq("id", id)
+      )
+    ).then((results) => {
+      const err = results.find((r) => r.error)?.error;
+      if (err) console.error("[CRM] reorderPipelines failed:", err);
+    });
+  };
+
   const logContactHistory = (contactId: string, description: string, subtext = "") => {
     if (!userId) return;
     supabase.from("contact_history").insert({ contact_id: contactId, user_id: userId, description, subtext })
@@ -790,7 +806,7 @@ export function useCrmMutations({ state, setState, userId, supabase }: MutationP
     moveDeal, moveDealToPipeline, markDealStatus, updateDealFields,
     addDealNote, deleteDealNote, updateDealNote, addDealHistory,
     addDeal, deleteDeal, restoreDeal, duplicateDeal, mergeDeals,
-    addPipeline, deletePipeline, updatePipeline,
+    addPipeline, deletePipeline, updatePipeline, reorderPipelines,
     updateContact, addContact, deleteContact,
     updateCompany, addCompany, deleteCompany,
     addLabel,

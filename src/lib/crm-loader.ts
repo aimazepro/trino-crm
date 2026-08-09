@@ -12,7 +12,7 @@ export async function loadCrmData(supabase: SupabaseClient, userId: string): Pro
     { data: dealsRaw, error: dErr },
     { data: notificationsRaw, error: nErr },
   ] = await Promise.all([
-    supabase.from("pipelines").select("*, pipeline_stages(*)").order("created_at"),
+    supabase.from("pipelines").select("*, pipeline_stages(*)").order("sort_order"),
     supabase.from("contacts").select("*").order("name").range(0, 499),
     supabase.from("companies").select("*").order("name").range(0, 499),
     supabase.from("labels").select("*"),
