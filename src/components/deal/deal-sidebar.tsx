@@ -728,6 +728,7 @@ function DealCustomFields({ dealId }: { dealId: string }) {
   const [usersList, setUsersList] = useState<Array<{ id: string; name: string }>>([]);
   const [editingId, setEditingId] = useState<string | null>(null);
   const [tempVal, setTempVal] = useState("");
+  const [detalhesExpanded, setDetalhesExpanded] = useState(true);
   const [expandedGroups, setExpandedGroups] = useState<Record<string, boolean>>({});
 
   const load = useCallback(async () => {
@@ -785,13 +786,21 @@ function DealCustomFields({ dealId }: { dealId: string }) {
 
   return (
     <div className="rounded-xl overflow-hidden bg-zinc-50">
-      <div className="flex items-center gap-2 px-4 py-3">
-        <ChevronDown size={16} className="text-zinc-500" />
+      <button
+        type="button"
+        onClick={() => setDetalhesExpanded(prev => !prev)}
+        className="flex items-center gap-2 w-full px-4 py-3 hover:bg-zinc-100/80 transition-colors text-left outline-none cursor-pointer"
+      >
+        <ChevronDown
+          size={16}
+          className={cn("text-zinc-500 transition-transform duration-200", !detalhesExpanded && "-rotate-90")}
+        />
         <span className="text-sm font-semibold text-zinc-800">Detalhes</span>
-      </div>
+      </button>
 
-      <div className="px-4 py-1">
-        {groups.map(group => {
+      {detalhesExpanded && (
+        <div className="px-4 py-1">
+          {groups.map(group => {
           const groupFields = fields.filter(f => (f.field_group || "Desagrupado") === group);
           const filled = groupFields.filter(f => values[f.id]).length;
           const expanded = expandedGroups[group] !== false;
@@ -855,7 +864,8 @@ function DealCustomFields({ dealId }: { dealId: string }) {
             </div>
           );
         })}
-      </div>
+        </div>
+      )}
     </div>
   );
 }
