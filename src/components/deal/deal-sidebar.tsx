@@ -29,12 +29,19 @@ const LABEL_COLORS = [
 ];
 
 export function DealSidebar({ dealId }: DealSidebarProps) {
-  const { state, updateDealFields, addLabel } = useCrm();
+  const { state, updateDealFields, addLabel, updateContact } = useCrm();
   const deal = state.deals.find(d => d.id === dealId);
   const contact = state.contacts.find(c => c.id === deal?.contactId);
   const company = state.companies.find(c => c.id === deal?.companyId);
   const pipeline = state.pipelines.find(p => p.id === deal?.pipelineId);
   const currentStage = pipeline?.stages.find(s => s.id === deal?.stageId);
+
+  // Sync contact's companyId whenever deal has both contact and company
+  useEffect(() => {
+    if (deal?.contactId && deal?.companyId && contact && contact.companyId !== deal.companyId) {
+      updateContact(deal.contactId, { companyId: deal.companyId });
+    }
+  }, [deal?.contactId, deal?.companyId, contact, updateContact]);
 
   const [isProductsOpen, setIsProductsOpen] = useState(false);
   const [isEditingValue, setIsEditingValue] = useState(false);
@@ -69,6 +76,20 @@ export function DealSidebar({ dealId }: DealSidebarProps) {
 
   const handleUpdate = (field: string, val: any) => {
     updateDealFields(dealId, { [field]: val });
+  };
+
+  const handleLinkContact = (cid: string) => {
+    handleUpdate("contactId", cid);
+    if (deal.companyId) {
+      updateContact(cid, { companyId: deal.companyId });
+    }
+  };
+
+  const handleLinkCompany = (compId: string) => {
+    handleUpdate("companyId", compId);
+    if (deal.contactId) {
+      updateContact(deal.contactId, { companyId: compId });
+    }
   };
 
   const handleProbabilityChange = (v: string) => {
@@ -437,13 +458,13 @@ export function DealSidebar({ dealId }: DealSidebarProps) {
       {contact ? (
         <ContactAccordion contact={contact} dealId={dealId} />
       ) : (
-        <ContactLinkSearch dealId={dealId} contacts={state.contacts} onLink={(cid) => handleUpdate("contactId", cid)} />
+        <ContactLinkSearch dealId={dealId} companyId={deal.companyId} contacts={state.contacts} onLink={handleLinkContact} />
       )}
       
       {company ? (
         <CompanyAccordion company={company} dealId={dealId} />
       ) : (
-        <CompanyLinkSearch dealId={dealId} companies={state.companies} onLink={(cid) => handleUpdate("companyId", cid)} />
+        <CompanyLinkSearch dealId={dealId} contactId={deal.contactId} companies={state.companies} onLink={handleLinkCompany} />
       )}
 
       {isProductsOpen && <ProductsModal deal={deal} onClose={() => setIsProductsOpen(false)} />}
@@ -595,10 +616,13 @@ function DealCustomFields({ dealId }: { dealId: string }) {
 
 // ── Link Search Components ───────────────────────────────────────────────────
 
-function ContactLinkSearch({ contacts, onLink }: { dealId: string; contacts: Contact[]; onLink: (id: string) => void }) {
+function ContactLinkSearch({ companyId, contacts, onLink }: { dealId: string; companyId?: string; contacts: Contact[]; onLink: (id: string) => void }) {
+  const { addContact } = useCrm();
   const [query, setQuery] = useState("");
   const [open, setOpen] = useState(false);
   const [isSearching, setIsSearching] = useState(false);
+  const [isCreating, setIsCreating] = useState(false);
+
   const filtered = query.trim() ? contacts.filter(c => c.name.toLowerCase().includes(query.toLowerCase())) : [];
   const ref = useRef<HTMLDivElement>(null);
   
@@ -613,6 +637,33 @@ function ContactLinkSearch({ contacts, onLink }: { dealId: string; contacts: Con
     document.addEventListener("mousedown", h);
     return () => document.removeEventListener("mousedown", h);
   }, []);
+
+  const handleCreateContact = async (e: React.MouseEvent) => {
+    e.preventDefault();
+    const trimmed = query.trim();
+    if (!trimmed || isCreating) return;
+    setIsCreating(true);
+    try {
+      const realId = await addContact({
+        id: "",
+        name: trimmed,
+        emails: [],
+        phones: [],
+        role: "",
+        companyId: companyId || undefined,
+      });
+      if (realId) {
+        onLink(realId);
+        setQuery("");
+        setOpen(false);
+        setIsSearching(false);
+      }
+    } catch (err) {
+      console.error("Error creating contact:", err);
+    } finally {
+      setIsCreating(false);
+    }
+  };
 
   if (!isSearching) {
     return (
@@ -633,65 +684,84 @@ function ContactLinkSearch({ contacts, onLink }: { dealId: string; contacts: Con
   }
 
   return (
-    <div ref={ref} className="relative w-full">
-      <div className="flex items-center justify-between bg-white border border-amber-400 rounded-2xl px-5 py-4 transition-all">
-        <div className="flex items-center gap-3 flex-1 min-w-0">
-          <User size={18} className="text-zinc-400 shrink-0" />
+    <div ref={ref} className="w-full">
+      <div className="rounded-xl bg-zinc-50 border border-zinc-200/80 p-3 space-y-2">
+        <div className="flex items-center gap-2">
+          <Search className="h-4 w-4 text-zinc-400 shrink-0" />
           <input
             value={query}
             onChange={e => { setQuery(e.target.value); setOpen(true); }}
             onFocus={() => setOpen(true)}
-            placeholder="Buscar contato..."
-            className="flex-1 text-[13.5px] font-semibold outline-none bg-transparent text-zinc-900 placeholder:text-zinc-300 min-w-0"
+            placeholder="Buscar ou criar contato..."
+            className="flex-1 bg-transparent text-sm outline-none placeholder-zinc-400 text-zinc-900 font-medium min-w-0"
             autoFocus
           />
+          <button 
+            type="button"
+            onClick={() => { setIsSearching(false); setQuery(""); setOpen(false); }}
+            className="text-zinc-400 hover:text-zinc-600 shrink-0"
+          >
+            <X className="h-4 w-4" />
+          </button>
         </div>
-        <button 
-          onClick={() => { setIsSearching(false); setQuery(""); }}
-          className="text-zinc-400 hover:text-zinc-600 shrink-0 ml-2"
-        >
-          <X size={16} />
-        </button>
-      </div>
-      {open && (
-        <div className="absolute z-50 top-full mt-1.5 left-0 right-0 bg-white border border-zinc-200 rounded-xl overflow-hidden max-h-48 overflow-y-auto">
-          {query.trim() !== "" ? (
-            filtered.length > 0 ? (
+
+        {open && (
+          <div className="space-y-1 pt-1 border-t border-zinc-100 max-h-48 overflow-y-auto">
+            {filtered.length > 0 ? (
               filtered.slice(0, 5).map(c => (
                 <button
                   key={c.id}
                   onMouseDown={() => { onLink(c.id); setQuery(""); setOpen(false); setIsSearching(false); }}
-                  className="w-full flex items-center gap-2.5 px-4 py-2.5 hover:bg-amber-50/50 text-left text-xs font-semibold text-zinc-900 transition-colors"
+                  className="w-full flex items-center gap-2.5 px-2 py-1.5 hover:bg-amber-50 rounded-lg text-left text-sm font-medium text-zinc-900 transition-colors"
                 >
-                  <div className="w-5 h-5 rounded-full bg-blue-50 text-blue-600 text-[10px] font-black flex items-center justify-center shrink-0">{c.name.charAt(0)}</div>
-                  {c.name}
+                  <div className="w-5 h-5 rounded-full bg-blue-50 text-blue-600 text-[10px] font-black flex items-center justify-center shrink-0">
+                    {c.name.charAt(0).toUpperCase()}
+                  </div>
+                  <span className="truncate">{c.name}</span>
                 </button>
               ))
-            ) : (
-              <div className="px-4 py-2.5 text-[10px] text-zinc-400">Nenhum resultado</div>
-            )
-          ) : (
-            contacts.slice(0, 5).map(c => (
+            ) : null}
+
+            {query.trim() !== "" && (
               <button
-                key={c.id}
-                onMouseDown={() => { onLink(c.id); setQuery(""); setOpen(false); setIsSearching(false); }}
-                className="w-full flex items-center gap-2.5 px-4 py-2.5 hover:bg-amber-50/50 text-left text-xs font-semibold text-zinc-900 transition-colors"
+                type="button"
+                disabled={isCreating}
+                onMouseDown={handleCreateContact}
+                className="flex items-center gap-2 w-full rounded-lg px-2 py-1.5 text-sm text-amber-600 hover:bg-amber-50 transition-colors font-medium cursor-pointer"
               >
-                <div className="w-5 h-5 rounded-full bg-blue-50 text-blue-600 text-[10px] font-black flex items-center justify-center shrink-0">{c.name.charAt(0)}</div>
-                {c.name}
+                <Plus className="h-3.5 w-3.5 shrink-0" />
+                <span className="truncate">{isCreating ? "Criando..." : `Criar "${query.trim()}"`}</span>
               </button>
-            ))
-          )}
-        </div>
-      )}
+            )}
+
+            {filtered.length === 0 && query.trim() === "" && (
+              contacts.slice(0, 5).map(c => (
+                <button
+                  key={c.id}
+                  onMouseDown={() => { onLink(c.id); setQuery(""); setOpen(false); setIsSearching(false); }}
+                  className="w-full flex items-center gap-2.5 px-2 py-1.5 hover:bg-amber-50 rounded-lg text-left text-sm font-medium text-zinc-900 transition-colors"
+                >
+                  <div className="w-5 h-5 rounded-full bg-blue-50 text-blue-600 text-[10px] font-black flex items-center justify-center shrink-0">
+                    {c.name.charAt(0).toUpperCase()}
+                  </div>
+                  <span className="truncate">{c.name}</span>
+                </button>
+              ))
+            )}
+          </div>
+        )}
+      </div>
     </div>
   );
 }
 
-function CompanyLinkSearch({ companies, onLink }: { dealId: string; companies: Company[]; onLink: (id: string) => void }) {
+function CompanyLinkSearch({ contactId, companies, onLink }: { dealId: string; contactId?: string; companies: Company[]; onLink: (id: string) => void }) {
+  const { addCompany, updateContact } = useCrm();
   const [query, setQuery] = useState("");
   const [open, setOpen] = useState(false);
   const [isSearching, setIsSearching] = useState(false);
+  const [isCreating, setIsCreating] = useState(false);
+
   const filtered = query.trim() ? companies.filter(c => c.name.toLowerCase().includes(query.toLowerCase())) : [];
   const ref = useRef<HTMLDivElement>(null);
   
@@ -706,6 +776,29 @@ function CompanyLinkSearch({ companies, onLink }: { dealId: string; companies: C
     document.addEventListener("mousedown", h);
     return () => document.removeEventListener("mousedown", h);
   }, []);
+
+  const handleCreateCompany = async (e: React.MouseEvent) => {
+    e.preventDefault();
+    const trimmed = query.trim();
+    if (!trimmed || isCreating) return;
+    setIsCreating(true);
+    try {
+      const realId = await addCompany({ id: "", name: trimmed });
+      if (realId) {
+        if (contactId) {
+          updateContact(contactId, { companyId: realId });
+        }
+        onLink(realId);
+        setQuery("");
+        setOpen(false);
+        setIsSearching(false);
+      }
+    } catch (err) {
+      console.error("Error creating company:", err);
+    } finally {
+      setIsCreating(false);
+    }
+  };
 
   if (!isSearching) {
     return (
@@ -726,57 +819,73 @@ function CompanyLinkSearch({ companies, onLink }: { dealId: string; companies: C
   }
 
   return (
-    <div ref={ref} className="relative w-full">
-      <div className="flex items-center justify-between bg-white border border-amber-400 rounded-2xl px-5 py-4 transition-all">
-        <div className="flex items-center gap-3 flex-1 min-w-0">
-          <Building2 size={18} className="text-zinc-400 shrink-0" />
+    <div ref={ref} className="w-full">
+      <div className="rounded-xl bg-zinc-50 border border-zinc-200/80 p-3 space-y-2">
+        <div className="flex items-center gap-2">
+          <Search className="h-4 w-4 text-zinc-400 shrink-0" />
           <input
             value={query}
             onChange={e => { setQuery(e.target.value); setOpen(true); }}
             onFocus={() => setOpen(true)}
-            placeholder="Buscar empresa..."
-            className="flex-1 text-[13.5px] font-semibold outline-none bg-transparent text-zinc-900 placeholder:text-zinc-300 min-w-0"
+            placeholder="Buscar ou criar empresa..."
+            className="flex-1 bg-transparent text-sm outline-none placeholder-zinc-400 text-zinc-900 font-medium min-w-0"
             autoFocus
           />
+          <button 
+            type="button"
+            onClick={() => { setIsSearching(false); setQuery(""); setOpen(false); }}
+            className="text-zinc-400 hover:text-zinc-600 shrink-0"
+          >
+            <X className="h-4 w-4" />
+          </button>
         </div>
-        <button 
-          onClick={() => { setIsSearching(false); setQuery(""); }}
-          className="text-zinc-400 hover:text-zinc-600 shrink-0 ml-2"
-        >
-          <X size={16} />
-        </button>
-      </div>
-      {open && (
-        <div className="absolute z-50 top-full mt-1.5 left-0 right-0 bg-white border border-zinc-200 rounded-xl overflow-hidden max-h-48 overflow-y-auto">
-          {query.trim() !== "" ? (
-            filtered.length > 0 ? (
+
+        {open && (
+          <div className="space-y-1 pt-1 border-t border-zinc-100 max-h-48 overflow-y-auto">
+            {filtered.length > 0 ? (
               filtered.slice(0, 5).map(c => (
                 <button
                   key={c.id}
                   onMouseDown={() => { onLink(c.id); setQuery(""); setOpen(false); setIsSearching(false); }}
-                  className="w-full flex items-center gap-2.5 px-4 py-2.5 hover:bg-amber-50/50 text-left text-xs font-semibold text-zinc-900 transition-colors"
+                  className="w-full flex items-center gap-2.5 px-2 py-1.5 hover:bg-amber-50 rounded-lg text-left text-sm font-medium text-zinc-900 transition-colors"
                 >
-                  <div className="w-5 h-5 rounded bg-orange-50 text-orange-600 text-[10px] font-black flex items-center justify-center shrink-0">{c.name.charAt(0)}</div>
-                  {c.name}
+                  <div className="w-5 h-5 rounded bg-orange-50 text-orange-600 text-[10px] font-black flex items-center justify-center shrink-0">
+                    {c.name.charAt(0).toUpperCase()}
+                  </div>
+                  <span className="truncate">{c.name}</span>
                 </button>
               ))
-            ) : (
-              <div className="px-4 py-2.5 text-[10px] text-zinc-400">Nenhum resultado</div>
-            )
-          ) : (
-            companies.slice(0, 5).map(c => (
+            ) : null}
+
+            {query.trim() !== "" && (
               <button
-                key={c.id}
-                onMouseDown={() => { onLink(c.id); setQuery(""); setOpen(false); setIsSearching(false); }}
-                className="w-full flex items-center gap-2.5 px-4 py-2.5 hover:bg-amber-50/50 text-left text-xs font-semibold text-zinc-900 transition-colors"
+                type="button"
+                disabled={isCreating}
+                onMouseDown={handleCreateCompany}
+                className="flex items-center gap-2 w-full rounded-lg px-2 py-1.5 text-sm text-amber-600 hover:bg-amber-50 transition-colors font-medium cursor-pointer"
               >
-                <div className="w-5 h-5 rounded bg-orange-50 text-orange-600 text-[10px] font-black flex items-center justify-center shrink-0">{c.name.charAt(0)}</div>
-                {c.name}
+                <Plus className="h-3.5 w-3.5 shrink-0" />
+                <span className="truncate">{isCreating ? "Criando..." : `Criar "${query.trim()}"`}</span>
               </button>
-            ))
-          )}
-        </div>
-      )}
+            )}
+
+            {filtered.length === 0 && query.trim() === "" && (
+              companies.slice(0, 5).map(c => (
+                <button
+                  key={c.id}
+                  onMouseDown={() => { onLink(c.id); setQuery(""); setOpen(false); setIsSearching(false); }}
+                  className="w-full flex items-center gap-2.5 px-2 py-1.5 hover:bg-amber-50 rounded-lg text-left text-sm font-medium text-zinc-900 transition-colors"
+                >
+                  <div className="w-5 h-5 rounded bg-orange-50 text-orange-600 text-[10px] font-black flex items-center justify-center shrink-0">
+                    {c.name.charAt(0).toUpperCase()}
+                  </div>
+                  <span className="truncate">{c.name}</span>
+                </button>
+              ))
+            )}
+          </div>
+        )}
+      </div>
     </div>
   );
 }

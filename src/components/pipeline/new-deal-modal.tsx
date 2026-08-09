@@ -107,7 +107,7 @@ function SearchCombobox({
 }
 
 export function NewDealModal({ onClose, activePipelineId, initialStageId }: NewDealModalProps) {
-  const { state, addDeal, addContact, addCompany } = useCrm();
+  const { state, addDeal, addContact, addCompany, updateContact } = useCrm();
 
   const pipeline = state.pipelines.find(p => p.id === activePipelineId);
 
@@ -126,17 +126,31 @@ export function NewDealModal({ onClose, activePipelineId, initialStageId }: NewD
 
   const handleCreateContact = async (name: string) => {
     const realId = await addContact({ id: "", name, emails: [], phones: [], role: "", companyId: selectedCompanyId || undefined });
-    if (realId) setSelectedContactId(realId);
+    if (realId) {
+      setSelectedContactId(realId);
+      if (selectedCompanyId) {
+        updateContact(realId, { companyId: selectedCompanyId });
+      }
+    }
   };
 
   const handleCreateCompany = async (name: string) => {
     const realId = await addCompany({ id: "", name });
-    if (realId) setSelectedCompanyId(realId);
+    if (realId) {
+      setSelectedCompanyId(realId);
+      if (selectedContactId) {
+        updateContact(selectedContactId, { companyId: realId });
+      }
+    }
   };
 
   const handleSave = async () => {
     if (!title.trim() || saving) return;
     setSaving(true);
+
+    if (selectedContactId && selectedCompanyId) {
+      updateContact(selectedContactId, { companyId: selectedCompanyId });
+    }
 
     const newDeal: Deal = {
       id: "",

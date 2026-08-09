@@ -58,8 +58,10 @@ function TypeSelector({ value, options, onChange }: { value: string; options: st
 
 
 function CompanySearchInput({ companies, selectedId, onSelect }: { companies: { id: string; name: string }[]; selectedId: string; onSelect: (id: string) => void }) {
+  const { addCompany } = useCrm();
   const [query, setQuery] = useState("");
   const [open, setOpen] = useState(false);
+  const [isCreating, setIsCreating] = useState(false);
   const ref = useRef<HTMLDivElement>(null);
   const selected = companies.find(c => c.id === selectedId);
   useEffect(() => {
@@ -69,12 +71,32 @@ function CompanySearchInput({ companies, selectedId, onSelect }: { companies: { 
   }, []);
   useEffect(() => { if (selected) setQuery(selected.name); }, [selected]);
   const filtered = query.trim() ? companies.filter(c => c.name.toLowerCase().includes(query.toLowerCase())) : companies.slice(0, 6);
+
+  const handleCreate = async (e: React.MouseEvent) => {
+    e.preventDefault();
+    const trimmed = query.trim();
+    if (!trimmed || isCreating) return;
+    setIsCreating(true);
+    try {
+      const newId = await addCompany({ id: "", name: trimmed });
+      if (newId) {
+        onSelect(newId);
+        setQuery(trimmed);
+        setOpen(false);
+      }
+    } catch (err) {
+      console.error(err);
+    } finally {
+      setIsCreating(false);
+    }
+  };
+
   return (
     <div ref={ref} className="relative">
       <div className="flex items-center border border-zinc-200 rounded-lg px-3 py-2.5 bg-white focus-within:border-amber-400 transition-colors">
         <Search size={13} className="text-zinc-400 mr-2 shrink-0" />
         <input value={query} onChange={e => { setQuery(e.target.value); onSelect(""); setOpen(true); }}
-          onFocus={() => setOpen(true)} placeholder="Buscar empresa por nome..."
+          onFocus={() => setOpen(true)} placeholder="Buscar ou criar empresa..."
           className="flex-1 text-sm outline-none bg-transparent text-zinc-800 placeholder:text-zinc-400" />
         {selectedId && (
           <button type="button" onClick={() => { onSelect(""); setQuery(""); }} className="text-zinc-300 hover:text-red-400 transition-colors ml-1">
@@ -82,15 +104,26 @@ function CompanySearchInput({ companies, selectedId, onSelect }: { companies: { 
           </button>
         )}
       </div>
-      {open && filtered.length > 0 && (
-        <div className="absolute z-50 top-full mt-1 w-full bg-white border border-zinc-200 rounded-xl shadow-lg overflow-hidden">
+      {open && (
+        <div className="absolute z-50 top-full mt-1 w-full bg-white border border-zinc-200 rounded-xl shadow-lg overflow-hidden p-1 space-y-1">
           {filtered.map(c => (
             <button key={c.id} type="button" onMouseDown={() => { onSelect(c.id); setQuery(c.name); setOpen(false); }}
-              className="w-full flex items-center gap-2.5 px-3 py-2.5 hover:bg-amber-50 text-left text-sm font-medium text-zinc-900 transition-colors">
-              <div className="w-5 h-5 rounded bg-amber-50 text-amber-600 text-[10px] font-black flex items-center justify-center shrink-0">{c.name.charAt(0)}</div>
-              {c.name}
+              className="w-full flex items-center gap-2.5 px-3 py-2 hover:bg-amber-50 text-left text-sm font-medium text-zinc-900 transition-colors rounded-lg">
+              <div className="w-5 h-5 rounded bg-amber-50 text-amber-600 text-[10px] font-black flex items-center justify-center shrink-0">{c.name.charAt(0).toUpperCase()}</div>
+              <span className="truncate">{c.name}</span>
             </button>
           ))}
+          {query.trim() !== "" && (
+            <button
+              type="button"
+              disabled={isCreating}
+              onMouseDown={handleCreate}
+              className="flex items-center gap-2 w-full rounded-lg px-3 py-2 text-sm text-amber-600 hover:bg-amber-50 transition-colors font-medium cursor-pointer"
+            >
+              <Plus className="h-3.5 w-3.5 shrink-0" />
+              <span className="truncate">{isCreating ? "Criando..." : `Criar "${query.trim()}"`}</span>
+            </button>
+          )}
         </div>
       )}
     </div>

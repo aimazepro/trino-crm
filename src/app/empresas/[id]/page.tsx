@@ -60,37 +60,66 @@ function EditableField({ label, value, onSave }: { label: string; value: string;
 }
 
 // ── Contact search ─────────────────────────────────────────────────────────────
-function ContactSearch({ allContacts, onLink, onClose }: { allContacts: { id: string; name: string }[]; onLink: (id: string) => void; onClose: () => void }) {
+function ContactSearch({ companyId, allContacts, onLink, onClose }: { companyId: string; allContacts: { id: string; name: string }[]; onLink: (id: string) => void; onClose: () => void }) {
+  const { addContact } = useCrm();
   const [query, setQuery] = useState("");
+  const [isCreating, setIsCreating] = useState(false);
   const inputRef = useRef<HTMLInputElement>(null);
   useEffect(() => { inputRef.current?.focus(); }, []);
   const filtered = query.trim()
     ? allContacts.filter(c => c.name.toLowerCase().includes(query.toLowerCase())).slice(0, 5)
     : [];
 
+  const handleCreate = async () => {
+    const trimmed = query.trim();
+    if (!trimmed || isCreating) return;
+    setIsCreating(true);
+    try {
+      const newId = await addContact({ id: "", name: trimmed, emails: [], phones: [], role: "", companyId });
+      if (newId) onLink(newId);
+    } catch (e) {
+      console.error(e);
+    } finally {
+      setIsCreating(false);
+    }
+  };
+
   return (
-    <div className="mt-2 rounded-xl border border-zinc-200 bg-white overflow-hidden">
+    <div className="mt-2 rounded-xl border border-zinc-200 bg-white overflow-hidden p-1 space-y-1">
       <div className="flex items-center gap-2 px-3 py-2 border-b border-zinc-100">
         <Search className="h-3.5 w-3.5 text-zinc-400 shrink-0" />
         <input
           ref={inputRef}
           value={query}
           onChange={e => setQuery(e.target.value)}
-          placeholder="Buscar contato..."
+          placeholder="Buscar ou criar contato..."
           className="flex-1 text-sm outline-none bg-transparent text-zinc-700 placeholder:text-zinc-400"
         />
+        {query && (
+          <button onClick={() => setQuery("")} className="text-zinc-400 hover:text-zinc-600">
+            <X className="h-3.5 w-3.5" />
+          </button>
+        )}
       </div>
       {filtered.map(c => (
         <button key={c.id} onClick={() => onLink(c.id)}
-          className="w-full flex items-center gap-2.5 px-3 py-2.5 hover:bg-amber-50 text-left text-sm font-medium text-zinc-900 transition-colors border-b border-zinc-50 last:border-0">
-          <div className="w-6 h-6 rounded-full bg-zinc-100 text-zinc-600 text-[10px] font-bold flex items-center justify-center shrink-0">{c.name.charAt(0)}</div>
-          {c.name}
+          className="w-full flex items-center gap-2.5 px-3 py-2 hover:bg-amber-50 rounded-lg text-left text-sm font-medium text-zinc-900 transition-colors">
+          <div className="w-5 h-5 rounded-full bg-blue-50 text-blue-600 text-[10px] font-black flex items-center justify-center shrink-0">{c.name.charAt(0).toUpperCase()}</div>
+          <span className="truncate">{c.name}</span>
         </button>
       ))}
-      {query.trim() && filtered.length === 0 && (
-        <div className="px-3 py-2.5 text-xs text-zinc-400">Nenhum resultado</div>
+      {query.trim() !== "" && (
+        <button
+          type="button"
+          disabled={isCreating}
+          onClick={handleCreate}
+          className="flex items-center gap-2 w-full rounded-lg px-3 py-2 text-sm text-amber-600 hover:bg-amber-50 transition-colors font-medium cursor-pointer"
+        >
+          <Plus className="h-3.5 w-3.5 shrink-0" />
+          <span className="truncate">{isCreating ? "Criando..." : `Criar "${query.trim()}"`}</span>
+        </button>
       )}
-      <button onClick={onClose} className="w-full text-left px-3 py-2 text-xs text-zinc-400 hover:text-zinc-600 transition-colors">
+      <button onClick={onClose} className="w-full text-left px-3 py-1.5 text-xs text-zinc-400 hover:text-zinc-600 transition-colors">
         Cancelar
       </button>
     </div>
@@ -327,6 +356,7 @@ export default function EmpresaPage({ params }: { params: Promise<{ id: string }
               )}
               {showVincularPessoa && (
                 <ContactSearch
+                  companyId={id}
                   allContacts={state.contacts.filter(c => c.id !== linkedContact?.id)}
                   onLink={cid => {
                     if (linkedContact) updateContact(linkedContact.id, { companyId: undefined });
