@@ -7,7 +7,8 @@ import {
   AlertCircle, Phone, Mail, Video, Users, MessageCircle, Hash,
   type LucideIcon,
 } from "lucide-react";
-import { formatDistanceToNow, isPast, isToday, isTomorrow } from "date-fns";
+import { getTimelineIconConfig } from "@/lib/timeline-helpers";
+import { format, formatDistanceToNow, isPast, isToday, isTomorrow } from "date-fns";
 import { ptBR } from "date-fns/locale";
 import { useCrm } from "@/contexts/crm-context";
 import { Deal, Activity } from "@/lib/crm-types";
@@ -181,20 +182,31 @@ export function AllTab({ deal, userName }: { deal: Deal; userName?: string }) {
         {timelineOpen && (
           <div className="space-y-6 pl-4 border-l-2 border-gray-100 ml-4 py-2">
             {deal.history.map(log => {
-              const Icon = historyIcon(log.description);
+              const { icon: Icon, badgeClass } = getTimelineIconConfig(log.description);
               return (
-              <div key={log.id} className="relative">
-                <div className="absolute -left-[27px] top-0 w-8 h-8 bg-zinc-100 text-zinc-500 rounded-full flex items-center justify-center border-4 border-white">
-                  <Icon size={14} />
+                <div key={log.id} className="relative">
+                  <div className={cn(
+                    "absolute -left-[27px] top-0 w-8 h-8 rounded-full flex items-center justify-center border-2 border-white shadow-xs transition-colors",
+                    badgeClass
+                  )}>
+                    <Icon size={14} />
+                  </div>
+                  <div className="pl-6">
+                    <h5 className="font-semibold text-zinc-900 text-sm">{log.description}</h5>
+                    {log.subtext && <p className="text-sm text-zinc-500 mt-0.5">{log.subtext}</p>}
+                    <p className="text-xs text-zinc-400 mt-1">
+                      {(() => {
+                        try {
+                          const d = new Date(log.createdAt);
+                          const formattedDate = format(d, "dd/MM/yyyy HH:mm");
+                          return userName ? `${formattedDate} · ${userName}` : formattedDate;
+                        } catch {
+                          return log.createdAt;
+                        }
+                      })()}
+                    </p>
+                  </div>
                 </div>
-                <div className="pl-6">
-                  <h5 className="font-bold text-gray-900 text-sm">{log.description}</h5>
-                  {log.subtext && <p className="text-sm text-gray-500 mt-0.5">{log.subtext}</p>}
-                  <p className="text-[11px] font-bold text-gray-400 mt-1 uppercase tracking-wider">
-                    {formatDistanceToNow(new Date(log.createdAt), { addSuffix: true, locale: ptBR })}
-                  </p>
-                </div>
-              </div>
               );
             })}
             {deal.history.length === 0 && (
