@@ -5,6 +5,7 @@ import { Plus, X, Pencil, Trash2, GripVertical, Play, CircleCheck, Lock, Share2,
 import { cn } from "@/lib/utils";
 import { createClient } from "@/lib/supabase/client";
 import { useCrm } from "@/contexts/crm-context";
+import { TimeField } from "@/components/ui/time-field";
 import {
   StepType,
   StepUnit,
@@ -694,11 +695,10 @@ export default function SequenciasPage() {
                             <option value="MONTHS">Meses</option>
                           </select>
                           <span className="ml-2">às</span>
-                          <input
-                            type="time"
+                          <TimeField
                             value={step.time}
-                            onChange={(e) => updateStep(step.id, { time: e.target.value })}
-                            className="border border-zinc-200 rounded px-2 py-1 text-sm outline-none focus:ring-2 focus:ring-amber-200"
+                            onChange={(time) => updateStep(step.id, { time })}
+                            className="w-24 rounded px-2 py-1 focus:ring-2 focus:ring-amber-200"
                           />
                           <span className="text-xs text-zinc-400">(usa horário da atribuição se vazio)</span>
                         </div>

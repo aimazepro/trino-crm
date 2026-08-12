@@ -6,6 +6,7 @@ import { Activity } from "@/lib/crm-types";
 import { useCrm } from "@/contexts/crm-context";
 import { useOwnerNameMap } from "@/hooks/use-owner-name-map";
 import { cn } from "@/lib/utils";
+import { TimeField } from "@/components/ui/time-field";
 
 interface ActivityModalProps {
   activity?: Activity;
@@ -210,15 +211,9 @@ export function ActivityModal({ activity, onClose, onSave, deals = [], defaultDe
                 className="border border-gray-200 rounded-xl px-3 py-2.5 text-sm outline-none focus:border-amber-400 transition-colors text-gray-800"
               />
               <span className="text-xs text-gray-400">às</span>
-              <input
-                type="time" value={startTime} onChange={e => setStartTime(e.target.value)}
-                className="border border-gray-200 rounded-xl px-3 py-2.5 text-sm outline-none focus:border-amber-400 transition-colors text-gray-800"
-              />
+              <TimeField value={startTime} onChange={setStartTime} ariaLabel="Hora de início" />
               <span className="text-xs text-gray-400">–</span>
-              <input
-                type="time" value={endTime} onChange={e => setEndTime(e.target.value)}
-                className="border border-gray-200 rounded-xl px-3 py-2.5 text-sm outline-none focus:border-amber-400 transition-colors text-gray-800"
-              />
+              <TimeField value={endTime} onChange={setEndTime} relativeTo={startTime} ariaLabel="Hora de término" />
             </div>
             <p className="text-[11px] text-gray-400 mt-1.5">Deixe a hora em branco para um lembrete sem horário.</p>
           </div>
