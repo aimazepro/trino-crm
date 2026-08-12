@@ -44,14 +44,17 @@ export default function CalendarioPage() {
         data: { user },
       } = await supabase.auth.getUser();
 
+      let integ: { account_email?: string | null; sync_type?: string | null; last_synced_at?: string | null } | null = null;
+
       if (user) {
-        const { data: integ } = await supabase
+        const { data } = await supabase
           .from("integrations")
           .select("*")
           .eq("user_id", user.id)
           .eq("provider", "google_calendar")
           .eq("active", true)
           .maybeSingle();
+        integ = data;
 
         if (integ && isMounted) {
           setIsConnected(true);
@@ -80,15 +83,11 @@ export default function CalendarioPage() {
         window.history.replaceState({}, "", cleanUrl.toString());
       }
 
-      // Restore syncType preference if saved in localStorage
-      const savedSyncType = localStorage.getItem("gcal_sync_type");
-      if (savedSyncType === "bidirecional" || savedSyncType === "unidirecional") {
-        setSyncType(savedSyncType);
+      if (integ?.sync_type === "bidirecional" || integ?.sync_type === "unidirecional") {
+        setSyncType(integ.sync_type);
       }
-
-      const savedSyncTime = localStorage.getItem("gcal_last_sync_time");
-      if (savedSyncTime) {
-        setLastSyncTime(savedSyncTime);
+      if (integ?.last_synced_at) {
+        setLastSyncTime(new Date(integ.last_synced_at).toLocaleTimeString("pt-BR", { hour: "2-digit", minute: "2-digit" }));
         setIsSynced(true);
       }
 
@@ -114,18 +113,14 @@ export default function CalendarioPage() {
     setBannerError(null);
 
     try {
-      // Simulate/Trigger Google Calendar sync
-      await new Promise((resolve) => setTimeout(resolve, 1200));
+      const res = await fetch("/api/calendar/sync-now", { method: "POST" });
+      const data = await res.json();
+      if (!data.ok) throw new Error(data.error || "sync failed");
 
-      const nowTime = new Date().toLocaleTimeString("pt-BR", {
-        hour: "2-digit",
-        minute: "2-digit",
-      });
-
+      const nowTime = new Date().toLocaleTimeString("pt-BR", { hour: "2-digit", minute: "2-digit" });
       setIsSynced(true);
       setLastSyncTime(nowTime);
-      localStorage.setItem("gcal_last_sync_time", nowTime);
-      setBannerSuccess(`Sincronização concluída com sucesso às ${nowTime}!`);
+      setBannerSuccess(`Sincronização concluída às ${nowTime} — ${data.pulled} atualizados do Google, ${data.pushed} enviados pro Google.`);
     } catch {
       setBannerError("Falha ao sincronizar agenda. Verifique suas credenciais.");
     } finally {
@@ -136,7 +131,12 @@ export default function CalendarioPage() {
   // Select sync mode
   const handleSelectSyncType = (type: SyncType) => {
     setSyncType(type);
-    localStorage.setItem("gcal_sync_type", type);
+    supabase.auth.getUser().then(({ data: { user } }) => {
+      if (!user) return;
+      supabase.from("integrations").update({ sync_type: type })
+        .eq("user_id", user.id).eq("provider", "google_calendar")
+        .then(({ error }) => { if (error) console.error("[calendar] sync_type update failed:", error); });
+    });
   };
 
   // Disconnect Google Calendar
