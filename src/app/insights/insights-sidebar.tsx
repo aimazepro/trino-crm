@@ -158,7 +158,12 @@ export function InsightsSidebar({
                       )}
                     >
                       <BarChart2 className="h-3.5 w-3.5 shrink-0" style={{ color: report.color || "#ec4899" }} />
-                      <span className="truncate flex-1 pr-6">{report.name}</span>
+                      <span className="truncate flex-1 min-w-0">{report.name}</span>
+                      {report.pipeline && (
+                        <span className="text-[10px] font-normal text-zinc-400 shrink-0 group-hover:opacity-0 transition-opacity">
+                          {report.pipeline}
+                        </span>
+                      )}
                     </button>
                     <div className="absolute right-1 top-1/2 -translate-y-1/2 flex items-center gap-0.5 opacity-0 group-hover:opacity-100 transition-all bg-white pl-1">
                       <button onClick={(e) => onStartRename(report.id, report.name, e)} className="p-1 rounded text-zinc-400 hover:text-zinc-600 hover:bg-zinc-50 cursor-pointer" title="Renomear"><Pencil className="h-3 w-3" /></button>

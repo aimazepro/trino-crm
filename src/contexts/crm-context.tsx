@@ -61,7 +61,7 @@ export function CrmProvider({ children }: { children: ReactNode }) {
   const [state, setState] = useState<CrmState>({ pipelines: [], deals: [], contacts: [], companies: [], labels: [], notifications: [] });
   const [loading, setLoading] = useState(true);
   const [userId, setUserId] = useState<string | null>(null);
-  const supabase = createClient();
+  const supabase = useMemo(() => createClient(), []);
 
   useEffect(() => {
     async function load() {
@@ -92,17 +92,21 @@ export function CrmProvider({ children }: { children: ReactNode }) {
         notifiedSet = new Set();
       }
 
-      let updatedNotified = false;
-
       for (const deal of state.deals) {
         for (const activity of deal.activities || []) {
           if (activity.completed) continue;
           const actDate = new Date(activity.date);
           if (actDate.getTime() <= now.getTime()) {
-            const notifKey = `act_notif_${deal.id}_${activity.id || activity.title}_${activity.date}`;
+            // Keyed by stable fields (not activity.id — it starts as a temp client id
+            // like `act_${Date.now()}` and gets swapped for the real DB id after insert
+            // resolves, which produced a second, different key and a duplicate notification).
+            const notifKey = `act_notif_${deal.id}_${activity.title}_${activity.type}_${activity.date}`;
             if (!notifiedSet.has(notifKey)) {
               notifiedSet.add(notifKey);
-              updatedNotified = true;
+              // Persist immediately (not batched at the end of the loop) so an overlapping
+              // invocation — e.g. a slow insert on a previous tick still in flight — reads
+              // this key and doesn't re-notify the same activity.
+              localStorage.setItem("crm_notified_activities", JSON.stringify(Array.from(notifiedSet)));
 
               const isToday = actDate.toDateString() === now.toDateString();
               let subtext = "";
@@ -178,10 +182,6 @@ export function CrmProvider({ children }: { children: ReactNode }) {
             }
           }
         }
-      }
-
-      if (updatedNotified) {
-        localStorage.setItem("crm_notified_activities", JSON.stringify(Array.from(notifiedSet)));
       }
     };
 
