@@ -15,7 +15,7 @@
 - Push (CRM→Calendar) fires in **both** sync modes (uni/bidirecional). Only the pull direction is gated by `sync_type = 'bidirecional'`.
 - Event title: `"{título} — {negócio.title}"`; falls back to just the title when the activity has no linked deal.
 - Google Meet is requested only when `activity.type` is `"Reunião"` or `"Videochamada"`.
-- Pulling changes back from Google only touches `date`/`end_date`/`completed` (cancellation) on the activity — **never** `title`/`description`. Google's `summary` already has `" — {negócio}"` appended by our own push; pulling it back verbatim would corrupt the CRM title and double up on the next push. This narrows the spec's "atualiza título/horário/notas" line to the safe subset.
+- Pulling changes back from Google only touches `date`/`end_date` on the activity, plus unlinking (`google_event_id = null`) on cancellation — **never** `title`/`description`/`completed`. Google's `summary` already has `" — {negócio}"` appended by our own push; pulling it back verbatim would corrupt the CRM title and double up on the next push. This narrows the spec's "atualiza título/horário/notas" line to the safe subset.
 - A Google-side cancellation unlinks the activity (`google_event_id = null`); it never deletes the CRM activity.
 - Google Calendar events created directly in Google (no matching `google_event_id` in `activities`) are ignored by the pull — never written to the CRM.
 - No test framework exists in this repo (`package.json` only has `dev`/`build`/`start`/`lint`). Every task's verification step is `npx tsc --noEmit`, `npm run lint`, and a concrete manual check — not a written unit test.
@@ -1031,4 +1031,4 @@ git commit -m "feat(calendar): wire Sincronizar agora and the sync-type toggle t
 
 - **Spec coverage:** migration (Task 1), naming + Meet + instant push (Task 4), polling pull with unlink-not-delete and external-events-ignored (Task 5/3), real toggle/button (Task 6) — all five spec sections have a task. Fase 3 (Agenda) correctly has no task, per spec's "fora de escopo".
 - **Type consistency:** `pushActivity`/`pullForUser` signatures in Task 3 match every call site in Tasks 4-6. `CalendarEventResult.meetLink` (Task 2) flows through unchanged as `meet_link`/`meetLink` everywhere it's read.
-- **Deviation flagged:** pull only touches `date`/`end_date`/`completed`, not `title`/`description` — called out in Global Constraints with the reasoning (avoids corrupting the CRM's composed "título — negócio" naming on round-trip). Everything else matches the approved spec as written.
+- **Deviation flagged:** pull only touches `date`/`end_date` (plus unlinking on cancellation), never `title`/`description`/`completed` — called out in Global Constraints with the reasoning (avoids corrupting the CRM's composed "título — negócio" naming on round-trip). Everything else matches the approved spec as written.
