@@ -5,7 +5,11 @@ export async function GET() {
     process.env.GOOGLE_CALENDAR_OAUTH_CLIENT_ID ||
     process.env.GMAIL_OAUTH_CLIENT_ID;
   const appUrl = process.env.NEXT_PUBLIC_APP_URL || "http://localhost:3000";
-  const redirectUri = `${appUrl}/api/auth/google-calendar/callback`;
+  // Default to /api/auth/gmail/callback if no dedicated calendar redirect URI is defined,
+  // preventing redirect_uri_mismatch errors when using pre-approved Google Client IDs.
+  const redirectUri =
+    process.env.GOOGLE_CALENDAR_REDIRECT_URI ||
+    `${appUrl}/api/auth/gmail/callback`;
   const state = crypto.randomUUID();
 
   if (!clientId) {
