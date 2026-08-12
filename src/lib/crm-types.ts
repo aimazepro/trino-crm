@@ -80,6 +80,8 @@ export interface Activity {
   guests?: string[];
   assigneeId?: string;
   attachments: ActivityAttachment[];
+  googleEventId?: string;
+  meetLink?: string;
 }
 
 export interface Deal {

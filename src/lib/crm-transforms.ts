@@ -77,6 +77,7 @@ export function transformDeal(row: any): Deal {
       date: new Date(a.date).toISOString(), endDate: a.end_date ? new Date(a.end_date).toISOString() : undefined,
       type: a.type, completed: a.completed, createdAt: a.created_at,
       guests: a.guests ?? [], assigneeId: a.assignee_id ?? undefined,
+      googleEventId: a.google_event_id ?? undefined, meetLink: a.meet_link ?? undefined,
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
       attachments: ((a.activity_attachments ?? []) as any[]).map((att) => ({
         id: att.id, fileName: att.file_name, filePath: att.file_path, sizeBytes: att.size_bytes,
