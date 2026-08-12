@@ -665,6 +665,23 @@ export function useCrmMutations({ state, setState, userId, supabase }: MutationP
               : d),
           }));
           addDealHistory(activity.dealId, "Atividade criada", activity.title);
+
+          fetch("/api/calendar/sync-activity", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ activityId: data.id, action: "upsert" }),
+          })
+            .then((r) => r.json())
+            .then((sync) => {
+              if (!sync.ok || sync.skipped) return;
+              setState((prev) => ({
+                ...prev,
+                deals: prev.deals.map((d) => d.id === activity.dealId
+                  ? { ...d, activities: d.activities.map((a) => a.id === data.id ? { ...a, googleEventId: sync.googleEventId, meetLink: sync.meetLink ?? undefined } : a) }
+                  : d),
+              }));
+            })
+            .catch((e) => console.error("[CRM] calendar push failed:", e));
         }
       });
     }
@@ -697,16 +714,40 @@ export function useCrmMutations({ state, setState, userId, supabase }: MutationP
           if (fields.completed === true && owningDeal) {
             addDealHistory(owningDeal.id, "Atividade concluída", "");
           }
+          fetch("/api/calendar/sync-activity", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ activityId, action: "upsert" }),
+          })
+            .then((r) => r.json())
+            .then((sync) => {
+              if (!sync.ok || sync.skipped) return;
+              setState((prev) => ({
+                ...prev,
+                deals: prev.deals.map((d) => ({
+                  ...d, activities: d.activities.map((a) => a.id === activityId ? { ...a, googleEventId: sync.googleEventId, meetLink: sync.meetLink ?? undefined } : a),
+                })),
+              }));
+            })
+            .catch((e) => console.error("[CRM] calendar push failed:", e));
         });
     }
   };
 
   const deleteActivity = (activityId: string) => {
     const owningDeal = state.deals.find((d) => d.activities.some((a) => a.id === activityId));
+    const target = owningDeal?.activities.find((a) => a.id === activityId);
     setState((prev) => ({
       ...prev,
       deals: prev.deals.map((d) => ({ ...d, activities: d.activities.filter((a) => a.id !== activityId) })),
     }));
+    if (target?.googleEventId) {
+      fetch("/api/calendar/sync-activity", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ activityId, action: "delete" }),
+      }).catch((e) => console.error("[CRM] calendar delete push failed:", e));
+    }
     supabase.from("activities").delete().eq("id", activityId)
       .then(({ error }) => {
         if (error) { console.error("[CRM] deleteActivity failed:", error); return; }

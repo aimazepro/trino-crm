@@ -111,7 +111,7 @@ function extractResult(event: Record<string, unknown>): CalendarEventResult {
 
 export async function createEvent(accessToken: string, calendarId: string, input: CalendarEventInput): Promise<CalendarEventResult> {
   const res = await fetch(
-    `${CALENDAR_API}/calendars/${encodeURIComponent(calendarId)}/events?conferenceDataVersion=1`,
+    `${CALENDAR_API}/calendars/${encodeURIComponent(calendarId)}/events?conferenceDataVersion=1&sendUpdates=all`,
     {
       method: "POST",
       headers: { Authorization: `Bearer ${accessToken}`, "Content-Type": "application/json" },
@@ -124,7 +124,7 @@ export async function createEvent(accessToken: string, calendarId: string, input
 
 export async function updateEvent(accessToken: string, calendarId: string, googleEventId: string, input: CalendarEventInput): Promise<CalendarEventResult> {
   const res = await fetch(
-    `${CALENDAR_API}/calendars/${encodeURIComponent(calendarId)}/events/${encodeURIComponent(googleEventId)}?conferenceDataVersion=1`,
+    `${CALENDAR_API}/calendars/${encodeURIComponent(calendarId)}/events/${encodeURIComponent(googleEventId)}?conferenceDataVersion=1&sendUpdates=all`,
     {
       method: "PATCH",
       headers: { Authorization: `Bearer ${accessToken}`, "Content-Type": "application/json" },

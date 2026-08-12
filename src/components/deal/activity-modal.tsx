@@ -266,6 +266,21 @@ export function ActivityModal({ activity, onClose, onSave, deals = [], defaultDe
           {/* Notas */}
           <div>
             <label className="text-sm font-semibold text-gray-700 block mb-1.5">Notas</label>
+            {showGuests && activity?.meetLink && (
+              <div className="flex items-center justify-between gap-2 rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 mb-2">
+                <div className="flex items-center gap-2 min-w-0">
+                  <Video size={14} className="text-amber-500 shrink-0" />
+                  <span className="text-xs font-medium text-amber-800 truncate">{activity.meetLink}</span>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => navigator.clipboard.writeText(activity.meetLink!)}
+                  className="shrink-0 text-xs font-medium text-amber-700 hover:text-amber-900 bg-white border border-amber-200 rounded-md px-2 py-1"
+                >
+                  Copiar
+                </button>
+              </div>
+            )}
             <textarea
               value={notes}
               onChange={e => setNotes(e.target.value)}
