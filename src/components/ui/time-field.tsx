@@ -55,19 +55,41 @@ function buildOptions(relativeTo?: string): TimeOption[] {
   return options;
 }
 
-/** Masks free typing into HH:mm, auto-inserting the colon and softly clamping out-of-range hours/minutes. */
+/**
+ * Masks free typing into HH:mm, auto-inserting the colon and softly clamping
+ * out-of-range hours/minutes. Re-derives the full split from scratch on every
+ * keystroke (never trusts the previous render's split) so it can't deadlock:
+ * a first digit of 3-9 is always a one-digit hour, and a two-digit prefix over
+ * 23 falls back to a one-digit hour with the second digit starting the minutes
+ * — e.g. typing "950" reaches 9:50 instead of getting stuck at "9:".
+ */
 function maskTimeInput(raw: string): string {
   const digits = raw.replace(/\D/g, "").slice(0, 4);
-  if (digits.length <= 2) {
-    // Clamp hour segment once both digits are in.
-    if (digits.length === 2 && Number(digits) > 23) return `${digits[0]}${digits[1]}`.slice(0, 1) + ":";
-    return digits;
+  if (digits.length === 0) return "";
+
+  let hourDigits: string;
+  let rest: string;
+  if (digits[0] > "2") {
+    hourDigits = digits[0];
+    rest = digits.slice(1);
+  } else if (digits.length === 1) {
+    hourDigits = digits[0];
+    rest = "";
+  } else {
+    const twoDigitHour = digits.slice(0, 2);
+    if (Number(twoDigitHour) > 23) {
+      hourDigits = digits[0];
+      rest = digits.slice(1);
+    } else {
+      hourDigits = twoDigitHour;
+      rest = digits.slice(2);
+    }
   }
-  const h = digits.slice(0, 2);
-  let m = digits.slice(2);
-  if (m.length === 2 && Number(m) > 59) m = "59";
-  const hNum = Number(h) > 23 ? "23" : h;
-  return `${hNum}:${m}`;
+
+  if (rest.length === 0) return hourDigits;
+  let minuteDigits = rest.slice(0, 2);
+  if (minuteDigits.length === 2 && Number(minuteDigits) > 59) minuteDigits = "59";
+  return `${hourDigits}:${minuteDigits}`;
 }
 
 interface TimeFieldProps {

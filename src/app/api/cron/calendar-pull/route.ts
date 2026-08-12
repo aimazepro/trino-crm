@@ -7,11 +7,12 @@ export const dynamic = "force-dynamic";
 export const maxDuration = 120;
 
 export async function GET(req: NextRequest) {
-  if (process.env.CRON_SECRET) {
-    const auth = req.headers.get("authorization");
-    if (auth !== `Bearer ${process.env.CRON_SECRET}`) {
-      return NextResponse.json({ error: "unauthorized" }, { status: 401 });
-    }
+  // Fail closed: an unset CRON_SECRET must never mean "no auth required" — that would
+  // ship this as a public endpoint anyone can hammer to burn Calendar API quota and
+  // trigger writes for every connected user until the env var is set.
+  const auth = req.headers.get("authorization");
+  if (!process.env.CRON_SECRET || auth !== `Bearer ${process.env.CRON_SECRET}`) {
+    return NextResponse.json({ error: "unauthorized" }, { status: 401 });
   }
 
   const admin = createAdminClient(

@@ -121,7 +121,8 @@ export default function CalendarioPage() {
       setIsSynced(true);
       setLastSyncTime(nowTime);
       setBannerSuccess(`Sincronização concluída às ${nowTime} — ${data.pulled} atualizados do Google, ${data.pushed} enviados pro Google.`);
-    } catch {
+    } catch (e) {
+      console.error("[calendar] sync-now failed:", e);
       setBannerError("Falha ao sincronizar agenda. Verifique suas credenciais.");
     } finally {
       setSyncing(false);

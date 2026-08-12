@@ -18,6 +18,10 @@ export interface CalendarEventInput {
   endIso: string;
   attendees?: string[];
   withMeet?: boolean;
+  /** Stable id for the Meet createRequest — pass the activity id. A repeated id on the
+   * same event is idempotent to Google, so this must NOT be regenerated per call, or
+   * every update mints (and emails) a brand-new conference. */
+  meetRequestId?: string;
 }
 
 export interface CalendarEventResult {
@@ -90,14 +94,15 @@ export async function getValidAccessToken(
 }
 
 function buildEventBody(input: CalendarEventInput) {
+  const attendees = (input.attendees ?? []).map((email) => ({ email }));
   return {
     summary: input.title,
     description: input.description,
     start: { dateTime: input.startIso, timeZone: TIMEZONE },
     end: { dateTime: input.endIso, timeZone: TIMEZONE },
-    attendees: (input.attendees ?? []).map((email) => ({ email })),
+    ...(attendees.length > 0 ? { attendees } : {}),
     ...(input.withMeet
-      ? { conferenceData: { createRequest: { requestId: crypto.randomUUID(), conferenceSolutionKey: { type: "hangoutsMeet" } } } }
+      ? { conferenceData: { createRequest: { requestId: input.meetRequestId || crypto.randomUUID(), conferenceSolutionKey: { type: "hangoutsMeet" } } } }
       : {}),
   };
 }

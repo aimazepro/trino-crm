@@ -714,22 +714,28 @@ export function useCrmMutations({ state, setState, userId, supabase }: MutationP
           if (fields.completed === true && owningDeal) {
             addDealHistory(owningDeal.id, "Atividade concluída", "");
           }
-          fetch("/api/calendar/sync-activity", {
-            method: "POST",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({ activityId, action: "upsert" }),
-          })
-            .then((r) => r.json())
-            .then((sync) => {
-              if (!sync.ok || sync.skipped) return;
-              setState((prev) => ({
-                ...prev,
-                deals: prev.deals.map((d) => ({
-                  ...d, activities: d.activities.map((a) => a.id === activityId ? { ...a, googleEventId: sync.googleEventId, meetLink: sync.meetLink ?? undefined } : a),
-                })),
-              }));
+          // Only push when a calendar-relevant field actually changed — e.g. toggling
+          // "completed" on an old, never-synced activity must not create a brand-new
+          // Google event backdated into the past.
+          const calendarRelevantKeys = ["title", "description", "date", "end_date", "type", "guests"];
+          if (Object.keys(db).some((k) => calendarRelevantKeys.includes(k))) {
+            fetch("/api/calendar/sync-activity", {
+              method: "POST",
+              headers: { "Content-Type": "application/json" },
+              body: JSON.stringify({ activityId, action: "upsert" }),
             })
-            .catch((e) => console.error("[CRM] calendar push failed:", e));
+              .then((r) => r.json())
+              .then((sync) => {
+                if (!sync.ok || sync.skipped) return;
+                setState((prev) => ({
+                  ...prev,
+                  deals: prev.deals.map((d) => ({
+                    ...d, activities: d.activities.map((a) => a.id === activityId ? { ...a, googleEventId: sync.googleEventId, meetLink: sync.meetLink ?? undefined } : a),
+                  })),
+                }));
+              })
+              .catch((e) => console.error("[CRM] calendar push failed:", e));
+          }
         });
     }
   };
@@ -741,18 +747,25 @@ export function useCrmMutations({ state, setState, userId, supabase }: MutationP
       ...prev,
       deals: prev.deals.map((d) => ({ ...d, activities: d.activities.filter((a) => a.id !== activityId) })),
     }));
-    if (target?.googleEventId) {
-      fetch("/api/calendar/sync-activity", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ activityId, action: "delete" }),
-      }).catch((e) => console.error("[CRM] calendar delete push failed:", e));
-    }
-    supabase.from("activities").delete().eq("id", activityId)
-      .then(({ error }) => {
-        if (error) { console.error("[CRM] deleteActivity failed:", error); return; }
-        if (owningDeal) addDealHistory(owningDeal.id, "Atividade removida", "");
-      });
+    // Push the Google-side delete first and wait for it — the route looks the activity
+    // back up by id, so it must still exist in the DB when that lookup runs. Firing this
+    // concurrently with the Supabase delete below lets the delete usually win the race,
+    // orphaning the Google event. The optimistic setState above already made the UI feel
+    // instant, so this await costs nothing the user can see.
+    const pushDelete = target?.googleEventId
+      ? fetch("/api/calendar/sync-activity", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ activityId, action: "delete" }),
+        }).catch((e) => console.error("[CRM] calendar delete push failed:", e))
+      : Promise.resolve();
+    pushDelete.then(() => {
+      supabase.from("activities").delete().eq("id", activityId)
+        .then(({ error }) => {
+          if (error) { console.error("[CRM] deleteActivity failed:", error); return; }
+          if (owningDeal) addDealHistory(owningDeal.id, "Atividade removida", "");
+        });
+    });
   };
 
   const addActivityAttachment = async (activityId: string, file: File) => {

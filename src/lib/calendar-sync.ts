@@ -31,7 +31,12 @@ export async function pushActivity(
   const endIso = activity.end_date
     ? new Date(activity.end_date).toISOString()
     : new Date(new Date(activity.date).getTime() + 30 * 60 * 1000).toISOString();
-  const withMeet = MEET_TYPES.has(activity.type);
+  // Only ask Google for a NEW conference when this activity doesn't already have one —
+  // a repeated createRequest on every edit would mint a fresh Meet link (and re-email
+  // guests) each time, invalidating the one already shared. meetRequestId is stable
+  // (the activity id) as a second layer of defense: Google treats a repeated requestId
+  // on the same event as idempotent rather than a new conference.
+  const withMeet = MEET_TYPES.has(activity.type) && !activity.meet_link;
 
   const input = {
     title,
@@ -40,6 +45,7 @@ export async function pushActivity(
     endIso,
     attendees: (activity.guests as string[] | null) ?? [],
     withMeet,
+    meetRequestId: activityId,
   };
 
   const result = activity.google_event_id
@@ -48,11 +54,13 @@ export async function pushActivity(
 
   await admin.from("activities").update({
     google_event_id: result.googleEventId,
-    meet_link: result.meetLink,
+    // Never clobber an existing link with a null result (e.g. a pending conference
+    // that hasn't finished provisioning on Google's side yet).
+    meet_link: result.meetLink ?? activity.meet_link ?? null,
     calendar_synced_at: new Date().toISOString(),
   }).eq("id", activityId);
 
-  return { ok: true, googleEventId: result.googleEventId, meetLink: result.meetLink };
+  return { ok: true, googleEventId: result.googleEventId, meetLink: result.meetLink ?? activity.meet_link ?? null };
 }
 
 export async function pullForUser(admin: SupabaseClient, userId: string): Promise<{ ok: boolean; skipped?: boolean; changed: number }> {
@@ -85,32 +93,53 @@ export async function pullForUser(admin: SupabaseClient, userId: string): Promis
     }
   }
 
-  let changed = 0;
-  for (const event of events) {
-    const { data: match } = await admin.from("activities").select("id").eq("google_event_id", event.id).maybeSingle();
-    if (!match) continue; // event not originated by the CRM — ignored per spec
-
-    if (event.status === "cancelled") {
-      await admin.from("activities").update({ google_event_id: null }).eq("id", match.id);
-      changed++;
-      continue;
-    }
-
-    const startIso = event.start?.dateTime ?? event.start?.date;
-    const endIso = event.end?.dateTime ?? event.end?.date;
-    if (!startIso) continue;
-    await admin.from("activities").update({
-      date: startIso,
-      end_date: endIso ?? null,
-      calendar_synced_at: new Date().toISOString(),
-    }).eq("id", match.id);
-    changed++;
-  }
-
+  // Persist the advanced sync token before processing events, not after. If something
+  // below throws partway through a large batch, the next run still moves forward from
+  // here instead of re-fetching the same window and potentially never converging.
   await admin.from("integrations").update({
     sync_token: nextSyncToken || integ.sync_token,
     last_synced_at: new Date().toISOString(),
   }).eq("id", integ.id);
+
+  if (events.length === 0) return { ok: true, changed: 0 };
+
+  // One batched lookup instead of one query per event. Scoped to this user's own
+  // activities (assignee, or creator when unassigned) — without this, a guest who is
+  // also a CRM user with Calendar connected would match the organizer's activity by
+  // the shared google_event_id and overwrite it from their own pull.
+  const eventIds = events.map((e) => e.id);
+  const { data: matches } = await admin
+    .from("activities")
+    .select("id, google_event_id")
+    .in("google_event_id", eventIds)
+    .or(`assignee_id.eq.${userId},and(assignee_id.is.null,user_id.eq.${userId})`);
+  const matchByEventId = new Map((matches ?? []).map((m) => [m.google_event_id as string, m.id as string]));
+
+  let changed = 0;
+  for (const event of events) {
+    const activityId = matchByEventId.get(event.id);
+    if (!activityId) continue; // event not originated by the CRM — ignored per spec
+
+    if (event.status === "cancelled") {
+      await admin.from("activities").update({ google_event_id: null }).eq("id", activityId);
+      changed++;
+      continue;
+    }
+
+    // Skip all-day events: Google's all-day end.date is exclusive (a day later than the
+    // last day of the event), and writing a bare date into a timestamptz column would
+    // silently shift the activity to midnight either way. Not something a "Ligação" or
+    // "Reunião" activity is ever expected to become.
+    if (!event.start?.dateTime) continue;
+    const startIso = event.start.dateTime;
+    const endIso = event.end?.dateTime ?? null;
+    await admin.from("activities").update({
+      date: startIso,
+      end_date: endIso,
+      calendar_synced_at: new Date().toISOString(),
+    }).eq("id", activityId);
+    changed++;
+  }
 
   return { ok: true, changed };
 }
