@@ -86,6 +86,38 @@ registrar uma instância cujo webhook nunca dispararia.
 Envs de produção adicionadas: `EVOLUTION_API_URL`, `EVOLUTION_API_KEY`,
 `WHATSAPP_WEBHOOK_BASE_URL`.
 
+## Segundo bloco da mesma sessão: aba WhatsApp do negócio
+
+`state.whatsappConnected` era um campo de `CrmState` **declarado e nunca
+atribuído em lugar nenhum**, e a aba WhatsApp do card do negócio era o único
+leitor dele. Resultado: a aba mostrava "Configurar WhatsApp" mesmo com sessão
+aberta, e o ramo "conectado" era mockup (composer sem handler).
+
+O campo foi removido, não preenchido: um booleano em cache no estado do CRM
+dessincronizaria do provedor assim que a sessão caísse. As duas telas perguntam
+para `/api/whatsapp/status` via `useWhatsAppConnection`.
+
+Para não duplicar o chat, a lista de mensagens e o composer viraram um
+componente só:
+
+```
+src/components/whatsapp/whatsapp-thread.tsx   lista + composer (compartilhado)
+src/hooks/use-whatsapp-thread.ts              1 conversa: resolve, carrega, Realtime, envia
+src/hooks/use-whatsapp-connection.ts          estado da conexao do workspace
+src/hooks/use-whatsapp-inbox.ts               voltou a ser SO a lista de conversas
+```
+
+`useWhatsAppThread` resolve qual conversa mostrar: pela inbox é o id
+selecionado; pelo negócio tenta `deal_id`, depois `contact_id`, depois os
+últimos 8 dígitos do telefone. Quando não existe nenhuma, envia por `phone` e
+adota a conversa que o servidor cria — por isso `/api/whatsapp/send` passou a
+devolver `conversationId`.
+
+Marcar como lida virou responsabilidade do hook de thread nas duas telas; a
+lista reflete por Realtime e mantém o update local só como feedback otimista.
+
+`/conversas` caiu de 610 para 354 linhas.
+
 ## Pendências conhecidas
 
 - **Config do stack Evolution não alterada** (é redeploy do Swarm, do dono):
@@ -99,3 +131,29 @@ Envs de produção adicionadas: `EVOLUTION_API_URL`, `EVOLUTION_API_KEY`,
 - `automation_whatsapp_queue` e os passos de WhatsApp das sequências **ainda
   apontam para a Meta Cloud API**, não para este driver. Ligar na Fase 2.
 - Sem rate limit nas rotas novas (igual ao resto do app — item da Fase 5).
+
+
+---
+
+## Estado ao fim da sessão de 2026-08-19
+
+Branch **`feat/whatsapp-evolution`** (2 commits, `main` intocada). **Não
+mergeado** — o dono não decidiu ainda. Deployado em produção a partir dela:
+`https://trino-crm.vercel.app`.
+
+Verificado: `tsc --noEmit` limpo, `next build` ok, lint sem regressão,
+deploy respondendo 200, webhook devolvendo 401 sem segredo.
+
+**Nunca testado com celular de verdade.** Ninguém escaneou o QR ainda. Todo o
+caminho ponta a ponta (parear → receber mensagem → ver na tela) continua
+não verificado.
+
+### Primeiras coisas a fazer na próxima sessão
+
+1. Perguntar se o teste com celular real foi feito e o que aconteceu. Se falhou,
+   os logs de runtime estão em `vercel` (o webhook loga `whatsapp/webhook:
+   ingestion failed` e o envio loga `whatsapp/send`).
+2. Decidir o merge de `feat/whatsapp-evolution` em `main`.
+3. Achado de passagem, fora do escopo, ainda aberto: o botão "Anexar" da aba
+   Notas (`src/components/deal/deal-tabs.tsx`, procure por `Anexar`) tem um
+   `<input type="file">` sem handler — não anexa nada.
