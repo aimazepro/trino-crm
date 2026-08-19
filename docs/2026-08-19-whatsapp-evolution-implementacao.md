@@ -237,3 +237,81 @@ Todas as da seção "Pendências conhecidas" seguem abertas — em especial o
 recebida com o CRM fora do ar ser **perdida sem recuperação**. Decisão do merge
 de `feat/whatsapp-evolution` em `main` também segue em aberto, e o botão
 "Anexar" da aba Notas continua sem handler.
+
+
+---
+
+## Terceira sessão de 2026-08-19: primeira conversa real
+
+O envio passou a funcionar e a primeira conversa de verdade derrubou três
+coisas de uma vez.
+
+### Áudio chegava vazio
+
+Voice note do WhatsApp é Opus em Ogg, e mais nada. `MediaRecorder` não tem
+formato que todo browser produza: Chrome e Firefox dão Opus, Safari dá AAC em
+container mp4. A Evolution **aceitou e entregou o AAC** — por isso parecia
+envio bem-sucedido, e o erro só aparecia no celular, como nota sem onda e com
+duração 0:00.
+
+Áudio de saída agora é reencodado para Opus mono 48 kHz com `ffmpeg-static`
+(`src/lib/whatsapp/audio.ts`) antes de sair. O storage guarda o **original**: o
+browser que gravou consegue tocar de volta, e Safari não toca ogg. Conversão
+que falha cai no original em vez de descartar uma gravação já feita.
+
+`next.config.ts` precisou de `outputFileTracingIncludes` para
+`/api/whatsapp/send`: o tracing só segue `require`, e o ffmpeg-static resolve o
+binário como caminho em runtime. Sem isso o build local passa verde e a
+produção cai no fallback — o bug exato que a conversão existe para resolver.
+
+### "Abrir negócio" nunca aparecia
+
+O botão já existia em `/conversas`. Os dois call sites filtravam
+`deals.status = "open"`, e aqui negócio é **`Ativo` / `Ganho` / `Perdido`**.
+Não casava com nada, então toda conversa nascia com `deal_id` null.
+
+A busca virou `src/lib/whatsapp/linking.ts`, usada pelo webhook e pelo envio —
+tinham que concordar, senão a conversa aberta pelo negócio e a mesma conversa
+reencontrada na resposta viram duas linhas. Prefere o negócio `Ativo`, cai pro
+mais recente quando todos já fecharam.
+
+### Assinatura por workspace
+
+`whatsapp_connections.signature_enabled` + `signature_name` (migration
+`20260819200000_whatsapp_signature.sql`, aplicada). Prefixo `*Nome*` + quebra
+de linha em texto e legenda, no estilo Chatwoot/painel da Evolution.
+`PATCH /api/whatsapp/settings`, só o dono. **Desligada por padrão** — ligar
+muda o que todo cliente recebe. Nome cai pro nome da conta, e a rota recusa
+ativar sem nome, senão o toggle parece quebrado.
+
+O corpo gravado no banco é o **assinado**: a thread mostra o que o cliente
+recebeu, não uma versão mais limpa.
+
+### Gravador e visual
+
+`src/components/whatsapp/voice-recorder.tsx`: waveform ao vivo por
+`AnalyserNode`, pausar/retomar, ouvir antes de enviar, descartar. Pede Opus ao
+`MediaRecorder` primeiro, então quem consegue produzir poupa o reencode do
+servidor.
+
+Thread reescrita: mensagens agrupadas por remetente, rabinho só na última
+bolha da sequência, papel e cores do WhatsApp nos dois temas, tique de lida
+azul.
+
+### Estado real da conexão
+
+Pareada e viva: `553183091806` ("Trino Marketing"), instância
+`trinocrm-joaoreiscefet-5e0c7833`, status `open`. Texto, imagem e áudio saem e
+chegam no celular.
+
+**Continua sem verificação: a entrada.** `whatsapp_messages` só tem mensagens
+`from_me`. Nenhum `MESSAGES_UPSERT` de mensagem recebida jamais foi processado
+— o webhook está registrado, devolve 401 sem segredo, e os `MESSAGES_UPDATE`
+chegam (é por isso que o status vira `delivered`), mas ninguém respondeu do
+celular ainda. **Esse é o primeiro teste da próxima sessão.** Se falhar, o log
+é `whatsapp/webhook: ingestion failed` no `vercel`.
+
+Pendências herdadas seguem todas abertas, em especial
+`DATABASE_SAVE_DATA_NEW_MESSAGE=false` no stack da Evolution (mensagem
+recebida com o CRM fora do ar é perdida sem recuperação) e a decisão do merge
+de `feat/whatsapp-evolution` em `main`.
