@@ -340,3 +340,19 @@ Comandos: `tsc --noEmit` (limpo), `npx eslint` (70 erros).
 - Não sei se `WHATSAPP_TOKEN` está setado nas secrets das Edge Functions (se não estiver, a fila falha silenciosa 100% das vezes).
 - Não vi documentação/credenciais da uazapi.
 - Não avaliei LGPD (dados de contatos de terceiros, retenção, exportação, exclusão) — obrigatório antes de vender no Brasil.
+
+## 6.7 Conectividade da Evolution — validada em 2026-08-19
+
+`GET /instance/fetchInstances` com header `apikey` → **HTTP 200**. Credenciais em `.env.local` como `EVOLUTION_API_URL` e `EVOLUTION_API_KEY` (arquivo coberto por `.env*` no `.gitignore`, confirmado fora do controle de versão).
+
+**Três instâncias já existem e estão conectadas (`status: open`):**
+
+| Instância | Número | Observação |
+|---|---|---|
+| `aimaze` | 553491101680@s.whatsapp.net | Baileys (não-oficial) |
+| `pixeomkt` | 553888601343@s.whatsapp.net | Baileys (não-oficial) |
+| `sinpase` | 528363650367191 | **Sem sufixo `@s.whatsapp.net` → formato de WhatsApp Business Cloud API (oficial)** |
+
+**Implicação boa:** a mesma Evolution já abstrai o canal oficial e o não-oficial. O requisito do dono de ter "as duas opções" não exige dois drivers no CRM — exige **um** driver Evolution, com o tipo de integração escolhido na criação da instância (`integration` no `POST /instance/create`). Reduz o escopo da Fase 3.
+
+⚠️ **Cuidado na próxima sessão:** as 3 instâncias são de uso real. **Não repontar o webhook de nenhuma delas** — isso desviaria mensagens de negócio em produção para o CRM, ou quebraria o fluxo que já as consome. Criar uma instância dedicada de teste (`trinocrm-dev`) antes de mexer em webhook.
