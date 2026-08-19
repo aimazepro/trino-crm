@@ -367,9 +367,9 @@ rotacionar a chave, `EVOLUTION_API_KEY` precisa ser atualizada no `.env.local`
 2. Automações: `automation_whatsapp_queue` e os passos de WhatsApp das
    sequências ainda apontam para a Meta Cloud API, não para este driver.
    Maior pedaço restante — Fase 2.
-3. Sem rate limit nas rotas novas (Fase 5).
-4. Storage no free tier do Supabase = 1 GB; migrar para R2 quando apertar.
-5. Fora do escopo: botão "Anexar" da aba Notas
+2. Sem rate limit nas rotas novas (Fase 5).
+3. Storage no free tier do Supabase = 1 GB; migrar para R2 quando apertar.
+4. Fora do escopo: botão "Anexar" da aba Notas
    (`src/components/deal/deal-tabs.tsx`) tem `<input type="file">` sem handler.
 
 ---
@@ -473,19 +473,29 @@ para o cliente é pior que falha visível.
 | **Envio real pela fila** | `sent`, `sent_at` gravado, `wa_message_id` presente, linha em `whatsapp_messages` com `from_me=true` e `sent_by=null`, conversa criada em `553183091806@s.whatsapp.net`. A mensagem chegou no celular. |
 | `pg_cron` → rota em produção | 200 `{"processed":0,"failed":0}` a cada minuto, confirmado em `net._http_response` |
 
+| Automação real, disparada pela UI | `deal_updated` na etapa → fila às 14:17:32 → `delivered` às 14:18:02. Caiu na mesma thread das mensagens manuais do contato. |
+
+### O bug que só apareceu no teste real
+
+A primeira mensagem automática saiu como `Olá João Paulo, aqui é .` —
+`{{nome_vendedor}}` vazio. **`team_members` só guarda quem foi convidado**: a
+conta dona do workspace não tem linha lá, então a variável ficava vazia para
+todo negócio do dono, que é a maioria num workspace de uma pessoa e a
+totalidade num recém-criado. Corrigido com fallback para `auth.users`
+(`full_name`, senão a parte local do email). Reverificado em produção:
+`Teste do fix: João Paulo, aqui é Joao Reis. Negócio: Teste 01.`, `delivered`.
+
 Deploy feito (`vercel deploy --prod`). Os 405 que aparecem em
 `net._http_response` entre 13:39 e 13:52 são o `pg_cron` batendo na rota antes
 de ela existir em produção; param no minuto do deploy.
 
 ### O que sobrou
 
-1. Uma automação de verdade, montada pela UI, disparando pela regra dela —
-   o teste acima injetou a linha na fila direto.
-2. A fila de email destrava com a migração, mas o processador dela continua
+1. A fila de email destrava com a migração, mas o processador dela continua
    sendo a Edge Function que fala com o Gmail. Não há represa: a tabela está
    vazia (nenhuma automação de email jamais enfileirou nada que sobrevivesse).
    Vale testar essa ponta agora que o `claim` funciona.
-3. Sem rate limit nas rotas novas (Fase 5).
-4. Storage no free tier do Supabase = 1 GB; migrar para R2 quando apertar.
-5. Fora do escopo: botão "Anexar" da aba Notas
+2. Sem rate limit nas rotas novas (Fase 5).
+3. Storage no free tier do Supabase = 1 GB; migrar para R2 quando apertar.
+4. Fora do escopo: botão "Anexar" da aba Notas
    (`src/components/deal/deal-tabs.tsx`) tem `<input type="file">` sem handler.
