@@ -7,13 +7,14 @@ entre sessões.
 > **Regra:** item não sai deste arquivo. Ou vira `[x]` com a data, ou vira
 > "Descartado" com o motivo. Nunca some.
 
-Última atualização: 2026-08-19.
+Última atualização: 2026-08-19 (design da Fase 1 escrito).
 
 **Detalhe de cada item** está nos docs de origem, referenciados por sigla:
 - `AUD` → `docs/AUDIT-2026-08-19-saas-deep-dive.md` (auditoria profunda, o plano mestre)
 - `WPP` → `docs/2026-08-19-whatsapp-evolution-implementacao.md` (como o WhatsApp foi construído)
 - `HAND` → `docs/HANDOFF-2026-08-19-whatsapp-automacoes.md` (handoff da sessão de automações)
 - `GAPS` → `docs/known-gaps.md` (cantos cortados de propósito)
+- `DES1` → `docs/superpowers/specs/2026-08-19-multi-tenancy-design.md` (design da Fase 1)
 
 ---
 
@@ -80,6 +81,38 @@ Sem features. Torna o produto honesto e seguro antes de crescer. `AUD §6`
 
 A fundação. É o bloqueador declarado do "vender como produto". `AUD §6`
 
+> ✅ **Design escrito e aprovado em 2026-08-19 — `DES1`.** Nada implementado ainda.
+> Ler o spec antes de tocar em qualquer coisa desta fase: ele mede o banco, classifica as
+> 37 colunas e traz a ordem de execução, os asserts e o rollback.
+
+**O que o design descobriu, e que muda o plano original:**
+
+- **A identidade do workspace já é o `auth.users.id` do dono.** Semeando `workspaces.id`
+  com o mesmo uuid, migrar as 37 colunas vira `RENAME COLUMN` com valor intocado — não o
+  backfill que reescreve linhas. Isso tira a Fase 1 do posto de maior risco de perda de
+  dados; o aviso original abaixo está superado.
+- **`workspace_settings` já é a tabela `workspaces`** (PK `owner_user_id`, mais `name`,
+  `slug`, `plan`). Promover, não criar. Mesma coisa: `team_members` → `workspace_members`.
+- **5 das 37 colunas são pessoais, não de tenant** (`notifications`, `emails`,
+  `integrations`, `email_signatures`, `saved_reports`). Rename cego faria toda notificação
+  do workspace vazar pra todo membro — invisível hoje, apareceria no primeiro convidado.
+- **Existem 2 contas com dados, não 1.** Viram **dois workspaces separados** (decisão do
+  dono), o que já testa multi-tenancy com 2 tenants reais no dia 1.
+- **6 policies legadas `"X: user owns"` têm que morrer.** No rename o Postgres reescreve a
+  expressão sozinho e ela vira `workspace_id = auth.uid()` — verdadeiro pro dono. Deixar de
+  pé = dono furando toda regra de papel, sem sintoma na tela.
+
+**Decisões travadas:** dois workspaces · 3 papéis fixos (gerente configura a operação, só
+admin mexe em usuários/API keys/webhooks/credencial de WhatsApp) + `permissions jsonb`
+reservado · convite por link copiável, sem email · `pg_dump` + migração única com asserts
+embutidos, sem staging.
+
+**Escopo real:** ~600 linhas no banco, 94 policies em 46 tabelas, 178 pontos de código em 59
+arquivos. Fecha **S-6** e **S-3** de brinde.
+
+**Atenção:** entre a migração e o deploy, produção fica quebrada. Precisa de uma sentada
+inteira.
+
 - [ ] **`workspaces` + `workspace_members` com papéis reais.**
 - [ ] **Migrar `user_id` → `workspace_id`** em ~40 tabelas, com backfill.
 - [ ] **Reescrever as policies**, consolidando as duplicadas de
@@ -97,9 +130,9 @@ A fundação. É o bloqueador declarado do "vender como produto". `AUD §6`
   dono/gerente vê tudo. Contatos e empresas ficam compartilhados no workspace;
   atividades herdam a visibilidade do negócio pai. `AUD §6.1`
 
-> ⚠️ **Maior risco de perda de dados do projeto.** Não existe staging, e o
-> backfill roda direto em produção. Backup verificado antes. A tag
-> `v0.1.0-pre-saas` cobre só o código, não o banco. `AUD §6.1`
+> ⚠️ ~~**Maior risco de perda de dados do projeto.**~~ **Superado pelo `DES1`:** não há
+> backfill de valores, só rename de coluna. Continua valendo o `pg_dump` verificado antes —
+> a tag `v0.1.0-pre-saas` cobre só o código, não o banco. `AUD §6.1`
 
 ---
 
