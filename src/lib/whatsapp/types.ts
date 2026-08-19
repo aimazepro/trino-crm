@@ -49,7 +49,7 @@ export function applySignature(
   if (!connection.signatureEnabled) return text;
   const name = (connection.signatureName ?? connection.profileName ?? "").trim();
   if (!name) return text;
-  return `*${name}*\n${text}`;
+  return `*${name}*:\n${text}`;
 }
 
 export interface QrResult {

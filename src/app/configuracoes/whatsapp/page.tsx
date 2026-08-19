@@ -341,7 +341,7 @@ export default function WhatsAppConfigPage() {
                   <span className="text-xs text-zinc-400">Prévia</span>
                   <p className="mt-1 whitespace-pre-wrap">
                     {signatureEnabled && signatureName.trim()
-                      ? `*${signatureName.trim()}*\nOlá! Tudo bem?`
+                      ? `*${signatureName.trim()}*:\nOlá! Tudo bem?`
                       : "Olá! Tudo bem?"}
                   </p>
                 </div>

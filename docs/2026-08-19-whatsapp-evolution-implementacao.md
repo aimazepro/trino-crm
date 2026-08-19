@@ -278,7 +278,7 @@ mais recente quando todos já fecharam.
 ### Assinatura por workspace
 
 `whatsapp_connections.signature_enabled` + `signature_name` (migration
-`20260819200000_whatsapp_signature.sql`, aplicada). Prefixo `*Nome*` + quebra
+`20260819200000_whatsapp_signature.sql`, aplicada). Prefixo `*Nome*:` + quebra
 de linha em texto e legenda, no estilo Chatwoot/painel da Evolution.
 `PATCH /api/whatsapp/settings`, só o dono. **Desligada por padrão** — ligar
 muda o que todo cliente recebe. Nome cai pro nome da conta, e a rota recusa
