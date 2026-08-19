@@ -1,3 +1,6 @@
+> ⚠️ **OBSOLETO — não use como guia.** Superseded por `docs/AUDIT-2026-08-19-saas-deep-dive.md` (2026-08-19).
+> Este arquivo dizia que as automações não tinham sido auditadas e tratava o Vercel Pro como dúvida em aberto — ambos foram resolvidos. Mantido apenas como registro histórico.
+
 # Handoff — Grande atualização SaaS (auditoria + multi-tenant + uazapi)
 
 > Escrito em 2026-08-18 ao encerrar a sessão anterior por custo. A próxima sessão de IA deve ler este arquivo ANTES de explorar o repo — ele condensa o que já foi verificado e as decisões pendentes.
