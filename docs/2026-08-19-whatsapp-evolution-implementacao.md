@@ -315,3 +315,59 @@ Pendências herdadas seguem todas abertas, em especial
 `DATABASE_SAVE_DATA_NEW_MESSAGE=false` no stack da Evolution (mensagem
 recebida com o CRM fora do ar é perdida sem recuperação) e a decisão do merge
 de `feat/whatsapp-evolution` em `main`.
+
+
+---
+
+## Fluxo verificado ponta a ponta (2026-08-19)
+
+**A entrada funciona.** Mensagem enviada do celular chega no webhook, é
+ingerida e aparece em `/conversas` — o caminho que nunca tinha rodado em
+nenhuma das três sessões anteriores. Envio (texto, imagem, áudio), recebimento,
+status de leitura e a formatação `*negrito*` foram todos confirmados na mesma
+conversa.
+
+Com isso o caminho 1:1 da Fase 3 está fechado de verdade, não só implementado.
+
+### Stack Evolution reconfigurado
+
+O dono atualizou o compose (v2.3.7, `wsapi.pixeo.com.br`):
+
+| Variável | Antes | Agora |
+|---|---|---|
+| `DATABASE_SAVE_DATA_NEW_MESSAGE` | false | **true** |
+| `DATABASE_SAVE_MESSAGE_UPDATE` | false | **true** |
+| `DATABASE_SAVE_DATA_CONTACTS` | — | **true** |
+| `DATABASE_SAVE_DATA_CHATS` | false | **true** |
+| `CHATWOOT_ENABLED` | true (órfão) | **false** |
+
+Isso fecha a pendência mais séria do doc: mensagem que chega com o CRM fora do
+ar agora fica no Postgres da Evolution e pode ser recuperada, em vez de sumir.
+O Chatwoot órfão, que apontava para um banco inexistente, foi desligado.
+
+**Vale só depois do redeploy do serviço no Swarm** — editar o compose não
+aplica sozinho.
+
+`RABBITMQ_ENABLED=true` com `RABBITMQ_GLOBAL_ENABLED=false` não muda nada aqui:
+o CRM usa webhook por instância, não a fila. Migrar para RabbitMQ um dia troca o
+driver e nada acima dele.
+
+### Higiene de segredos
+
+O compose carrega, em texto puro, a `AUTHENTICATION_API_KEY` global da Evolution
+— que controla **todas** as instâncias do servidor, inclusive as de clientes
+(`aimaze`, `pixeomkt`, `sinpase`) — além da senha do Postgres e das credenciais
+do RabbitMQ. Esse arquivo não deve ser colado em chat, issue ou commit. Ao
+rotacionar a chave, `EVOLUTION_API_KEY` precisa ser atualizada no `.env.local`
+**e** nas envs da Vercel, senão o envio para.
+
+### O que sobrou
+
+1. Merge de `feat/whatsapp-evolution` em `main` (9 commits).
+2. Automações: `automation_whatsapp_queue` e os passos de WhatsApp das
+   sequências ainda apontam para a Meta Cloud API, não para este driver.
+   Maior pedaço restante — Fase 2.
+3. Sem rate limit nas rotas novas (Fase 5).
+4. Storage no free tier do Supabase = 1 GB; migrar para R2 quando apertar.
+5. Fora do escopo: botão "Anexar" da aba Notas
+   (`src/components/deal/deal-tabs.tsx`) tem `<input type="file">` sem handler.
