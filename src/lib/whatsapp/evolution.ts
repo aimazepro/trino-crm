@@ -16,6 +16,7 @@ import {
   WhatsAppDriver,
   isGroupJid,
   jidToPhone,
+  phoneCandidates,
 } from "./types";
 
 /** Header name Evolution echoes back to us so the webhook can authenticate itself. */
@@ -332,6 +333,32 @@ export class EvolutionDriver implements WhatsAppDriver {
       },
     });
     return { waMessageId: readSentMessageId(result) };
+  }
+
+  async resolveJid(phone: string): Promise<string | null> {
+    const numbers = phoneCandidates(phone);
+    if (numbers.length === 0) return null;
+
+    // Answers with a bare array, one entry per number asked about. The `jid` it
+    // returns is authoritative and can differ from what we sent — WhatsApp
+    // answers "5538999225622" with "553899225622@s.whatsapp.net" when the line
+    // predates the ninth digit.
+    const result = (await call(`/chat/whatsappNumbers/${encodeURIComponent(this.instanceName)}`, {
+      method: "POST",
+      apikey: this.key(),
+      body: { numbers },
+    })) as unknown;
+
+    if (!Array.isArray(result)) return null;
+
+    for (const entry of result) {
+      const record = asRecord(entry);
+      if (record?.exists === true) {
+        const jid = asString(record.jid);
+        if (jid) return jid;
+      }
+    }
+    return null;
   }
 
   async fetchInboundMedia(raw: unknown): Promise<InboundMedia | null> {

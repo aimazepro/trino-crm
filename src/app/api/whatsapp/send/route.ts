@@ -32,6 +32,62 @@ const MESSAGE_TYPE_BY_KIND: Record<OutboundMedia["kind"], MessageType> = {
   document: "document",
 };
 
+/** A number nobody can reach — worth its own status so the UI can say why. */
+class UnreachableNumberError extends Error {}
+
+/**
+ * Replaces a guessed JID with the one WhatsApp confirms.
+ *
+ * Runs once per conversation, the first time we send to it. The provider is the
+ * only source of truth here: it resolves both the missing country code and the
+ * ninth digit, and it can hand back a JID that already belongs to another
+ * conversation created from an inbound message — so the two are merged rather
+ * than left as duplicate threads for the same person.
+ */
+async function verifyJid(
+  admin: SupabaseClient,
+  connection: WhatsAppConnection,
+  row: { id: string; phone: string; remote_jid: string },
+): Promise<{ id: string; phone: string }> {
+  const jid = await getDriver(connection).resolveJid(row.phone);
+  if (!jid) {
+    throw new UnreachableNumberError(`O número ${row.phone} não tem WhatsApp.`);
+  }
+
+  if (jid === row.remote_jid) {
+    await admin
+      .from("whatsapp_conversations")
+      .update({ jid_verified: true })
+      .eq("id", row.id);
+    return { id: row.id, phone: row.phone };
+  }
+
+  const phone = jidToPhone(jid);
+
+  const { data: canonical } = await admin
+    .from("whatsapp_conversations")
+    .select("id, phone")
+    .eq("connection_id", connection.id)
+    .eq("remote_jid", jid)
+    .maybeSingle();
+
+  if (canonical && (canonical as any).id !== row.id) {
+    await admin
+      .from("whatsapp_messages")
+      .update({ conversation_id: (canonical as any).id })
+      .eq("conversation_id", row.id);
+    await admin.from("whatsapp_conversations").delete().eq("id", row.id);
+    return { id: (canonical as any).id, phone: (canonical as any).phone };
+  }
+
+  await admin
+    .from("whatsapp_conversations")
+    .update({ remote_jid: jid, phone, jid_verified: true })
+    .eq("id", row.id);
+
+  return { id: row.id, phone };
+}
+
 async function resolveConversation(
   admin: SupabaseClient,
   connection: WhatsAppConnection,
@@ -40,23 +96,34 @@ async function resolveConversation(
   if (input.conversationId) {
     const { data } = await admin
       .from("whatsapp_conversations")
-      .select("id, phone")
-      .eq("id", input.conversationId)
+      .select("id, phone, remote_jid, jid_verified")
       // Scoped to the workspace so a forged id can't send from someone else's number.
+      .eq("id", input.conversationId)
       .eq("user_id", connection.userId)
       .maybeSingle();
-    return data ? { id: (data as any).id, phone: (data as any).phone } : null;
+
+    if (!data) return null;
+    const row = data as any;
+    if (row.jid_verified) return { id: row.id, phone: row.phone };
+    return verifyJid(admin, connection, row);
   }
 
-  const phone = (input.phone ?? "").replace(/\D/g, "");
-  if (!phone) return null;
+  const requested = (input.phone ?? "").replace(/\D/g, "");
+  if (!requested) return null;
 
-  const remoteJid = `${phone}@s.whatsapp.net`;
+  // Asked before any row is written, so a conversation started from the CRM is
+  // keyed by the same JID the webhook will use for the replies.
+  const jid = await getDriver(connection).resolveJid(requested);
+  if (!jid) {
+    throw new UnreachableNumberError(`O número ${requested} não tem WhatsApp.`);
+  }
+  const phone = jidToPhone(jid);
+
   const { data: existing } = await admin
     .from("whatsapp_conversations")
     .select("id, phone")
     .eq("connection_id", connection.id)
-    .eq("remote_jid", remoteJid)
+    .eq("remote_jid", jid)
     .maybeSingle();
 
   if (existing) return { id: (existing as any).id, phone: (existing as any).phone };
@@ -71,8 +138,9 @@ async function resolveConversation(
     .insert({
       user_id: connection.userId,
       connection_id: connection.id,
-      remote_jid: remoteJid,
+      remote_jid: jid,
       phone,
+      jid_verified: true,
       contact_id: contactId ?? null,
     })
     .select("id, phone")
@@ -140,10 +208,23 @@ export async function POST(req: NextRequest) {
     }
   }
 
-  const conversation = await resolveConversation(admin, connection, {
-    conversationId,
-    phone: phoneInput,
-  });
+  let conversation: { id: string; phone: string } | null;
+  try {
+    conversation = await resolveConversation(admin, connection, {
+      conversationId,
+      phone: phoneInput,
+    });
+  } catch (err) {
+    // No message row is written for these: nothing was ever addressable, so a
+    // failed bubble in the thread would imply a send that never had a target.
+    if (err instanceof UnreachableNumberError) {
+      return NextResponse.json({ error: err.message }, { status: 422 });
+    }
+    const message = err instanceof Error ? err.message : "Falha ao abrir a conversa";
+    console.error("whatsapp/send: resolve", message);
+    return NextResponse.json({ error: message }, { status: 502 });
+  }
+
   if (!conversation) {
     return NextResponse.json({ error: "Conversa não encontrada" }, { status: 404 });
   }

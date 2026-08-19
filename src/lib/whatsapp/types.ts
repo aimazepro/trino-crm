@@ -111,9 +111,55 @@ export interface WhatsAppDriver {
   deleteInstance(): Promise<void>;
   sendText(phone: string, text: string): Promise<SendResult>;
   sendMedia(phone: string, media: OutboundMedia): Promise<SendResult>;
+  /**
+   * Asks the provider which JID actually owns a phone number, or null when no
+   * candidate is registered on WhatsApp. Never guess this: Brazilian numbers
+   * from before the ninth-digit change are registered without it, and only
+   * WhatsApp knows which form is real.
+   */
+  resolveJid(phone: string): Promise<string | null>;
   /** Fetches bytes for an inbound message whose media wasn't inlined. */
   fetchInboundMedia(raw: unknown): Promise<InboundMedia | null>;
   normalizeInbound(payload: unknown): InboundEvent;
+}
+
+/** Country code assumed for numbers stored without one. */
+const DEFAULT_COUNTRY_CODE = "55";
+
+/**
+ * Every form of a number worth asking the provider about, best guess first.
+ *
+ * CRM contacts are typed the way people say them out loud — "38 99922-5622" —
+ * so the country code has to be added, and Brazilian mobiles may or may not
+ * carry the ninth digit depending on when the line was registered. Both forms
+ * go in one request and the provider says which exists.
+ */
+export function phoneCandidates(phone: string): string[] {
+  const digits = phone.replace(/\D/g, "");
+  if (!digits) return [];
+
+  // 12 or more digits already carry a country code; shorter is a local number.
+  const e164 = digits.length >= 12 ? digits : `${DEFAULT_COUNTRY_CODE}${digits}`;
+  const candidates = [e164];
+
+  if (e164.startsWith(DEFAULT_COUNTRY_CODE)) {
+    const national = e164.slice(2);
+    const ddd = national.slice(0, 2);
+    const line = national.slice(2);
+    if (line.length === 9 && line.startsWith("9")) {
+      candidates.push(`${DEFAULT_COUNTRY_CODE}${ddd}${line.slice(1)}`);
+    } else if (line.length === 8) {
+      candidates.push(`${DEFAULT_COUNTRY_CODE}${ddd}9${line}`);
+    }
+  }
+
+  // Last resort: the number exactly as stored. An international contact saved
+  // as "12125551234" is 11 digits and looks local, so the guess above would
+  // bury a country code under another one; asking for the raw form too costs
+  // nothing and is the only thing that reaches them.
+  candidates.push(digits);
+
+  return [...new Set(candidates)];
 }
 
 /** Strips the JID suffix and any non-digit, e.g. "5538999225622@s.whatsapp.net". */

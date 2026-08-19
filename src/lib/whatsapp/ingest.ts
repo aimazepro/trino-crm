@@ -82,6 +82,8 @@ async function findOrCreateConversation(
       connection_id: connection.id,
       remote_jid: message.remoteJid,
       phone: message.phone,
+      // WhatsApp is the one that produced this JID, so it needs no verification.
+      jid_verified: true,
       contact_id: contactId ?? null,
       deal_id: dealId,
       owner_id: ownerId,
