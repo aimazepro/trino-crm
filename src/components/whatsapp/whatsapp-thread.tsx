@@ -45,6 +45,40 @@ function formatDayLabel(iso: string) {
     .toUpperCase();
 }
 
+/**
+ * WhatsApp's inline formatting, rendered rather than printed.
+ *
+ * Messages carry `*bold*`, `_italic_` and `~strike~` — the signature prefix is
+ * one — and the phone shows them styled. Printing the raw text here made the
+ * markers leak into the bubble and read as a bug. Deliberately not a markdown
+ * parser: only the three markers WhatsApp itself uses, no nesting, and never
+ * dangerouslySetInnerHTML, since this is text a stranger sent us.
+ */
+const FORMAT_PATTERN = /([*_~])(\S(?:[^*_~]*\S)?)\1/g;
+
+const FORMAT_TAG: Record<string, "strong" | "em" | "s"> = {
+  "*": "strong",
+  _: "em",
+  "~": "s",
+};
+
+function renderFormatted(text: string): React.ReactNode[] {
+  const nodes: React.ReactNode[] = [];
+  let cursor = 0;
+
+  for (const match of text.matchAll(FORMAT_PATTERN)) {
+    const start = match.index ?? 0;
+    if (start > cursor) nodes.push(text.slice(cursor, start));
+
+    const Tag = FORMAT_TAG[match[1]];
+    nodes.push(<Tag key={`${start}-${match[1]}`}>{match[2]}</Tag>);
+    cursor = start + match[0].length;
+  }
+
+  if (cursor < text.length) nodes.push(text.slice(cursor));
+  return nodes;
+}
+
 function StatusIcon({ status }: { status: ThreadMessage["status"] }) {
   if (status === "pending") return <Clock className="h-3 w-3 opacity-70" aria-label="Enviando" />;
   if (status === "failed") return <CircleAlert className="h-3 w-3 text-red-500" aria-label="Falhou" />;
@@ -130,7 +164,7 @@ function Bubble({ message, mediaUrl, grouped, tail }: BubbleProps) {
         {/* The float lets the timestamp tuck into the last line, as in the app. */}
         {message.body && (
           <p className="whitespace-pre-wrap break-words">
-            {message.body}
+            {renderFormatted(message.body)}
             <span className="float-right ml-2 h-0 select-none text-[11px] leading-[26px] opacity-0">
               {formatTime(message.timestamp)}
             </span>
