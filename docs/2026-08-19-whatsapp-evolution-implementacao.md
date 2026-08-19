@@ -470,19 +470,22 @@ para o cliente é pior que falha visível.
 | Segredo certo, fila vazia | 200 `{processed:0,failed:0}` |
 | Linha sem telefone e sem negócio | `failed` — "Sem telefone: o negócio não tem contato com número." |
 | Linha com número inexistente | `failed` — "O número 5511000000000 não tem WhatsApp." (o driver foi de fato chamado) |
+| **Envio real pela fila** | `sent`, `sent_at` gravado, `wa_message_id` presente, linha em `whatsapp_messages` com `from_me=true` e `sent_by=null`, conversa criada em `553183091806@s.whatsapp.net`. A mensagem chegou no celular. |
+| `pg_cron` → rota em produção | 200 `{"processed":0,"failed":0}` a cada minuto, confirmado em `net._http_response` |
 
-**Não verificado: um envio real pela fila.** Os dois testes acima param antes
-do `sendText`, de propósito — o próximo teste precisa mandar mensagem de
-verdade para um número de verdade.
+Deploy feito (`vercel deploy --prod`). Os 405 que aparecem em
+`net._http_response` entre 13:39 e 13:52 são o `pg_cron` batendo na rota antes
+de ela existir em produção; param no minuto do deploy.
 
 ### O que sobrou
 
-1. Deploy: `vercel deploy --prod`. Até lá o `pg_cron` bate na rota a cada
-   minuto e leva 404.
-2. Envio real pela fila, ponta a ponta, com uma automação de verdade.
-3. A fila de email tem o mesmo processador antigo e agora destrava com a
-   migração — mas continua apontando para o Gmail, o que é outro assunto.
-4. Sem rate limit nas rotas novas (Fase 5).
-5. Storage no free tier do Supabase = 1 GB; migrar para R2 quando apertar.
-6. Fora do escopo: botão "Anexar" da aba Notas
+1. Uma automação de verdade, montada pela UI, disparando pela regra dela —
+   o teste acima injetou a linha na fila direto.
+2. A fila de email destrava com a migração, mas o processador dela continua
+   sendo a Edge Function que fala com o Gmail. Vale revisar se ela funciona
+   agora que o `claim` passou a funcionar — pode começar a mandar email
+   represado.
+3. Sem rate limit nas rotas novas (Fase 5).
+4. Storage no free tier do Supabase = 1 GB; migrar para R2 quando apertar.
+5. Fora do escopo: botão "Anexar" da aba Notas
    (`src/components/deal/deal-tabs.tsx`) tem `<input type="file">` sem handler.
