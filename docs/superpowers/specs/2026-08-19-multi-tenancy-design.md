@@ -33,6 +33,7 @@ mais `name`, `slug`, `plan`, `trial_ends_at`. Duas linhas, uma por conta.
 |---|---|---|
 | 1 | As duas contas | **Dois workspaces separados.** Nenhuma fusão, nenhum descarte. |
 | 2 | Modelo de permissão | **3 papéis fixos** (`admin`/`gerente`/`vendedor`) aplicados na RLS, mais uma coluna `permissions jsonb` reservada e ignorada, para que a matriz de toggles da UI não seja cara de retrofitar depois. |
+| 2b | O que o gerente pode | **Configura a operação** (funil, campos, automações, sequências, metas) e enxerga os negócios de todos. **Não** administra a conta: convite, papel, remoção de usuário, API keys, webhooks e credencial de WhatsApp são só do admin. |
 | 3 | Convite | **Link copiável, sem email.** Não há infra transacional no projeto e o email nativo do Supabase no free tier é ~2/hora. Combina com a ativação manual que já é o plano até a Fase 6. |
 | 4 | Segurança da migração | **`pg_dump` + migração única com asserts embutidos.** Sem staging: branch do Supabase custa ~$10/mês e exige Pro; um 3º projeto free não cabe. |
 | 5 | S-1 antes? | **Não.** Segue aberto na Fase 0. Ressalva registrada abaixo. |
@@ -121,11 +122,16 @@ Todas `STABLE SECURITY DEFINER SET search_path = 'public'`, chamadas nas policie
 estabeleceu; sem isso a função roda uma vez por linha.
 
 ```
-my_workspace_ids()          setof uuid   workspaces onde sou membro accepted
-my_role(ws uuid)            text         'admin' | 'gerente' | 'vendedor'
-is_ws_admin(ws uuid)        boolean      role = 'admin'
-can_see_all_deals(ws uuid)  boolean      role in ('admin','gerente')
+my_workspace_ids()       setof uuid   workspaces onde sou membro accepted
+my_role(ws uuid)         text         'admin' | 'gerente' | 'vendedor'
+is_ws_manager(ws uuid)   boolean      role in ('admin','gerente')
+is_ws_admin(ws uuid)     boolean      role = 'admin'
 ```
+
+`is_ws_manager` responde as duas perguntas que gerente e admin compartilham — "vê os
+negócios de todo mundo?" e "configura a operação?" — porque as duas têm a mesma resposta
+para os três papéis. Uma função só em vez de duas idênticas: menos superfície em 94
+policies. Se um dia um toggle separar as duas, aí sim vira duas.
 
 `EXECUTE` revogado de `anon` nas quatro e nas três antigas (`is_workspace_member`,
 `replace_deal_labels`, `replace_deal_products`) — fecha **S-6**.
@@ -141,25 +147,46 @@ não mudam, então as policies de Storage (buckets `whatsapp-media` e `avatars`,
 ```sql
 USING      ( workspace_id in (select my_workspace_ids())
              and ( owner_id = (select auth.uid())
-                   or (select can_see_all_deals(workspace_id)) ) )
+                   or (select is_ws_manager(workspace_id)) ) )
 WITH CHECK ( workspace_id in (select my_workspace_ids()) )
 ```
 
-`DELETE` restrito a admin; o soft-delete (`deleted_at`) já cobre o caso do vendedor.
+`DELETE` restrito a admin e gerente; o soft-delete (`deleted_at`) cobre o vendedor, que
+arquiva os próprios negócios por `UPDATE`.
 
-**2. Configuração** — leitura pra todo membro, escrita só admin. É o que torna
-"Gerente — ver equipe, sem configurações" real:
+**2a. Configuração de operação** — leitura pra todo membro, escrita para admin **e
+gerente**. É o funil de vendas: o gerente é quem ajusta como o time trabalha.
 
 ```sql
 SELECT       workspace_id in (select my_workspace_ids())
 INS/UPD/DEL  workspace_id in (select my_workspace_ids())
-             and (select is_ws_admin(workspace_id))
+             and (select is_ws_manager(workspace_id))
 ```
 
 Aplica-se a `pipelines`, `pipeline_stages`, `custom_fields`, `custom_field_groups`,
 `automations`, `automation_labels`, `labels`, `products`, `loss_reasons`, `delete_reasons`,
-`activity_types`, `email_templates`, `scripts`, `sequences`, `sequence_steps`, `webhooks`,
-`api_keys`, `whatsapp_connections`, `whatsapp_templates`.
+`activity_types`, `email_templates`, `scripts`, `sequences`, `sequence_steps`,
+`whatsapp_templates`, `goals`.
+
+**2b. Administração da conta** — leitura pra todo membro onde faz sentido, escrita **só
+admin**:
+
+```sql
+INS/UPD/DEL  workspace_id in (select my_workspace_ids())
+             and (select is_ws_admin(workspace_id))
+```
+
+Aplica-se a `workspaces` (nome, plano), `workspace_members` (convidar, trocar papel,
+remover), `api_keys`, `webhooks`, `whatsapp_connections`.
+
+A linha entre 2a e 2b é **quem tem acesso e o que sai do sistema**. Gerente molda a
+operação; não decide quem entra, nem manipula credencial. `api_keys` e `webhooks` são
+segredos e egresso de dados; `whatsapp_connections` guarda a credencial da instância. Vazar
+qualquer um deles é evento de segurança, não erro de configuração — e é reversível promover
+alguém a admin, não é reversível uma chave vazada.
+
+`workspace_members` tem ainda uma trava própria: ninguém rebaixa nem remove o
+`owner_user_id` do workspace, admin inclusive. Evita o workspace ficar sem dono.
 
 **3. Compartilhado** — `contacts` e `companies`: todo membro lê, cria e edita; só
 admin/gerente apaga.
@@ -237,8 +264,15 @@ real e o fallback sai.
 ### Papéis na UI (S-3)
 
 `/configuracoes/usuarios/page.tsx` tem a matriz de 17 permissões em `useState` local. Vira
-read-only, alimentada por `role`, sem botão de salvar toggle. Ações de escrita nas telas de
-configuração ficam atrás de `role === 'admin'`. A UI grava `'vendedor'` minúsculo.
+read-only, alimentada por `role`, sem botão de salvar toggle. A UI grava `'vendedor'`
+minúsculo.
+
+O gating das telas segue a mesma linha da RLS, para a tela não prometer o que o banco nega:
+
+| Tela | Escrita liberada para |
+|---|---|
+| pipelines, campos, etiquetas, produtos, motivos, tipos de atividade, templates, scripts, sequências, automações, metas | admin + gerente |
+| usuários, API keys, webhooks, conexão de WhatsApp, dados do workspace | só admin |
 
 Gating de UI é conveniência; a RLS é o enforcement. As duas coisas, não uma.
 
@@ -309,7 +343,7 @@ values ('<ws principal>', '<uuid sintético>', 'assert@local', 'vendedor', 'acce
 set local role authenticated;
 set local request.jwt.claims = '{"sub":"<uuid sintético>"}';
 -- assert: select em deals devolve 0 linhas (nenhum deal tem owner_id = sintético)
--- assert: insert em pipelines levanta insufficient_privilege (não é admin)
+-- assert: insert em pipelines levanta insufficient_privilege (não é gerente nem admin)
 -- assert: update de um deal alheio afeta 0 linhas
 
 set local request.jwt.claims = '{"sub":"29a555c8-…"}';   -- dono do workspace vizinho
