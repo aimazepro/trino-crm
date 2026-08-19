@@ -56,6 +56,27 @@ function useTeamUsers(): AssignableUser[] {
   return users;
 }
 
+/** The saved WhatsApp templates, so the action can point at one that exists. */
+function useWhatsAppTemplates(): { id: string; name: string }[] {
+  const [templates, setTemplates] = useState<{ id: string; name: string }[]>([]);
+  useEffect(() => {
+    let cancelled = false;
+    const supabase = createClient();
+    (async () => {
+      const { data: { user } } = await supabase.auth.getUser();
+      if (!user) return;
+      const { data } = await supabase
+        .from("whatsapp_templates")
+        .select("id, name")
+        .eq("user_id", user.id)
+        .order("created_at");
+      if (!cancelled) setTemplates(data ?? []);
+    })();
+    return () => { cancelled = true; };
+  }, []);
+  return templates;
+}
+
 function useDealCustomFields(): CustomFieldOption[] {
   const [fields, setFields] = useState<CustomFieldOption[]>([]);
   useEffect(() => {
@@ -661,6 +682,7 @@ function InlineActionForm({
 }) {
   const actionType = step.action?.type ?? "create_activity";
   const config = step.action?.config ?? {};
+  const whatsappTemplates = useWhatsAppTemplates();
 
   function setActionType(t: ActionType) {
     onChange((s) => ({ ...s, action: { type: t, config: defaultConfig(t) } }));
@@ -927,10 +949,18 @@ function InlineActionForm({
                 onChange={(v) => patchConfig({ templateId: v })}
               >
                 <option value="">Selecionar template...</option>
+                {whatsappTemplates.map((t) => (
+                  <option key={t.id} value={t.id}>{t.name}</option>
+                ))}
               </Select>
             </Field>
+            {whatsappTemplates.length === 0 && (
+              <p className="text-[11px] text-amber-600">
+                Nenhum template salvo. Crie um em Configurações &gt; Templates WhatsApp.
+              </p>
+            )}
             <p className="text-[11px] text-zinc-400">
-              A mensagem será enviada via WhatsApp do vendedor responsável pelo negócio. Variáveis como {"{contact_name}"} serão substituídas automaticamente.
+              A mensagem sai pelo número WhatsApp conectado do workspace. Variáveis como {"{{nome_contato}}"} são substituídas na hora do envio.
             </p>
           </>
         )}

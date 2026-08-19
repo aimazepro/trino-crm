@@ -371,3 +371,118 @@ rotacionar a chave, `EVOLUTION_API_KEY` precisa ser atualizada no `.env.local`
 4. Storage no free tier do Supabase = 1 GB; migrar para R2 quando apertar.
 5. Fora do escopo: botão "Anexar" da aba Notas
    (`src/components/deal/deal-tabs.tsx`) tem `<input type="file">` sem handler.
+
+---
+
+## Automações ligadas ao driver (2026-08-19, sessão 5)
+
+`feat/whatsapp-evolution` foi mergeada em `main` (fast-forward, 12 commits,
+`beef1c4..36ae6ac`). Build e `tsc --noEmit` limpos antes do merge. Nada foi
+enviado para o `origin` e nada foi deployado — o deploy continua manual
+(`vercel deploy --prod`).
+
+Em seguida a Fase 2 — a pendência nº 2 do bloco anterior — foi fechada: a fila
+de automações agora envia pelo driver da Evolution, e não mais pela Meta Cloud
+API que este CRM nunca teve credencial para usar.
+
+### O bug que segurava tudo
+
+`claim_pending_email_queue` e `claim_pending_whatsapp_queue` marcam a linha
+reivindicada como `processing`, mas o `CHECK` de `status` das duas tabelas só
+aceitava `pending | sent | failed`. Toda reivindicação abortava com
+
+```
+new row for relation "automation_whatsapp_queue" violates check constraint
+"automation_whatsapp_queue_status_check"
+```
+
+O `pg_cron` chamava as funções a cada minuto, elas devolviam 500 e ninguém
+olhava. **Isso vale para a fila de email também**: nenhum email de automação
+jamais saiu, pela mesma razão. Corrigido em
+`supabase/migrations/20260819220000_queue_status_processing.sql`, aplicado no
+projeto.
+
+### Como ficou o caminho
+
+```
+automação / passo de sequência
+  └─ insere em automation_whatsapp_queue (pending)
+       └─ pg_cron job 2, a cada minuto
+            └─ POST https://trino-crm.vercel.app/api/whatsapp/queue
+                 └─ claim_pending_whatsapp_queue (10 por vez)
+                      └─ sendWhatsAppMessage()  ← mesmo código de /conversas
+                           └─ EvolutionDriver
+```
+
+`src/lib/whatsapp/send.ts` é novo e concentra o envio: resolução de JID,
+criação/merge da conversa, assinatura, a linha em `whatsapp_messages`, o
+`status` final. `/api/whatsapp/send` e `/api/whatsapp/queue` só montam a
+entrada e traduzem a saída. Era esse o ponto: uma mensagem automática aparece
+na thread de `/conversas` exatamente como uma manual, com `sent_by = null`
+porque ninguém clicou em enviar.
+
+### Decisões
+
+**A Edge Function morreu.** `supabase/functions/process-whatsapp-queue` foi
+removida do repo (ver `supabase/functions/README-whatsapp-queue.md`). O driver
+precisa do token da instância descriptografado, da resolução de JID e do
+registro na thread — reimplementar isso em Deno seria manter duas versões de
+"enviar um WhatsApp". O `pg_cron` continua dono do agendamento e agora chama a
+rota do app direto. A função antiga segue publicada no Supabase sem ser
+chamada; para apagar: `supabase functions delete process-whatsapp-queue`.
+
+**Segredo próprio, não o service role.** `AUTOMATION_DISPATCH_SECRET` autentica
+a rota. Este projeto tem *duas* chaves service role — a JWT `eyJ...` no
+`.env.local` e a `sb_secret_...` que os jobs do cron carregam — então uma rota
+que aceitasse "o service role key" recusaria silenciosamente metade dos
+chamadores. Já está no `.env.local` e nas envs de Production da Vercel.
+
+**`api/whatsapp/queue` entrou na lista de exclusão do `src/proxy.ts`.** Sem
+isso o middleware responde 307 para `/login` a quem não tem cookie de sessão, e
+o `pg_cron` lê 307 como sucesso e nunca repete. Foi exatamente o que aconteceu
+no primeiro teste.
+
+**Variáveis de template são substituídas no envio, não na fila.** O texto do
+template é copiado para a linha da fila (editar o template depois não reescreve
+mensagem já enfileirada), e `{{nome_contato}}`, `{{nome_empresa}}`,
+`{{nome_negocio}}`, `{{nome_vendedor}}` são preenchidos na rota, onde o negócio
+já está carregado. Placeholder sem valor vira string vazia — nenhuma mensagem
+sai pela metade com `{{...}}` visível.
+
+**Linha travada em `processing` vira `failed` depois de 15 minutos**, não volta
+para `pending`: o envio pode ter saído antes do crash, e mensagem duplicada
+para o cliente é pior que falha visível.
+
+### Também corrigido de passagem
+
+- O `<Select>` de "Template WhatsApp" no editor de automações nunca carregou
+  opção nenhuma — era impossível configurar a ação. Agora lista
+  `whatsapp_templates` e avisa quando não há template salvo.
+- Passo `WhatsApp` de sequência enfileira sem telefone (a inscrição conhece o
+  negócio, não o número). A rota resolve pelo contato do negócio.
+
+### Verificado
+
+| Caminho | Resultado |
+|---|---|
+| Sem `Authorization` | 401 |
+| Segredo errado | 401 |
+| Segredo certo, fila vazia | 200 `{processed:0,failed:0}` |
+| Linha sem telefone e sem negócio | `failed` — "Sem telefone: o negócio não tem contato com número." |
+| Linha com número inexistente | `failed` — "O número 5511000000000 não tem WhatsApp." (o driver foi de fato chamado) |
+
+**Não verificado: um envio real pela fila.** Os dois testes acima param antes
+do `sendText`, de propósito — o próximo teste precisa mandar mensagem de
+verdade para um número de verdade.
+
+### O que sobrou
+
+1. Deploy: `vercel deploy --prod`. Até lá o `pg_cron` bate na rota a cada
+   minuto e leva 404.
+2. Envio real pela fila, ponta a ponta, com uma automação de verdade.
+3. A fila de email tem o mesmo processador antigo e agora destrava com a
+   migração — mas continua apontando para o Gmail, o que é outro assunto.
+4. Sem rate limit nas rotas novas (Fase 5).
+5. Storage no free tier do Supabase = 1 GB; migrar para R2 quando apertar.
+6. Fora do escopo: botão "Anexar" da aba Notas
+   (`src/components/deal/deal-tabs.tsx`) tem `<input type="file">` sem handler.

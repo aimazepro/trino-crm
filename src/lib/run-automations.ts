@@ -391,7 +391,11 @@ async function executeAction(
       }
 
       // ── send_whatsapp ──────────────────────────────────────────────────────
-      // Queues the message for delivery when WhatsApp integration is connected.
+      // Queues the message; /api/whatsapp/queue drains it through the Evolution
+      // driver. The template body is copied into the row rather than referenced,
+      // so editing a template later never rewrites a message already queued.
+      // Its `{{...}}` variables are left alone: the queue route fills them from
+      // the deal, where the contact and company names are already loaded.
       case "send_whatsapp": {
         let phone = "";
         if (deal.contactId) {
@@ -403,13 +407,25 @@ async function executeAction(
           phone = firstPhone(contact?.phones ?? []);
         }
 
+        const templateId = (config.templateId as string) || null;
+        let message = interpolate((config.message as string) ?? "", deal);
+
+        if (!message && templateId) {
+          const { data: template } = await supabase
+            .from("whatsapp_templates")
+            .select("message")
+            .eq("id", templateId)
+            .maybeSingle();
+          message = template?.message ?? "";
+        }
+
         await supabase.from("automation_whatsapp_queue").insert({
           user_id: ctx.userId,
           deal_id: deal.id,
           automation_id: automationId,
           phone: phone || null,
-          template_id: (config.templateId as string) ?? null,
-          message: interpolate((config.message as string) ?? "", deal),
+          template_id: templateId,
+          message,
           status: "pending",
         });
         return true;
