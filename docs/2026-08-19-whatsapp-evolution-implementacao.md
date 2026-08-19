@@ -135,7 +135,7 @@ lista reflete por Realtime e mantém o update local só como feedback otimista.
 
 ---
 
-## Estado ao fim da sessão de 2026-08-19
+## Estado ao fim da primeira sessão de 2026-08-19 (superseded — ver abaixo)
 
 Branch **`feat/whatsapp-evolution`** (2 commits, `main` intocada). **Não
 mergeado** — o dono não decidiu ainda. Deployado em produção a partir dela:
@@ -157,3 +157,83 @@ não verificado.
 3. Achado de passagem, fora do escopo, ainda aberto: o botão "Anexar" da aba
    Notas (`src/components/deal/deal-tabs.tsx`, procure por `Anexar`) tem um
    `<input type="file">` sem handler — não anexa nada.
+
+
+---
+
+## Segunda sessão de 2026-08-19: o pareamento aconteceu, o envio quebrou
+
+A seção acima envelheceu no mesmo dia. O QR **foi escaneado**: a conexão
+`trinocrm-joaoreiscefet-5e0c7833` está `open` desde 04:46 UTC, número
+`553183091806`, perfil "Trino Marketing". Instância viva e webhook registrado
+com o segredo certo (conferido em `GET /webhook/find`), eventos
+`QRCODE_UPDATED`, `CONNECTION_UPDATE`, `MESSAGES_UPSERT`, `MESSAGES_UPDATE`.
+
+O que quebrou foi o **envio**:
+
+```
+Evolution POST /message/sendText/... failed (400):
+{"message":[{"jid":"38999225622@s.whatsapp.net","exists":false,"number":"38999225622"}]}
+```
+
+O número saiu do contato do CRM do jeito que uma pessoa escreve — sem código de
+país. E botar `55` na frente não resolve sozinho: perguntando ao servidor real,
+
+| perguntado | resposta |
+|---|---|
+| `38999225622` | `exists: false` |
+| `5538999225622` | `exists: true`, jid **`553899225622`** |
+
+O JID canônico tem **um dígito a menos** que o número perguntado. É uma linha
+anterior ao nono dígito. Qual das duas formas existe não se deduz do número —
+só se pergunta.
+
+### O que mudou
+
+`WhatsAppDriver` ganhou `resolveJid(phone)`, sobre
+`POST /chat/whatsappNumbers/{instance}`. `phoneCandidates()` (em `types.ts`)
+monta as formas que valem a pergunta, numa requisição só: com código de país,
+com o nono dígito somado ou removido, e por último os dígitos crus — senão um
+contato internacional guardado como `12125551234` viraria "local com `55` na
+frente". Vence o primeiro `exists: true`.
+
+Conversa criada a partir de um telefone do CRM agora guarda o JID **que o
+provedor confirmou**, então a resposta que chega pelo webhook cai na mesma
+linha em vez de abrir uma segunda thread da mesma pessoa.
+
+Coluna nova `whatsapp_conversations.jid_verified`
+(migration `20260819180000_whatsapp_jid_verified.sql`, já aplicada): linhas
+criadas por evento de entrada nascem `true` (o JID veio do WhatsApp); linhas
+que vieram de um palpite nascem `false` e são **consertadas no próximo envio** —
+inclusive fundindo com a conversa canônica quando o lado de entrada já criou
+uma. Uma chamada extra por conversa, uma vez.
+
+Número que ninguém alcança devolve **422** com mensagem legível e **não grava
+linha de mensagem**: não havia alvo contra o qual falhar.
+
+Verificado: `tsc --noEmit` limpo, `eslint` limpo, `next build` ok,
+`phoneCandidates` conferida caso a caso contra o módulo real, resolução
+multi-candidato conferida contra o servidor de produção. Deployado
+(`trino-crm.vercel.app` respondendo 200, webhook 401 sem segredo).
+
+### Ainda não verificado
+
+**Nenhuma mensagem trafegou ainda** — `whatsapp_messages` está vazia e
+`whatsapp_conversations` tem uma linha só, a do João (`jid_verified = false`,
+esperando o conserto). Continua sem confirmação de ponta a ponta:
+
+1. Enviar do CRM e a mensagem chegar no celular.
+2. Responder do celular e a linha aparecer em `/conversas` por Realtime — este
+   é o lado que **nunca** teve um único evento; o webhook está registrado e
+   devolve 401 sem segredo, mas nunca processou um `MESSAGES_UPSERT` real.
+
+Se o envio funcionar e a resposta não aparecer, o problema está no webhook, não
+no envio: logs em `vercel` sob `whatsapp/webhook: ingestion failed`.
+
+### Pendências herdadas (nenhuma resolvida nesta sessão)
+
+Todas as da seção "Pendências conhecidas" seguem abertas — em especial o
+`DATABASE_SAVE_DATA_NEW_MESSAGE=false` no stack da Evolution, que faz mensagem
+recebida com o CRM fora do ar ser **perdida sem recuperação**. Decisão do merge
+de `feat/whatsapp-evolution` em `main` também segue em aberto, e o botão
+"Anexar" da aba Notas continua sem handler.
