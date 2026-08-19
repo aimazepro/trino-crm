@@ -294,6 +294,39 @@ Ação: `TRUNCATE` nas duas tabelas + job `purge-cron-logs` (jobid 5, diário à
 
 ⚠️ **Pendente relacionado:** os 4 jobs continuam rodando de minuto em minuto contra filas vazias, queimando ~130 mil invocações/mês das 500 mil do free tier. Enquanto as filas não forem usadas (Fase 2), vale reduzir a cadência para 5 min ou desativar. Não feito — é mudança de comportamento, não faxina.
 
+## 6.6 Stack da Evolution API — analisada em 2026-08-19
+
+Docker Swarm + Traefik + Let's Encrypt. Imagem `evoapicloud/evolution-api:v2.3.7` (**Evolution v2** — os caminhos são `/instance/create`, `/instance/connect/{instance}`, `/webhook/set/{instance}`, `/message/sendText/{instance}`). `SERVER_URL=https://wsapi.pixeo.com.br`, porta interna 8080, 1 réplica.
+
+> Segredos (`AUTHENTICATION_API_KEY`, senha do Postgres, senha do RabbitMQ) **deliberadamente não registrados aqui**. Vão em `.env.local` / env da Vercel. O dono foi avisado e pretende rotacioná-los.
+
+### O que a config revela — e o que precisa mudar antes de codar
+
+| Config atual | Consequência | Ação recomendada |
+|---|---|---|
+| `DATABASE_SAVE_DATA_NEW_MESSAGE=false` | **Evolution não persiste mensagem recebida.** Se o nosso webhook falhar ou o deploy estiver fora do ar, a mensagem some — não há de onde recuperar. Inaceitável para inbox de CRM. | **Mudar para `true`.** Vira a fonte de recuperação. |
+| `DATABASE_SAVE_MESSAGE_UPDATE=false` | Sem status de entrega/leitura persistido. A UI de `/conversas` já desenha ✓ e ✓✓ — ficariam sempre falsos. | **Mudar para `true`.** |
+| `DATABASE_SAVE_DATA_CHATS=false` | Sem lista de conversas do lado da Evolution; teríamos que reconstruir 100% no nosso banco. | **Mudar para `true`** (barato, ajuda no bootstrap da inbox). |
+| `S3_ENABLED=false` | **Mídia não é armazenada.** A UI de `/conversas` tem microfone e clipe de anexo. Áudio/imagem/documento chegariam como base64 no webhook e se perderiam. | Decidir: habilitar S3 (MinIO/Cloudflare R2) **ou** baixar a mídia no nosso handler e gravar no Supabase Storage. Atenção: **free tier do Supabase = 1 GB de storage** — áudio de WhatsApp enche rápido. R2 é mais barato. |
+| `WEBHOOK_GLOBAL_ENABLED=false` | Correto para o nosso caso. Webhook **por instância** (`/webhook/set/{instance}`) continua funcionando e é o que queremos — cada workspace aponta para a sua própria URL. | **Manter como está.** |
+| `RABBITMQ_ENABLED=true`, `RABBITMQ_GLOBAL_ENABLED=false` | A doc da Evolution recomenda RabbitMQ em vez de webhook. **Não serve para nós:** o app roda em Vercel serverless, que não sustenta consumidor AMQP de longa duração. | **Ficar com webhook.** Deixar o RabbitMQ ligado não atrapalha. (Se um dia houver worker dedicado, reavaliar.) |
+| `AUTHENTICATION_EXPOSE_IN_FETCH_INSTANCES=true` | `fetchInstances` devolve o token de cada instância. Quem tiver a chave global vê o token de **todos** os workspaces. | Aceitável enquanto o servidor é dele. Vira problema se algum dia um cliente tiver acesso. Reavaliar na Fase 1. |
+| `CHATWOOT_ENABLED=true` | ⚠️ **Pergunta em aberto:** ele usa Chatwoot hoje? Se sim, Chatwoot e o CRM consumiriam a mesma instância — risco de mensagem duplicada ou de dupla resposta. |
+| `limits: cpus 1 / memory 1024M`, `replicas: 1` | ⚠️ **Teto de capacidade.** Cada instância Baileys custa ~100–200 MB de RAM. **1 GB ≈ 5 a 8 instâncias**, ou seja 5–8 workspaces com WhatsApp. | Suficiente para os primeiros clientes. Confirma a análise da seção 6.1: escalar self-hosted vira trabalho de infra. Subir o limite de memória é a mitigação imediata. |
+| `QRCODE_LIMIT=30`, `DEL_INSTANCE=false` | Ok. | Sem ação. |
+
+### Arquitetura decorrente
+
+```
+WhatsApp → Evolution (wsapi.pixeo.com.br)
+   → webhook por instância → rota nova no CRM (valida assinatura + resolve workspace)
+   → grava mensagem no Supabase → Supabase Realtime → /conversas atualiza sozinho
+```
+
+Envio segue o caminho inverso via `/message/sendText/{instance}`, com o `instanceName` e o token resolvidos a partir do workspace.
+
+**Pendências para a próxima sessão:** buscar em `docs.evolutionfoundation.com.br/llms.txt` os contratos exatos de `/webhook/set`, `/message/sendText` e `/instance/connectionState` (os de `/instance/create` e `/instance/connect` já estão levantados na seção 6.1).
+
 ## 7. Evidência checada
 
 Código: 42 páginas, 16 rotas de API, `src/proxy.ts`, `src/lib/*` (automações, webhooks, crypto, calendar, sequences), 4 edge functions, `next.config.ts`, `vercel.ts`, `package.json`, 18 migrations.
