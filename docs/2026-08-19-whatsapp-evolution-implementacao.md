@@ -482,9 +482,9 @@ de ela existir em produção; param no minuto do deploy.
 1. Uma automação de verdade, montada pela UI, disparando pela regra dela —
    o teste acima injetou a linha na fila direto.
 2. A fila de email destrava com a migração, mas o processador dela continua
-   sendo a Edge Function que fala com o Gmail. Vale revisar se ela funciona
-   agora que o `claim` passou a funcionar — pode começar a mandar email
-   represado.
+   sendo a Edge Function que fala com o Gmail. Não há represa: a tabela está
+   vazia (nenhuma automação de email jamais enfileirou nada que sobrevivesse).
+   Vale testar essa ponta agora que o `claim` funciona.
 3. Sem rate limit nas rotas novas (Fase 5).
 4. Storage no free tier do Supabase = 1 GB; migrar para R2 quando apertar.
 5. Fora do escopo: botão "Anexar" da aba Notas
