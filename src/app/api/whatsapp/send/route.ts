@@ -8,6 +8,8 @@ import {
 } from "@/lib/whatsapp/connection";
 import { getDriver, jidToPhone } from "@/lib/whatsapp";
 import { putMedia } from "@/lib/whatsapp/storage";
+import { toVoiceNote } from "@/lib/whatsapp/audio";
+import { resolveConversationLinks } from "@/lib/whatsapp/linking";
 import type { MessageType, OutboundMedia, WhatsAppConnection } from "@/lib/whatsapp/types";
 
 export const dynamic = "force-dynamic";
@@ -128,10 +130,7 @@ async function resolveConversation(
 
   if (existing) return { id: (existing as any).id, phone: (existing as any).phone };
 
-  const { data: contactId } = await admin.rpc("find_contact_by_phone", {
-    p_user_id: connection.userId,
-    p_phone: phone,
-  });
+  const links = await resolveConversationLinks(admin, connection.userId, phone);
 
   const { data: created, error } = await admin
     .from("whatsapp_conversations")
@@ -141,7 +140,9 @@ async function resolveConversation(
       remote_jid: jid,
       phone,
       jid_verified: true,
-      contact_id: contactId ?? null,
+      contact_id: links.contactId,
+      deal_id: links.dealId,
+      owner_id: links.ownerId,
     })
     .select("id, phone")
     .single();
@@ -277,8 +278,17 @@ export async function POST(req: NextRequest) {
   try {
     const driver = getDriver(connection);
     const target = jidToPhone(conversation.phone);
-    const result = media
-      ? await driver.sendMedia(target, media)
+
+    // Storage keeps the original — the browser that recorded it can always play
+    // that back — while WhatsApp gets the Opus its voice notes require.
+    let outbound = media;
+    if (media && media.kind === "audio") {
+      const note = await toVoiceNote(media.bytes, media.filename);
+      if (note) outbound = { ...media, data: note.data, bytes: note.data, mimetype: note.mimetype };
+    }
+
+    const result = outbound
+      ? await driver.sendMedia(target, outbound)
       : await driver.sendText(target, text!);
 
     await admin

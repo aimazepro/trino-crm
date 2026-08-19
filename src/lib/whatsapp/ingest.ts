@@ -6,6 +6,7 @@ import type { SupabaseClient } from "@supabase/supabase-js";
 import { updateConnection } from "./connection";
 import { putMedia } from "./storage";
 import { getDriver } from "./index";
+import { resolveConversationLinks } from "./linking";
 import type { InboundEvent, InboundMessage, WhatsAppConnection } from "./types";
 
 /** How long a QR stays valid before the UI should ask for a fresh one. */
@@ -50,30 +51,7 @@ async function findOrCreateConversation(
     return (existing as any).id;
   }
 
-  const { data: contactId } = await admin.rpc("find_contact_by_phone", {
-    p_user_id: connection.userId,
-    p_phone: message.phone,
-  });
-
-  // An open deal for that contact is the one a salesperson is most likely to
-  // want on screen; closed ones are ignored so old business doesn't resurface.
-  let dealId: string | null = null;
-  let ownerId: string | null = null;
-  if (contactId) {
-    const { data: deal } = await admin
-      .from("deals")
-      .select("id, owner_id")
-      .eq("user_id", connection.userId)
-      .eq("contact_id", contactId)
-      .eq("status", "open")
-      .is("deleted_at", null)
-      .order("updated_at", { ascending: false })
-      .limit(1)
-      .maybeSingle();
-
-    dealId = (deal as any)?.id ?? null;
-    ownerId = (deal as any)?.owner_id ?? null;
-  }
+  const links = await resolveConversationLinks(admin, connection.userId, message.phone);
 
   const { data: created, error } = await admin
     .from("whatsapp_conversations")
@@ -84,9 +62,9 @@ async function findOrCreateConversation(
       phone: message.phone,
       // WhatsApp is the one that produced this JID, so it needs no verification.
       jid_verified: true,
-      contact_id: contactId ?? null,
-      deal_id: dealId,
-      owner_id: ownerId,
+      contact_id: links.contactId,
+      deal_id: links.dealId,
+      owner_id: links.ownerId,
       push_name: message.fromMe ? null : message.pushName,
     })
     .select("id")
