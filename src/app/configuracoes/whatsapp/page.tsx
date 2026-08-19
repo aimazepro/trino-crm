@@ -9,6 +9,7 @@ import {
   LoaderCircle,
   RefreshCw,
   CircleAlert,
+  PenLine,
 } from "lucide-react";
 
 type Status = "disconnected" | "connecting" | "open" | "close";
@@ -21,6 +22,8 @@ type StatusResponse = {
   profileName: string | null;
   lastError?: string | null;
   isOwner: boolean;
+  signatureEnabled?: boolean;
+  signatureName?: string | null;
 };
 
 /** While a QR is on screen we poll for the scan; Evolution rotates it ~every 30s. */
@@ -45,6 +48,13 @@ export default function WhatsAppConfigPage() {
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
+  // Draft copy of the signature: the field is a text input, so it cannot write
+  // straight through to the server on every keystroke.
+  const [signatureName, setSignatureName] = useState("");
+  const [signatureEnabled, setSignatureEnabled] = useState(false);
+  const [signatureSaving, setSignatureSaving] = useState(false);
+  const [signatureSaved, setSignatureSaved] = useState(false);
+
   // Kept in a ref so the polling effect doesn't restart on every tick.
   const qrRef = useRef<string | null>(null);
   qrRef.current = qr;
@@ -55,6 +65,12 @@ export default function WhatsAppConfigPage() {
       if (!res.ok) throw new Error("Falha ao consultar o status");
       const data = (await res.json()) as StatusResponse;
       setInfo(data);
+      setSignatureEnabled(data.signatureEnabled ?? false);
+      // The account name is the default, so the field is never blank on first
+      // open and turning the toggle on always has something to sign with.
+      setSignatureName((current) =>
+        current ? current : data.signatureName ?? data.profileName ?? "",
+      );
       if (data.status === "open") setQr(null);
       else if (data.qr) setQr(data.qr);
       else if (data.qrExpired) setQr(null);
@@ -110,6 +126,30 @@ export default function WhatsAppConfigPage() {
       setError(err instanceof Error ? err.message : "Falha ao desconectar");
     } finally {
       setBusy(false);
+    }
+  }
+
+  async function saveSignature(nextEnabled: boolean) {
+    setSignatureSaving(true);
+    setSignatureSaved(false);
+    setError(null);
+    try {
+      const res = await fetch("/api/whatsapp/settings", {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ signatureEnabled: nextEnabled, signatureName }),
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data?.error ?? "Falha ao salvar a assinatura");
+      setSignatureEnabled(data.signatureEnabled);
+      setSignatureSaved(true);
+    } catch (err) {
+      // Put the switch back where it was, so it never shows a state the server
+      // did not accept.
+      setSignatureEnabled((current) => (nextEnabled === current ? !current : current));
+      setError(err instanceof Error ? err.message : "Falha ao salvar a assinatura");
+    } finally {
+      setSignatureSaving(false);
     }
   }
 
@@ -269,6 +309,84 @@ export default function WhatsAppConfigPage() {
             </div>
           )}
         </div>
+
+        {/* Signature card — only meaningful once a number is connected. */}
+        {!loading && status === "open" && (
+          <div className="mt-6 rounded-xl border border-zinc-200 bg-white p-6">
+            <div className="flex items-start gap-3">
+              <div className="h-10 w-10 rounded-xl bg-green-100 flex items-center justify-center shrink-0">
+                <PenLine className="h-5 w-5 text-green-600" />
+              </div>
+              <div className="flex-1 min-w-0">
+                <h3 className="text-sm font-semibold text-zinc-900">Assinatura nas mensagens</h3>
+                <p className="text-sm text-zinc-600 mt-2">
+                  O workspace inteiro envia pelo mesmo número. Com a assinatura ligada, o nome de
+                  quem escreveu vai antes do texto — como no Chatwoot e no painel da Evolution.
+                </p>
+
+                <label className="mt-4 block text-xs font-medium text-zinc-700" htmlFor="signature-name">
+                  Nome exibido
+                </label>
+                <input
+                  id="signature-name"
+                  value={signatureName}
+                  onChange={(e) => { setSignatureName(e.target.value); setSignatureSaved(false); }}
+                  disabled={!canManage || signatureSaving}
+                  maxLength={40}
+                  placeholder="João Paulo"
+                  className="mt-1 w-full max-w-xs rounded-lg border border-zinc-200 px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-green-600/40 disabled:bg-zinc-50 disabled:text-zinc-400"
+                />
+
+                <div className="mt-3 rounded-lg bg-zinc-50 px-3 py-2 text-sm text-zinc-600">
+                  <span className="text-xs text-zinc-400">Prévia</span>
+                  <p className="mt-1 whitespace-pre-wrap">
+                    {signatureEnabled && signatureName.trim()
+                      ? `*${signatureName.trim()}*\nOlá! Tudo bem?`
+                      : "Olá! Tudo bem?"}
+                  </p>
+                </div>
+
+                <div className="mt-4 flex flex-wrap items-center gap-3">
+                  <button
+                    onClick={() => void saveSignature(!signatureEnabled)}
+                    disabled={!canManage || signatureSaving}
+                    role="switch"
+                    aria-checked={signatureEnabled}
+                    aria-label="Ativar assinatura"
+                    className={`relative h-6 w-11 shrink-0 rounded-full transition-colors disabled:opacity-50 ${
+                      signatureEnabled ? "bg-green-600" : "bg-zinc-300"
+                    }`}
+                  >
+                    <span
+                      className={`absolute top-0.5 h-5 w-5 rounded-full bg-white transition-all ${
+                        signatureEnabled ? "left-[22px]" : "left-0.5"
+                      }`}
+                    />
+                  </button>
+                  <span className="text-sm text-zinc-600">
+                    {signatureEnabled ? "Assinatura ativada" : "Assinatura desativada"}
+                  </span>
+
+                  {canManage && (
+                    <button
+                      onClick={() => void saveSignature(signatureEnabled)}
+                      disabled={signatureSaving}
+                      className="ml-auto px-4 py-2 border border-zinc-200 text-sm font-medium rounded-lg hover:bg-zinc-50 transition-colors disabled:opacity-50"
+                    >
+                      {signatureSaving ? "Salvando..." : signatureSaved ? "Salvo" : "Salvar nome"}
+                    </button>
+                  )}
+                </div>
+
+                {!canManage && (
+                  <p className="mt-3 text-xs text-zinc-500">
+                    Só o dono da conta pode alterar a assinatura deste workspace.
+                  </p>
+                )}
+              </div>
+            </div>
+          </div>
+        )}
 
         {/* WhatsApp API Oficial card */}
         <div className="mt-6 rounded-xl border border-zinc-200 bg-white p-6">

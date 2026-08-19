@@ -3,10 +3,11 @@
 import { useEffect, useRef, useState } from "react";
 import Link from "next/link";
 import {
-  Send, Paperclip, Mic, Trash2, Check, CheckCheck, Clock, CircleAlert,
+  Send, Paperclip, Mic, Check, CheckCheck, Clock, CircleAlert,
   LoaderCircle, FileText, Download, MessageCircle,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { VoiceRecorder } from "./voice-recorder";
 import { useWhatsAppThread, type ThreadTarget, type ThreadMessage } from "@/hooks/use-whatsapp-thread";
 
 interface WhatsAppThreadProps {
@@ -17,6 +18,14 @@ interface WhatsAppThreadProps {
   emptyHint?: string;
   className?: string;
 }
+
+/**
+ * The paper behind the messages. WhatsApp's own doodle is copyrighted art, so
+ * this is a faint dot lattice at the same weight — enough to keep the bubbles
+ * from floating on a flat panel, quiet enough to read over.
+ */
+const CHAT_BACKDROP =
+  "radial-gradient(circle at 1px 1px, currentColor 1px, transparent 0) 0 0 / 22px 22px";
 
 function formatTime(iso: string) {
   return new Date(iso).toLocaleTimeString("pt-BR", { hour: "2-digit", minute: "2-digit" });
@@ -36,73 +45,106 @@ function formatDayLabel(iso: string) {
     .toUpperCase();
 }
 
-function formatDuration(totalSeconds: number) {
-  const m = Math.floor(totalSeconds / 60).toString().padStart(2, "0");
-  const s = (totalSeconds % 60).toString().padStart(2, "0");
-  return `${m}:${s}`;
-}
-
 function StatusIcon({ status }: { status: ThreadMessage["status"] }) {
-  if (status === "pending") return <Clock className="h-3 w-3" aria-label="Enviando" />;
-  if (status === "failed") return <CircleAlert className="h-3 w-3" aria-label="Falhou" />;
-  if (status === "read") return <CheckCheck className="h-3 w-3 text-sky-200" aria-label="Lida" />;
-  if (status === "delivered") return <CheckCheck className="h-3 w-3" aria-label="Entregue" />;
-  return <Check className="h-3 w-3" aria-label="Enviada" />;
+  if (status === "pending") return <Clock className="h-3 w-3 opacity-70" aria-label="Enviando" />;
+  if (status === "failed") return <CircleAlert className="h-3 w-3 text-red-500" aria-label="Falhou" />;
+  // The blue double check is the one people actually read at a glance.
+  if (status === "read") return <CheckCheck className="h-3 w-3 text-sky-500" aria-label="Lida" />;
+  if (status === "delivered") return <CheckCheck className="h-3 w-3 opacity-70" aria-label="Entregue" />;
+  return <Check className="h-3 w-3 opacity-70" aria-label="Enviada" />;
 }
 
-function Bubble({ message, mediaUrl }: { message: ThreadMessage; mediaUrl?: string }) {
+interface BubbleProps {
+  message: ThreadMessage;
+  mediaUrl?: string;
+  /** True when the previous message came from the same side, within the group. */
+  grouped: boolean;
+  /** True when the next message comes from the other side — the tail goes here. */
+  tail: boolean;
+}
+
+function Bubble({ message, mediaUrl, grouped, tail }: BubbleProps) {
   const mine = message.fromMe;
+  const hasMedia = message.type !== "text" && message.type !== "unsupported";
+
   return (
-    <div className={cn("flex mb-1.5", mine ? "justify-end" : "justify-start")}>
+    <div className={cn("flex px-1", mine ? "justify-end" : "justify-start", grouped ? "mt-0.5" : "mt-2")}>
       <div
         className={cn(
-          "max-w-[70%] rounded-2xl px-3.5 py-2 text-sm",
-          mine ? "rounded-br-sm bg-green-500 text-white" : "rounded-bl-sm bg-card border border-border",
+          "relative max-w-[75%] rounded-xl px-2.5 py-1.5 text-[15px] leading-snug shadow-sm md:max-w-[65%]",
+          mine
+            ? "bg-[#d9fdd3] text-neutral-900 dark:bg-[#005c4b] dark:text-neutral-50"
+            : "bg-white text-neutral-900 dark:bg-[#202c33] dark:text-neutral-50",
+          // The tail is only drawn on the last bubble of a run, the way the app does it.
+          tail && (mine ? "rounded-br-sm" : "rounded-bl-sm"),
           message.status === "failed" && "ring-1 ring-red-400",
         )}
       >
+        {tail && (
+          <span
+            aria-hidden="true"
+            className={cn(
+              "absolute bottom-0 h-3 w-3",
+              mine
+                ? "-right-1.5 [clip-path:polygon(0_0,100%_100%,0_100%)] bg-[#d9fdd3] dark:bg-[#005c4b]"
+                : "-left-1.5 [clip-path:polygon(100%_0,100%_100%,0_100%)] bg-white dark:bg-[#202c33]",
+            )}
+          />
+        )}
+
         {message.type === "image" && mediaUrl && (
           // eslint-disable-next-line @next/next/no-img-element
-          <img src={mediaUrl} alt={message.mediaFilename ?? "Imagem"} className="rounded-lg max-h-72 mb-1" />
+          <img
+            src={mediaUrl}
+            alt={message.mediaFilename ?? "Imagem"}
+            className="mb-1 max-h-80 rounded-lg object-cover"
+          />
         )}
         {message.type === "audio" && mediaUrl && (
-          <audio controls src={mediaUrl} className="max-w-full mb-1" />
+          <audio controls src={mediaUrl} className="mb-1 h-10 w-64 max-w-full" />
         )}
         {message.type === "video" && mediaUrl && (
-          <video controls src={mediaUrl} className="rounded-lg max-h-72 mb-1" />
+          <video controls src={mediaUrl} className="mb-1 max-h-80 rounded-lg" />
         )}
         {(message.type === "document" || message.type === "sticker") && mediaUrl && (
           <a
             href={mediaUrl}
             target="_blank"
             rel="noreferrer"
-            className={cn("flex items-center gap-2 underline mb-1", mine ? "text-green-50" : "text-foreground")}
+            className="mb-1 flex items-center gap-2 rounded-lg bg-black/5 px-2.5 py-2 underline-offset-2 hover:underline dark:bg-white/10"
           >
             <FileText className="h-4 w-4 shrink-0" aria-hidden="true" />
             <span className="truncate">{message.mediaFilename ?? "Arquivo"}</span>
-            <Download className="h-3.5 w-3.5 shrink-0" aria-hidden="true" />
+            <Download className="h-3.5 w-3.5 shrink-0 opacity-70" aria-hidden="true" />
           </a>
         )}
-        {message.mediaPath && !mediaUrl && (
-          <p className={cn("text-xs mb-1", mine ? "text-green-50/80" : "text-muted-foreground")}>
-            Carregando anexo...
+        {message.mediaPath && !mediaUrl && hasMedia && (
+          <p className="mb-1 flex items-center gap-1.5 text-xs opacity-70">
+            <LoaderCircle className="h-3 w-3 animate-spin" aria-hidden="true" /> Carregando anexo...
           </p>
         )}
         {message.type === "unsupported" && !message.body && (
-          <p className="italic opacity-80">Mensagem não suportada</p>
+          <p className="italic opacity-70">Mensagem não suportada</p>
         )}
-        {message.body && <p className="whitespace-pre-wrap break-words">{message.body}</p>}
 
-        <div
-          className={cn(
-            "flex items-center justify-end gap-1 mt-1 text-[10px]",
-            mine ? "text-green-50/80" : "text-muted-foreground",
-          )}
-        >
-          {formatTime(message.timestamp)}
+        {/* The float lets the timestamp tuck into the last line, as in the app. */}
+        {message.body && (
+          <p className="whitespace-pre-wrap break-words">
+            {message.body}
+            <span className="float-right ml-2 h-0 select-none text-[11px] leading-[26px] opacity-0">
+              {formatTime(message.timestamp)}
+            </span>
+          </p>
+        )}
+
+        <div className="-mt-0.5 flex items-center justify-end gap-1 text-[11px] opacity-70">
+          <span className="tabular-nums">{formatTime(message.timestamp)}</span>
           {mine && <StatusIcon status={message.status} />}
         </div>
-        {message.status === "failed" && <p className="text-[10px] mt-0.5 text-red-100">Não enviada</p>}
+
+        {message.status === "failed" && (
+          <p className="text-[11px] font-medium text-red-600 dark:text-red-400">Não enviada</p>
+        )}
       </div>
     </div>
   );
@@ -119,18 +161,9 @@ export function WhatsAppThread({ target, connected, emptyHint, className }: What
 
   const [input, setInput] = useState("");
   const [recording, setRecording] = useState(false);
-  const [recordSeconds, setRecordSeconds] = useState(0);
 
   const fileInputRef = useRef<HTMLInputElement>(null);
-  const recorderRef = useRef<MediaRecorder | null>(null);
-  const chunksRef = useRef<Blob[]>([]);
   const endRef = useRef<HTMLDivElement>(null);
-
-  useEffect(() => {
-    if (!recording) return;
-    const id = setInterval(() => setRecordSeconds((s) => s + 1), 1000);
-    return () => clearInterval(id);
-  }, [recording]);
 
   useEffect(() => {
     endRef.current?.scrollIntoView({ behavior: "smooth" });
@@ -151,79 +184,58 @@ export function WhatsAppThread({ target, connected, emptyHint, className }: What
     if (file) await sendFile(file);
   }
 
-  async function startRecording() {
-    try {
-      const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
-      const recorder = new MediaRecorder(stream);
-      chunksRef.current = [];
-      recorder.ondataavailable = (e) => { if (e.data.size > 0) chunksRef.current.push(e.data); };
-      recorder.onstop = () => stream.getTracks().forEach((t) => t.stop());
-      recorder.start();
-      recorderRef.current = recorder;
-      setRecordSeconds(0);
-      setRecording(true);
-    } catch {
-      alert("Não foi possível acessar o microfone.");
-    }
-  }
-
-  function stopRecording(shouldSend: boolean) {
-    const recorder = recorderRef.current;
-    if (!recorder) { setRecording(false); return; }
-
-    recorder.onstop = async () => {
-      recorder.stream.getTracks().forEach((t) => t.stop());
-      if (!shouldSend || chunksRef.current.length === 0) return;
-      const type = recorder.mimeType || "audio/webm";
-      const blob = new Blob(chunksRef.current, { type });
-      await sendFile(new File([blob], `audio-${Date.now()}.webm`, { type }));
-    };
-    recorder.stop();
-    recorderRef.current = null;
-    setRecording(false);
-    setRecordSeconds(0);
-  }
-
   return (
-    <div className={cn("flex flex-col min-h-0", className)}>
+    <div className={cn("flex min-h-0 flex-col", className)}>
       {error && (
         <div className="mx-4 mt-3 flex items-start gap-2 rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-xs text-red-800 dark:border-red-900 dark:bg-red-950 dark:text-red-300">
-          <CircleAlert className="h-4 w-4 shrink-0 mt-px" aria-hidden="true" />
+          <CircleAlert className="mt-px h-4 w-4 shrink-0" aria-hidden="true" />
           <span className="flex-1 break-words">{error}</span>
           <button onClick={clearError} className="shrink-0 underline">fechar</button>
         </div>
       )}
 
-      <div className="flex-1 overflow-y-auto px-6 py-4 bg-muted/20 min-h-0">
+      <div
+        className="min-h-0 flex-1 overflow-y-auto bg-[#efeae2] px-4 py-4 text-neutral-400/25 dark:bg-[#0b141a] dark:text-neutral-500/20 md:px-8"
+        style={{ backgroundImage: CHAT_BACKDROP }}
+      >
         {loading ? (
           <div className="flex items-center justify-center gap-2 py-10 text-sm text-muted-foreground">
             <LoaderCircle className="h-4 w-4 animate-spin" aria-hidden="true" /> Carregando mensagens...
           </div>
         ) : messages.length === 0 ? (
-          <div className="flex flex-col items-center justify-center h-full text-center py-10">
-            <div className="h-12 w-12 rounded-full bg-muted flex items-center justify-center mb-3">
+          <div className="flex h-full flex-col items-center justify-center py-10 text-center">
+            <div className="mb-3 flex h-12 w-12 items-center justify-center rounded-full bg-black/5 dark:bg-white/10">
               <MessageCircle className="h-6 w-6 text-muted-foreground" aria-hidden="true" />
             </div>
-            <p className="text-sm font-medium">Nenhuma mensagem ainda</p>
-            {emptyHint && <p className="text-xs text-muted-foreground mt-1">{emptyHint}</p>}
+            <p className="text-sm font-medium text-neutral-700 dark:text-neutral-200">
+              Nenhuma mensagem ainda
+            </p>
+            {emptyHint && <p className="mt-1 text-xs text-muted-foreground">{emptyHint}</p>}
           </div>
         ) : (
-          messages.map((m, index) => {
+          messages.map((message, index) => {
             const previous = messages[index - 1];
+            const next = messages[index + 1];
             const showDay =
               !previous ||
-              new Date(previous.timestamp).toDateString() !== new Date(m.timestamp).toDateString();
+              new Date(previous.timestamp).toDateString() !==
+                new Date(message.timestamp).toDateString();
 
             return (
-              <div key={m.id}>
+              <div key={message.id}>
                 {showDay && (
-                  <div className="flex justify-center my-4">
-                    <span className="text-[11px] font-medium text-muted-foreground bg-muted rounded-full px-3 py-1">
-                      {formatDayLabel(m.timestamp)}
+                  <div className="my-4 flex justify-center">
+                    <span className="rounded-lg bg-white/90 px-3 py-1 text-[11px] font-medium uppercase tracking-wide text-neutral-600 shadow-sm dark:bg-[#182229] dark:text-neutral-300">
+                      {formatDayLabel(message.timestamp)}
                     </span>
                   </div>
                 )}
-                <Bubble message={m} mediaUrl={m.mediaPath ? mediaUrls[m.mediaPath] : undefined} />
+                <Bubble
+                  message={message}
+                  mediaUrl={message.mediaPath ? mediaUrls[message.mediaPath] : undefined}
+                  grouped={!showDay && previous?.fromMe === message.fromMe}
+                  tail={!next || next.fromMe !== message.fromMe}
+                />
               </div>
             );
           })
@@ -231,38 +243,20 @@ export function WhatsAppThread({ target, connected, emptyHint, className }: What
         <div ref={endRef} />
       </div>
 
-      <div className="px-4 py-3 border-t border-border shrink-0 bg-background">
+      <div className="shrink-0 border-t border-border bg-background px-4 py-2.5">
         {!connected ? (
-          <p className="text-center text-xs text-muted-foreground py-2">
+          <p className="py-2 text-center text-xs text-muted-foreground">
             WhatsApp desconectado.{" "}
             <Link href="/configuracoes/whatsapp" className="text-green-600 underline">
               Conectar para responder
             </Link>
           </p>
         ) : recording ? (
-          <div className="flex items-center gap-2">
-            <button
-              onClick={() => stopRecording(false)}
-              title="Cancelar"
-              className="h-10 w-10 rounded-lg text-red-500 hover:bg-red-50 dark:hover:bg-red-950 flex items-center justify-center transition-colors shrink-0"
-            >
-              <Trash2 className="h-5 w-5" aria-hidden="true" />
-            </button>
-            <div className="flex-1 flex items-center gap-3 h-10 rounded-lg bg-background border border-red-200 dark:border-red-900 px-4">
-              <div className="h-2 w-2 rounded-full bg-red-500 animate-pulse shrink-0" aria-hidden="true" />
-              <span className="text-sm font-mono text-red-600 dark:text-red-400 shrink-0">
-                {formatDuration(recordSeconds)}
-              </span>
-              <span className="text-xs text-muted-foreground">Gravando áudio...</span>
-            </div>
-            <button
-              onClick={() => stopRecording(true)}
-              title="Enviar áudio"
-              className="h-10 w-10 rounded-lg bg-green-600 text-white flex items-center justify-center hover:bg-green-700 transition-colors shrink-0"
-            >
-              <Send className="h-4 w-4" aria-hidden="true" />
-            </button>
-          </div>
+          <VoiceRecorder
+            sending={sending}
+            onSend={async (file) => { await sendFile(file); }}
+            onClose={() => setRecording(false)}
+          />
         ) : (
           <div className="flex items-center gap-2">
             <input
@@ -276,9 +270,10 @@ export function WhatsAppThread({ target, connected, emptyHint, className }: What
               onClick={() => fileInputRef.current?.click()}
               disabled={sending}
               title="Anexar arquivo"
-              className="shrink-0 p-2 text-muted-foreground hover:text-foreground transition-colors disabled:opacity-50"
+              aria-label="Anexar arquivo"
+              className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full text-muted-foreground transition-colors hover:bg-muted hover:text-foreground disabled:opacity-50"
             >
-              <Paperclip className="h-4 w-4" aria-hidden="true" />
+              <Paperclip className="h-5 w-5" aria-hidden="true" />
             </button>
             <input
               value={input}
@@ -286,14 +281,16 @@ export function WhatsAppThread({ target, connected, emptyHint, className }: What
               onKeyDown={(e) => {
                 if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); void handleSendText(); }
               }}
-              placeholder="Digite uma mensagem..."
-              className="flex-1 h-9 px-3 rounded-full border border-border bg-background text-sm outline-none focus:ring-2 focus:ring-ring"
+              placeholder="Digite uma mensagem"
+              className="h-11 flex-1 rounded-full border border-border bg-muted/40 px-4 text-[15px] outline-none transition-shadow placeholder:text-muted-foreground focus:ring-2 focus:ring-green-600/40"
             />
             {input.trim() ? (
               <button
                 onClick={() => void handleSendText()}
                 disabled={sending}
-                className="shrink-0 rounded-full bg-green-600 hover:bg-green-700 text-white p-2 transition-colors disabled:opacity-50"
+                title="Enviar"
+                aria-label="Enviar mensagem"
+                className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-green-600 text-white transition-colors hover:bg-green-700 disabled:opacity-50"
               >
                 {sending
                   ? <LoaderCircle className="h-4 w-4 animate-spin" aria-hidden="true" />
@@ -301,12 +298,13 @@ export function WhatsAppThread({ target, connected, emptyHint, className }: What
               </button>
             ) : (
               <button
-                onClick={() => void startRecording()}
+                onClick={() => setRecording(true)}
                 disabled={sending}
                 title="Gravar áudio"
-                className="shrink-0 p-2 text-muted-foreground hover:text-foreground transition-colors disabled:opacity-50"
+                aria-label="Gravar áudio"
+                className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-green-600 text-white transition-colors hover:bg-green-700 disabled:opacity-50"
               >
-                <Mic className="h-4 w-4" aria-hidden="true" />
+                <Mic className="h-5 w-5" aria-hidden="true" />
               </button>
             )}
           </div>

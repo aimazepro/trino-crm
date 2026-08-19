@@ -33,6 +33,23 @@ export interface WhatsAppConnection {
   qrCode: string | null;
   qrExpiresAt: string | null;
   lastError: string | null;
+  signatureEnabled: boolean;
+  signatureName: string | null;
+}
+
+/**
+ * Prefixes the sender's name the way Chatwoot and the Evolution panel do, so a
+ * workspace sharing one number still reads as people rather than a switchboard.
+ * Returns the text untouched when the signature is off or has no name to use.
+ */
+export function applySignature(
+  text: string,
+  connection: Pick<WhatsAppConnection, "signatureEnabled" | "signatureName" | "profileName">,
+): string {
+  if (!connection.signatureEnabled) return text;
+  const name = (connection.signatureName ?? connection.profileName ?? "").trim();
+  if (!name) return text;
+  return `*${name}*\n${text}`;
 }
 
 export interface QrResult {

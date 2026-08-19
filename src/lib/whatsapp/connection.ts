@@ -77,6 +77,8 @@ function rowToConnection(row: any): WhatsAppConnection {
     qrCode: row.qr_code,
     qrExpiresAt: row.qr_expires_at,
     lastError: row.last_error,
+    signatureEnabled: row.signature_enabled ?? false,
+    signatureName: row.signature_name ?? null,
   };
 }
 /* eslint-enable @typescript-eslint/no-explicit-any */

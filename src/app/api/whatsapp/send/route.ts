@@ -10,6 +10,7 @@ import { getDriver, jidToPhone } from "@/lib/whatsapp";
 import { putMedia } from "@/lib/whatsapp/storage";
 import { toVoiceNote } from "@/lib/whatsapp/audio";
 import { resolveConversationLinks } from "@/lib/whatsapp/linking";
+import { applySignature } from "@/lib/whatsapp/types";
 import type { MessageType, OutboundMedia, WhatsAppConnection } from "@/lib/whatsapp/types";
 
 export const dynamic = "force-dynamic";
@@ -231,6 +232,12 @@ export async function POST(req: NextRequest) {
   }
 
   const messageType: MessageType = media ? MESSAGE_TYPE_BY_KIND[media.kind] : "text";
+
+  // Signed before the row is written, so the thread shows what the customer
+  // actually received rather than a cleaner version of it.
+  if (text) text = applySignature(text, connection);
+  if (media?.caption) media.caption = applySignature(media.caption, connection);
+
   const body = media ? media.caption ?? null : text;
 
   // Our own copy of an outgoing attachment, so the thread renders it without

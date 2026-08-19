@@ -24,6 +24,8 @@ export async function GET() {
       qr: null,
       phoneNumber: null,
       profileName: null,
+      signatureEnabled: connection?.signatureEnabled ?? false,
+      signatureName: connection?.signatureName ?? null,
       isOwner: ownerId === user.id,
       workspaceOwnerId: ownerId,
     });
@@ -58,6 +60,8 @@ export async function GET() {
     qrExpired: qrExpired && status !== "open",
     phoneNumber: connection.phoneNumber,
     profileName: connection.profileName,
+    signatureEnabled: connection.signatureEnabled,
+    signatureName: connection.signatureName,
     lastError: connection.lastError ?? null,
     isOwner: ownerId === user.id,
     workspaceOwnerId: ownerId,
