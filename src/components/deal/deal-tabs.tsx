@@ -11,7 +11,9 @@ import { createClient } from "@/lib/supabase/client";
 import { AllTab } from "./all-tab";
 import { ActivityTab } from "./activity-tab";
 import { EmailTab } from "./email-tab";
-import { ArrowRight, MessageCircleOff, Settings, Paperclip, Mic, LayoutTemplate, PhoneOff, WifiOff, Mail, History, Phone, MessageCircle, FileText, Pencil, Trash2, X, Check } from "lucide-react";
+import { WhatsAppThread } from "@/components/whatsapp/whatsapp-thread";
+import { useWhatsAppConnection } from "@/hooks/use-whatsapp-connection";
+import { ArrowRight, Settings, Paperclip, PhoneOff, WifiOff, Mail, History, Phone, MessageCircle, FileText, Pencil, Trash2, X, Check, LoaderCircle } from "lucide-react";
 import Link from "next/link";
 import { cn } from "@/lib/utils";
 
@@ -39,6 +41,9 @@ export function DealTabs({ dealId }: DealTabsProps) {
   const deal = state.deals.find(d => d.id === dealId);
   const contact = deal && deal.contactId ? state.contacts.find(c => c.id === deal.contactId) : null;
   
+  const whatsapp = useWhatsAppConnection();
+  const contactPhone = contact?.phones?.[0]?.value ?? null;
+
   const [activeTab, setActiveTab] = useState("Todos");
   const [gmailAccountEmail, setGmailAccountEmail] = useState<string | null>(null);
 
@@ -310,8 +315,8 @@ export function DealTabs({ dealId }: DealTabsProps) {
 
         {/* WhatsApp Tab */}
         {activeTab === "WhatsApp" && (
-          <div className="h-full min-h-[400px] flex flex-col bg-[#F0F2F5] rounded-xl overflow-hidden border border-gray-200/60">
-             {(!contact || !contact.phones || contact.phones.length === 0) ? (
+          <div className="h-full min-h-[400px] flex flex-col rounded-xl overflow-hidden border border-border">
+             {!contactPhone ? (
                <div className="flex flex-col items-center justify-center h-64 text-center px-4">
                   <div className="h-12 w-12 rounded-full bg-zinc-100 flex items-center justify-center mb-3">
                      <PhoneOff className="h-6 w-6 text-zinc-400" />
@@ -319,71 +324,55 @@ export function DealTabs({ dealId }: DealTabsProps) {
                   <p className="text-sm font-medium text-zinc-700">Contato sem telefone</p>
                   <p className="text-xs text-zinc-500 mt-1">Adicione um telefone ao contato para enviar mensagens</p>
                </div>
-             ) : state.whatsappConnected ? (
-               <>
-                 {/* WhatsApp Header */}
-                 <div className="bg-white px-6 py-3 flex items-center justify-between border-b border-gray-200 shrink-0 w-full relative z-10">
-                    <div className="flex items-center gap-3">
-                       <div className="w-10 h-10 rounded-full bg-green-50 text-[#25D366] flex items-center justify-center shrink-0">
-                         <MessageCircleOff size={20} className="hidden" />
-                         <span className="font-bold text-lg">{contact?.name.charAt(0).toUpperCase()}</span>
-                       </div>
-                       <div>
-                         <h4 className="font-bold text-gray-900 leading-none text-sm mb-0.5">{contact?.name}</h4>
-                         <p className="text-xs text-gray-500 font-medium">
-                           {contact?.phones[0]?.value || "Sem Telefone"}
-                         </p>
-                       </div>
-                    </div>
-                    <div className="flex items-center gap-1.5 px-3 py-1 bg-green-50 text-green-700 rounded-full">
-                       <div className="w-2 h-2 rounded-full bg-green-500 animate-pulse" />
-                       <span className="text-[11px] font-bold tracking-wide">Conectado</span>
-                    </div>
-                 </div>
-
-                 {/* Chat Area */}
-                 <div className="flex-1 flex flex-col items-center justify-center bg-[#F0F2F5] p-6 relative">
-                    <div className="text-center">
-                       <div className="w-14 h-14 rounded-full bg-gray-200/50 flex items-center justify-center mx-auto mb-4 text-gray-400">
-                          <MessageCircleOff size={28} />
-                       </div>
-                       <p className="text-sm font-bold text-gray-400 mb-1">Nenhuma mensagem ainda</p>
-                       <p className="text-xs font-medium text-gray-400">Envie a primeira mensagem para {contact?.name}</p>
-                    </div>
-                 </div>
-
-                 {/* Input Area */}
-                 <div className="bg-white p-3 flexItems-end gap-3 border-t border-gray-200 shrink-0 w-full relative z-10 flex">
-                    <button className="p-2 text-gray-400 hover:text-gray-600 transition-colors">
-                      <Paperclip size={20} />
-                    </button>
-                    <button className="px-3 py-2 text-xs font-bold text-gray-500 hover:text-gray-700 hover:bg-gray-50 border border-gray-200 rounded-lg hidden sm:flex items-center gap-1.5 transition-colors shrink-0">
-                      <LayoutTemplate size={14} /> Templates
-                    </button>
-                    
-                    <div className="flex-1 bg-white border border-gray-200 rounded-xl px-4 py-2.5 flex items-center">
-                      <input 
-                         placeholder="Digite uma mensagem..."
-                         className="w-full text-sm outline-none bg-transparent"
-                      />
-                    </div>
-                    
-                    <button className="p-2 text-gray-400 hover:text-[#25D366] transition-colors">
-                      <Mic size={20} />
-                    </button>
-                 </div>
-               </>
-             ) : (
-               <div className="flex flex-col items-center justify-center h-64 text-center px-4">
-                 <div className="h-12 w-12 rounded-full bg-zinc-100 flex items-center justify-center mb-3">
-                    <WifiOff className="h-6 w-6 text-zinc-400" />
-                 </div>
-                 <p className="text-sm font-medium text-zinc-700">WhatsApp nao conectado</p>
-                 <p className="text-xs text-zinc-500 mt-1 mb-4">Conecte seu WhatsApp nas configuracoes</p>
-                 <Link href="/configuracoes/whatsapp" className="inline-flex items-center gap-2 px-4 py-2 bg-green-600 text-white text-sm rounded-lg hover:bg-green-700 transition-colors">
-                   <Settings className="h-4 w-4" /> Configurar WhatsApp
-                 </Link>
+             ) : whatsapp.loading ? (
+               <div className="flex items-center justify-center gap-2 h-64 text-sm text-muted-foreground">
+                  <LoaderCircle className="h-4 w-4 animate-spin" /> Verificando conexao...
                </div>
+             ) : whatsapp.status !== "open" ? (
+               <div className="flex flex-col items-center justify-center h-64 text-center px-4">
+                  <div className="h-12 w-12 rounded-full bg-zinc-100 flex items-center justify-center mb-3">
+                     <WifiOff className="h-6 w-6 text-zinc-400" />
+                  </div>
+                  <p className="text-sm font-medium text-zinc-700">WhatsApp nao conectado</p>
+                  <p className="text-xs text-zinc-500 mt-1 mb-4">
+                    {whatsapp.isOwner
+                      ? "Conecte seu WhatsApp nas configuracoes"
+                      : "O dono da conta ainda nao conectou o WhatsApp deste workspace"}
+                  </p>
+                  {whatsapp.isOwner && (
+                    <Link href="/configuracoes/whatsapp" className="inline-flex items-center gap-2 px-4 py-2 bg-green-600 text-white text-sm rounded-lg hover:bg-green-700 transition-colors">
+                      <Settings className="h-4 w-4" /> Configurar WhatsApp
+                    </Link>
+                  )}
+               </div>
+             ) : (
+               <>
+                 {/* Conversation header */}
+                 <div className="bg-card px-6 py-3 flex items-center justify-between border-b border-border shrink-0">
+                    <div className="flex items-center gap-3 min-w-0">
+                       <div className="w-10 h-10 rounded-full bg-green-50 text-[#25D366] dark:bg-green-950 flex items-center justify-center shrink-0 font-bold text-lg">
+                         {contact?.name.charAt(0).toUpperCase()}
+                       </div>
+                       <div className="min-w-0">
+                         <h4 className="font-bold leading-none text-sm mb-0.5 truncate">{contact?.name}</h4>
+                         <p className="text-xs text-muted-foreground font-medium truncate">{contactPhone}</p>
+                       </div>
+                    </div>
+                    <Link
+                      href="/conversas"
+                      className="shrink-0 flex items-center gap-1.5 rounded-lg border border-border px-3 py-1.5 text-xs font-medium hover:bg-muted transition-colors"
+                    >
+                      <MessageCircle className="h-3.5 w-3.5" /> Ver todas
+                    </Link>
+                 </div>
+
+                 <WhatsAppThread
+                   target={{ phone: contactPhone, dealId, contactId: contact?.id ?? null }}
+                   connected
+                   emptyHint={`Envie a primeira mensagem para ${contact?.name ?? contactPhone}.`}
+                   className="flex-1 min-h-0"
+                 />
+               </>
              )}
           </div>
         )}

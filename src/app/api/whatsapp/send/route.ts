@@ -217,7 +217,7 @@ export async function POST(req: NextRequest) {
       })
       .eq("id", conversation.id);
 
-    return NextResponse.json({ id: messageId, status: "sent" });
+    return NextResponse.json({ id: messageId, conversationId: conversation.id, status: "sent" });
   } catch (err) {
     const message = err instanceof Error ? err.message : "Falha no envio";
     console.error("whatsapp/send", message);
@@ -227,7 +227,10 @@ export async function POST(req: NextRequest) {
       .update({ status: "failed", error: message.slice(0, 500) })
       .eq("id", messageId);
 
-    return NextResponse.json({ id: messageId, status: "failed", error: message }, { status: 502 });
+    return NextResponse.json(
+      { id: messageId, conversationId: conversation.id, status: "failed", error: message },
+      { status: 502 },
+    );
   }
 }
 
