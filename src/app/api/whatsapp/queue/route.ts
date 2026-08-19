@@ -112,6 +112,38 @@ async function resolveText(admin: SupabaseClient, item: any): Promise<string> {
   return ((data as any)?.message ?? "").trim();
 }
 
+/**
+ * The salesperson behind `{{nome_vendedor}}`.
+ *
+ * team_members only holds people who were *invited* into a workspace — the
+ * account that owns it has no row there. Reading only that table left the
+ * variable empty for every deal the owner owns, which is most of them in a
+ * one-person workspace and all of them in a brand new one. auth.users is the
+ * fallback that always has something behind it.
+ */
+async function ownerName(admin: SupabaseClient, ownerId: string | null): Promise<string> {
+  if (!ownerId) return "";
+
+  const { data: member } = await admin
+    .from("team_members")
+    .select("name, email")
+    .eq("member_user_id", ownerId)
+    .limit(1)
+    .maybeSingle();
+
+  const invited = ((member as any)?.name ?? "").trim();
+  if (invited) return invited;
+
+  const { data } = await admin.auth.admin.getUserById(ownerId);
+  const meta = (data?.user?.user_metadata ?? {}) as Record<string, unknown>;
+  const fullName = String(meta.full_name ?? meta.name ?? "").trim();
+  if (fullName) return fullName;
+
+  // Last resort. Better a login handle in the message than "aqui é ."
+  const email = data?.user?.email ?? (member as any)?.email ?? "";
+  return email.split("@")[0] ?? "";
+}
+
 interface DealContext {
   phone: string;
   vars: Record<string, string>;
@@ -137,25 +169,17 @@ async function loadDealContext(admin: SupabaseClient, dealId: string | null): Pr
   if (!deal) return empty;
   const row = deal as any;
 
-  const [contact, company, owner] = await Promise.all([
+  const [contact, company, vendedor] = await Promise.all([
     row.contact_id
       ? admin.from("contacts").select("name, phones, company_id").eq("id", row.contact_id).maybeSingle()
       : Promise.resolve({ data: null }),
     row.company_id
       ? admin.from("companies").select("name").eq("id", row.company_id).maybeSingle()
       : Promise.resolve({ data: null }),
-    row.owner_id
-      ? admin
-          .from("team_members")
-          .select("name, email")
-          .eq("member_user_id", row.owner_id)
-          .limit(1)
-          .maybeSingle()
-      : Promise.resolve({ data: null }),
+    ownerName(admin, row.owner_id ?? null),
   ]);
 
   const contactRow = contact.data as any;
-  const ownerRow = owner.data as any;
 
   return {
     phone: firstPhone(contactRow?.phones ?? []).replace(/\D/g, ""),
@@ -163,7 +187,7 @@ async function loadDealContext(admin: SupabaseClient, dealId: string | null): Pr
       nome_contato: contactRow?.name ?? "",
       nome_empresa: (company.data as any)?.name ?? "",
       nome_negocio: row.title ?? "",
-      nome_vendedor: ownerRow?.name ?? (ownerRow?.email ?? "").split("@")[0] ?? "",
+      nome_vendedor: vendedor,
     },
   };
 }
