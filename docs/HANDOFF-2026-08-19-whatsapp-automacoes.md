@@ -200,3 +200,6 @@ importam para quem for mexer nisso:
 - `EVOLUTION_API_KEY` é a chave **global** da Evolution: controla todas as
   instâncias do servidor, inclusive as de clientes. Não colar em chat, issue ou
   commit.
+
+> **Nada se perde:** o backlog consolidado de tudo que falta está em
+> `docs/BACKLOG.md`. Este arquivo continua sendo o detalhe do WhatsApp.

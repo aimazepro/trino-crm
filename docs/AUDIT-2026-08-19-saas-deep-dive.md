@@ -356,3 +356,9 @@ Comandos: `tsc --noEmit` (limpo), `npx eslint` (70 erros).
 **Implicação boa:** a mesma Evolution já abstrai o canal oficial e o não-oficial. O requisito do dono de ter "as duas opções" não exige dois drivers no CRM — exige **um** driver Evolution, com o tipo de integração escolhido na criação da instância (`integration` no `POST /instance/create`). Reduz o escopo da Fase 3.
 
 ⚠️ **Cuidado na próxima sessão:** as 3 instâncias são de uso real. **Não repontar o webhook de nenhuma delas** — isso desviaria mensagens de negócio em produção para o CRM, ou quebraria o fluxo que já as consome. Criar uma instância dedicada de teste (`trinocrm-dev`) antes de mexer em webhook.
+
+---
+
+> **Nota (2026-08-19):** os itens abertos desta auditoria foram consolidados em
+> `docs/BACKLOG.md`, junto com o resto do que falta no projeto. Este arquivo
+> continua sendo a evidência e o raciocínio por trás de cada item.
