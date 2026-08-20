@@ -19,6 +19,15 @@ function escapeIlike(s: string): string {
   return s.replace(/[\\%_]/g, (m) => "\\" + m);
 }
 
+/** contacts.emails/phones are jsonb arrays of {value, type} (see ContactEmail/ContactPhone in crm-types.ts), not plain strings. */
+function extractContactValue(entry: unknown): string | null {
+  if (typeof entry === "string") return entry;
+  if (entry && typeof entry === "object" && typeof (entry as { value?: unknown }).value === "string") {
+    return (entry as { value: string }).value;
+  }
+  return null;
+}
+
 /** Dedupes by email or phone within the workspace; creates if no match. Never merges/updates an existing contact's fields. */
 export async function findOrCreateContact(
   admin: Admin,
@@ -34,8 +43,14 @@ export async function findOrCreateContact(
   const phoneNormalized = input.phone ? normalizePhone(input.phone) : undefined;
 
   const match = (candidates ?? []).find((c) => {
-    const emails = ((c.emails as string[] | null) ?? []).map((e) => e.toLowerCase().trim());
-    const phones = ((c.phones as string[] | null) ?? []).map((p) => normalizePhone(p));
+    const emails = ((c.emails as unknown[] | null) ?? [])
+      .map(extractContactValue)
+      .filter((e): e is string => e !== null)
+      .map((e) => e.toLowerCase().trim());
+    const phones = ((c.phones as unknown[] | null) ?? [])
+      .map(extractContactValue)
+      .filter((p): p is string => p !== null)
+      .map((p) => normalizePhone(p));
     return (emailLower && emails.includes(emailLower)) || (phoneNormalized && phones.includes(phoneNormalized));
   });
 
@@ -46,8 +61,8 @@ export async function findOrCreateContact(
     .insert({
       workspace_id: workspaceId,
       name: input.name,
-      emails: input.email ? [input.email] : [],
-      phones: input.phone ? [input.phone] : [],
+      emails: input.email ? [{ value: input.email, type: "Comercial" }] : [],
+      phones: input.phone ? [{ value: input.phone, type: "Celular" }] : [],
       company_id: input.companyId ?? null,
     })
     .select("id")
