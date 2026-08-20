@@ -7,6 +7,18 @@ function digitsOnly(s: string): string {
   return s.replace(/\D/g, "");
 }
 
+function normalizePhone(raw: string): string {
+  const digits = digitsOnly(raw);
+  if (digits.length >= 12 && digits.startsWith("55")) {
+    return digits.slice(2);
+  }
+  return digits;
+}
+
+function escapeIlike(s: string): string {
+  return s.replace(/[\\%_]/g, (m) => "\\" + m);
+}
+
 /** Dedupes by email or phone within the workspace; creates if no match. Never merges/updates an existing contact's fields. */
 export async function findOrCreateContact(
   admin: Admin,
@@ -19,12 +31,12 @@ export async function findOrCreateContact(
     .eq("workspace_id", workspaceId);
 
   const emailLower = input.email?.toLowerCase().trim();
-  const phoneDigits = input.phone ? digitsOnly(input.phone) : undefined;
+  const phoneNormalized = input.phone ? normalizePhone(input.phone) : undefined;
 
   const match = (candidates ?? []).find((c) => {
     const emails = ((c.emails as string[] | null) ?? []).map((e) => e.toLowerCase().trim());
-    const phones = ((c.phones as string[] | null) ?? []).map((p) => digitsOnly(p));
-    return (emailLower && emails.includes(emailLower)) || (phoneDigits && phones.includes(phoneDigits));
+    const phones = ((c.phones as string[] | null) ?? []).map((p) => normalizePhone(p));
+    return (emailLower && emails.includes(emailLower)) || (phoneNormalized && phones.includes(phoneNormalized));
   });
 
   if (match) return { id: match.id, created: false };
@@ -64,7 +76,7 @@ export async function findOrCreateCompany(
       .from("companies")
       .select("id")
       .eq("workspace_id", workspaceId)
-      .ilike("name", input.name)
+      .ilike("name", escapeIlike(input.name))
       .maybeSingle();
     if (byName) return { id: byName.id, created: false };
   }
