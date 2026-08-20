@@ -2,7 +2,7 @@ import { ArrowLeft } from "lucide-react";
 
 type EndpointBlock = {
   resource: string;
-  endpoints: { method: string; path: string }[];
+  endpoints: { method: string; path: string; note?: string }[];
   permission: string;
   filters?: string;
 };
@@ -15,7 +15,11 @@ const ENDPOINT_BLOCKS: EndpointBlock[] = [
       { method: "GET", path: "/api/v1/deals" },
       { method: "GET", path: "/api/v1/deals/:id" },
       { method: "PATCH", path: "/api/v1/deals/:id" },
-      { method: "DELETE", path: "/api/v1/deals/:id" },
+      {
+        method: "DELETE",
+        path: "/api/v1/deals/:id",
+        note: "exclusão lógica — o registro não é removido permanentemente",
+      },
       { method: "PATCH", path: "/api/v1/deals/:id/stage" },
       { method: "PATCH", path: "/api/v1/deals/:id/reopen" },
       { method: "POST", path: "/api/v1/deals/:id/duplicate" },
@@ -237,7 +241,9 @@ export default function ApiDocsPage() {
               <code className="text-xs bg-zinc-100 px-1.5 py-0.5 rounded">GET /api/v1/me</code>{" "}
               para validar que a chave funciona — retorna{" "}
               <code className="text-xs bg-zinc-100 px-1.5 py-0.5 rounded">
-                {"{ workspace, key_name, default_owner_id, permissions }"}
+                {
+                  "{ data: { workspace: { id, name }, defaultOwnerId, permissions, rateLimitPerMin } }"
+                }
               </code>
               , sem exigir nenhuma permissão específica (qualquer chave válida funciona) — é
               literalmente o teste de &quot;minha chave está funcionando?&quot;.
@@ -369,10 +375,15 @@ export default function ApiDocsPage() {
                     {block.endpoints.map((e) => (
                       <div
                         key={`${e.method}-${e.path}`}
-                        className="flex items-center gap-2 font-mono"
+                        className="flex items-center gap-2 font-mono flex-wrap"
                       >
                         <MethodBadge method={e.method} />
                         <code className="text-xs text-zinc-600">{e.path}</code>
+                        {e.note && (
+                          <span className="text-[11px] font-sans text-zinc-400">
+                            ({e.note})
+                          </span>
+                        )}
                       </div>
                     ))}
                   </div>
