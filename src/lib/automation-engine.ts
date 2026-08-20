@@ -103,8 +103,10 @@ function interpolate(template: string, deal: Deal): string {
     .replace(/\{contact\.name\}/g, deal.title ?? "");
 }
 
+// Exported so the email-queue worker (Task 11) can resolve a null to_email the
+// same way the send_email action does, instead of a second implementation.
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
-function firstEmail(emails: any[]): string {
+export function firstEmail(emails: any[]): string {
   if (!emails?.length) return "";
   const e = emails[0];
   return typeof e === "string" ? e : (e?.value ?? e?.email ?? "");
@@ -300,7 +302,10 @@ async function executeAction(
       case "add_label": {
         const labelName = config.labelName as string;
         if (labelName) {
-          const { data: lbl } = await admin.from("labels").select("id").ilike("name", labelName).maybeSingle();
+          const { data: lbl } = await admin.from("labels").select("id")
+            .eq("workspace_id", ctx.workspaceId)
+            .ilike("name", labelName)
+            .maybeSingle();
           if (lbl && !deal.labels.includes(lbl.id)) {
             await admin.from("deal_labels").insert({ deal_id: deal.id, label_id: lbl.id });
           }
@@ -384,7 +389,9 @@ async function executeAction(
             const counts: Record<string, number> = {};
             for (const uid of ids) counts[uid] = 0;
 
-            const { data: owned } = await admin.from("deals").select("owner_id").in("owner_id", ids);
+            const { data: owned } = await admin.from("deals").select("owner_id")
+              .eq("workspace_id", ctx.workspaceId)
+              .in("owner_id", ids);
             (owned ?? []).forEach((d: { owner_id: string | null }) => {
               if (d.owner_id && d.owner_id in counts) counts[d.owner_id]++;
             });
@@ -478,6 +485,23 @@ async function executeAction(
   }
 }
 
+// ── Re-entrancy guard ────────────────────────────────────────────────────
+// The outbox triggers (20260820100100_automation_event_triggers.sql) fire on
+// ANY write to deals/activities, including the writes this engine's own
+// actions make through the admin client. An action like move_stage or
+// assign_owner can therefore re-trigger the same automation, or another one,
+// which can form a closed cycle (see stock templates in
+// automacoes-context.tsx: deal_updated->move_stage->stage_changed->mark_won
+// ->deal_won->create_deal->deal_created->assign_owner(round_robin, writes
+// owner_id)->deal_updated->...). There is no depth/session marker to detect
+// this properly yet (that's the future direction -- see the design doc), so
+// this is a bounded mitigation: cap how many times one (automation, deal)
+// pair may run inside a rolling window, and stop executing once past it.
+const LOOP_GUARD_WINDOW_HOURS = 1;
+// Matches /api/automations/run's BATCH_SIZE -- a reasonable ceiling for "this
+// deal/automation pair is clearly looping, not doing legitimate repeated work".
+const LOOP_GUARD_MAX_RUNS = 20;
+
 // ── Main entry point ─────────────────────────────────────────────────────
 // Called once per claimed automation_events row (Task 6). Re-reads the deal
 // fresh rather than trusting a snapshot from whoever wrote the triggering row.
@@ -516,6 +540,35 @@ export async function runAutomationsServer(
   for (const automation of automations as unknown as AutomationRow[]) {
     const steps = automation.steps as AutomationStep[];
     if (!conditionsPass(steps, deal, pipelines)) continue;
+
+    const since = new Date(Date.now() - LOOP_GUARD_WINDOW_HOURS * 60 * 60 * 1000).toISOString();
+    const { count: recentRunCount } = await admin
+      .from("automation_runs")
+      .select("id", { count: "exact", head: true })
+      .eq("automation_id", automation.id)
+      .eq("deal_id", dealId)
+      .gt("started_at", since);
+
+    if ((recentRunCount ?? 0) >= LOOP_GUARD_MAX_RUNS) {
+      // Loop guard tripped: this (automation, deal) pair has already run at
+      // or above the cap within the window -- almost certainly a re-entrant
+      // cycle through the outbox triggers, not legitimate repeated work.
+      // Skip execution entirely (no steps run, no deal/activity writes) and
+      // leave a visible marker in the run log rather than looping silently.
+      // This degenerate row also counts toward the query above on the next
+      // pass, which is intentional: it keeps this pair suppressed for the
+      // rest of the window instead of flapping in and out of the cap.
+      await admin.from("automation_runs").insert({
+        workspace_id: workspaceId,
+        automation_id: automation.id,
+        event_id: eventId,
+        trigger: triggerType,
+        deal_id: dealId,
+        status: "failed",
+        finished_at: new Date().toISOString(),
+      });
+      continue;
+    }
 
     const { data: run } = await admin
       .from("automation_runs")
