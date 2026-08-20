@@ -24,6 +24,14 @@ type ApiKeyRow = {
   created_at: string;
 };
 
+type LeadFormRow = {
+  id: string;
+  name: string;
+  active: boolean;
+  source_label: string;
+  created_at: string;
+};
+
 const ALL_PERMISSIONS: Permission[] = [
   { label: "Acesso total", key: "all" },
   { label: "Ler negocios", key: "read_deals" },
@@ -56,6 +64,9 @@ export default function ApiKeysPage() {
   const [keys, setKeys] = useState<ApiKeyRow[]>([]);
   const [loading, setLoading] = useState(true);
   const [currentUserName, setCurrentUserName] = useState("Você");
+
+  const [forms, setForms] = useState<LeadFormRow[]>([]);
+  const [newFormName, setNewFormName] = useState("");
 
   const [showForm, setShowForm] = useState(false);
   const [saving, setSaving] = useState(false);
@@ -97,6 +108,18 @@ export default function ApiKeysPage() {
   useEffect(() => {
     load();
   }, [load]);
+
+  const loadForms = useCallback(async () => {
+    const { data } = await supabase
+      .from("lead_forms")
+      .select("id, name, active, source_label, created_at")
+      .order("created_at", { ascending: false });
+    setForms(data ?? []);
+  }, [supabase]);
+
+  useEffect(() => {
+    loadForms();
+  }, [loadForms]);
 
   const togglePerm = (key: string) => {
     const next = new Set(formPerms);
@@ -175,6 +198,25 @@ export default function ApiKeysPage() {
       await supabase.from("api_keys").update({ revoked: true }).eq("id", id);
     }
   };
+
+  const createForm = async () => {
+    if (!newFormName.trim()) return;
+    const { data } = await supabase
+      .from("lead_forms")
+      .insert({ workspace_id: workspaceId, name: newFormName.trim() })
+      .select("id, name, active, source_label, created_at")
+      .single();
+    if (data) setForms((prev) => [data, ...prev]);
+    setNewFormName("");
+  };
+
+  const toggleFormActive = async (id: string, active: boolean) => {
+    await supabase.from("lead_forms").update({ active: !active }).eq("id", id);
+    setForms((prev) => prev.map((f) => (f.id === id ? { ...f, active: !active } : f)));
+  };
+
+  const formSnippet = (formId: string) =>
+    `<form method="POST" action="https://api-crm.aimaze.com.br/api/v1/leads/form/${formId}">\n  <input name="name" placeholder="Nome" required />\n  <input name="email" placeholder="Email" />\n  <input name="phone" placeholder="Telefone" />\n  <input type="text" name="_hp" style="display:none" tabindex="-1" autocomplete="off" />\n  <button type="submit">Enviar</button>\n</form>`;
 
   const handleCopyKey = () => {
     if (!newRawKey) return;
@@ -428,6 +470,31 @@ export default function ApiKeysPage() {
             })}
           </div>
         ) : null}
+
+        {/* Lead forms */}
+        <div className="mt-10">
+          <h2 className="text-sm font-semibold text-zinc-900 mb-1">Formulários de captação</h2>
+          <p className="text-xs text-zinc-400 mb-4">Cada formulário gera um snippet HTML público para embutir no site do cliente — sem precisar de API key.</p>
+
+          <div className="flex gap-2 mb-4">
+            <input value={newFormName} onChange={(e) => setNewFormName(e.target.value)} placeholder="Ex: Site institucional" className="flex-1 rounded-lg border border-zinc-200 px-3 py-2 text-sm" />
+            <button onClick={createForm} className="rounded-lg bg-amber-500 px-4 py-2 text-sm font-semibold text-white">Criar</button>
+          </div>
+
+          <div className="space-y-2">
+            {forms.map((f) => (
+              <div key={f.id} className="rounded-lg border border-zinc-200 p-3">
+                <div className="flex items-center justify-between">
+                  <span className="text-sm font-medium">{f.name}</span>
+                  <button onClick={() => toggleFormActive(f.id, f.active)} className="text-xs text-zinc-500">
+                    {f.active ? "Desativar" : "Ativar"}
+                  </button>
+                </div>
+                <pre className="mt-2 bg-zinc-900 text-zinc-100 text-[11px] rounded-md p-3 overflow-x-auto whitespace-pre">{formSnippet(f.id)}</pre>
+              </div>
+            ))}
+          </div>
+        </div>
 
         {/* Promo cards */}
         <a
