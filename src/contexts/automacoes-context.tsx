@@ -2,6 +2,8 @@
 
 import React, { createContext, useContext, useState, useEffect, ReactNode, useCallback } from "react";
 import { createClient } from "@/lib/supabase/client";
+import { useWorkspaceInfo } from "@/lib/workspace";
+import type { Database, Json } from "@/lib/supabase/database.types";
 import type { Automation, AutomationLabel, TriggerType } from "@/lib/crm-types";
 
 interface AutomacoesContextType {
@@ -45,15 +47,14 @@ export function AutomacoesProvider({ children }: { children: ReactNode }) {
   const [automationLabels, setAutomationLabels] = useState<AutomationLabel[]>([]);
   const [loading, setLoading] = useState(true);
   const supabase = createClient();
+  const workspace = useWorkspaceInfo();
 
   useEffect(() => {
+    if (!workspace) return;
     async function load() {
-      const { data: { user } } = await supabase.auth.getUser();
-      if (!user) { setLoading(false); return; }
-
       const [{ data: auts }, { data: lbls }] = await Promise.all([
-        supabase.from("automations").select("*").eq("user_id", user.id).order("created_at", { ascending: false }),
-        supabase.from("automation_labels").select("*").eq("user_id", user.id).order("created_at"),
+        supabase.from("automations").select("*").order("created_at", { ascending: false }),
+        supabase.from("automation_labels").select("*").order("created_at"),
       ]);
 
       setAutomations((auts ?? []).map(rowToAutomation));
@@ -61,33 +62,33 @@ export function AutomacoesProvider({ children }: { children: ReactNode }) {
       setLoading(false);
     }
     load();
-  }, []);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [workspace?.workspaceId]);
 
   const addAutomation = useCallback(async (automation: Automation) => {
-    const { data: { user } } = await supabase.auth.getUser();
-    if (!user) return;
+    if (!workspace) return;
 
     const { data, error } = await supabase.from("automations").insert({
       id: automation.id,
-      user_id: user.id,
+      workspace_id: workspace.workspaceId,
       name: automation.name,
       description: automation.description,
       trigger: automation.trigger,
-      steps: automation.steps,
+      steps: automation.steps as unknown as Json,
       label_ids: automation.labelIds,
       active: automation.active,
       execution_count: automation.executionCount,
     }).select().single();
 
     if (!error && data) setAutomations((prev) => [rowToAutomation(data), ...prev]);
-  }, [supabase]);
+  }, [supabase, workspace]);
 
   const updateAutomation = useCallback(async (id: string, fields: Partial<Automation>) => {
-    const patch: Record<string, unknown> = { updated_at: new Date().toISOString() };
+    const patch: Database["public"]["Tables"]["automations"]["Update"] = { updated_at: new Date().toISOString() };
     if (fields.name !== undefined) patch.name = fields.name;
     if (fields.description !== undefined) patch.description = fields.description;
     if (fields.trigger !== undefined) patch.trigger = fields.trigger;
-    if (fields.steps !== undefined) patch.steps = fields.steps;
+    if (fields.steps !== undefined) patch.steps = fields.steps as unknown as Json;
     if (fields.labelIds !== undefined) patch.label_ids = fields.labelIds;
     if (fields.active !== undefined) patch.active = fields.active;
     if (fields.executionCount !== undefined) patch.execution_count = fields.executionCount;
@@ -103,16 +104,14 @@ export function AutomacoesProvider({ children }: { children: ReactNode }) {
 
   const duplicateAutomation = useCallback(async (id: string): Promise<Automation | null> => {
     const src = automations.find((a) => a.id === id);
-    if (!src) return null;
-    const { data: { user } } = await supabase.auth.getUser();
-    if (!user) return null;
+    if (!src || !workspace) return null;
 
     const { data, error } = await supabase.from("automations").insert({
-      user_id: user.id,
+      workspace_id: workspace.workspaceId,
       name: `${src.name} (cópia)`,
       description: src.description,
       trigger: src.trigger,
-      steps: src.steps,
+      steps: src.steps as unknown as Json,
       label_ids: src.labelIds,
       active: false,
       execution_count: 0,
@@ -122,7 +121,7 @@ export function AutomacoesProvider({ children }: { children: ReactNode }) {
     const copy = rowToAutomation(data);
     setAutomations((prev) => [copy, ...prev]);
     return copy;
-  }, [automations, supabase]);
+  }, [automations, supabase, workspace]);
 
   const toggleAutomation = useCallback(async (id: string) => {
     const aut = automations.find((a) => a.id === id);
@@ -131,15 +130,14 @@ export function AutomacoesProvider({ children }: { children: ReactNode }) {
   }, [automations, updateAutomation]);
 
   const addAutomationLabel = useCallback(async (label: AutomationLabel) => {
-    const { data: { user } } = await supabase.auth.getUser();
-    if (!user) return;
+    if (!workspace) return;
 
     const { data, error } = await supabase.from("automation_labels").insert({
-      user_id: user.id, name: label.name, color: label.color,
+      workspace_id: workspace.workspaceId, name: label.name, color: label.color,
     }).select().single();
 
     if (!error && data) setAutomationLabels((prev) => [...prev, rowToLabel(data)]);
-  }, [supabase]);
+  }, [supabase, workspace]);
 
   const deleteAutomationLabel = useCallback(async (id: string) => {
     await supabase.from("automation_labels").delete().eq("id", id);

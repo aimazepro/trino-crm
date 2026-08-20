@@ -3,7 +3,7 @@ import {
   createAdmin,
   ensureConnection,
   getSessionUser,
-  resolveWorkspaceOwner,
+  resolveWorkspaceId,
   storeInstanceToken,
   updateConnection,
   webhookUrlFor,
@@ -19,7 +19,7 @@ export async function POST() {
   if (!user) return NextResponse.json({ error: "Não autenticado" }, { status: 401 });
 
   const admin = createAdmin();
-  const ownerId = await resolveWorkspaceOwner(admin, user.id);
+  const ownerId = await resolveWorkspaceId(admin, user.id);
 
   // Members of someone else's workspace share the owner's instance and must not
   // be able to reconnect (or re-pair) it from their own screen.

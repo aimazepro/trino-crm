@@ -2,8 +2,9 @@ import type { SupabaseClient } from "@supabase/supabase-js";
 import type { CrmState, CrmNotification } from "@/lib/crm-types";
 import { transformPipeline, transformContact, transformCompany, transformLabel, transformDeal } from "@/lib/crm-transforms";
 import { seedDefaultPipelines } from "@/lib/crm-seeds";
+import type { Database } from "@/lib/supabase/database.types";
 
-export async function loadCrmData(supabase: SupabaseClient, userId: string): Promise<CrmState> {
+export async function loadCrmData(supabase: SupabaseClient<Database>, userId: string): Promise<CrmState> {
   const [
     { data: pipelinesRaw, error: pErr },
     { data: contactsRaw, error: cErr },

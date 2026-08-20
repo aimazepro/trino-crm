@@ -4,6 +4,7 @@ import { useState, useEffect, useCallback } from "react";
 import { Plus, X, Pencil, Trash2, GripVertical, Play, CircleCheck, Lock, Share2, Users, Globe } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { createClient } from "@/lib/supabase/client";
+import { useWorkspace } from "@/lib/workspace";
 import { useCrm } from "@/contexts/crm-context";
 import { TimeField } from "@/components/ui/time-field";
 import {
@@ -21,6 +22,7 @@ import {
 
 export default function SequenciasPage() {
   const supabase = createClient();
+  const { workspaceId } = useWorkspace();
   const { state: crmState, addActivity } = useCrm();
 
   const [sequences, setSequences] = useState<SequenceItem[]>([]);
@@ -210,7 +212,7 @@ export default function SequenciasPage() {
         const { data: newSeq, error: seqError } = await supabase
           .from("sequences")
           .insert({
-            user_id: user.id,
+            workspace_id: workspaceId,
             name: form.name.trim(),
             description: form.description.trim(),
             skip_weekends: form.skipWeekends,
@@ -240,7 +242,7 @@ export default function SequenciasPage() {
           });
 
           return {
-            sequence_id: seqId,
+            sequence_id: seqId!,
             step_type: step.type,
             day_offset: dayOffset,
             note,

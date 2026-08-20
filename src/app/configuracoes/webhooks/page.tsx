@@ -3,6 +3,7 @@
 import { useState, useEffect } from "react";
 import { Plus, X, Zap, Trash2, Link2, CircleCheck } from "lucide-react";
 import { createClient } from "@/lib/supabase/client";
+import { useWorkspace } from "@/lib/workspace";
 
 type WebhookItem = {
   id: string;
@@ -175,22 +176,15 @@ export default function WebhooksPage() {
   const [testingId, setTestingId] = useState<string | null>(null);
 
   const supabase = createClient();
+  const { workspaceId, role } = useWorkspace();
 
   // Load webhooks from Supabase
   const loadWebhooks = async () => {
     setLoading(true);
-    const {
-      data: { user },
-    } = await supabase.auth.getUser();
-    if (!user) {
-      setLoading(false);
-      return;
-    }
 
     const { data } = await supabase
       .from("webhooks")
       .select("id, url, events, secret, active")
-      .eq("user_id", user.id)
       .order("created_at");
 
     setWebhooks(data ?? []);
@@ -224,7 +218,7 @@ export default function WebhooksPage() {
     }
 
     const newWebhook = {
-      user_id: user.id,
+      workspace_id: workspaceId,
       url: formUrl.trim(),
       events: Array.from(formEvents),
       secret: formSecret.trim() || null,
@@ -330,6 +324,14 @@ export default function WebhooksPage() {
   const getEventLabel = (key: string) => {
     return EVENTS.find((e) => e.key === key)?.label ?? key;
   };
+
+  if (role !== "admin") {
+    return (
+      <main className="flex-1 flex flex-col items-center justify-center gap-3 py-20 bg-zinc-50/30">
+        <p className="text-[13px] font-semibold text-zinc-500">Só administradores acessam webhooks.</p>
+      </main>
+    );
+  }
 
   return (
     <main className="flex-1 overflow-y-auto bg-zinc-50/30">

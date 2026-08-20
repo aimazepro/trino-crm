@@ -11,6 +11,7 @@ import {
   BookOpen,
 } from "lucide-react";
 import { createClient } from "@/lib/supabase/client";
+import { useWorkspace } from "@/lib/workspace";
 
 type Permission = { label: string; key: string };
 
@@ -50,6 +51,7 @@ async function hashKey(raw: string): Promise<string> {
 
 export default function ApiKeysPage() {
   const supabase = createClient();
+  const { workspaceId, role } = useWorkspace();
 
   const [keys, setKeys] = useState<ApiKeyRow[]>([]);
   const [loading, setLoading] = useState(true);
@@ -85,7 +87,6 @@ export default function ApiKeysPage() {
     const { data: keysData } = await supabase
       .from("api_keys")
       .select("id, name, key_prefix, created_at")
-      .eq("user_id", user.id)
       .eq("revoked", false)
       .order("created_at", { ascending: false });
 
@@ -146,8 +147,8 @@ export default function ApiKeysPage() {
 
     // Persist to DB in background (best-effort)
     if (user) {
-      const insertPayload: Record<string, unknown> = {
-        user_id: user.id,
+      const insertPayload = {
+        workspace_id: workspaceId,
         name: tempRow.name,
         key_hash: keyHash,
         key_prefix: keyPrefix,
@@ -200,6 +201,14 @@ export default function ApiKeysPage() {
       minute: "2-digit",
     })}`;
   };
+
+  if (role !== "admin") {
+    return (
+      <main className="flex-1 flex flex-col items-center justify-center gap-3 py-20 bg-zinc-50/30">
+        <p className="text-[13px] font-semibold text-zinc-500">Só administradores acessam chaves de API.</p>
+      </main>
+    );
+  }
 
   return (
     <main className="flex-1 overflow-y-auto bg-zinc-50/30">

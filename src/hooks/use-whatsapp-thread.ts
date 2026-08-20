@@ -1,5 +1,7 @@
 "use client";
 
+import type { Database } from "@/lib/supabase/database.types";
+
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import type { RealtimePostgresChangesPayload, SupabaseClient } from "@supabase/supabase-js";
 import { createClient } from "@/lib/supabase/client";
@@ -62,7 +64,7 @@ function digitsOnly(value: string | null | undefined): string {
  * Brazilian 9th digit the same way the server-side RPC does.
  */
 async function resolveByPhone(
-  supabase: SupabaseClient,
+  supabase: SupabaseClient<Database>,
   target: Extract<ThreadTarget, { phone: string | null }>,
 ): Promise<string | null> {
   if (target.dealId) {
@@ -102,7 +104,7 @@ async function resolveByPhone(
 }
 
 export function useWhatsAppThread(target: ThreadTarget) {
-  const supabase = useMemo<SupabaseClient>(() => createClient(), []);
+  const supabase = useMemo<SupabaseClient<Database>>(() => createClient(), []);
 
   const [conversationId, setConversationId] = useState<string | null>(null);
   const [messages, setMessages] = useState<ThreadMessage[]>([]);

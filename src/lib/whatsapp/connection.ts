@@ -4,13 +4,14 @@
 // migration), so every read and write goes through here with the service role.
 
 import { createClient as createAdminClient, SupabaseClient } from "@supabase/supabase-js";
+import type { Database } from "@/lib/supabase/database.types";
 import { createServerClient } from "@supabase/ssr";
 import { cookies } from "next/headers";
 import { randomBytes, randomUUID } from "crypto";
 import { decryptToken, encryptToken } from "@/lib/token-crypto";
 import type { ConnectionStatus, WhatsAppConnection, WhatsAppProvider } from "./types";
 
-export function createAdmin(): SupabaseClient {
+export function createAdmin(): SupabaseClient<Database> {
   return createAdminClient(
     process.env.NEXT_PUBLIC_SUPABASE_URL!,
     process.env.SUPABASE_SERVICE_ROLE_KEY!,
@@ -40,31 +41,34 @@ export async function getSessionUser(): Promise<{ id: string; email: string | nu
 }
 
 /**
- * The account that owns the WhatsApp instance. A user who was invited into
- * someone else's workspace shares that owner's single instance; everyone else
- * owns their own.
+ * The workspace that owns the WhatsApp instance. Every member of a workspace
+ * — the owner and anyone invited into it — shares that workspace's single
+ * instance.
  */
-export async function resolveWorkspaceOwner(
-  admin: SupabaseClient,
+export async function resolveWorkspaceId(
+  admin: SupabaseClient<Database>,
   userId: string,
 ): Promise<string> {
   const { data } = await admin
-    .from("team_members")
-    .select("owner_user_id")
+    .from("workspace_members")
+    .select("workspace_id")
     .eq("member_user_id", userId)
     .eq("status", "accepted")
     .limit(1)
     .maybeSingle();
 
-  const ownerId = (data as { owner_user_id?: string } | null)?.owner_user_id;
-  return ownerId ?? userId;
+  if (!data) {
+    throw new Error(`no workspace membership found for user ${userId}`);
+  }
+
+  return data.workspace_id;
 }
 
 /* eslint-disable @typescript-eslint/no-explicit-any */
 function rowToConnection(row: any): WhatsAppConnection {
   return {
     id: row.id,
-    userId: row.user_id,
+    userId: row.workspace_id,
     provider: row.provider as WhatsAppProvider,
     instanceName: row.instance_name,
     instanceId: row.instance_id,
@@ -84,20 +88,20 @@ function rowToConnection(row: any): WhatsAppConnection {
 /* eslint-enable @typescript-eslint/no-explicit-any */
 
 export async function loadConnection(
-  admin: SupabaseClient,
+  admin: SupabaseClient<Database>,
   ownerId: string,
 ): Promise<WhatsAppConnection | null> {
   const { data } = await admin
     .from("whatsapp_connections")
     .select("*")
-    .eq("user_id", ownerId)
+    .eq("workspace_id", ownerId)
     .maybeSingle();
 
   return data ? rowToConnection(data) : null;
 }
 
 export async function loadConnectionById(
-  admin: SupabaseClient,
+  admin: SupabaseClient<Database>,
   connectionId: string,
 ): Promise<WhatsAppConnection | null> {
   const { data } = await admin
@@ -122,7 +126,7 @@ function buildInstanceName(ownerId: string, email: string | null): string {
 
 /** Returns the existing connection, creating the row (not the instance) if absent. */
 export async function ensureConnection(
-  admin: SupabaseClient,
+  admin: SupabaseClient<Database>,
   ownerId: string,
   email: string | null,
 ): Promise<WhatsAppConnection> {
@@ -132,7 +136,7 @@ export async function ensureConnection(
   const { data, error } = await admin
     .from("whatsapp_connections")
     .insert({
-      user_id: ownerId,
+      workspace_id: ownerId,
       provider: "evolution",
       instance_name: buildInstanceName(ownerId, email),
       webhook_secret: randomBytes(32).toString("hex"),
@@ -147,7 +151,7 @@ export async function ensureConnection(
 
 /* eslint-disable @typescript-eslint/no-explicit-any */
 export async function updateConnection(
-  admin: SupabaseClient,
+  admin: SupabaseClient<Database>,
   connectionId: string,
   patch: Record<string, any>,
 ): Promise<void> {
@@ -159,7 +163,7 @@ export async function updateConnection(
 /* eslint-enable @typescript-eslint/no-explicit-any */
 
 export async function storeInstanceToken(
-  admin: SupabaseClient,
+  admin: SupabaseClient<Database>,
   connectionId: string,
   token: string | null,
 ): Promise<void> {

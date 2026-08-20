@@ -24,6 +24,7 @@ import {
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { createClient } from "@/lib/supabase/client";
+import { useWorkspace } from "@/lib/workspace";
 
 type FieldType = 
   | "Texto" 
@@ -208,6 +209,7 @@ function buildOptionsPayload(fieldForm: any) {
 
 export default function CamposPage() {
   const supabase = useMemo(() => createClient(), []);
+  const { workspaceId } = useWorkspace();
   const [activeTab, setActiveTab] = useState("negocios");
   const [dbPipelines, setDbPipelines] = useState<Array<{ id: string; name: string }>>([]);
   const [customFields, setCustomFields] = useState<Record<string, Field[]>>({
@@ -303,8 +305,8 @@ export default function CamposPage() {
       if (!user) return;
 
       const [{ data }, { data: groupRows }, { data: pipelineRows }] = await Promise.all([
-        supabase.from("custom_fields").select("*").eq("user_id", user.id).order("sort_order"),
-        supabase.from("custom_field_groups").select("entity, name").eq("user_id", user.id),
+        supabase.from("custom_fields").select("*").order("sort_order"),
+        supabase.from("custom_field_groups").select("entity, name"),
         supabase.from("pipelines").select("id, name").order("sort_order"),
       ]);
 
@@ -371,7 +373,7 @@ export default function CamposPage() {
     const groupName = groupForm.name.trim();
     const entity = TAB_TO_ENTITY[activeTab];
     const { error } = await supabase.from("custom_field_groups").insert({
-      user_id: user.id, entity, name: groupName,
+      workspace_id: workspaceId, entity, name: groupName,
     });
     if (error) {
       console.error("[Campos] add group failed:", error);
@@ -402,7 +404,7 @@ export default function CamposPage() {
 
     const entity = TAB_TO_ENTITY[activeTab];
     const { error } = await supabase.from("custom_field_groups")
-      .delete().eq("user_id", user.id).eq("entity", entity).eq("name", groupName);
+      .delete().eq("entity", entity).eq("name", groupName);
     if (error) {
       console.error("[Campos] delete group failed:", error);
       return;
@@ -428,7 +430,7 @@ export default function CamposPage() {
     const optionsPayload = buildOptionsPayload(fieldForm);
 
     const { data, error } = await supabase.from("custom_fields").insert({
-      user_id: user.id,
+      workspace_id: workspaceId,
       entity,
       label: fieldForm.name.trim(),
       field_type: fieldForm.type.toLowerCase(),

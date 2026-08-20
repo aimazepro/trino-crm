@@ -1,3 +1,4 @@
+import type { Database } from "@/lib/supabase/database.types";
 // Turns a normalized inbound event into rows. Called by the webhook route and,
 // for the echo of our own sends, nothing else — the send route writes its own
 // row first and the webhook then reconciles it by wa_message_id.
@@ -29,7 +30,7 @@ function previewFor(message: Pick<InboundMessage, "type" | "body">): string {
 /* eslint-disable @typescript-eslint/no-explicit-any */
 
 async function findOrCreateConversation(
-  admin: SupabaseClient,
+  admin: SupabaseClient<Database>,
   connection: WhatsAppConnection,
   message: InboundMessage,
 ): Promise<string> {
@@ -56,7 +57,7 @@ async function findOrCreateConversation(
   const { data: created, error } = await admin
     .from("whatsapp_conversations")
     .insert({
-      user_id: connection.userId,
+      workspace_id: connection.userId,
       connection_id: connection.id,
       remote_jid: message.remoteJid,
       phone: message.phone,
@@ -87,7 +88,7 @@ async function findOrCreateConversation(
 }
 
 async function storeMessage(
-  admin: SupabaseClient,
+  admin: SupabaseClient<Database>,
   connection: WhatsAppConnection,
   message: InboundMessage,
 ): Promise<void> {
@@ -144,7 +145,7 @@ async function storeMessage(
   }
 
   const { error } = await admin.from("whatsapp_messages").insert({
-    user_id: connection.userId,
+    workspace_id: connection.userId,
     conversation_id: conversationId,
     wa_message_id: message.waMessageId,
     from_me: message.fromMe,
@@ -164,7 +165,7 @@ async function storeMessage(
     throw new Error(`could not store message: ${error.message}`);
   }
 
-  const patch: Record<string, any> = {
+  const patch: Partial<Database["public"]["Tables"]["whatsapp_conversations"]["Update"]> = {
     last_message_at: message.timestamp,
     last_message_preview: previewFor(message),
     last_message_from_me: message.fromMe,
@@ -188,7 +189,7 @@ async function storeMessage(
 }
 
 export async function handleInboundEvent(
-  admin: SupabaseClient,
+  admin: SupabaseClient<Database>,
   connection: WhatsAppConnection,
   event: InboundEvent,
 ): Promise<void> {
@@ -202,7 +203,7 @@ export async function handleInboundEvent(
       const query = admin
         .from("whatsapp_messages")
         .update({ status: event.status })
-        .eq("user_id", connection.userId)
+        .eq("workspace_id", connection.userId)
         .eq("wa_message_id", event.waMessageId)
         .eq("from_me", true);
 

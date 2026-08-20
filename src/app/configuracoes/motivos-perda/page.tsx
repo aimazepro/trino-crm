@@ -3,6 +3,7 @@
 import { useState, useEffect } from "react";
 import { Plus, Pencil, Trash2, Lock, Check, X } from "lucide-react";
 import { createClient } from "@/lib/supabase/client";
+import { useWorkspace } from "@/lib/workspace";
 
 type Reason = { id: string; name: string; sort_order: number; active: boolean };
 
@@ -14,21 +15,18 @@ export default function MotivosPerdaPage() {
   const [editingId, setEditingId] = useState<string | null>(null);
   const [editingValue, setEditingValue] = useState("");
   const supabase = createClient();
+  const { workspaceId } = useWorkspace();
 
   useEffect(() => {
     async function load() {
-      const { data: { user } } = await supabase.auth.getUser();
-      if (!user) return;
-      
       const { data } = await supabase
         .from("loss_reasons")
         .select("*")
-        .eq("user_id", user.id)
         .eq("active", true)
         .order("sort_order");
-        
+
       if (data && data.length === 0) {
-        const rows = DEFAULTS.map((name, i) => ({ user_id: user.id, name, sort_order: i, active: true }));
+        const rows = DEFAULTS.map((name, i) => ({ workspace_id: workspaceId, name, sort_order: i, active: true }));
         const { data: seeded } = await supabase.from("loss_reasons").insert(rows).select();
         setItems(seeded ?? []);
       } else {
@@ -36,7 +34,7 @@ export default function MotivosPerdaPage() {
       }
     }
     load();
-  }, [supabase]);
+  }, [supabase, workspaceId]);
 
   const handleAdd = async () => {
     const trimmed = input.trim();
@@ -46,14 +44,11 @@ export default function MotivosPerdaPage() {
       return;
     }
     if (items.some(i => i.name.toLowerCase() === trimmed.toLowerCase())) return;
-    
-    const { data: { user } } = await supabase.auth.getUser();
-    if (!user) return;
-    
+
     const { data, error } = await supabase
       .from("loss_reasons")
       .insert({
-        user_id: user.id,
+        workspace_id: workspaceId,
         name: trimmed,
         sort_order: items.length,
         active: true

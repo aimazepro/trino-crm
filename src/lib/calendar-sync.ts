@@ -1,3 +1,4 @@
+import type { Database } from "@/lib/supabase/database.types";
 // src/lib/calendar-sync.ts
 import type { SupabaseClient } from "@supabase/supabase-js";
 import {
@@ -7,14 +8,26 @@ import {
 const MEET_TYPES = new Set(["Reunião", "Videochamada"]);
 
 export async function pushActivity(
-  admin: SupabaseClient,
+  admin: SupabaseClient<Database>,
   activityId: string,
   action: "upsert" | "delete"
 ): Promise<{ ok: boolean; skipped?: boolean; googleEventId?: string; meetLink?: string | null }> {
   const { data: activity } = await admin.from("activities").select("*, deals(title)").eq("id", activityId).maybeSingle();
   if (!activity) return { ok: false };
 
-  const ownerId = activity.assignee_id || activity.user_id;
+  let ownerId = activity.assignee_id;
+  if (!ownerId) {
+    // No assignee: fall back to whoever owns the workspace — activities no
+    // longer carry their own creator, only the workspace they belong to.
+    const { data: workspace } = await admin
+      .from("workspaces")
+      .select("owner_user_id")
+      .eq("id", activity.workspace_id)
+      .maybeSingle();
+    ownerId = workspace?.owner_user_id ?? null;
+  }
+  if (!ownerId) return { ok: true, skipped: true };
+
   const token = await getValidAccessToken(admin, ownerId);
   if (!token) return { ok: true, skipped: true };
 
@@ -63,7 +76,7 @@ export async function pushActivity(
   return { ok: true, googleEventId: result.googleEventId, meetLink: result.meetLink ?? activity.meet_link ?? null };
 }
 
-export async function pullForUser(admin: SupabaseClient, userId: string): Promise<{ ok: boolean; skipped?: boolean; changed: number }> {
+export async function pullForUser(admin: SupabaseClient<Database>, userId: string): Promise<{ ok: boolean; skipped?: boolean; changed: number }> {
   const { data: integ } = await admin
     .from("integrations")
     .select("*")

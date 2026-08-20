@@ -2,6 +2,7 @@
 
 import { useState, useEffect, useCallback, useMemo } from "react";
 import { createClient } from "@/lib/supabase/client";
+import { useWorkspace } from "@/lib/workspace";
 import {
   Users,
   Phone,
@@ -137,6 +138,7 @@ const toRows = (rows: ActivityTypeRow[] | null): ActivityType[] =>
 
 export default function TiposAtividadePage() {
   const supabase = useMemo(() => createClient(), []);
+  const { workspaceId } = useWorkspace();
   const [items, setItems] = useState<ActivityType[]>([]);
   const [loading, setLoading] = useState(true);
   const [userId, setUserId] = useState<string | null>(null);
@@ -165,13 +167,12 @@ export default function TiposAtividadePage() {
     const { data } = await supabase
       .from("activity_types")
       .select("id, name, icon, is_system, active, sort_order")
-      .eq("user_id", user.id)
       .order("sort_order");
 
     // First visit for this user: seed the system defaults so the list is never empty.
     if (!data || data.length === 0) {
       const seeds = DEFAULT_TYPES.map((t, idx) => ({
-        user_id: user.id,
+        workspace_id: workspaceId,
         name: t.name,
         icon: t.icon,
         is_system: true,
@@ -189,7 +190,7 @@ export default function TiposAtividadePage() {
 
     setItems(toRows(data));
     setLoading(false);
-  }, [supabase]);
+  }, [supabase, workspaceId]);
 
   useEffect(() => {
     load();
@@ -203,7 +204,7 @@ export default function TiposAtividadePage() {
     const { error } = await supabase.from("activity_types").upsert(
       newItems.map((item, idx) => ({
         id: item.id,
-        user_id: userId,
+        workspace_id: workspaceId,
         name: item.name,
         icon: item.icon,
         is_system: item.isSystem,
@@ -272,7 +273,7 @@ export default function TiposAtividadePage() {
       const { data, error: insertError } = await supabase
         .from("activity_types")
         .insert({
-          user_id: userId,
+          workspace_id: workspaceId,
           name: trimmed,
           icon: modalIcon,
           is_system: false,

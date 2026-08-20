@@ -1,6 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useRef, useState } from "react";
+import { useWorkspace } from "@/lib/workspace";
 import {
   MessageCircle,
   TriangleAlert,
@@ -42,6 +43,7 @@ function formatPhone(raw: string | null): string {
 }
 
 export default function WhatsAppConfigPage() {
+  const { role } = useWorkspace();
   const [info, setInfo] = useState<StatusResponse | null>(null);
   const [qr, setQr] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
@@ -156,6 +158,14 @@ export default function WhatsAppConfigPage() {
   const status = info?.status ?? "disconnected";
   const showQr = status !== "open" && qr != null;
   const canManage = info?.isOwner !== false;
+
+  if (role !== "admin") {
+    return (
+      <main className="flex-1 flex flex-col items-center justify-center gap-3 py-20 bg-zinc-50/30">
+        <p className="text-[13px] font-semibold text-zinc-500">Só administradores acessam a conexão do WhatsApp.</p>
+      </main>
+    );
+  }
 
   return (
     <main className="flex-1 overflow-y-auto bg-zinc-50/30">

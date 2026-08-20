@@ -1,12 +1,14 @@
 "use client";
 
+import type { Database } from "@/lib/supabase/database.types";
+
 import { useEffect } from "react";
 import type { SupabaseClient } from "@supabase/supabase-js";
 import type { CrmState, CrmNotification } from "@/lib/crm-types";
 
 export function useRealtimeNotifications(
   userId: string | null,
-  supabase: SupabaseClient,
+  supabase: SupabaseClient<Database>,
   setState: React.Dispatch<React.SetStateAction<CrmState>>,
 ) {
   useEffect(() => {

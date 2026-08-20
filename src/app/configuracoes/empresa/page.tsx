@@ -5,6 +5,7 @@ import { Pencil } from "lucide-react";
 import { format } from "date-fns";
 import { ptBR } from "date-fns/locale";
 import { createClient } from "@/lib/supabase/client";
+import { useWorkspace } from "@/lib/workspace";
 
 type Workspace = {
   name: string;
@@ -31,6 +32,7 @@ const slugify = (value: string) =>
 
 export default function EmpresaPage() {
   const supabase = useMemo(() => createClient(), []);
+  const { workspaceId, role } = useWorkspace();
   const [workspace, setWorkspace] = useState<Workspace | null>(null);
   const [loading, setLoading] = useState(true);
   const [editing, setEditing] = useState(false);
@@ -48,9 +50,9 @@ export default function EmpresaPage() {
     }
 
     const { data } = await supabase
-      .from("workspace_settings")
+      .from("workspaces")
       .select("name, slug, plan, trial_ends_at, created_at")
-      .eq("owner_user_id", user.id)
+      .eq("id", workspaceId)
       .maybeSingle();
 
     if (data) {
@@ -66,8 +68,9 @@ export default function EmpresaPage() {
       user.email?.split("@")[0] ||
       "Meu workspace";
     const { data: created } = await supabase
-      .from("workspace_settings")
+      .from("workspaces")
       .insert({
+        id: workspaceId,
         owner_user_id: user.id,
         name: fallbackName,
         slug: `${slugify(fallbackName)}-${user.id.slice(0, 8)}`,
@@ -78,7 +81,7 @@ export default function EmpresaPage() {
       .single();
     setWorkspace(created ?? null);
     setLoading(false);
-  }, [supabase]);
+  }, [supabase, workspaceId]);
 
   useEffect(() => {
     load();
@@ -94,9 +97,9 @@ export default function EmpresaPage() {
     } = await supabase.auth.getUser();
     if (!user) return;
     const { error: updateError } = await supabase
-      .from("workspace_settings")
+      .from("workspaces")
       .update({ name: next, updated_at: new Date().toISOString() })
-      .eq("owner_user_id", user.id);
+      .eq("id", workspaceId);
     setSaving(false);
     if (updateError) {
       setError("Não foi possível salvar o nome da empresa.");
@@ -118,6 +121,14 @@ export default function EmpresaPage() {
     );
     return `${base} (${daysLeft} ${daysLeft === 1 ? "dia" : "dias"})`;
   };
+
+  if (role !== "admin") {
+    return (
+      <div className="flex flex-col items-center justify-center min-h-full gap-3 py-20 bg-[#F4F4F5]">
+        <p className="text-[13px] font-semibold text-zinc-500">Só administradores acessam os dados da empresa.</p>
+      </div>
+    );
+  }
 
   return (
     <div className="flex flex-col min-h-full bg-[#F4F4F5]">

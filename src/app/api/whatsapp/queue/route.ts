@@ -1,3 +1,4 @@
+import type { Database } from "@/lib/supabase/database.types";
 // Drains automation_whatsapp_queue through the WhatsApp driver.
 //
 // The queue used to be drained by a Supabase Edge Function that posted straight
@@ -10,7 +11,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { timingSafeEqual } from "crypto";
 import type { SupabaseClient } from "@supabase/supabase-js";
-import { createAdmin, loadConnection, resolveWorkspaceOwner } from "@/lib/whatsapp/connection";
+import { createAdmin, loadConnection } from "@/lib/whatsapp/connection";
 import { sendWhatsAppMessage, UnreachableNumberError } from "@/lib/whatsapp/send";
 import type { WhatsAppConnection } from "@/lib/whatsapp/types";
 
@@ -57,9 +58,9 @@ function firstPhone(phones: any[]): string {
 }
 
 async function finish(
-  admin: SupabaseClient,
+  admin: SupabaseClient<Database>,
   id: string,
-  patch: Record<string, any>,
+  patch: Partial<Database["public"]["Tables"]["automation_whatsapp_queue"]["Update"]>,
 ): Promise<void> {
   await admin.from("automation_whatsapp_queue").update(patch).eq("id", id);
 }
@@ -70,7 +71,7 @@ async function finish(
  * than retried: the send may well have gone out before the crash, and a
  * duplicate message to a customer is worse than a visible failure.
  */
-async function reapStuck(admin: SupabaseClient): Promise<void> {
+async function reapStuck(admin: SupabaseClient<Database>): Promise<void> {
   const cutoff = new Date(Date.now() - STUCK_AFTER_MINUTES * 60_000).toISOString();
   await admin
     .from("automation_whatsapp_queue")
@@ -79,17 +80,16 @@ async function reapStuck(admin: SupabaseClient): Promise<void> {
     .lt("created_at", cutoff);
 }
 
-/** The connection that owns the number this user sends from, resolved once per batch. */
+/** The connection for this queue item's workspace, resolved once per batch. */
 async function connectionFor(
-  admin: SupabaseClient,
-  userId: string,
+  admin: SupabaseClient<Database>,
+  workspaceId: string,
   cache: Map<string, WhatsAppConnection | null>,
 ): Promise<WhatsAppConnection | null> {
-  if (cache.has(userId)) return cache.get(userId)!;
+  if (cache.has(workspaceId)) return cache.get(workspaceId)!;
 
-  const ownerId = await resolveWorkspaceOwner(admin, userId);
-  const connection = await loadConnection(admin, ownerId);
-  cache.set(userId, connection);
+  const connection = await loadConnection(admin, workspaceId);
+  cache.set(workspaceId, connection);
   return connection;
 }
 
@@ -98,7 +98,7 @@ async function connectionFor(
  * the deal is in hand to interpolate against; this fallback only covers a row
  * that carries a template id and nothing else.
  */
-async function resolveText(admin: SupabaseClient, item: any): Promise<string> {
+async function resolveText(admin: SupabaseClient<Database>, item: any): Promise<string> {
   const message = (item.message ?? "").trim();
   if (message) return message;
   if (!item.template_id) return "";
@@ -115,17 +115,15 @@ async function resolveText(admin: SupabaseClient, item: any): Promise<string> {
 /**
  * The salesperson behind `{{nome_vendedor}}`.
  *
- * team_members only holds people who were *invited* into a workspace — the
- * account that owns it has no row there. Reading only that table left the
- * variable empty for every deal the owner owns, which is most of them in a
- * one-person workspace and all of them in a brand new one. auth.users is the
- * fallback that always has something behind it.
+ * Falls back to auth.users for anyone whose workspace_members row doesn't
+ * carry a name (e.g. an invite still pending) — auth.users is the one
+ * source that always has something behind it.
  */
-async function ownerName(admin: SupabaseClient, ownerId: string | null): Promise<string> {
+async function ownerName(admin: SupabaseClient<Database>, ownerId: string | null): Promise<string> {
   if (!ownerId) return "";
 
   const { data: member } = await admin
-    .from("team_members")
+    .from("workspace_members")
     .select("name, email")
     .eq("member_user_id", ownerId)
     .limit(1)
@@ -156,7 +154,7 @@ interface DealContext {
  * Sequence steps enqueue without a phone — the enrollment knows the deal, not
  * the number — so the deal's contact is looked up here for both callers.
  */
-async function loadDealContext(admin: SupabaseClient, dealId: string | null): Promise<DealContext> {
+async function loadDealContext(admin: SupabaseClient<Database>, dealId: string | null): Promise<DealContext> {
   const empty: DealContext = { phone: "", vars: {} };
   if (!dealId) return empty;
 
@@ -227,7 +225,7 @@ export async function POST(req: NextRequest) {
 
   for (const item of items as any[]) {
     try {
-      const connection = await connectionFor(admin, item.user_id, connections);
+      const connection = await connectionFor(admin, item.workspace_id, connections);
       if (!connection || connection.status !== "open") {
         await finish(admin, item.id, {
           status: "failed",

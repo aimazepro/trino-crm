@@ -9,6 +9,7 @@ import type {
 import { loadCrmData } from "@/lib/crm-loader";
 import { useCrmMutations } from "@/hooks/use-crm-mutations";
 import { useRealtimeNotifications } from "@/hooks/use-realtime-notifications";
+import { useWorkspaceInfo, useWorkspaceLoading } from "@/lib/workspace";
 
 interface CrmContextType {
   state: CrmState;
@@ -60,28 +61,30 @@ export function useCrm() {
 export function CrmProvider({ children }: { children: ReactNode }) {
   const [state, setState] = useState<CrmState>({ pipelines: [], deals: [], contacts: [], companies: [], labels: [], notifications: [] });
   const [loading, setLoading] = useState(true);
-  const [userId, setUserId] = useState<string | null>(null);
+  const workspace = useWorkspaceInfo();
+  const workspaceLoading = useWorkspaceLoading();
+  const userId = workspace?.userId ?? null;
+  const workspaceId = workspace?.workspaceId ?? null;
   const supabase = useMemo(() => createClient(), []);
 
   useEffect(() => {
+    if (workspaceLoading) return;
     async function load() {
-      const { data: { user } } = await supabase.auth.getUser();
-      if (!user) { setLoading(false); return; }
-      setUserId(user.id);
-      const data = await loadCrmData(supabase, user.id);
+      if (!userId) { setLoading(false); return; }
+      const data = await loadCrmData(supabase, userId);
       setState(data);
       setLoading(false);
     }
     load();
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
+  }, [workspaceLoading, userId]);
 
-  const mutations = useCrmMutations({ state, setState, userId, supabase });
+  const mutations = useCrmMutations({ state, setState, userId, workspaceId, supabase });
   useRealtimeNotifications(userId, supabase, setState);
 
   // Real-time check for due activities (triggers notification at exact date & time in real-time without needing page refresh)
   useEffect(() => {
-    if (!userId || loading) return;
+    if (!userId || !workspaceId || loading) return;
 
     const checkDueActivities = async () => {
       const now = new Date();
@@ -126,6 +129,7 @@ export function CrmProvider({ children }: { children: ReactNode }) {
               try {
                 const { data, error } = await supabase.from("notifications").insert({
                   user_id: userId,
+                  workspace_id: workspaceId,
                   type: "activity",
                   title: activity.title,
                   subtext,
@@ -137,7 +141,7 @@ export function CrmProvider({ children }: { children: ReactNode }) {
                   newNotif = {
                     id: data.id,
                     userId: data.user_id,
-                    type: data.type,
+                    type: data.type as CrmNotification["type"],
                     title: data.title,
                     subtext: data.subtext ?? "",
                     href: data.href,
@@ -188,7 +192,7 @@ export function CrmProvider({ children }: { children: ReactNode }) {
     checkDueActivities();
     const interval = setInterval(checkDueActivities, 5000); // Check every 5s for real-time delivery
     return () => clearInterval(interval);
-  }, [userId, loading, state.deals, supabase]);
+  }, [userId, workspaceId, loading, state.deals, supabase]);
 
   const ctxValue = useMemo(() => ({
     state, loading, ...mutations,

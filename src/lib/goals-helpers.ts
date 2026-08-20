@@ -1,4 +1,5 @@
 import { SupabaseClient } from "@supabase/supabase-js";
+import type { Database } from "@/lib/supabase/database.types";
 
 export interface GoalPeriodRange {
   from: string;
@@ -53,7 +54,7 @@ export function getPeriodLabel(
   return `${months[now.getMonth()]} ${now.getFullYear()}`;
 }
 
-export async function fetchGoalProgress(supabase: SupabaseClient, goal: any) {
+export async function fetchGoalProgress(supabase: SupabaseClient<Database>, goal: any) {
   const { from, to } = getGoalPeriodRange(goal.period, goal.start_date, goal.end_date);
   
   if (goal.goal_type === "Atividades") {
