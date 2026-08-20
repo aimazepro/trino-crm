@@ -173,7 +173,14 @@ automação, e automação só é confiável fora do browser. `AUD §6`
 
 ### Motor
 
-- [ ] **S-2 · ALTO — tirar `run-automations.ts` do navegador.** Hoje importa o
+**Status 2026-08-20:** implementado inteiro no branch `motor-automacao-server-side`
+(13 tasks, spec+plano em `docs/superpowers/`), revisado (por tarefa + revisão final
+de branch inteiro), pendente merge + `vercel deploy --prod` + checklist pós-deploy
+(`.superpowers/sdd/2026-08-19-motor-automacao-server-side/task-13-post-deploy-checklist.md`,
+não versionado). Itens abaixo marcados `[x]` estão feitos no branch, não em produção
+ainda — não fechar até o deploy + checklist confirmarem.
+
+- [x] **S-2 · ALTO — tirar `run-automations.ts` do navegador.** Hoje importa o
   cliente Supabase do browser e é chamado de `use-crm-mutations.ts` (6
   call-sites). Fechou a aba no meio → automação para pela metade, sem retry,
   sem fila, sem log. E **evento vindo de fora não dispara nada**: import CSV,
@@ -183,26 +190,26 @@ automação, e automação só é confiável fora do browser. `AUD §6`
   - [ ] Verificar o checkbox `runAutomations` em
     `src/app/configuracoes/importar/page.tsx:144` e `:898` — a função que ele
     nomeia não roda no servidor. Pode estar prometendo o que não entrega.
-- [ ] **`case "send_webhook"` do motor faz `fetch()` direto do browser** para
+- [x] **`case "send_webhook"` do motor faz `fetch()` direto do browser** para
   URL arbitrária: sem guarda SSRF, sem HMAC, sem registro em
   `webhook_deliveries` — inconsistente com os outros 3 caminhos de webhook, que
   têm tudo isso. `AUD §S-2`
-- [ ] **Ligar a fila de retry `dispatch-webhooks`.** Ela lê
+- [x] **Ligar a fila de retry `dispatch-webhooks`.** Ela lê
   `webhook_deliveries WHERE status='pending'`, mas **nada nunca insere como
   `pending`** — o app grava direto `sent`/`failed`. Webhook que falha nunca é
   reprocessado. `AUD §3`
-- [ ] **Bug do `step.note` nas sequências.** `process-sequences` usa `step.note`
+- [x] **Bug do `step.note` nas sequências.** `process-sequences` usa `step.note`
   cru como assunto/corpo do email, mas o `note` é um **JSON serializado**
   (`parseSequenceStepNote`) — o email sairia com JSON no assunto. `AUD §3`
-- [ ] **Tela de log de execução de automação.** Sem isso, automação não é
+- [x] **Tela de log de execução de automação.** Sem isso, automação não é
   vendável. `AUD §6`
-- [ ] **Fila de email — nunca funcionou, agora pode.** Destravou com a migração
+- [x] **Fila de email — nunca funcionou, agora pode.** Destravou com a migração
   de 2026-08-19 mas nunca rodou com o `claim` funcionando.
   `supabase/functions/process-email-queue/index.ts` ainda é o processador.
   Decisão a tomar: manter na Edge Function ou trazer para o app como foi feito
   com o WhatsApp (o padrão já está pronto em
   `src/app/api/whatsapp/queue/route.ts`). Tabela vazia, sem represa. `HAND §1`
-- [ ] **S-4 · MÉDIO — `api/webhooks/trigger` aceita `webhookId` sem verificar
+- [x] **S-4 · MÉDIO — `api/webhooks/trigger` aceita `webhookId` sem verificar
   dono.** Dá para poluir o log de entregas de outro tenant. `AUD §S-4`
 
 ### Entrada de leads
