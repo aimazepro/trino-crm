@@ -1,6 +1,5 @@
 import { createServerClient } from "@supabase/ssr";
 import { cookies } from "next/headers";
-import crypto from "crypto";
 import { isPrivateOrUnsafeUrl, hmacSha256 } from "@/lib/webhook-security";
 
 export const dynamic = "force-dynamic";
@@ -42,6 +41,17 @@ export async function POST(request: Request) {
 
     if (!url) {
       return Response.json({ error: "Missing destination URL" }, { status: 400 });
+    }
+
+    if (webhookId) {
+      const { data: owned } = await supabase
+        .from("webhooks")
+        .select("id")
+        .eq("id", webhookId)
+        .maybeSingle();
+      if (!owned) {
+        return Response.json({ error: "Webhook não encontrado" }, { status: 403 });
+      }
     }
 
     if (isPrivateOrUnsafeUrl(url)) {
