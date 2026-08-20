@@ -23,8 +23,8 @@ entre sessões.
 | | |
 |---|---|
 | Branch | `main`, working tree limpo |
-| Produção | deployada e verificada |
-| `origin/main` | **21 commits atrás** — nada foi pushado |
+| Produção | deployada e verificada (Fase 1 no ar) |
+| `origin/main` | em dia |
 
 Deploy é manual: `vercel deploy --prod`. `git push` não deploya.
 
@@ -40,6 +40,8 @@ Deploy é manual: `vercel deploy --prod`. `git push` não deploya.
 - [x] **WhatsApp via Evolution API (2026-08-19)** — conexão real com QR, envio de texto/imagem/áudio, recebimento por webhook, status de leitura, `/conversas` em tempo real, assinatura, gravador de voz. Verificado ponta a ponta. `WPP`
 - [x] **Automações de WhatsApp ligadas ao driver (2026-08-19)** — fila drenada por `/api/whatsapp/queue`, mensagem automática cai na mesma thread das manuais. Verificado em produção com automação real. `WPP`, `HAND`
 - [x] **Bug do `CHECK` das filas (2026-08-19)** — `claim_pending_*_queue` gravava `processing`, constraint não aceitava. Nenhuma automação de email ou WhatsApp jamais saiu deste CRM. Migração `20260819220000`. `HAND`
+- [x] **Fase 1 — Multi-tenancy (2026-08-19)** — `workspace_id` real, RLS por papel, convite
+  por link, fecha S-6 e S-3 de brinde. Ver seção própria abaixo. `DES1`
 
 ---
 
@@ -70,20 +72,33 @@ Sem features. Torna o produto honesto e seguro antes de crescer. `AUD §6`
 - [ ] **Cadência dos crons.** 4 jobs de minuto em minuto contra filas vazias
   queimam ~130 mil invocações/mês das 500 mil do free tier. Agora que a fila de
   WhatsApp é usada, reavaliar quais podem cair para 5 min. `AUD §6.5`
-- [ ] **S-6 — revogar `EXECUTE` do `anon`** em `is_workspace_member`,
-  `replace_deal_labels`, `replace_deal_products`. `AUD §S-6`
+- [x] **S-6 — revogar `EXECUTE` do `anon`** em `is_workspace_member`,
+  `replace_deal_labels`, `replace_deal_products` — fechado junto com a Fase 1 (também
+  `my_workspace_ids`, `my_role`, `is_ws_manager`, `is_ws_admin`, as 4 novas). `AUD §S-6`
 - [ ] **Ligar proteção contra senha vazada** (HaveIBeenPwned) no Supabase Auth.
   Cadastro é aberto, sem convite nem verificação de domínio. `AUD §S-5`
 
 ---
 
-## 🟠 Fase 1 — Multi-tenancy
+## ✅ Fase 1 — Multi-tenancy (feita em 2026-08-19)
 
-A fundação. É o bloqueador declarado do "vender como produto". `AUD §6`
+A fundação. Era o bloqueador declarado do "vender como produto". `AUD §6`
 
-> ✅ **Design escrito e aprovado em 2026-08-19 — `DES1`.** Nada implementado ainda.
-> Ler o spec antes de tocar em qualquer coisa desta fase: ele mede o banco, classifica as
-> 37 colunas e traz a ordem de execução, os asserts e o rollback.
+> ✅ **Implementada e deployada em produção em 2026-08-19, seguindo o `DES1`.**
+> Migração aplicada com os 7 asserts + teste sintético de isolamento entre tenants, todos
+> passando antes do commit. `tsc`/`next build` limpos. `main` mesclada e no ar em
+> `https://trino-crm.vercel.app`, verificada (zero runtime errors nos 15 min pós-deploy).
+>
+> **Duas decisões tomadas na execução, fora do `DES1`:** (1) a página de usuários tinha um
+> par de status `blocked`/`active` que o design não previu — removido em vez de virar outra
+> migração; hoje só `pending`/`accepted` existe, remoção de acesso é `DELETE` mesmo (a RLS já
+> cobre). (2) `resolveWorkspaceOwner()` em `src/lib/whatsapp/connection.ts` virou
+> `resolveWorkspaceId()`, sem o fallback `?? userId` — o dono agora tem linha seedada em
+> `workspace_members`, então o fallback só escondia uma falha real de lookup.
+>
+> **Achado não resolvido, fora do escopo desta fase:** `/login` ainda permite auto-cadastro
+> (`supabase.auth.signUp` sem convite). Com múltiplos workspaces reais, isso deixa de ser
+> cosmético — qualquer um cria conta própria sem passar pelo convite. Avaliar se fecha ou não.
 
 **O que o design descobriu, e que muda o plano original:**
 
@@ -113,22 +128,22 @@ arquivos. Fecha **S-6** e **S-3** de brinde.
 **Atenção:** entre a migração e o deploy, produção fica quebrada. Precisa de uma sentada
 inteira.
 
-- [ ] **`workspaces` + `workspace_members` com papéis reais.**
-- [ ] **Migrar `user_id` → `workspace_id`** em ~40 tabelas, com backfill.
-- [ ] **Reescrever as policies**, consolidando as duplicadas de
-  `deals`/`contacts`/`activities` — hoje o `with_check` do UPDATE permite trocar
-  `user_id` para outro workspace. `AUD §S-6`
-- [ ] **S-3 · ALTO — papéis são cosméticos.** `team_members.role` existe e a UI
-  deixa trocar, mas há **zero verificação de papel em qualquer lugar do
-  código** e nenhuma policy referencia `role`. Enforcement tem que ser na RLS,
-  não só na UI. `AUD §S-3`
-- [ ] **Fluxo de convite real.** Hoje insere linha em `team_members` e para:
-  nenhum email, nenhum usuário auth criado, `member_user_id` nunca preenchido —
-  logo `is_workspace_member()` sempre retorna `false` e **todas as policies de
-  workspace estão inertes**. `AUD §3`
-- [ ] **Visibilidade decidida pelo dono:** vendedor vê só os próprios negócios;
-  dono/gerente vê tudo. Contatos e empresas ficam compartilhados no workspace;
-  atividades herdam a visibilidade do negócio pai. `AUD §6.1`
+- [x] **`workspaces` + `workspace_members` com papéis reais.** Owner seedado como
+  `admin`/`accepted` em cada workspace — sem isso as policies ficam inertes de novo.
+- [x] **Migrar `user_id` → `workspace_id`** — rename de coluna, sem backfill (confirmado
+  pelo `DES1`: o uuid do dono já era o do workspace).
+- [x] **Reescrever as policies.** As 94 antigas (incl. as 6 `"X: user owns"`) derrubadas,
+  refeitas por forma de papel. `WITH CHECK` agora trava o `workspace_id`, fecha o buraco de
+  mover linha entre tenants. `AUD §S-6`
+- [x] **S-3 · papéis deixam de ser cosméticos.** RLS referencia `role` via
+  `my_role`/`is_ws_manager`/`is_ws_admin`; UI gateada (usuários, API keys, webhooks, empresa,
+  WhatsApp = só admin; config de operação = admin+gerente). `AUD §S-3`
+- [x] **Fluxo de convite real.** `POST /api/convites` (admin gera link com token) → 
+  `/convite/[token]` (form de senha) → `POST /api/convites/aceitar` (service role cria/liga o
+  auth user, marca `accepted`). Sem email, como decidido. `AUD §3`
+- [x] **Visibilidade por papel.** Vendedor só vê os próprios negócios (RLS, não filtro de
+  UI); admin/gerente veem tudo. Contatos/empresas compartilhados no workspace; atividades
+  herdam a visibilidade do negócio pai via `EXISTS`. `AUD §6.1`
 
 > ⚠️ ~~**Maior risco de perda de dados do projeto.**~~ **Superado pelo `DES1`:** não há
 > backfill de valores, só rename de coluna. Continua valendo o `pg_dump` verificado antes —
