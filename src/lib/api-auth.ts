@@ -126,27 +126,51 @@ export async function withIdempotency(
     return NextResponse.json(result.body, { status: result.status });
   }
 
-  const { data: existing } = await admin
-    .from("api_idempotency_keys")
-    .select("response_status, response_body")
-    .eq("workspace_id", workspaceId)
-    .eq("idempotency_key", idempotencyKey)
-    .eq("method", method)
-    .eq("path", path)
-    .maybeSingle();
+  const keyFilter = { workspace_id: workspaceId, idempotency_key: idempotencyKey, method, path };
 
-  if (existing) {
-    return NextResponse.json(existing.response_body, { status: existing.response_status });
+  // Atomically claim this idempotency key before running the handler. The
+  // table's primary key is (workspace_id, idempotency_key, method, path), so
+  // if a concurrent request already claimed it, this insert fails with a
+  // unique-violation instead of silently letting both requests run the
+  // handler. response_status starts at 0 ("still in flight") and gets
+  // updated once the handler completes.
+  const { error: claimError } = await admin
+    .from("api_idempotency_keys")
+    .insert({ ...keyFilter, response_status: 0, response_body: {} });
+
+  if (claimError) {
+    // Someone else holds this key. Poll briefly for their result -- most
+    // requests finish in well under a second. If it's still in flight after
+    // ~2s, ask the client to retry rather than block indefinitely.
+    for (let attempt = 0; attempt < 10; attempt++) {
+      const { data: existing } = await admin
+        .from("api_idempotency_keys")
+        .select("response_status, response_body")
+        .match(keyFilter)
+        .maybeSingle();
+      if (existing && existing.response_status !== 0) {
+        return NextResponse.json(existing.response_body, { status: existing.response_status });
+      }
+      await new Promise((resolve) => setTimeout(resolve, 200));
+    }
+    return apiError("VALIDATION_ERROR", "Requisição com esta Idempotency-Key ainda está em processamento, tente novamente em instantes", 409);
   }
 
   const result = await handler();
-  await admin.from("api_idempotency_keys").insert({
-    workspace_id: workspaceId,
-    idempotency_key: idempotencyKey,
-    method,
-    path,
-    response_status: result.status,
-    response_body: result.body as never,
-  });
+
+  if (result.status >= 200 && result.status < 300) {
+    // Only a real success is safe to replay verbatim on a retry.
+    const { error } = await admin
+      .from("api_idempotency_keys")
+      .update({ response_status: result.status, response_body: result.body as never })
+      .match(keyFilter);
+    if (error) console.error("withIdempotency: failed to persist result", error);
+  } else {
+    // Don't let a 4xx/5xx poison the key -- release the claim so a retry
+    // (e.g. after the client fixes its request body) actually re-runs.
+    const { error } = await admin.from("api_idempotency_keys").delete().match(keyFilter);
+    if (error) console.error("withIdempotency: failed to release claim after non-2xx", error);
+  }
+
   return NextResponse.json(result.body, { status: result.status });
 }
