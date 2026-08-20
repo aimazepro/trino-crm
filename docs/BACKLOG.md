@@ -220,9 +220,9 @@ final de branch inteira, que achou e já corrigiu 3 Critical + 6 Important
 antes de fechar), pendente merge + `vercel deploy --prod`. Itens abaixo
 marcados `[x]` estão feitos no branch, não em produção ainda — não fechar
 até o deploy confirmar. Produção já foi auditada e limpa de dados de
-verificação (deals/contatos/chaves de teste desta plan); 2 chaves antigas
-pré-existentes (`lp`, `bvnbv`, permissão `all`) seguem pendentes de revisão
-do dono — inertes antes desta branch, agora funcionais.
+verificação (deals/contatos/chaves de teste desta plan). As 2 chaves antigas
+pré-existentes (`lp`, `bvnbv`, permissão `all`, nunca usadas, sem contexto
+claro) foram revogadas pelo dono em 2026-08-20 após confirmação.
 
 - [x] **Rota pública Bearer-auth** contra `api_keys` (hash SHA-256) e resolve o
   workspace, com permissões reais por rota, rate limit por chave e
