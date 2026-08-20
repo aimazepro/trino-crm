@@ -26,7 +26,7 @@ export async function POST(request: Request) {
       if (body[key] !== undefined) patch[key] = body[key];
     }
     if (Object.keys(patch).length > 0) {
-      await admin.from("companies").update(patch as Database["public"]["Tables"]["companies"]["Update"]).eq("id", id);
+      await admin.from("companies").update(patch as Database["public"]["Tables"]["companies"]["Update"]).eq("id", id).eq("workspace_id", ctx.workspaceId);
     }
 
     const { data, error } = await admin.from("companies").select("*").eq("id", id).single();
