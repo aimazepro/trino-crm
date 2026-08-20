@@ -622,7 +622,6 @@ export function useCrmMutations({ state, setState, userId, workspaceId, supabase
   };
 
   const addActivity = (activity: Omit<Activity, "id" | "createdAt" | "attachments" | "completed"> & { completed?: boolean }) => {
-    const deal = state.deals.find((d) => d.id === activity.dealId);
     const newAct: Activity = {
       ...activity, id: `act_${Date.now()}`, completed: activity.completed ?? false,
       createdAt: new Date().toISOString(), attachments: [],
