@@ -2544,6 +2544,10 @@ export type Database = {
         Args: { p_phone: string; p_user_id: string }
         Returns: string
       }
+      increment_api_rate_limit: {
+        Args: { p_api_key_id: string; p_window_start: string }
+        Returns: number
+      }
       is_workspace_member: { Args: { owner_id: string }; Returns: boolean }
       is_ws_admin: { Args: { ws: string }; Returns: boolean }
       is_ws_manager: { Args: { ws: string }; Returns: boolean }
@@ -2689,4 +2693,3 @@ export const Constants = {
     Enums: {},
   },
 } as const
-
