@@ -4,7 +4,7 @@ import { useState } from "react";
 import { useRouter } from "next/navigation";
 import {
   Zap, Plus, Settings, Edit2, Copy, Trash2, ArrowRight,
-  Activity, Tag, ArrowRightLeft, ChevronDown,
+  Activity, Tag, ArrowRightLeft, ChevronDown, History,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import {
@@ -388,6 +388,13 @@ function MinhasTab({
 
             {/* Actions */}
             <div className="flex items-center gap-1 shrink-0">
+              <button
+                onClick={() => router.push(`/automacoes/${aut.id}/log`)}
+                className="p-2 rounded-lg text-zinc-400 hover:text-zinc-700 hover:bg-zinc-100 transition-colors cursor-pointer"
+                title="Ver log"
+              >
+                <History className="h-4 w-4" />
+              </button>
               <button
                 onClick={() => onEdit(aut.id)}
                 className="p-2 rounded-lg text-zinc-400 hover:text-zinc-700 hover:bg-zinc-100 transition-colors cursor-pointer"
