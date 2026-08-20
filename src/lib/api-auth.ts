@@ -156,7 +156,16 @@ export async function withIdempotency(
     return apiError("VALIDATION_ERROR", "Requisição com esta Idempotency-Key ainda está em processamento, tente novamente em instantes", 409);
   }
 
-  const result = await handler();
+  let result: { status: number; body: unknown };
+  try {
+    result = await handler();
+  } catch (err) {
+    // handler() threw before returning a result -- release the claim so a
+    // retry with the same Idempotency-Key can actually re-run, instead of
+    // permanently 409ing against a claim row stuck at response_status: 0.
+    await admin.from("api_idempotency_keys").delete().match(keyFilter);
+    throw err;
+  }
 
   if (result.status >= 200 && result.status < 300) {
     // Only a real success is safe to replay verbatim on a retry.
