@@ -81,7 +81,7 @@ export async function dispatchWebhooks(
         workspace_id: userId,
         event: eventCode,
         payload: envelope,
-        status,
+        status: status === "sent" ? "sent" : "pending",
         attempts: 1,
         response_code: responseCode,
         sent_at: status === "sent" ? new Date().toISOString() : null,
