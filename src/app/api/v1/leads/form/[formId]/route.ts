@@ -29,8 +29,26 @@ export async function POST(request: Request, { params }: { params: Promise<{ for
   if (!form) return jsonError("NOT_FOUND", "Formulário não encontrado", 404);
 
   let body: Record<string, unknown>;
+  const contentType = request.headers.get("content-type") ?? "";
   try {
-    body = await request.json();
+    if (contentType.includes("application/json")) {
+      body = await request.json();
+    } else if (
+      contentType.includes("application/x-www-form-urlencoded") ||
+      contentType.includes("multipart/form-data")
+    ) {
+      // Real `<form method="POST">` submissions with no `enctype` (the
+      // embed snippet shown on /configuracoes/api and /ajuda/integracao-leads-externos)
+      // send urlencoded bodies, not JSON — parse via FormData and normalize
+      // to the same strings-or-undefined shape the checks below expect.
+      const formData = await request.formData();
+      body = {};
+      for (const [key, value] of formData.entries()) {
+        body[key] = typeof value === "string" ? value : undefined;
+      }
+    } else {
+      body = await request.json();
+    }
   } catch {
     return jsonError("VALIDATION_ERROR", "Corpo inválido", 400);
   }
