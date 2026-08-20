@@ -70,6 +70,9 @@ Sem features. Torna o produto honesto e seguro antes de crescer. `AUD §6`
     `.superpowers/sdd/2026-08-19-motor-automacao-server-side/task-13-post-deploy-checklist.md`.
   - [ ] Job novo `automations-run` (worker do motor de automação) também
     fica pendente do mesmo deploy — mesmo checklist acima.
+  - [ ] **Jobs 2 ("whatsapp-queue") e 4 ("webhooks"): `AUTOMATION_DISPATCH_SECRET` em texto puro** —
+    exposição menor que `sb_secret_...` acima (secret dedicado, rotável, sem bypass de RLS),
+    mas mesma classe (credencial visível a quem tem acesso SQL a `cron.job`). Pendente fix via Vault.
 - [ ] **Ocultar as telas de decoração** — `/configuracoes/billing` (manter no
   código, ver Fase 6), `/prospeccao`, `/analise-calls`. `AUD §6.3`
 - [ ] **Consertar os links 404** — `/configuracoes/api/docs` e
