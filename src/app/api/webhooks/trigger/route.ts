@@ -1,30 +1,7 @@
 import { createServerClient } from "@supabase/ssr";
 import { cookies } from "next/headers";
 import crypto from "crypto";
-
-const PRIVATE_IP_PATTERNS = [
-  /^127\./,
-  /^10\./,
-  /^172\.(1[6-9]|2\d|3[01])\./,
-  /^192\.168\./,
-  /^169\.254\./,
-  /^::1$/,
-  /^fc00:/i,
-  /^fe80:/i,
-  /^0\./,
-];
-
-function isPrivateOrUnsafeUrl(rawUrl: string): boolean {
-  let parsed: URL;
-  try {
-    parsed = new URL(rawUrl);
-  } catch {
-    return true;
-  }
-  if (parsed.protocol !== "https:") return true;
-  const hostname = parsed.hostname;
-  return PRIVATE_IP_PATTERNS.some((re) => re.test(hostname));
-}
+import { isPrivateOrUnsafeUrl, hmacSha256 } from "@/lib/webhook-security";
 
 export const dynamic = "force-dynamic";
 
@@ -50,10 +27,6 @@ async function createClient() {
       },
     }
   );
-}
-
-function hmacSha256(secret: string, body: string): string {
-  return crypto.createHmac("sha256", secret).update(body).digest("hex");
 }
 
 export async function POST(request: Request) {

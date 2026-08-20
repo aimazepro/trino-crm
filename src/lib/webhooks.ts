@@ -1,33 +1,6 @@
-import crypto from "crypto";
 import type { SupabaseClient } from "@supabase/supabase-js";
 import type { Database } from "@/lib/supabase/database.types";
-
-const PRIVATE_IP_PATTERNS = [
-  /^127\./,
-  /^10\./,
-  /^172\.(1[6-9]|2\d|3[01])\./,
-  /^192\.168\./,
-  /^169\.254\./,
-  /^::1$/,
-  /^fc00:/i,
-  /^fe80:/i,
-  /^0\./,
-];
-
-function isPrivateOrUnsafeUrl(rawUrl: string): boolean {
-  let parsed: URL;
-  try {
-    parsed = new URL(rawUrl);
-  } catch {
-    return true;
-  }
-  if (parsed.protocol !== "https:") return true;
-  return PRIVATE_IP_PATTERNS.some((re) => re.test(parsed.hostname));
-}
-
-function hmacSha256(secret: string, body: string): string {
-  return crypto.createHmac("sha256", secret).update(body).digest("hex");
-}
+import { isPrivateOrUnsafeUrl, hmacSha256 } from "@/lib/webhook-security";
 
 type WebhookRow = {
   id: string;
