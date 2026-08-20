@@ -311,6 +311,47 @@ export type Database = {
           },
         ]
       }
+      automation_events: {
+        Row: {
+          attempts: number
+          created_at: string
+          deal_id: string
+          error: string | null
+          id: string
+          status: string
+          trigger: string
+          workspace_id: string
+        }
+        Insert: {
+          attempts?: number
+          created_at?: string
+          deal_id: string
+          error?: string | null
+          id?: string
+          status?: string
+          trigger: string
+          workspace_id: string
+        }
+        Update: {
+          attempts?: number
+          created_at?: string
+          deal_id?: string
+          error?: string | null
+          id?: string
+          status?: string
+          trigger?: string
+          workspace_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "automation_events_deal_id_fkey"
+            columns: ["deal_id"]
+            isOneToOne: false
+            referencedRelation: "deals"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       automation_labels: {
         Row: {
           color: string
@@ -2164,6 +2205,25 @@ export type Database = {
       [_ in never]: never
     }
     Functions: {
+      claim_pending_automation_events: {
+        Args: { p_limit?: number }
+        Returns: {
+          attempts: number
+          created_at: string
+          deal_id: string
+          error: string | null
+          id: string
+          status: string
+          trigger: string
+          workspace_id: string
+        }[]
+        SetofOptions: {
+          from: "*"
+          to: "automation_events"
+          isOneToOne: false
+          isSetofReturn: true
+        }
+      }
       claim_pending_email_queue: {
         Args: { p_limit?: number }
         Returns: {
@@ -2362,3 +2422,4 @@ export const Constants = {
     Enums: {},
   },
 } as const
+
