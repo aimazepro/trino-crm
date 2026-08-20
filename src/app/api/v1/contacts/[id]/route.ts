@@ -27,8 +27,8 @@ export async function PATCH(request: Request, { params }: { params: Promise<{ id
   const body = await request.json();
   const patch: Record<string, unknown> = {};
   if ("name" in body) patch.name = body.name;
-  if ("email" in body) patch.emails = body.email ? [body.email] : [];
-  if ("phone" in body) patch.phones = body.phone ? [body.phone] : [];
+  if ("email" in body) patch.emails = body.email ? [{ value: body.email, type: "Comercial" }] : [];
+  if ("phone" in body) patch.phones = body.phone ? [{ value: body.phone, type: "Celular" }] : [];
   if ("companyId" in body) patch.company_id = body.companyId;
   if ("role" in body) patch.role = body.role;
 

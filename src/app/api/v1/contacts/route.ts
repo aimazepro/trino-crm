@@ -17,7 +17,8 @@ export async function POST(request: Request) {
       .from("contacts")
       .insert({
         workspace_id: ctx.workspaceId, name: body.name,
-        emails: body.email ? [body.email] : [], phones: body.phone ? [body.phone] : [],
+        emails: body.email ? [{ value: body.email, type: "Comercial" }] : [],
+        phones: body.phone ? [{ value: body.phone, type: "Celular" }] : [],
         company_id: body.companyId ?? null, role: body.role ?? null,
       })
       .select("*")
