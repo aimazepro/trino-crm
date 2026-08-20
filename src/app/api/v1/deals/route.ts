@@ -105,3 +105,49 @@ export async function POST(request: Request) {
     return { status: 201, body: { data: { id: deal.id, contactId, created: true }, ...(warnings.length ? { warnings } : {}) } };
   });
 }
+
+export async function GET(request: Request) {
+  const admin = createAdmin();
+  const auth = await authenticateApiRequest(request, admin, "read_deals");
+  if (!auth.ok) return auth.response;
+  const { ctx } = auth;
+
+  const url = new URL(request.url);
+  const limit = Math.min(Number(url.searchParams.get("limit") ?? 50), 100);
+  const cursor = url.searchParams.get("cursor");
+  const status = url.searchParams.get("status");
+  const pipeline = url.searchParams.get("pipeline");
+  const stage = url.searchParams.get("stage");
+  const owner = url.searchParams.get("owner");
+  const updatedSince = url.searchParams.get("updatedSince");
+
+  let query = admin
+    .from("deals")
+    .select("id, title, value, status, pipeline_id, stage_id, owner_id, contact_id, source, origin, created_at, updated_at")
+    .eq("workspace_id", ctx.workspaceId)
+    .is("deleted_at", null)
+    .order("created_at", { ascending: false })
+    .order("id", { ascending: false })
+    .limit(limit + 1);
+
+  if (status) query = query.eq("status", status);
+  if (pipeline) query = query.eq("pipeline_id", pipeline);
+  if (stage) query = query.eq("stage_id", stage);
+  if (owner) query = query.eq("owner_id", owner);
+  if (updatedSince) query = query.gte("updated_at", updatedSince);
+  if (cursor) {
+    const [cCreatedAt, cId] = Buffer.from(cursor, "base64").toString("utf8").split("|");
+    query = query.or(`created_at.lt.${cCreatedAt},and(created_at.eq.${cCreatedAt},id.lt.${cId})`);
+  }
+
+  const { data, error } = await query;
+  if (error) return apiError("INTERNAL_ERROR", error.message, 500);
+
+  const rows = data ?? [];
+  const hasMore = rows.length > limit;
+  const page = hasMore ? rows.slice(0, limit) : rows;
+  const last = page[page.length - 1];
+  const nextCursor = hasMore && last ? Buffer.from(`${last.created_at}|${last.id}`).toString("base64") : null;
+
+  return new Response(JSON.stringify({ data: page, nextCursor }), { headers: { "Content-Type": "application/json" } });
+}
