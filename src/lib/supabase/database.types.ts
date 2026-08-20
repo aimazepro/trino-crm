@@ -162,34 +162,81 @@ export type Database = {
           },
         ]
       }
+      api_idempotency_keys: {
+        Row: {
+          created_at: string
+          idempotency_key: string
+          method: string
+          path: string
+          response_body: Json
+          response_status: number
+          workspace_id: string
+        }
+        Insert: {
+          created_at?: string
+          idempotency_key: string
+          method: string
+          path: string
+          response_body: Json
+          response_status: number
+          workspace_id: string
+        }
+        Update: {
+          created_at?: string
+          idempotency_key?: string
+          method?: string
+          path?: string
+          response_body?: Json
+          response_status?: number
+          workspace_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "api_idempotency_keys_workspace_id_fkey"
+            columns: ["workspace_id"]
+            isOneToOne: false
+            referencedRelation: "workspaces"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       api_keys: {
         Row: {
           created_at: string
+          default_owner_id: string | null
           id: string
           key_hash: string
           key_prefix: string
           last_used_at: string | null
           name: string
+          permissions: Json
+          rate_limit_per_min: number
           revoked: boolean
           workspace_id: string
         }
         Insert: {
           created_at?: string
+          default_owner_id?: string | null
           id?: string
           key_hash: string
           key_prefix: string
           last_used_at?: string | null
           name: string
+          permissions?: Json
+          rate_limit_per_min?: number
           revoked?: boolean
           workspace_id: string
         }
         Update: {
           created_at?: string
+          default_owner_id?: string | null
           id?: string
           key_hash?: string
           key_prefix?: string
           last_used_at?: string | null
           name?: string
+          permissions?: Json
+          rate_limit_per_min?: number
           revoked?: boolean
           workspace_id?: string
         }
@@ -199,6 +246,32 @@ export type Database = {
             columns: ["workspace_id"]
             isOneToOne: false
             referencedRelation: "workspaces"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      api_rate_limit_windows: {
+        Row: {
+          api_key_id: string
+          request_count: number
+          window_start: string
+        }
+        Insert: {
+          api_key_id: string
+          request_count?: number
+          window_start: string
+        }
+        Update: {
+          api_key_id?: string
+          request_count?: number
+          window_start?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "api_rate_limit_windows_api_key_id_fkey"
+            columns: ["api_key_id"]
+            isOneToOne: false
+            referencedRelation: "api_keys"
             referencedColumns: ["id"]
           },
         ]
@@ -1007,6 +1080,7 @@ export type Database = {
       }
       deals: {
         Row: {
+          campaign_id: string | null
           company_id: string | null
           contact_id: string | null
           created_at: string
@@ -1018,6 +1092,7 @@ export type Database = {
           expected_close_date: string | null
           id: string
           loss_reason: string | null
+          origin: string
           owner_id: string | null
           pipeline_id: string
           probability: number | null
@@ -1027,10 +1102,16 @@ export type Database = {
           status: string
           title: string
           updated_at: string
+          utm_campaign: string | null
+          utm_content: string | null
+          utm_medium: string | null
+          utm_source: string | null
+          utm_term: string | null
           value: number
           workspace_id: string
         }
         Insert: {
+          campaign_id?: string | null
           company_id?: string | null
           contact_id?: string | null
           created_at?: string
@@ -1042,6 +1123,7 @@ export type Database = {
           expected_close_date?: string | null
           id?: string
           loss_reason?: string | null
+          origin?: string
           owner_id?: string | null
           pipeline_id: string
           probability?: number | null
@@ -1051,10 +1133,16 @@ export type Database = {
           status?: string
           title: string
           updated_at?: string
+          utm_campaign?: string | null
+          utm_content?: string | null
+          utm_medium?: string | null
+          utm_source?: string | null
+          utm_term?: string | null
           value?: number
           workspace_id: string
         }
         Update: {
+          campaign_id?: string | null
           company_id?: string | null
           contact_id?: string | null
           created_at?: string
@@ -1066,6 +1154,7 @@ export type Database = {
           expected_close_date?: string | null
           id?: string
           loss_reason?: string | null
+          origin?: string
           owner_id?: string | null
           pipeline_id?: string
           probability?: number | null
@@ -1075,6 +1164,11 @@ export type Database = {
           status?: string
           title?: string
           updated_at?: string
+          utm_campaign?: string | null
+          utm_content?: string | null
+          utm_medium?: string | null
+          utm_source?: string | null
+          utm_term?: string | null
           value?: number
           workspace_id?: string
         }
@@ -1442,6 +1536,67 @@ export type Database = {
         Relationships: [
           {
             foreignKeyName: "labels_workspace_id_fkey"
+            columns: ["workspace_id"]
+            isOneToOne: false
+            referencedRelation: "workspaces"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      lead_forms: {
+        Row: {
+          active: boolean
+          created_at: string
+          default_owner_id: string | null
+          honeypot_field: string
+          id: string
+          name: string
+          pipeline_id: string | null
+          source_label: string
+          stage_id: string | null
+          workspace_id: string
+        }
+        Insert: {
+          active?: boolean
+          created_at?: string
+          default_owner_id?: string | null
+          honeypot_field?: string
+          id?: string
+          name: string
+          pipeline_id?: string | null
+          source_label?: string
+          stage_id?: string | null
+          workspace_id: string
+        }
+        Update: {
+          active?: boolean
+          created_at?: string
+          default_owner_id?: string | null
+          honeypot_field?: string
+          id?: string
+          name?: string
+          pipeline_id?: string | null
+          source_label?: string
+          stage_id?: string | null
+          workspace_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "lead_forms_pipeline_id_fkey"
+            columns: ["pipeline_id"]
+            isOneToOne: false
+            referencedRelation: "pipelines"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "lead_forms_stage_id_fkey"
+            columns: ["stage_id"]
+            isOneToOne: false
+            referencedRelation: "pipeline_stages"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "lead_forms_workspace_id_fkey"
             columns: ["workspace_id"]
             isOneToOne: false
             referencedRelation: "workspaces"
@@ -2388,6 +2543,10 @@ export type Database = {
       find_contact_by_phone: {
         Args: { p_phone: string; p_user_id: string }
         Returns: string
+      }
+      increment_api_rate_limit: {
+        Args: { p_api_key_id: string; p_window_start: string }
+        Returns: number
       }
       is_workspace_member: { Args: { owner_id: string }; Returns: boolean }
       is_ws_admin: { Args: { ws: string }; Returns: boolean }

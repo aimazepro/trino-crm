@@ -171,6 +171,7 @@ export const TRIGGER_LABELS: Record<string, string> = {
   deal_lost: "Negócio perdido",
   deal_updated: "Negócio atualizado",
   activity_created: "Atividade criada",
+  lead_recebido: "Lead recebido (API/formulário)",
 };
 
 export const TRIGGER_DESCRIPTIONS: Record<string, string> = {
@@ -180,6 +181,7 @@ export const TRIGGER_DESCRIPTIONS: Record<string, string> = {
   deal_lost: "Quando um negócio for marcado como perdido",
   deal_updated: "Quando qualquer campo do negócio for alterado",
   activity_created: "Quando uma nova atividade for registrada",
+  lead_recebido: "Quando um lead entrar pela API pública ou por um formulário externo",
 };
 
 export const CONDITION_FIELD_LABELS: Record<string, string> = {

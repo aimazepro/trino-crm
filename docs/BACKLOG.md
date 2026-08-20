@@ -214,18 +214,55 @@ ainda — não fechar até o deploy + checklist confirmarem.
 
 ### Entrada de leads
 
-- [ ] **Rota pública que valida `x-api-key`** contra `api_keys` e resolve o
-  workspace. A tabela e o hashing SHA-256 já existem — falta só o endpoint.
-  **Hoje nenhuma rota valida `x-api-key`: não existe API pública.** `AUD §3`
-- [ ] **Webhook de entrada + endpoint de formulário.**
-- [ ] **Novo gatilho `lead_recebido`.**
-- [ ] **Distribuição automática para vendedor** (round-robin / por regra) — é o
-  que faz `deals.owner_id` valer alguma coisa.
-- [ ] **Campos de atribuição no schema desde já** (`source`, `utm_*`,
-  `campaign_id`). Barato agora, caro de retrofitar. `AUD §6.0`
-- [ ] **Escrever a doc em `/ajuda/integracao-leads-externos`** e matar o 404.
-- [ ] **Infra pedida pelo dono:** subdomínio dedicado + Cloudflare (rate limit /
+**Status 2026-08-20:** implementado inteiro no branch `worktree-entrada-de-leads-api-publica`
+(19 tasks, spec+plano em `docs/superpowers/`), revisado (por tarefa + revisão
+final de branch inteira, que achou e já corrigiu 3 Critical + 6 Important
+antes de fechar), pendente merge + `vercel deploy --prod`. Itens abaixo
+marcados `[x]` estão feitos no branch, não em produção ainda — não fechar
+até o deploy confirmar. Produção já foi auditada e limpa de dados de
+verificação (deals/contatos/chaves de teste desta plan). As 2 chaves antigas
+pré-existentes (`lp`, `bvnbv`, permissão `all`, nunca usadas, sem contexto
+claro) foram revogadas pelo dono em 2026-08-20 após confirmação.
+
+- [x] **Rota pública Bearer-auth** contra `api_keys` (hash SHA-256) e resolve o
+  workspace, com permissões reais por rota, rate limit por chave e
+  `Idempotency-Key` em todo `POST`. **`x-api-key` virou `Authorization:
+  Bearer`, decisão registrada na spec** (padrão que a doc de referência usa).
+  `AUD §3`
+- [x] **Webhook de entrada + endpoint de formulário.**
+  `POST /api/v1/leads/form/:formId` — sem auth, honeypot, host-gate pro
+  Cloudflare, aceita tanto JSON quanto `application/x-www-form-urlencoded`
+  (formulário HTML puro sem JS).
+- [x] **Novo gatilho `lead_recebido`.** Trigger `origin in ('api','form')`,
+  Motor confirmado sem regressão (branch UPDATE idêntico ao original).
+- [x] **Distribuição automática para vendedor** — `assign_owner` (Motor) já
+  existente cobre round-robin; `default_owner_id` da key/form agora é
+  persistido de verdade (era o Critical C1 da revisão final: a tela de API
+  keys nunca salvava isso).
+- [x] **Campos de atribuição no schema desde já** (`source`, `utm_*`,
+  `campaign_id`). `AUD §6.0`
+- [x] **Escrever a doc em `/ajuda/integracao-leads-externos`** e matar o 404 —
+  mais `/configuracoes/api/docs`, referência completa.
+- [x] **Infra pedida pelo dono:** subdomínio dedicado + Cloudflare (rate limit /
   WAF na borda, já que o app não tem rate limiting próprio). `AUD §6.4`
+  — 2026-08-20: `api-crm.aimaze.com.br` criado (CNAME proxied →
+  `cname.vercel-dns.com`) e anexado ao projeto Vercel `trino-crm`. Rate
+  limit + WAF ligados via API depois que o dono adicionou a permissão
+  "Zone WAF" ao token:
+  1. **Rate limit**: ruleset `f36e7e41f989420cbad8185b0692b00d`, regra
+     `ac59e17c3f8041b7ac5c77615fb1aad4` — `(http.host eq
+     "api-crm.aimaze.com.br")`, block, 17 req/10s por `ip.src`
+     (≈100/min — o plano da conta só aceita janela de 10s, não 60s como o
+     plano original pedia), mitigation timeout 10s (idem, teto do plano).
+  2. **WAF gerenciado**: "Cloudflare Managed Free Ruleset" ligado no
+     entrypoint `http_request_firewall_managed`
+     (`f8804dadad8b4ea2b6233b87ddde509c`) — plano da zona é Free, não Pro,
+     então é o "Managed Free Ruleset", não o "Cloudflare Managed Ruleset"
+     completo.
+  Verificação fim-a-fim (`curl https://api-crm.aimaze.com.br/api/v1/me`)
+  ainda não é possível — essa branch (Tasks 1-19) não foi mergeada/deployada
+  em produção ainda; hoje a requisição roteia certo até o Vercel e cai no
+  `/login` da produção atual (comportamento esperado, não é bug da infra).
 
 ---
 
