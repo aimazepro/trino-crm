@@ -2297,6 +2297,26 @@ export type Database = {
       [_ in never]: never
     }
     Functions: {
+      claim_due_sequence_enrollments: {
+        Args: { p_limit?: number }
+        Returns: {
+          automation_id: string | null
+          current_step: number | null
+          deal_id: string | null
+          enrolled_at: string | null
+          id: string
+          sequence_id: string | null
+          status: string
+          updated_at: string | null
+          workspace_id: string
+        }[]
+        SetofOptions: {
+          from: "*"
+          to: "sequence_enrollments"
+          isOneToOne: false
+          isSetofReturn: true
+        }
+      }
       claim_pending_automation_events: {
         Args: { p_limit?: number }
         Returns: {
