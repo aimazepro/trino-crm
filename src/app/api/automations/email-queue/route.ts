@@ -9,6 +9,7 @@ import type { SupabaseClient } from "@supabase/supabase-js";
 import { createAdmin } from "@/lib/whatsapp/connection";
 import type { Database } from "@/lib/supabase/database.types";
 import { decryptToken, encryptToken } from "@/lib/token-crypto";
+import { firstEmail } from "@/lib/automation-engine";
 
 export const dynamic = "force-dynamic";
 export const maxDuration = 300;
@@ -25,6 +26,33 @@ function authorized(req: NextRequest): boolean {
   const presented = (req.headers.get("authorization") ?? "").replace(/^Bearer\s+/i, "");
   if (presented.length !== expected.length) return false;
   return timingSafeEqual(Buffer.from(presented), Buffer.from(expected));
+}
+
+/**
+ * Sequence steps enqueue with `to_email: null` (the enrollment knows the deal,
+ * not an address), and send_email's own resolution at enqueue time can also
+ * come up empty (no contact, or a contact with no email). Same deal->contact
+ * chain the WhatsApp queue route's loadDealContext resolves a phone from --
+ * see its comment for why this lives in the consumer rather than the producer.
+ */
+async function resolveToEmail(admin: SupabaseClient<Database>, dealId: string | null): Promise<string> {
+  if (!dealId) return "";
+
+  const { data: deal } = await admin
+    .from("deals")
+    .select("contact_id")
+    .eq("id", dealId)
+    .maybeSingle();
+  if (!deal?.contact_id) return "";
+
+  const { data: contact } = await admin
+    .from("contacts")
+    .select("emails")
+    .eq("id", deal.contact_id)
+    .maybeSingle();
+
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  return firstEmail((contact?.emails ?? []) as any[]);
 }
 
 async function reapStuck(admin: SupabaseClient<Database>): Promise<void> {
@@ -53,6 +81,15 @@ export async function POST(req: NextRequest) {
 
   for (const item of items) {
     try {
+      const toEmail = item.to_email || await resolveToEmail(admin, item.deal_id);
+      if (!toEmail) {
+        await admin.from("automation_email_queue")
+          .update({ status: "failed", error: "Nenhum email de contato encontrado para este negócio." })
+          .eq("id", item.id);
+        failed++;
+        continue;
+      }
+
       const { data: intRow } = await admin
         .from("integrations")
         .select("access_token, refresh_token, expires_at, id")
@@ -95,7 +132,7 @@ export async function POST(req: NextRequest) {
       }
 
       const raw = Buffer.from(
-        `To: ${item.to_email}\r\nSubject: ${item.subject}\r\nContent-Type: text/html; charset=utf-8\r\n\r\n${item.body}`
+        `To: ${toEmail}\r\nSubject: ${item.subject}\r\nContent-Type: text/html; charset=utf-8\r\n\r\n${item.body}`
       ).toString("base64").replace(/\+/g, "-").replace(/\//g, "_");
 
       const gmailRes = await fetch("https://gmail.googleapis.com/gmail/v1/users/me/messages/send", {
