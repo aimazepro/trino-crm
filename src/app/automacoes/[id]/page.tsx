@@ -113,6 +113,7 @@ const TRIGGER_TYPES: TriggerType[] = [
   "deal_lost",
   "deal_updated",
   "activity_created",
+  "lead_recebido",
 ];
 
 const ACTION_TYPES: ActionType[] = [
