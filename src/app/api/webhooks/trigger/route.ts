@@ -1,6 +1,7 @@
 import { createServerClient } from "@supabase/ssr";
 import { cookies } from "next/headers";
 import { isPrivateOrUnsafeUrl, hmacSha256 } from "@/lib/webhook-security";
+import { getWorkspaceContext } from "@/lib/workspace-context";
 
 export const dynamic = "force-dynamic";
 
@@ -31,9 +32,9 @@ async function createClient() {
 export async function POST(request: Request) {
   try {
     const supabase = await createClient();
-    const { data: { user } } = await supabase.auth.getUser();
+    const ctx = await getWorkspaceContext(supabase);
 
-    if (!user) {
+    if (!ctx) {
       return Response.json({ error: "Unauthorized" }, { status: 401 });
     }
 
@@ -98,9 +99,9 @@ export async function POST(request: Request) {
 
     // Log the delivery attempt in webhook_deliveries if we have a webhookId
     if (webhookId) {
-      await supabase.from("webhook_deliveries").insert({
+      const { error: deliveryError } = await supabase.from("webhook_deliveries").insert({
         webhook_id: webhookId,
-        user_id: user.id,
+        workspace_id: ctx.workspaceId,
         event: event,
         payload: payload,
         status: status,
@@ -109,6 +110,9 @@ export async function POST(request: Request) {
         sent_at: status === "sent" ? new Date().toISOString() : null,
         error: errorMessage,
       });
+      if (deliveryError) {
+        console.error("[webhooks/trigger] falha ao registrar webhook_deliveries:", deliveryError);
+      }
     }
 
     return Response.json({
