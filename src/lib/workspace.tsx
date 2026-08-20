@@ -1,45 +1,10 @@
 "use client";
 
 import { createContext, useContext, useEffect, useMemo, useState, ReactNode } from "react";
-import type { SupabaseClient } from "@supabase/supabase-js";
 import { createClient } from "@/lib/supabase/client";
-import type { Database } from "@/lib/supabase/database.types";
+import { getWorkspaceContext, type Role, type WorkspaceInfo } from "@/lib/workspace-context";
 
-export type Role = "admin" | "gerente" | "vendedor";
-
-export interface WorkspaceInfo {
-  workspaceId: string;
-  role: Role;
-  userId: string;
-}
-
-/**
- * Server-side lookup: who is this request, and which workspace/role do they
- * have. Pass the request's own Supabase client (route handler, server
- * component, middleware — whichever cookie context is live there).
- */
-export async function getWorkspaceContext(
-  supabase: SupabaseClient<Database>
-): Promise<WorkspaceInfo | null> {
-  const { data: { user } } = await supabase.auth.getUser();
-  if (!user) return null;
-
-  const { data: member } = await supabase
-    .from("workspace_members")
-    .select("workspace_id, role")
-    .eq("member_user_id", user.id)
-    .eq("status", "accepted")
-    .limit(1)
-    .maybeSingle();
-
-  if (!member) return null;
-
-  return {
-    workspaceId: member.workspace_id,
-    role: member.role as Role,
-    userId: user.id,
-  };
-}
+export type { Role, WorkspaceInfo };
 
 const WorkspaceContext = createContext<{ info: WorkspaceInfo | null; loading: boolean }>({
   info: null,
