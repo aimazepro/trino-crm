@@ -1,6 +1,7 @@
 import { createAdmin } from "@/lib/whatsapp/connection";
 import { authenticateApiRequest, apiError, apiSuccess } from "@/lib/api-auth";
 import { applyDealCustomFields } from "@/lib/api-lead-helpers";
+import type { Database } from "@/lib/supabase/database.types";
 
 export const dynamic = "force-dynamic";
 
@@ -41,7 +42,7 @@ export async function PATCH(request: Request, { params }: { params: Promise<{ id
   }
 
   if (Object.keys(patch).length > 0) {
-    const { error } = await admin.from("deals").update(patch as never).eq("id", id);
+    const { error } = await admin.from("deals").update(patch as Database["public"]["Tables"]["deals"]["Update"]).eq("id", id);
     if (error) return apiError("INTERNAL_ERROR", error.message, 500);
   }
 
