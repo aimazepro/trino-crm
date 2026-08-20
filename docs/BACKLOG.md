@@ -56,8 +56,20 @@ Sem features. Torna o produto honesto e seguro antes de crescer. `AUD §6`
   a chave e re-agendar os jobs lendo do Supabase Vault (`vault.decrypted_secrets`)
   ou via função `SECURITY DEFINER`. **Primeira coisa a fazer, antes de qualquer
   feature** — trava o score da auditoria em ≤69 sozinho. `AUD §S-1`
-  - [ ] Mesmo tratamento para `AUTOMATION_DISPATCH_SECRET`, que hoje também
-    está em texto puro no comando do job 2.
+  - [x] **Job 4 ("webhooks", 2026-08-20)** — `dispatch-webhooks` ganhou checagem
+    de bearer própria (`AUTOMATION_DISPATCH_SECRET`) e foi redeployado com
+    `verify_jwt: false`; o job trocou o header de `sb_secret_...` para
+    `AUTOMATION_DISPATCH_SECRET`. Verificado ao vivo (curl com/sem token,
+    ticks de cron sucessivos com 200). 1 dos 4 vazamentos fechado.
+  - [ ] **Jobs 1 ("email-queue") e 3 ("sequences")** ainda carregam o
+    `sb_secret_...` exposto em `cron.job.command` hoje — só serão apontados
+    para as novas rotas Next.js (`/api/automations/email-queue`,
+    `/api/automations/sequences`) e trocados para `AUTOMATION_DISPATCH_SECRET`
+    depois que esta branch for deployada (`vercel deploy --prod`) e as rotas
+    confirmadas no ar. SQL pronto em
+    `.superpowers/sdd/2026-08-19-motor-automacao-server-side/task-13-post-deploy-checklist.md`.
+  - [ ] Job novo `automations-run` (worker do motor de automação) também
+    fica pendente do mesmo deploy — mesmo checklist acima.
 - [ ] **Ocultar as telas de decoração** — `/configuracoes/billing` (manter no
   código, ver Fase 6), `/prospeccao`, `/analise-calls`. `AUD §6.3`
 - [ ] **Consertar os links 404** — `/configuracoes/api/docs` e

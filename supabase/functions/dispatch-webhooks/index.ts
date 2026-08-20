@@ -29,6 +29,13 @@ const supabase = createClient(
   Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!
 );
 
+function authorized(req: Request): boolean {
+  const expected = Deno.env.get("AUTOMATION_DISPATCH_SECRET") ?? "";
+  if (!expected) return false;
+  const presented = (req.headers.get("authorization") ?? "").replace(/^Bearer\s+/i, "");
+  return presented === expected;
+}
+
 async function hmacSha256(secret: string, body: string): Promise<string> {
   const key = await crypto.subtle.importKey(
     "raw",
@@ -41,7 +48,11 @@ async function hmacSha256(secret: string, body: string): Promise<string> {
   return Array.from(new Uint8Array(sig)).map(b => b.toString(16).padStart(2, "0")).join("");
 }
 
-Deno.serve(async () => {
+Deno.serve(async (req) => {
+  if (!authorized(req)) {
+    return new Response(JSON.stringify({ error: "Não autorizado" }), { status: 401 });
+  }
+
   const { data: deliveries } = await supabase
     .from("webhook_deliveries")
     .select("*, webhooks(url, secret)")
