@@ -7,7 +7,6 @@ import type {
   Label, HistoryLog, Note, DealProduct, Appointment, Activity, CrmNotification,
 } from "@/lib/crm-types";
 import { dealToDb } from "@/lib/crm-transforms";
-import { runAutomations } from "@/lib/run-automations";
 
 interface MutationParams {
   state: CrmState;
@@ -39,9 +38,6 @@ export function useCrmMutations({ state, setState, userId, workspaceId, supabase
       .then(({ error }) => { if (error) console.error("[CRM] moveDeal failed:", error); });
     supabase.from("deal_history").insert({ deal_id: dealId, description, subtext })
       .then(({ error }) => { if (error) console.error("[CRM] moveDeal history insert failed:", error); });
-    if (deal && workspaceId) {
-      runAutomations("stage_changed", { ...deal, stageId: newStageId }, { workspaceId, pipelines: state.pipelines });
-    }
   };
 
   const moveDealToPipeline = (dealId: string, newPipelineId: string, newStageId: string) => {
@@ -91,9 +87,6 @@ export function useCrmMutations({ state, setState, userId, workspaceId, supabase
       .then(({ error }) => { if (error) console.error("[CRM] markDealStatus history insert failed:", error); });
 
     if (deal && userId && workspaceId && (status === "Ganho" || status === "Perdido")) {
-      const trigger = status === "Ganho" ? "deal_won" : "deal_lost";
-      runAutomations(trigger, { ...deal, status, lossReason: reason }, { workspaceId, pipelines: state.pipelines });
-
       const notifSub = status === "Ganho" ? "Negocio ganho!" : "Negocio perdido";
       supabase.from("notifications").insert({
         user_id: userId, workspace_id: workspaceId, type: "deal_status", title: deal.title,
@@ -135,9 +128,6 @@ export function useCrmMutations({ state, setState, userId, workspaceId, supabase
           addDealHistory(dealId, `${label} alterado`, "");
         }
       }
-    }
-    if (deal && workspaceId) {
-      runAutomations("deal_updated", { ...deal, ...fields }, { workspaceId, pipelines: state.pipelines });
     }
     const dbFields = dealToDb(fields);
     if (Object.keys(dbFields).length > 0) {
@@ -245,7 +235,6 @@ export function useCrmMutations({ state, setState, userId, workspaceId, supabase
     };
     const newDeal: Deal = { ...deal, id: data.id, history: [firstLog], notes: [], products: [], activities: [], appointments: [] };
     setState((prev) => ({ ...prev, deals: [...prev.deals, newDeal] }));
-    if (workspaceId) runAutomations("deal_created", newDeal, { workspaceId, pipelines: state.pipelines });
     return data.id;
   };
 
@@ -686,9 +675,6 @@ export function useCrmMutations({ state, setState, userId, workspaceId, supabase
             .catch((e) => console.error("[CRM] calendar push failed:", e));
         }
       });
-    }
-    if (deal && workspaceId) {
-      runAutomations("activity_created", deal, { workspaceId, pipelines: state.pipelines });
     }
   };
 
