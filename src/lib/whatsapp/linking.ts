@@ -1,3 +1,4 @@
+import type { Database } from "@/lib/supabase/database.types";
 // Ties a phone number to the CRM records behind it.
 //
 // Both entry points need this and must agree: a conversation opened from a deal
@@ -22,7 +23,7 @@ export interface ConversationLinks {
 const ACTIVE_DEAL_STATUS = "Ativo";
 
 export async function resolveConversationLinks(
-  admin: SupabaseClient,
+  admin: SupabaseClient<Database>,
   userId: string,
   phone: string,
 ): Promise<ConversationLinks> {
@@ -37,7 +38,7 @@ export async function resolveConversationLinks(
     admin
       .from("deals")
       .select("id, owner_id, status, updated_at")
-      .eq("user_id", userId)
+      .eq("workspace_id", userId)
       .eq("contact_id", contactId as string)
       .is("deleted_at", null)
       .order("updated_at", { ascending: false })

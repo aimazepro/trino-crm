@@ -3,6 +3,7 @@
 import { useState, useEffect, useCallback, useRef } from "react";
 import { Plus, MessageSquare, X, Trash2, Pencil, CircleCheck } from "lucide-react";
 import { createClient } from "@/lib/supabase/client";
+import { useWorkspace } from "@/lib/workspace";
 
 type Template = { id: string; name: string; message: string };
 
@@ -25,6 +26,7 @@ type FormMode =
 
 export default function TemplatesWhatsAppPage() {
   const supabase = createClient();
+  const { workspaceId } = useWorkspace();
   const [templates, setTemplates] = useState<Template[]>([]);
   const [loading, setLoading] = useState(true);
   const [mode, setMode] = useState<FormMode>({ type: "none" });
@@ -50,7 +52,6 @@ export default function TemplatesWhatsAppPage() {
     const { data } = await supabase
       .from("whatsapp_templates")
       .select("*")
-      .eq("user_id", user.id)
       .order("created_at");
     setTemplates(data ?? []);
     setLoading(false);
@@ -120,7 +121,7 @@ export default function TemplatesWhatsAppPage() {
       const { data, error } = await supabase
         .from("whatsapp_templates")
         .insert({
-          user_id: user.id,
+          workspace_id: workspaceId,
           name: form.name.trim(),
           message: form.message.trim(),
         })

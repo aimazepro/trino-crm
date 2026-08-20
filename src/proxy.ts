@@ -5,7 +5,9 @@ export async function proxy(request: NextRequest) {
   const { supabase, response } = createMiddlewareClient(request);
   const { data: { user } } = await supabase.auth.getUser();
 
-  const isAuthPage = request.nextUrl.pathname.startsWith("/login");
+  const isAuthPage =
+    request.nextUrl.pathname.startsWith("/login") ||
+    request.nextUrl.pathname.startsWith("/convite");
 
   if (!user && !isAuthPage) {
     return NextResponse.redirect(new URL("/login", request.url));
@@ -24,5 +26,5 @@ export async function proxy(request: NextRequest) {
 // and never retries. api/whatsapp/queue is pg_cron; it authenticates with
 // AUTOMATION_DISPATCH_SECRET inside the route.
 export const config = {
-  matcher: ["/((?!_next/static|_next/image|favicon.ico|api/auth/callback|api/track|api/whatsapp/webhook|api/whatsapp/queue|.*\\.(?:svg|png|jpg|jpeg|gif|webp)$).*)"],
+  matcher: ["/((?!_next/static|_next/image|favicon.ico|api/auth/callback|api/track|api/whatsapp/webhook|api/whatsapp/queue|api/convites/aceitar|.*\\.(?:svg|png|jpg|jpeg|gif|webp)$).*)"],
 };

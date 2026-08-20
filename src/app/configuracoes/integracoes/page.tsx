@@ -41,7 +41,7 @@ export default function IntegracoesPage() {
   const [form, setForm] = useState({ funnel: FUNNELS[0], stage: STAGES[0], owner: OWNERS[0] });
   const [openAccordion, setOpenAccordion] = useState<string | null>(null);
   const [copied, setCopied] = useState<string | null>(null);
-  const [gmailIntegration, setGmailIntegration] = useState<{ account_email: string } | null>(null);
+  const [gmailIntegration, setGmailIntegration] = useState<{ account_email: string | null; active: boolean } | null>(null);
   const [gmailLoading, setGmailLoading] = useState(true);
   const searchParams = useSearchParams();
 

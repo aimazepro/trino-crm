@@ -3,6 +3,7 @@
 import { useState, useEffect, useCallback } from "react";
 import { Plus, Search, Edit2, Trash2, Package } from "lucide-react";
 import { createClient } from "@/lib/supabase/client";
+import { useWorkspace } from "@/lib/workspace";
 import { cn } from "@/lib/utils";
 
 type Product = {
@@ -27,6 +28,7 @@ const UNITS = [
 
 export default function ProdutosConfigPage() {
   const supabase = createClient();
+  const { workspaceId } = useWorkspace();
   const [products, setProducts] = useState<Product[]>([]);
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState("");
@@ -53,7 +55,6 @@ export default function ProdutosConfigPage() {
     const { data } = await supabase
       .from("products")
       .select("*")
-      .eq("user_id", user.id)
       .order("created_at");
 
     setProducts(data ?? []);
@@ -95,7 +96,7 @@ export default function ProdutosConfigPage() {
     if (!user) { setSaving(false); return; }
 
     const productPayload = {
-      user_id: user.id,
+      workspace_id: workspaceId,
       name: form.name.trim(),
       description: form.description.trim() || null,
       sku: form.code.trim() || null,

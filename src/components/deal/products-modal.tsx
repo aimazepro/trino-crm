@@ -5,6 +5,7 @@ import { X, Trash2, Plus, Search } from "lucide-react";
 import { useCrm } from "@/contexts/crm-context";
 import { DealProduct, Deal } from "@/lib/crm-types";
 import { createClient } from "@/lib/supabase/client";
+import { useWorkspace } from "@/lib/workspace";
 
 interface ProductsModalProps {
   deal: Deal;
@@ -13,8 +14,9 @@ interface ProductsModalProps {
 
 export function ProductsModal({ deal, onClose }: ProductsModalProps) {
   const { updateDealFields } = useCrm();
+  const { workspaceId } = useWorkspace();
   const [products, setProducts] = useState<DealProduct[]>(deal.products || []);
-  
+
   const [newName, setNewName] = useState("");
   const [newQuantity, setNewQuantity] = useState(1);
   const [newPrice, setNewPrice] = useState("");
@@ -33,7 +35,7 @@ export function ProductsModal({ deal, onClose }: ProductsModalProps) {
       const { data } = await supabase
         .from("products")
         .select("*")
-        .eq("user_id", user.id)
+        .eq("workspace_id", workspaceId)
         .order("name");
 
       if (data) {
@@ -41,7 +43,7 @@ export function ProductsModal({ deal, onClose }: ProductsModalProps) {
       }
     };
     fetchCatalog();
-  }, []);
+  }, [workspaceId]);
 
   useEffect(() => {
     const handleOutsideClick = (e: MouseEvent) => {

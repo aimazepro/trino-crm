@@ -1,3 +1,4 @@
+import type { Database } from "@/lib/supabase/database.types";
 // Media storage for WhatsApp attachments.
 //
 // Supabase Storage today; the whole surface is these two functions plus a
@@ -13,7 +14,7 @@ export const MEDIA_BUCKET = "whatsapp-media";
 export const SIGNED_URL_TTL_SECONDS = 60 * 60;
 
 export async function putMedia(
-  admin: SupabaseClient,
+  admin: SupabaseClient<Database>,
   params: {
     ownerId: string;
     conversationId: string;
@@ -37,7 +38,7 @@ export async function putMedia(
 }
 
 export async function getMediaSignedUrl(
-  client: SupabaseClient,
+  client: SupabaseClient<Database>,
   path: string,
 ): Promise<string | null> {
   const { data, error } = await client.storage

@@ -11,6 +11,7 @@ import { Contact, Company } from "@/lib/crm-types";
 import { cn } from "@/lib/utils";
 import { createClient } from "@/lib/supabase/client";
 import { getDaysInStage, getStageTimeColor } from "@/lib/stage-time";
+import { useWorkspace } from "@/lib/workspace";
 
 interface DealSidebarProps {
   dealId: string;
@@ -723,6 +724,7 @@ function renderCustomFieldInput(
 
 function DealCustomFields({ dealId }: { dealId: string }) {
   const supabase = createClient();
+  const { workspaceId } = useWorkspace();
   const [fields, setFields] = useState<CustomFieldDef[]>([]);
   const [values, setValues] = useState<Record<string, string>>({});
   const [usersList, setUsersList] = useState<Array<{ id: string; name: string }>>([]);
@@ -736,9 +738,9 @@ function DealCustomFields({ dealId }: { dealId: string }) {
     if (!user) return;
 
     const [{ data: fRows }, { data: vRows }, { data: members }] = await Promise.all([
-      supabase.from("custom_fields").select("id,label,field_type,field_group,required,options").eq("user_id", user.id).eq("entity", "deal").order("sort_order"),
+      supabase.from("custom_fields").select("id,label,field_type,field_group,required,options").eq("workspace_id", workspaceId).eq("entity", "deal").order("sort_order"),
       supabase.from("deal_field_values").select("field_id,value").eq("deal_id", dealId),
-      supabase.from("team_members").select("member_user_id, name, email").eq("status", "active"),
+      supabase.from("workspace_members").select("member_user_id, name, email").eq("workspace_id", workspaceId).eq("status", "active"),
     ]);
 
     setFields(fRows ?? []);
@@ -761,7 +763,7 @@ function DealCustomFields({ dealId }: { dealId: string }) {
       for (const g of groups) if (!(g in next)) next[g] = true;
       return next;
     });
-  }, [supabase, dealId]);
+  }, [supabase, dealId, workspaceId]);
 
   useEffect(() => { load(); }, [load]);
 

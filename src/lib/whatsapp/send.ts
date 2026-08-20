@@ -1,3 +1,4 @@
+import type { Database } from "@/lib/supabase/database.types";
 // Sending a message, independent of who asked for it.
 //
 // Two callers share this: the salesperson typing in /conversas, and the
@@ -59,7 +60,7 @@ export interface SendOutcome {
  * than left as duplicate threads for the same person.
  */
 async function verifyJid(
-  admin: SupabaseClient,
+  admin: SupabaseClient<Database>,
   connection: WhatsAppConnection,
   row: { id: string; phone: string; remote_jid: string },
 ): Promise<{ id: string; phone: string }> {
@@ -103,7 +104,7 @@ async function verifyJid(
 }
 
 export async function resolveConversation(
-  admin: SupabaseClient,
+  admin: SupabaseClient<Database>,
   connection: WhatsAppConnection,
   input: { conversationId?: string; phone?: string },
 ): Promise<{ id: string; phone: string } | null> {
@@ -113,7 +114,7 @@ export async function resolveConversation(
       .select("id, phone, remote_jid, jid_verified")
       // Scoped to the workspace so a forged id can't send from someone else's number.
       .eq("id", input.conversationId)
-      .eq("user_id", connection.userId)
+      .eq("workspace_id", connection.userId)
       .maybeSingle();
 
     if (!data) return null;
@@ -147,7 +148,7 @@ export async function resolveConversation(
   const { data: created, error } = await admin
     .from("whatsapp_conversations")
     .insert({
-      user_id: connection.userId,
+      workspace_id: connection.userId,
       connection_id: connection.id,
       remote_jid: jid,
       phone,
@@ -172,7 +173,7 @@ export async function resolveConversation(
  * conversation — are thrown, because there is nothing in the thread to explain.
  */
 export async function sendWhatsAppMessage(
-  admin: SupabaseClient,
+  admin: SupabaseClient<Database>,
   connection: WhatsAppConnection,
   input: SendInput,
 ): Promise<SendOutcome> {
@@ -218,7 +219,7 @@ export async function sendWhatsAppMessage(
   const { data: pending, error: insertError } = await admin
     .from("whatsapp_messages")
     .insert({
-      user_id: connection.userId,
+      workspace_id: connection.userId,
       conversation_id: conversation.id,
       from_me: true,
       type: messageType,

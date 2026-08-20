@@ -1,5 +1,6 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
 import type { Pipeline, PipelineStage } from "@/lib/crm-types";
+import type { Database } from "@/lib/supabase/database.types";
 
 const DEFAULT_PIPELINES = [
   { name: "Prospecção", stages: ["Entrada de Leads", "Tentando contato", "Contato realizado com a empresa", "Contato realizado com o decisor", "Reunião Agendada"] },
@@ -9,7 +10,7 @@ const DEFAULT_PIPELINES = [
 ];
 
 export async function seedDefaultPipelines(
-  supabase: SupabaseClient,
+  supabase: SupabaseClient<Database>,
   userId: string,
   pipelines: Pipeline[],
 ): Promise<Pipeline[]> {
@@ -17,7 +18,7 @@ export async function seedDefaultPipelines(
 
   const result: Pipeline[] = [];
   for (const def of DEFAULT_PIPELINES) {
-    const { data: pData } = await supabase.from("pipelines").insert({ user_id: userId, name: def.name }).select().single();
+    const { data: pData } = await supabase.from("pipelines").insert({ workspace_id: userId, name: def.name }).select().single();
     if (pData) {
       const stageRows = def.stages.map((s, i) => ({ pipeline_id: pData.id, name: s, max_days: 7, order: i }));
       const { data: sData } = await supabase.from("pipeline_stages").insert(stageRows).select();

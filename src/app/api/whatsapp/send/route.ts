@@ -3,7 +3,7 @@ import {
   createAdmin,
   getSessionUser,
   loadConnection,
-  resolveWorkspaceOwner,
+  resolveWorkspaceId,
 } from "@/lib/whatsapp/connection";
 import {
   ConversationNotFoundError,
@@ -32,7 +32,7 @@ export async function POST(req: NextRequest) {
   if (!user) return NextResponse.json({ error: "Não autenticado" }, { status: 401 });
 
   const admin = createAdmin();
-  const ownerId = await resolveWorkspaceOwner(admin, user.id);
+  const ownerId = await resolveWorkspaceId(admin, user.id);
   const connection = await loadConnection(admin, ownerId);
 
   if (!connection || connection.status !== "open") {

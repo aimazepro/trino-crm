@@ -3,7 +3,7 @@ import {
   createAdmin,
   getSessionUser,
   loadConnection,
-  resolveWorkspaceOwner,
+  resolveWorkspaceId,
   updateConnection,
 } from "@/lib/whatsapp/connection";
 import { getDriver } from "@/lib/whatsapp";
@@ -15,7 +15,7 @@ export async function GET() {
   if (!user) return NextResponse.json({ error: "Não autenticado" }, { status: 401 });
 
   const admin = createAdmin();
-  const ownerId = await resolveWorkspaceOwner(admin, user.id);
+  const ownerId = await resolveWorkspaceId(admin, user.id);
   const connection = await loadConnection(admin, ownerId);
 
   if (!connection || !connection.instanceId) {

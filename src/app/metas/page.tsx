@@ -6,6 +6,7 @@ import { cn } from "@/lib/utils";
 import { useRouter } from "next/navigation";
 import { createClient } from "@/lib/supabase/client";
 import { fetchGoalProgress } from "@/lib/goals-helpers";
+import { useWorkspace } from "@/lib/workspace";
 
 type GoalType = "Negócios Adicionados" | "Negócios em Andamento" | "Negócios Ganhos" | "Receita" | "Atividades";
 
@@ -26,6 +27,7 @@ const PERIOD_LABELS: Record<string, string> = {
 export default function MetasPage() {
   const router = useRouter();
   const supabase = createClient();
+  const { workspaceId } = useWorkspace();
   
   const [goals, setGoals] = useState<any[]>([]);
   const [pipelines, setPipelines] = useState<any[]>([]);
@@ -63,9 +65,9 @@ export default function MetasPage() {
     const userList = [{ id: userId, name: selfName }];
 
     const { data: members } = await supabase
-      .from("team_members")
+      .from("workspace_members")
       .select("member_user_id, name, email")
-      .or(`owner_user_id.eq.${userId},member_user_id.eq.${userId}`)
+      .eq("workspace_id", workspaceId)
       .eq("status", "active");
 
     (members ?? []).forEach((m) => {
@@ -75,7 +77,7 @@ export default function MetasPage() {
     });
 
     setUsers(userList);
-  }, [supabase]);
+  }, [supabase, workspaceId]);
 
   const loadGoals = useCallback(async () => {
     setLoading(true);
@@ -90,7 +92,7 @@ export default function MetasPage() {
     const { data: goalsData } = await supabase
       .from("goals")
       .select("*")
-      .eq("user_id", user.id)
+      .eq("workspace_id", workspaceId)
       .order("created_at", { ascending: false });
 
     const loadedGoals = goalsData ?? [];
@@ -105,7 +107,7 @@ export default function MetasPage() {
 
     setGoals(goalsWithProgress);
     setLoading(false);
-  }, [supabase, loadOptionsData]);
+  }, [supabase, workspaceId, loadOptionsData]);
 
   useEffect(() => {
     loadGoals();
@@ -157,7 +159,7 @@ export default function MetasPage() {
     const { data, error } = await supabase
       .from("goals")
       .insert({
-        user_id: user.id,
+        workspace_id: workspaceId,
         title: finalName,
         goal_type: selectedType,
         metric: finalMetric,

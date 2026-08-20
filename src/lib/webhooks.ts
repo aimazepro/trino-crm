@@ -1,5 +1,6 @@
 import crypto from "crypto";
 import type { SupabaseClient } from "@supabase/supabase-js";
+import type { Database } from "@/lib/supabase/database.types";
 
 const PRIVATE_IP_PATTERNS = [
   /^127\./,
@@ -43,7 +44,7 @@ type WebhookRow = {
  * webhook_deliveries. Fire-and-forget per webhook; failures never throw.
  */
 export async function dispatchWebhooks(
-  admin: SupabaseClient,
+  admin: SupabaseClient<Database>,
   userId: string,
   eventKey: string,
   eventCode: string,
@@ -53,7 +54,7 @@ export async function dispatchWebhooks(
   const { data } = await admin
     .from("webhooks")
     .select("id, url, events, secret, active")
-    .eq("user_id", userId)
+    .eq("workspace_id", userId)
     .eq("active", true);
 
   const hooks = ((data ?? []) as WebhookRow[]).filter((w) =>
@@ -104,7 +105,7 @@ export async function dispatchWebhooks(
 
       await admin.from("webhook_deliveries").insert({
         webhook_id: wh.id,
-        user_id: userId,
+        workspace_id: userId,
         event: eventCode,
         payload: envelope,
         status,

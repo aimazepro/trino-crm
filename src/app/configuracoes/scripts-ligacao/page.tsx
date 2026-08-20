@@ -3,6 +3,7 @@
 import { useState, useEffect } from "react";
 import { Plus, Phone, X, Trash2, Edit2 } from "lucide-react";
 import { createClient } from "@/lib/supabase/client";
+import { useWorkspace } from "@/lib/workspace";
 
 type Script = { id: string; name: string; content: string };
 
@@ -13,12 +14,11 @@ export default function ScriptsPage() {
   const [showModal, setShowModal] = useState(false);
   const [form, setForm] = useState({ name: "", content: "" });
   const supabase = createClient();
+  const { workspaceId } = useWorkspace();
 
   useEffect(() => {
     async function load() {
-      const { data: { user } } = await supabase.auth.getUser();
-      if (!user) return;
-      const { data } = await supabase.from("scripts").select("id, name, content").eq("user_id", user.id).order("created_at");
+      const { data } = await supabase.from("scripts").select("id, name, content").order("created_at");
       setScripts(data ?? []);
     }
     load();
@@ -26,10 +26,8 @@ export default function ScriptsPage() {
 
   const handleSave = async () => {
     if (!form.name.trim()) return;
-    const { data: { user } } = await supabase.auth.getUser();
-    if (!user) return;
     const { data } = await supabase.from("scripts").insert({
-      user_id: user.id, name: form.name, content: form.content,
+      workspace_id: workspaceId, name: form.name, content: form.content,
     }).select("id, name, content").single();
     if (data) setScripts([...scripts, data]);
     setForm({ name: "", content: "" });

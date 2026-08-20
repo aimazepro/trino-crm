@@ -16,6 +16,7 @@ import {
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { createClient } from "@/lib/supabase/client";
+import { useWorkspace } from "@/lib/workspace";
 import { useCrm } from "@/contexts/crm-context";
 import type { ImportRequest } from "@/app/api/import/csv/route";
 
@@ -105,6 +106,7 @@ const DEFAULT_COLUMNS: CSVColumnMapping[] = [
 
 export default function ImportacaoPage() {
   const { state } = useCrm();
+  const { workspaceId } = useWorkspace();
   const [activeTab, setActiveTab] = useState<"nova" | "historico">("nova");
   const [currentStep, setCurrentStep] = useState<Step>(1);
   const [dragOver, setDragOver] = useState(false);
@@ -151,9 +153,9 @@ export default function ImportacaoPage() {
       const { data: { user } } = await supabase.auth.getUser();
       if (!user) return;
       const { data } = await supabase
-        .from("team_members")
-        .select("member_user_id, name, email, owner_user_id, status")
-        .or(`owner_user_id.eq.${user.id},member_user_id.eq.${user.id}`)
+        .from("workspace_members")
+        .select("member_user_id, name, email, status")
+        .eq("workspace_id", workspaceId)
         .eq("status", "accepted");
       const opts: OwnerOption[] = [];
       (data ?? []).forEach((m) => {
@@ -164,7 +166,7 @@ export default function ImportacaoPage() {
       if (!cancelled) setOwnerOptions(opts);
     })();
     return () => { cancelled = true; };
-  }, []);
+  }, [workspaceId]);
 
   // Calculated properties
   const isEtapaMapped = Object.values(mappings).includes("dealStageName");

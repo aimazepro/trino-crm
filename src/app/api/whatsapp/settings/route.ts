@@ -3,7 +3,7 @@ import {
   createAdmin,
   getSessionUser,
   loadConnection,
-  resolveWorkspaceOwner,
+  resolveWorkspaceId,
   updateConnection,
 } from "@/lib/whatsapp/connection";
 
@@ -21,7 +21,7 @@ export async function PATCH(req: NextRequest) {
   if (!user) return NextResponse.json({ error: "Não autenticado" }, { status: 401 });
 
   const admin = createAdmin();
-  const ownerId = await resolveWorkspaceOwner(admin, user.id);
+  const ownerId = await resolveWorkspaceId(admin, user.id);
   if (ownerId !== user.id) {
     return NextResponse.json(
       { error: "Só o dono da conta pode alterar a assinatura." },

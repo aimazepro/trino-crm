@@ -4,6 +4,7 @@ import { useState, useEffect } from "react";
 import { ChevronDown } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { createClient } from "@/lib/supabase/client";
+import { useWorkspace } from "@/lib/workspace";
 
 const FALLBACK = ["Preço", "Concorrência", "Timing ruim", "Sem budget", "Produto não atende", "Sem resposta", "Não qualificado", "Outros"];
 
@@ -17,19 +18,20 @@ export function LossReasonModal({ onConfirm, onCancel }: LossReasonModalProps) {
   const [selectedTag, setSelectedTag] = useState("");
   const [description, setDescription] = useState("");
   const supabase = createClient();
+  const { workspaceId } = useWorkspace();
 
   useEffect(() => {
     async function load() {
       const { data: { user } } = await supabase.auth.getUser();
       if (!user) return;
-      const { data } = await supabase.from("loss_reasons").select("name").eq("user_id", user.id).eq("active", true).order("sort_order");
+      const { data } = await supabase.from("loss_reasons").select("name").eq("workspace_id", workspaceId).eq("active", true).order("sort_order");
       if (data && data.length > 0) {
         const unique = Array.from(new Set([...data.map(r => r.name), "Outros"]));
         setReasons(unique);
       }
     }
     load();
-  }, [supabase]);
+  }, [supabase, workspaceId]);
 
   const handleConfirm = () => {
     const finalReason = selectedTag === "Outros"

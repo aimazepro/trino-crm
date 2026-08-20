@@ -36,10 +36,9 @@ export function useOwnerNameMap(): {
       const nextAvatars: Record<string, string | null> = { [user.id]: selfAvatar };
 
       const { data } = await supabase
-        .from("team_members")
-        .select("member_user_id, name, email, owner_user_id, status")
-        .or(`owner_user_id.eq.${user.id},member_user_id.eq.${user.id}`)
-        .eq("status", "active");
+        .from("workspace_members")
+        .select("member_user_id, name, email, status")
+        .eq("status", "accepted");
 
       (data ?? []).forEach((m) => {
         if (m.member_user_id) {

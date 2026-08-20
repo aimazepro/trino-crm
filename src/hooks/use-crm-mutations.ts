@@ -1,6 +1,7 @@
 "use client";
 
 import type { SupabaseClient } from "@supabase/supabase-js";
+import type { Database } from "@/lib/supabase/database.types";
 import type {
   CrmState, Pipeline, PipelineStage, Deal, Contact, Company,
   Label, HistoryLog, Note, DealProduct, Appointment, Activity, CrmNotification,
@@ -12,10 +13,11 @@ interface MutationParams {
   state: CrmState;
   setState: React.Dispatch<React.SetStateAction<CrmState>>;
   userId: string | null;
-  supabase: SupabaseClient;
+  workspaceId: string | null;
+  supabase: SupabaseClient<Database>;
 }
 
-export function useCrmMutations({ state, setState, userId, supabase }: MutationParams) {
+export function useCrmMutations({ state, setState, userId, workspaceId, supabase }: MutationParams) {
   const moveDeal = (dealId: string, newStageId: string) => {
     const deal = state.deals.find((d) => d.id === dealId);
     const allStages = state.pipelines.flatMap((p) => p.stages);
@@ -37,8 +39,8 @@ export function useCrmMutations({ state, setState, userId, supabase }: MutationP
       .then(({ error }) => { if (error) console.error("[CRM] moveDeal failed:", error); });
     supabase.from("deal_history").insert({ deal_id: dealId, description, subtext })
       .then(({ error }) => { if (error) console.error("[CRM] moveDeal history insert failed:", error); });
-    if (deal && userId) {
-      runAutomations("stage_changed", { ...deal, stageId: newStageId }, { userId, pipelines: state.pipelines });
+    if (deal && workspaceId) {
+      runAutomations("stage_changed", { ...deal, stageId: newStageId }, { workspaceId, pipelines: state.pipelines });
     }
   };
 
@@ -88,13 +90,13 @@ export function useCrmMutations({ state, setState, userId, supabase }: MutationP
     supabase.from("deal_history").insert({ deal_id: dealId, description, subtext })
       .then(({ error }) => { if (error) console.error("[CRM] markDealStatus history insert failed:", error); });
 
-    if (deal && userId && (status === "Ganho" || status === "Perdido")) {
+    if (deal && userId && workspaceId && (status === "Ganho" || status === "Perdido")) {
       const trigger = status === "Ganho" ? "deal_won" : "deal_lost";
-      runAutomations(trigger, { ...deal, status, lossReason: reason }, { userId, pipelines: state.pipelines });
+      runAutomations(trigger, { ...deal, status, lossReason: reason }, { workspaceId, pipelines: state.pipelines });
 
       const notifSub = status === "Ganho" ? "Negocio ganho!" : "Negocio perdido";
       supabase.from("notifications").insert({
-        user_id: userId, type: "deal_status", title: deal.title,
+        user_id: userId, workspace_id: workspaceId, type: "deal_status", title: deal.title,
         subtext: notifSub, href: `/negocios/${dealId}`, read: false,
       }).then(({ error }) => {
         if (error) {
@@ -134,12 +136,12 @@ export function useCrmMutations({ state, setState, userId, supabase }: MutationP
         }
       }
     }
-    if (deal && userId) {
-      runAutomations("deal_updated", { ...deal, ...fields }, { userId, pipelines: state.pipelines });
+    if (deal && workspaceId) {
+      runAutomations("deal_updated", { ...deal, ...fields }, { workspaceId, pipelines: state.pipelines });
     }
     const dbFields = dealToDb(fields);
     if (Object.keys(dbFields).length > 0) {
-      supabase.from("deals").update(dbFields).eq("id", dealId)
+      supabase.from("deals").update(dbFields as Database["public"]["Tables"]["deals"]["Update"]).eq("id", dealId)
         .then(({ error }) => { if (error) console.error("[CRM] updateDealFields failed:", error); });
     }
     if (fields.labels !== undefined) {
@@ -218,9 +220,9 @@ export function useCrmMutations({ state, setState, userId, supabase }: MutationP
   };
 
   const addDeal = async (deal: Deal): Promise<string | null> => {
-    if (!userId) { console.error("[CRM] addDeal: no userId"); alert("Sessão ainda carregando."); return null; }
+    if (!userId || !workspaceId) { console.error("[CRM] addDeal: no userId/workspaceId"); alert("Sessão ainda carregando."); return null; }
     const { data, error } = await supabase.from("deals").insert({
-      user_id: userId, title: deal.title, value: deal.value,
+      workspace_id: workspaceId, title: deal.title, value: deal.value,
       contact_id: deal.contactId || null, company_id: deal.companyId || null,
       pipeline_id: deal.pipelineId, stage_id: deal.stageId, status: deal.status, days_in_stage: 0,
       owner_id: deal.ownerId || userId,
@@ -243,7 +245,7 @@ export function useCrmMutations({ state, setState, userId, supabase }: MutationP
     };
     const newDeal: Deal = { ...deal, id: data.id, history: [firstLog], notes: [], products: [], activities: [], appointments: [] };
     setState((prev) => ({ ...prev, deals: [...prev.deals, newDeal] }));
-    runAutomations("deal_created", newDeal, { userId, pipelines: state.pipelines });
+    if (workspaceId) runAutomations("deal_created", newDeal, { workspaceId, pipelines: state.pipelines });
     return data.id;
   };
 
@@ -280,9 +282,9 @@ export function useCrmMutations({ state, setState, userId, supabase }: MutationP
 
   const duplicateDeal = async (dealId: string): Promise<string | null> => {
     const source = state.deals.find((d) => d.id === dealId);
-    if (!source || !userId) return null;
+    if (!source || !userId || !workspaceId) return null;
     const { data, error } = await supabase.from("deals").insert({
-      user_id: userId, title: `${source.title} (cópia)`, value: source.value,
+      workspace_id: workspaceId, title: `${source.title} (cópia)`, value: source.value,
       contact_id: source.contactId || null, company_id: source.companyId || null,
       pipeline_id: source.pipelineId, stage_id: source.stageId, status: "Ativo", days_in_stage: 0,
       owner_id: source.ownerId || userId, source: source.source || null, probability: source.probability ?? null,
@@ -376,8 +378,8 @@ export function useCrmMutations({ state, setState, userId, supabase }: MutationP
   };
 
   const addPipeline = async (pipeline: Pipeline): Promise<string | null> => {
-    if (!userId) { console.error("[CRM] addPipeline: userId not loaded"); alert("Sessão ainda carregando. Tente novamente."); return null; }
-    const { data, error } = await supabase.from("pipelines").insert({ user_id: userId, name: pipeline.name }).select().single();
+    if (!workspaceId) { console.error("[CRM] addPipeline: workspaceId not loaded"); alert("Sessão ainda carregando. Tente novamente."); return null; }
+    const { data, error } = await supabase.from("pipelines").insert({ workspace_id: workspaceId, name: pipeline.name }).select().single();
     if (error || !data) {
       console.error("[CRM] addPipeline failed:", error);
       alert(`Erro ao criar pipeline: ${error?.message ?? "desconhecido"}`);
@@ -447,13 +449,13 @@ export function useCrmMutations({ state, setState, userId, supabase }: MutationP
 
   const logContactHistory = (contactId: string, description: string, subtext = "") => {
     if (!userId) return;
-    supabase.from("contact_history").insert({ contact_id: contactId, user_id: userId, description, subtext })
+    supabase.from("contact_history").insert({ contact_id: contactId, actor_user_id: userId, description, subtext })
       .then(({ error }) => { if (error) console.error("[CRM] logContactHistory failed:", error); });
   };
 
   const logCompanyHistory = (companyId: string, description: string, subtext = "") => {
     if (!userId) return;
-    supabase.from("company_history").insert({ company_id: companyId, user_id: userId, description, subtext })
+    supabase.from("company_history").insert({ company_id: companyId, actor_user_id: userId, description, subtext })
       .then(({ error }) => { if (error) console.error("[CRM] logCompanyHistory failed:", error); });
   };
 
@@ -475,7 +477,7 @@ export function useCrmMutations({ state, setState, userId, supabase }: MutationP
         }
       }
     }
-    const db: Record<string, unknown> = {};
+    const db: Database["public"]["Tables"]["contacts"]["Update"] = {};
     if (fields.name !== undefined) db.name = fields.name;
     if (fields.role !== undefined) db.role = fields.role;
     if (fields.companyId !== undefined) db.company_id = fields.companyId ?? null;
@@ -488,9 +490,9 @@ export function useCrmMutations({ state, setState, userId, supabase }: MutationP
   };
 
   const addContact = async (contact: Contact): Promise<string | null> => {
-    if (!userId) { alert("Sessão ainda carregando."); return null; }
+    if (!workspaceId) { alert("Sessão ainda carregando."); return null; }
     const { data, error } = await supabase.from("contacts").insert({
-      user_id: userId, name: contact.name, role: contact.role, company_id: contact.companyId ?? null,
+      workspace_id: workspaceId, name: contact.name, role: contact.role, company_id: contact.companyId ?? null,
       emails: contact.emails, phones: contact.phones,
     }).select().single();
     if (error || !data) {
@@ -526,7 +528,7 @@ export function useCrmMutations({ state, setState, userId, supabase }: MutationP
         }
       }
     }
-    const db: Record<string, unknown> = {};
+    const db: Database["public"]["Tables"]["companies"]["Update"] = {};
     if (fields.name !== undefined) db.name = fields.name;
     if (fields.website !== undefined) db.website = fields.website ?? null;
     if (fields.segment !== undefined) db.segment = fields.segment ?? null;
@@ -541,9 +543,9 @@ export function useCrmMutations({ state, setState, userId, supabase }: MutationP
   };
 
   const addCompany = async (company: Company): Promise<string | null> => {
-    if (!userId) { alert("Sessão ainda carregando."); return null; }
+    if (!workspaceId) { alert("Sessão ainda carregando."); return null; }
     const { data, error } = await supabase.from("companies").insert({
-      user_id: userId, name: company.name, website: company.website ?? null,
+      workspace_id: workspaceId, name: company.name, website: company.website ?? null,
       segment: company.segment ?? null, size: company.size ?? null,
       city: company.city ?? null, state: company.state ?? null, cnpj: company.cnpj ?? null,
     }).select().single();
@@ -563,9 +565,9 @@ export function useCrmMutations({ state, setState, userId, supabase }: MutationP
   };
 
   const addLabel = async (label: Label): Promise<string | null> => {
-    if (!userId) return null;
+    if (!workspaceId) return null;
     const { data, error } = await supabase.from("labels").insert({
-      user_id: userId, name: label.name, color: label.color,
+      workspace_id: workspaceId, name: label.name, color: label.color,
     }).select().single();
     if (error || !data) { console.error("[CRM] addLabel failed:", error); return null; }
     setState((prev) => ({ ...prev, labels: [...prev.labels, { ...label, id: data.id }] }));
@@ -609,7 +611,7 @@ export function useCrmMutations({ state, setState, userId, supabase }: MutationP
         ...d, appointments: d.appointments.map((a) => a.id === appointmentId ? { ...a, ...fields } : a),
       })),
     }));
-    const db: Record<string, unknown> = {};
+    const db: Database["public"]["Tables"]["appointments"]["Update"] = {};
     if (fields.attendant !== undefined) db.attendant = fields.attendant;
     if (fields.procedure !== undefined) db.procedure = fields.procedure;
     if (fields.link !== undefined) db.link = fields.link ?? null;
@@ -640,9 +642,9 @@ export function useCrmMutations({ state, setState, userId, supabase }: MutationP
       ...prev,
       deals: prev.deals.map((d) => d.id === activity.dealId ? { ...d, activities: [...d.activities, newAct] } : d),
     }));
-    if (userId) {
+    if (userId && workspaceId) {
       supabase.from("activities").insert({
-        deal_id: activity.dealId, user_id: userId, title: activity.title,
+        deal_id: activity.dealId, workspace_id: workspaceId, title: activity.title,
         description: activity.description ?? null, date: activity.date,
         end_date: activity.endDate ?? null, type: activity.type,
         completed: activity.completed ?? false, assignee_id: activity.assigneeId ?? userId,
@@ -685,8 +687,8 @@ export function useCrmMutations({ state, setState, userId, supabase }: MutationP
         }
       });
     }
-    if (deal && userId) {
-      runAutomations("activity_created", deal, { userId, pipelines: state.pipelines });
+    if (deal && workspaceId) {
+      runAutomations("activity_created", deal, { workspaceId, pipelines: state.pipelines });
     }
   };
 
@@ -698,7 +700,7 @@ export function useCrmMutations({ state, setState, userId, supabase }: MutationP
         ...d, activities: d.activities.map((a) => (a.id === activityId ? { ...a, ...fields } : a)),
       })),
     }));
-    const db: Record<string, unknown> = {};
+    const db: Database["public"]["Tables"]["activities"]["Update"] = {};
     if (fields.title !== undefined) db.title = fields.title;
     if (fields.description !== undefined) db.description = fields.description ?? null;
     if (fields.date !== undefined) db.date = fields.date;
@@ -774,7 +776,7 @@ export function useCrmMutations({ state, setState, userId, supabase }: MutationP
     const { error: uploadError } = await supabase.storage.from("activity-attachments").upload(path, file);
     if (uploadError) { console.error("[CRM] attachment upload failed:", uploadError); return; }
     const { data, error } = await supabase.from("activity_attachments").insert({
-      activity_id: activityId, user_id: userId, file_name: file.name, file_path: path, size_bytes: file.size,
+      activity_id: activityId, actor_user_id: userId, file_name: file.name, file_path: path, size_bytes: file.size,
     }).select().single();
     if (error || !data) { console.error("[CRM] attachment insert failed:", error); return; }
     setState((prev) => ({

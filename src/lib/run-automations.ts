@@ -24,7 +24,7 @@ interface AutomationRow {
 }
 
 export interface RunCtx {
-  userId: string;
+  workspaceId: string;
   pipelines: Pipeline[];
 }
 
@@ -182,7 +182,7 @@ async function executeAction(
         const daysAhead = Number(config.deadline ?? 1);
         await supabase.from("activities").insert({
           deal_id: deal.id,
-          user_id: ctx.userId,
+          workspace_id: ctx.workspaceId,
           title: interpolate((config.title as string) || "Atividade criada por automação", deal),
           type: (config.activityType as string) || "Tarefa",
           date: daysFromNow(daysAhead),
@@ -233,7 +233,6 @@ async function executeAction(
           const { data: lbl } = await supabase
             .from("labels")
             .select("id")
-            .eq("user_id", ctx.userId)
             .ilike("name", labelName)
             .maybeSingle();
           if (lbl && !deal.labels.includes(lbl.id)) {
@@ -260,7 +259,7 @@ async function executeAction(
             deal
           );
           const { data: newDeal } = await supabase.from("deals").insert({
-            user_id: ctx.userId,
+            workspace_id: ctx.workspaceId,
             title,
             value: config.copyAll ? deal.value : (Number(config.value ?? 0) || 0),
             contact_id: deal.contactId || null,
@@ -292,7 +291,7 @@ async function executeAction(
 
         if (targetPipeline && firstStage) {
           const { data: dup } = await supabase.from("deals").insert({
-            user_id: ctx.userId,
+            workspace_id: ctx.workspaceId,
             title: `${deal.title} (cópia)`,
             value: deal.value,
             contact_id: deal.contactId || null,
@@ -343,11 +342,10 @@ async function executeAction(
             const { data: owned } = await supabase
               .from("deals")
               .select("owner_id")
-              .in("owner_id", ids)
-              .eq("user_id", ctx.userId);
+              .in("owner_id", ids);
 
-            (owned ?? []).forEach((d: { owner_id: string }) => {
-              if (d.owner_id in counts) counts[d.owner_id]++;
+            (owned ?? []).forEach((d: { owner_id: string | null }) => {
+              if (d.owner_id && d.owner_id in counts) counts[d.owner_id]++;
             });
 
             // Assign to the member with fewest deals
@@ -374,11 +372,12 @@ async function executeAction(
             .select("emails")
             .eq("id", deal.contactId)
             .maybeSingle();
-          toEmail = firstEmail(contact?.emails ?? []);
+          // eslint-disable-next-line @typescript-eslint/no-explicit-any
+          toEmail = firstEmail((contact?.emails ?? []) as any[]);
         }
 
         await supabase.from("automation_email_queue").insert({
-          user_id: ctx.userId,
+          workspace_id: ctx.workspaceId,
           deal_id: deal.id,
           automation_id: automationId,
           to_email: toEmail || null,
@@ -404,7 +403,8 @@ async function executeAction(
             .select("phones")
             .eq("id", deal.contactId)
             .maybeSingle();
-          phone = firstPhone(contact?.phones ?? []);
+          // eslint-disable-next-line @typescript-eslint/no-explicit-any
+          phone = firstPhone((contact?.phones ?? []) as any[]);
         }
 
         const templateId = (config.templateId as string) || null;
@@ -420,7 +420,7 @@ async function executeAction(
         }
 
         await supabase.from("automation_whatsapp_queue").insert({
-          user_id: ctx.userId,
+          workspace_id: ctx.workspaceId,
           deal_id: deal.id,
           automation_id: automationId,
           phone: phone || null,
@@ -447,7 +447,7 @@ async function executeAction(
 
         if (!existing) {
           await supabase.from("sequence_enrollments").insert({
-            user_id: ctx.userId,
+            workspace_id: ctx.workspaceId,
             deal_id: deal.id,
             automation_id: automationId,
             sequence_id: sequenceId ?? null,
@@ -475,20 +475,19 @@ export async function runAutomations(
   deal: Deal,
   ctx: RunCtx
 ): Promise<void> {
-  if (!ctx.userId) return;
+  if (!ctx.workspaceId) return;
   const supabase = createClient();
 
   try {
     const { data: automations } = await supabase
       .from("automations")
       .select("id, trigger, steps, execution_count")
-      .eq("user_id", ctx.userId)
       .eq("active", true)
       .eq("trigger", triggerType);
 
     if (!automations?.length) return;
 
-    for (const automation of automations as AutomationRow[]) {
+    for (const automation of automations as unknown as AutomationRow[]) {
       const steps = automation.steps as AutomationStep[];
 
       if (!conditionsPass(steps, deal, ctx.pipelines)) continue;

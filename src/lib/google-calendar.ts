@@ -1,5 +1,6 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { encryptToken, decryptToken } from "@/lib/token-crypto";
+import type { Database } from "@/lib/supabase/database.types";
 
 const CALENDAR_API = "https://www.googleapis.com/calendar/v3";
 const TIMEZONE = "America/Sao_Paulo";
@@ -45,7 +46,7 @@ export interface RawGoogleEvent {
  * (revoked access).
  */
 export async function getValidAccessToken(
-  admin: SupabaseClient,
+  admin: SupabaseClient<Database>,
   userId: string
 ): Promise<{ accessToken: string; calendarId: string; integrationId: string } | null> {
   const { data: integ } = await admin

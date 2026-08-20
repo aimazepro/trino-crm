@@ -4,12 +4,14 @@ import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import { Mail, X, ExternalLink } from "lucide-react";
 import { createClient } from "@/lib/supabase/client";
+import { useWorkspace } from "@/lib/workspace";
 
 type Template = { id: string; name: string; subject: string; body: string };
 
 export function UseEmailTemplateModal({ onClose }: { onClose: () => void }) {
   const router = useRouter();
   const supabase = createClient();
+  const { workspaceId } = useWorkspace();
   const [templates, setTemplates] = useState<Template[]>([]);
 
   useEffect(() => {
@@ -19,11 +21,11 @@ export function UseEmailTemplateModal({ onClose }: { onClose: () => void }) {
       const { data } = await supabase
         .from("email_templates")
         .select("id, name, subject, body")
-        .eq("user_id", user.id)
+        .eq("workspace_id", workspaceId)
         .order("created_at");
       setTemplates(data ?? []);
     })();
-  }, [supabase]);
+  }, [supabase, workspaceId]);
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/20">

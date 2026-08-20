@@ -21,6 +21,7 @@ import {
   CircleCheck
 } from "lucide-react";
 import { createClient } from "@/lib/supabase/client";
+import { useWorkspace } from "@/lib/workspace";
 
 type Template = {
   id: string;
@@ -92,6 +93,7 @@ function extractVars(text: string): string[] {
 
 export default function TemplatesEmailPage() {
   const supabase = createClient();
+  const { workspaceId } = useWorkspace();
   const [templates, setTemplates] = useState<Template[]>([]);
   const [loading, setLoading] = useState(true);
   const [showModal, setShowModal] = useState(false);
@@ -125,7 +127,6 @@ export default function TemplatesEmailPage() {
     const { data } = await supabase
       .from("email_templates")
       .select("*")
-      .eq("user_id", user.id)
       .order("created_at");
 
     setTemplates(data ?? []);
@@ -185,7 +186,7 @@ export default function TemplatesEmailPage() {
       const { data, error } = await supabase
         .from("email_templates")
         .insert({
-          user_id: user.id,
+          workspace_id: workspaceId,
           name: form.name.trim(),
           subject: form.subject.trim(),
           body: form.body.trim(),

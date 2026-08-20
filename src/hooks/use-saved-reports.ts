@@ -2,10 +2,35 @@
 
 import { useState, useRef, useEffect } from "react";
 import { createClient } from "@/lib/supabase/client";
+import { useWorkspace } from "@/lib/workspace";
 import type { SavedReport } from "@/app/insights/insights-constants";
 import { DEFAULT_REPORTS } from "@/app/insights/insights-constants";
 
+function toConfig(r: SavedReport) {
+  return {
+    chartType: r.chartType,
+    color: r.color,
+    pipeline: r.pipeline,
+    period: r.period,
+    filters: r.filters,
+  };
+}
+
+function fromRow(row: { id: string; name: string; config: unknown }): SavedReport {
+  const config = (row.config ?? {}) as Partial<ReturnType<typeof toConfig>>;
+  return {
+    id: row.id,
+    name: row.name,
+    chartType: config.chartType || "bar",
+    color: config.color || "#ec4899",
+    pipeline: config.pipeline || "Prospecção",
+    period: config.period || "Este mes",
+    filters: config.filters || [],
+  };
+}
+
 export function useSavedReports(onLoad: (report: SavedReport) => void) {
+  const { workspaceId, userId } = useWorkspace();
   const userIdRef = useRef<string | null>(null);
   const [savedReports, setSavedReports] = useState<SavedReport[]>([]);
   const [dashboardPopulated, setDashboardPopulated] = useState(false);
@@ -15,9 +40,8 @@ export function useSavedReports(onLoad: (report: SavedReport) => void) {
     const uid = userIdRef.current;
     createClient().from("saved_reports").upsert(
       reports.map(r => ({
-        id: r.id, user_id: uid, name: r.name,
-        chart_type: r.chartType, color: r.color,
-        pipeline: r.pipeline, period: r.period, filters: r.filters,
+        id: r.id, user_id: uid, workspace_id: workspaceId, name: r.name,
+        config: toConfig(r),
       })),
       { onConflict: "id,user_id" }
     ).then(() => {});
@@ -41,19 +65,11 @@ export function useSavedReports(onLoad: (report: SavedReport) => void) {
       let reports: SavedReport[] = [];
       const { data: rows } = await supabase
         .from("saved_reports")
-        .select("id, name, chart_type, color, pipeline, period, filters")
+        .select("id, name, config")
         .order("created_at", { ascending: true });
 
       if (rows && rows.length > 0) {
-        reports = rows.map(r => ({
-          id: r.id as string,
-          name: r.name as string,
-          chartType: (r.chart_type as SavedReport["chartType"]) || "bar",
-          color: (r.color as string) || "#ec4899",
-          pipeline: (r.pipeline as string) || "Prospecção",
-          period: (r.period as string) || "Este mes",
-          filters: (r.filters as SavedReport["filters"]) || [],
-        }));
+        reports = rows.map(fromRow);
       } else {
         const storedReports = localStorage.getItem("insights_saved_reports");
         if (storedReports) {
@@ -69,9 +85,8 @@ export function useSavedReports(onLoad: (report: SavedReport) => void) {
             }));
             await supabase.from("saved_reports").upsert(
               reports.map(r => ({
-                id: r.id, user_id: user.id, name: r.name,
-                chart_type: r.chartType, color: r.color,
-                pipeline: r.pipeline, period: r.period, filters: r.filters,
+                id: r.id, user_id: user.id, workspace_id: workspaceId, name: r.name,
+                config: toConfig(r),
               })),
               { onConflict: "id,user_id" }
             );
@@ -83,9 +98,8 @@ export function useSavedReports(onLoad: (report: SavedReport) => void) {
           reports = DEFAULT_REPORTS;
           await supabase.from("saved_reports").upsert(
             reports.map(r => ({
-              id: r.id, user_id: user.id, name: r.name,
-              chart_type: r.chartType, color: r.color,
-              pipeline: r.pipeline, period: r.period, filters: r.filters,
+              id: r.id, user_id: user.id, workspace_id: workspaceId, name: r.name,
+              config: toConfig(r),
             })),
             { onConflict: "id,user_id" }
           );

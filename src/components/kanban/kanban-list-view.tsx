@@ -11,6 +11,7 @@ import { BulkFieldSelect } from "@/components/ui/BulkFieldSelect";
 import type { Deal } from "@/lib/crm-types";
 import { createClient } from "@/lib/supabase/client";
 import { useOwnerNameMap } from "@/hooks/use-owner-name-map";
+import { useWorkspace } from "@/lib/workspace";
 
 interface KanbanListViewProps {
   pipelineId: string;
@@ -47,6 +48,7 @@ const COLUMN_HEADERS: Record<string, { label: string; align: "left" | "right" | 
 export function KanbanListView({ pipelineId, columns = DEFAULT_COLUMNS, statusFilter }: KanbanListViewProps) {
   const { state, markDealStatus, deleteDeal, updateDealFields, addLabel } = useCrm();
   const { map: ownerNameMap, names: ownerNames } = useOwnerNameMap();
+  const { workspaceId } = useWorkspace();
   const [activePipelineId, setActivePipelineId] = useState(pipelineId);
   const [stageFilter, setStageFilter] = useState("");
   const [statusLocalFilter, setStatusLocalFilter] = useState("todos");
@@ -117,7 +119,7 @@ export function KanbanListView({ pipelineId, columns = DEFAULT_COLUMNS, statusFi
       const { data } = await supabase
         .from("custom_fields")
         .select("id, label, field_type, field_group, required")
-        .eq("user_id", user.id)
+        .eq("workspace_id", workspaceId)
         .eq("entity", "deal")
         .order("sort_order");
       if (data) {
@@ -125,7 +127,7 @@ export function KanbanListView({ pipelineId, columns = DEFAULT_COLUMNS, statusFi
       }
     };
     fetchCustomFields();
-  }, []);
+  }, [workspaceId]);
 
   const resetBulkStates = () => {
     setTitleMode("Manter valor atual");

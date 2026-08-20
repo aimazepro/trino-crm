@@ -5,6 +5,7 @@ import { Sidebar } from "./sidebar";
 import { Topbar } from "./topbar";
 import { CrmProvider, useCrm } from "@/contexts/crm-context";
 import { AutomacoesProvider } from "@/contexts/automacoes-context";
+import { WorkspaceProvider } from "@/lib/workspace";
 
 function AppContent({ children }: { children: React.ReactNode }) {
   const { loading } = useCrm();
@@ -37,12 +38,14 @@ function AppContent({ children }: { children: React.ReactNode }) {
 
 export function AppShell({ children }: { children: React.ReactNode }) {
   const pathname = usePathname();
-  if (pathname.startsWith("/login")) return <>{children}</>;
+  if (pathname.startsWith("/login") || pathname.startsWith("/convite")) return <>{children}</>;
   return (
-    <CrmProvider>
-      <AutomacoesProvider>
-        <AppContent>{children}</AppContent>
-      </AutomacoesProvider>
-    </CrmProvider>
+    <WorkspaceProvider>
+      <CrmProvider>
+        <AutomacoesProvider>
+          <AppContent>{children}</AppContent>
+        </AutomacoesProvider>
+      </CrmProvider>
+    </WorkspaceProvider>
   );
 }

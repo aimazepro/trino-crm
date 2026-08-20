@@ -16,6 +16,7 @@ import {
   Upload,
 } from "lucide-react";
 import { createClient } from "@/lib/supabase/client";
+import { useWorkspace } from "@/lib/workspace";
 
 const GOOGLE_OAUTH_URL = "/api/auth/gmail";
 
@@ -41,6 +42,7 @@ const emptySignature: Signature = {
 
 export default function GmailPage() {
   const supabase = createClient();
+  const { workspaceId } = useWorkspace();
 
   const [loading, setLoading] = useState(true);
   const [accountEmail, setAccountEmail] = useState<string | null>(null);
@@ -168,6 +170,7 @@ export default function GmailPage() {
     setSavingSignature(true);
     await supabase.from("email_signatures").upsert({
       user_id: userId,
+      workspace_id: workspaceId,
       enabled: signature.enabled,
       name: signature.name,
       role: signature.role,

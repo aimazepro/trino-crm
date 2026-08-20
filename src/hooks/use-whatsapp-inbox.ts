@@ -1,5 +1,7 @@
 "use client";
 
+import type { Database } from "@/lib/supabase/database.types";
+
 import { useCallback, useEffect, useMemo, useState } from "react";
 import type { RealtimePostgresChangesPayload, SupabaseClient } from "@supabase/supabase-js";
 import { createClient } from "@/lib/supabase/client";
@@ -55,7 +57,7 @@ function sortConversations(list: InboxConversation[]): InboxConversation[] {
  * useWhatsAppThread, which the deal screen uses on its own.
  */
 export function useWhatsAppInbox() {
-  const supabase = useMemo<SupabaseClient>(() => createClient(), []);
+  const supabase = useMemo<SupabaseClient<Database>>(() => createClient(), []);
   const { status: connection, workspaceOwnerId } = useWhatsAppConnection();
 
   const [conversations, setConversations] = useState<InboxConversation[]>([]);

@@ -15,6 +15,7 @@ import {
 } from "@/contexts/automacoes-context";
 import { useCrm } from "@/contexts/crm-context";
 import { createClient } from "@/lib/supabase/client";
+import { useWorkspace } from "@/lib/workspace";
 import type {
   Automation,
   AutomationStep,
@@ -31,6 +32,7 @@ type CustomFieldOption = { id: string; name: string };
 
 function useTeamUsers(): AssignableUser[] {
   const [users, setUsers] = useState<AssignableUser[]>([]);
+  const { workspaceId } = useWorkspace();
   useEffect(() => {
     let cancelled = false;
     const supabase = createClient();
@@ -40,9 +42,9 @@ function useTeamUsers(): AssignableUser[] {
       const selfName = (user.user_metadata?.full_name as string | undefined) || user.email || "Você";
       const list: AssignableUser[] = [{ id: user.id, name: selfName }];
       const { data } = await supabase
-        .from("team_members")
-        .select("member_user_id, name, email, owner_user_id, status")
-        .or(`owner_user_id.eq.${user.id},member_user_id.eq.${user.id}`)
+        .from("workspace_members")
+        .select("member_user_id, name, email")
+        .eq("workspace_id", workspaceId)
         .eq("status", "accepted");
       (data ?? []).forEach((m) => {
         if (m.member_user_id && m.member_user_id !== user.id) {
@@ -52,13 +54,14 @@ function useTeamUsers(): AssignableUser[] {
       if (!cancelled) setUsers(list);
     })();
     return () => { cancelled = true; };
-  }, []);
+  }, [workspaceId]);
   return users;
 }
 
 /** The saved WhatsApp templates, so the action can point at one that exists. */
 function useWhatsAppTemplates(): { id: string; name: string }[] {
   const [templates, setTemplates] = useState<{ id: string; name: string }[]>([]);
+  const { workspaceId } = useWorkspace();
   useEffect(() => {
     let cancelled = false;
     const supabase = createClient();
@@ -68,17 +71,18 @@ function useWhatsAppTemplates(): { id: string; name: string }[] {
       const { data } = await supabase
         .from("whatsapp_templates")
         .select("id, name")
-        .eq("user_id", user.id)
+        .eq("workspace_id", workspaceId)
         .order("created_at");
       if (!cancelled) setTemplates(data ?? []);
     })();
     return () => { cancelled = true; };
-  }, []);
+  }, [workspaceId]);
   return templates;
 }
 
 function useDealCustomFields(): CustomFieldOption[] {
   const [fields, setFields] = useState<CustomFieldOption[]>([]);
+  const { workspaceId } = useWorkspace();
   useEffect(() => {
     let cancelled = false;
     const supabase = createClient();
@@ -88,7 +92,7 @@ function useDealCustomFields(): CustomFieldOption[] {
       const { data } = await supabase
         .from("custom_fields")
         .select("id, label, entity")
-        .eq("user_id", user.id)
+        .eq("workspace_id", workspaceId)
         .eq("entity", "deal")
         .order("sort_order", { ascending: true });
       if (!cancelled) {
@@ -96,7 +100,7 @@ function useDealCustomFields(): CustomFieldOption[] {
       }
     })();
     return () => { cancelled = true; };
-  }, []);
+  }, [workspaceId]);
   return fields;
 }
 
