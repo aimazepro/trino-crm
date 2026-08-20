@@ -25,6 +25,9 @@ export async function proxy(request: NextRequest) {
 // redirect to /login, which a webhook or a cron job reads as a successful 307
 // and never retries. api/whatsapp/queue is pg_cron; it authenticates with
 // AUTOMATION_DISPATCH_SECRET inside the route.
+// api/v1 is the public API: Bearer-key auth inside the route (see
+// src/lib/api-auth.ts), no session cookie -- same reasoning as
+// api/whatsapp/webhook and api/automations above.
 export const config = {
-  matcher: ["/((?!_next/static|_next/image|favicon.ico|api/auth/callback|api/track|api/whatsapp/webhook|api/whatsapp/queue|api/convites/aceitar|api/automations|.*\\.(?:svg|png|jpg|jpeg|gif|webp)$).*)"],
+  matcher: ["/((?!_next/static|_next/image|favicon.ico|api/auth/callback|api/track|api/whatsapp/webhook|api/whatsapp/queue|api/convites/aceitar|api/automations|api/v1|.*\\.(?:svg|png|jpg|jpeg|gif|webp)$).*)"],
 };
