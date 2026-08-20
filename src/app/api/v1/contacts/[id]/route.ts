@@ -32,7 +32,7 @@ export async function PATCH(request: Request, { params }: { params: Promise<{ id
   if ("companyId" in body) patch.company_id = body.companyId;
   if ("role" in body) patch.role = body.role;
 
-  const { data, error } = await admin.from("contacts").update(patch as Database["public"]["Tables"]["contacts"]["Update"]).eq("id", id).select("*").single();
+  const { data, error } = await admin.from("contacts").update(patch as Database["public"]["Tables"]["contacts"]["Update"]).eq("id", id).eq("workspace_id", auth.ctx.workspaceId).select("*").single();
   if (error) return apiError("INTERNAL_ERROR", error.message, 500);
   return apiSuccess(data);
 }
@@ -46,7 +46,7 @@ export async function DELETE(request: Request, { params }: { params: Promise<{ i
   const { data: existing } = await admin.from("contacts").select("id").eq("id", id).eq("workspace_id", auth.ctx.workspaceId).maybeSingle();
   if (!existing) return apiError("NOT_FOUND", "Contato não encontrado", 404);
 
-  const { error } = await admin.from("contacts").delete().eq("id", id);
+  const { error } = await admin.from("contacts").delete().eq("id", id).eq("workspace_id", auth.ctx.workspaceId);
   if (error) return apiError("INTERNAL_ERROR", error.message, 500);
   return apiSuccess({ id, deleted: true });
 }
