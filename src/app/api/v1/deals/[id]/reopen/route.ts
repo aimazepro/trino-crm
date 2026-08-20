@@ -12,7 +12,7 @@ export async function PATCH(request: Request, { params }: { params: Promise<{ id
   const { data: deal } = await admin.from("deals").select("id").eq("id", id).eq("workspace_id", auth.ctx.workspaceId).is("deleted_at", null).maybeSingle();
   if (!deal) return apiError("NOT_FOUND", "Negócio não encontrado", 404);
 
-  const { error } = await admin.from("deals").update({ status: "Ativo", loss_reason: null }).eq("id", id);
+  const { error } = await admin.from("deals").update({ status: "Ativo", loss_reason: null }).eq("id", id).eq("workspace_id", auth.ctx.workspaceId);
   if (error) return apiError("INTERNAL_ERROR", error.message, 500);
 
   return apiSuccess({ id, status: "Ativo" });

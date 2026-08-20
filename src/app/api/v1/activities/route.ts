@@ -16,6 +16,11 @@ export async function POST(request: Request) {
   const { data: deal } = await admin.from("deals").select("id").eq("id", body.dealId).eq("workspace_id", ctx.workspaceId).maybeSingle();
   if (!deal) return apiError("VALIDATION_ERROR", "dealId não encontrado neste workspace", 400);
 
+  if (body.assigneeId) {
+    const { data: assignee } = await admin.from("workspace_members").select("member_user_id").eq("workspace_id", ctx.workspaceId).eq("member_user_id", body.assigneeId).eq("status", "accepted").maybeSingle();
+    if (!assignee) return apiError("VALIDATION_ERROR", "assigneeId não encontrado neste workspace", 400);
+  }
+
   return withIdempotency(admin, ctx.workspaceId, request, "POST", "/api/v1/activities", async () => {
     const { data, error } = await admin
       .from("activities")

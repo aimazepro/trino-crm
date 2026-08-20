@@ -12,6 +12,11 @@ export async function POST(request: Request) {
   const body = await request.json();
   if (!body.name) return apiError("VALIDATION_ERROR", "name é obrigatório", 400);
 
+  if (body.companyId) {
+    const { data: ownedCompany } = await admin.from("companies").select("id").eq("id", body.companyId).eq("workspace_id", ctx.workspaceId).maybeSingle();
+    if (!ownedCompany) return apiError("VALIDATION_ERROR", "companyId não encontrado neste workspace", 400);
+  }
+
   return withIdempotency(admin, ctx.workspaceId, request, "POST", "/api/v1/contacts", async () => {
     const { data, error } = await admin
       .from("contacts")

@@ -32,6 +32,11 @@ export async function PATCH(request: Request, { params }: { params: Promise<{ id
   if ("companyId" in body) patch.company_id = body.companyId;
   if ("role" in body) patch.role = body.role;
 
+  if (patch.company_id) {
+    const { data: ownedCompany } = await admin.from("companies").select("id").eq("id", patch.company_id as string).eq("workspace_id", auth.ctx.workspaceId).maybeSingle();
+    if (!ownedCompany) return apiError("VALIDATION_ERROR", "companyId não encontrado neste workspace", 400);
+  }
+
   const { data, error } = await admin.from("contacts").update(patch as Database["public"]["Tables"]["contacts"]["Update"]).eq("id", id).eq("workspace_id", auth.ctx.workspaceId).select("*").single();
   if (error) return apiError("INTERNAL_ERROR", error.message, 500);
   return apiSuccess(data);

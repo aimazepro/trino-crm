@@ -18,6 +18,12 @@ export async function PATCH(request: Request, { params }: { params: Promise<{ id
   for (const [apiKey, dbKey] of [["title", "title"], ["description", "description"], ["date", "date"], ["assigneeId", "assignee_id"], ["type", "type"]] as const) {
     if (apiKey in body) patch[dbKey] = body[apiKey];
   }
+
+  if (patch.assignee_id) {
+    const { data: assignee } = await admin.from("workspace_members").select("member_user_id").eq("workspace_id", auth.ctx.workspaceId).eq("member_user_id", patch.assignee_id as string).eq("status", "accepted").maybeSingle();
+    if (!assignee) return apiError("VALIDATION_ERROR", "assigneeId não encontrado neste workspace", 400);
+  }
+
   const { data, error } = await admin.from("activities").update(patch as Database["public"]["Tables"]["activities"]["Update"]).eq("id", id).eq("workspace_id", auth.ctx.workspaceId).select("*").single();
   if (error) return apiError("INTERNAL_ERROR", error.message, 500);
   return apiSuccess(data);

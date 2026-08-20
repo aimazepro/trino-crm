@@ -41,8 +41,17 @@ export async function PATCH(request: Request, { params }: { params: Promise<{ id
     if (apiKey in body) patch[dbKey] = body[apiKey];
   }
 
+  if (patch.contact_id) {
+    const { data: owned } = await admin.from("contacts").select("id").eq("id", patch.contact_id as string).eq("workspace_id", auth.ctx.workspaceId).maybeSingle();
+    if (!owned) return apiError("VALIDATION_ERROR", "contactId não encontrado neste workspace", 400);
+  }
+  if (patch.owner_id) {
+    const { data: member } = await admin.from("workspace_members").select("member_user_id").eq("workspace_id", auth.ctx.workspaceId).eq("member_user_id", patch.owner_id as string).eq("status", "accepted").maybeSingle();
+    if (!member) return apiError("VALIDATION_ERROR", "ownerId não encontrado neste workspace", 400);
+  }
+
   if (Object.keys(patch).length > 0) {
-    const { error } = await admin.from("deals").update(patch as Database["public"]["Tables"]["deals"]["Update"]).eq("id", id);
+    const { error } = await admin.from("deals").update(patch as Database["public"]["Tables"]["deals"]["Update"]).eq("id", id).eq("workspace_id", auth.ctx.workspaceId);
     if (error) return apiError("INTERNAL_ERROR", error.message, 500);
   }
 
@@ -64,7 +73,8 @@ export async function DELETE(request: Request, { params }: { params: Promise<{ i
   const { error } = await admin
     .from("deals")
     .update({ deleted_at: nowIso, delete_reason: "Excluído via API" })
-    .eq("id", id);
+    .eq("id", id)
+    .eq("workspace_id", auth.ctx.workspaceId);
   if (error) return apiError("INTERNAL_ERROR", error.message, 500);
 
   return apiSuccess({ id, deletedAt: nowIso });
