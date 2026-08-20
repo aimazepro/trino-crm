@@ -224,8 +224,23 @@ ainda — não fechar até o deploy + checklist confirmarem.
 - [ ] **Campos de atribuição no schema desde já** (`source`, `utm_*`,
   `campaign_id`). Barato agora, caro de retrofitar. `AUD §6.0`
 - [ ] **Escrever a doc em `/ajuda/integracao-leads-externos`** e matar o 404.
-- [ ] **Infra pedida pelo dono:** subdomínio dedicado + Cloudflare (rate limit /
+- [x] **Infra pedida pelo dono:** subdomínio dedicado + Cloudflare (rate limit /
   WAF na borda, já que o app não tem rate limiting próprio). `AUD §6.4`
+  — 2026-08-20: `api-crm.aimaze.com.br` criado (CNAME proxied →
+  `cname.vercel-dns.com`) e anexado ao projeto Vercel `trino-crm`. Pendente
+  manual no painel Cloudflare (o token de API usado só tinha permissão de
+  DNS + Firewall Services, não "Zone WAF" — a API de Rulesets exige essa
+  permissão à parte, inclusive pra leitura):
+  1. **Security → WAF → Rate limiting rules**: criar regra "100 req/min per
+     IP on the leads intake subdomain" — `(http.host eq
+     "api-crm.aimaze.com.br")`, block, 100 req/60s por `ip.src`,
+     mitigation timeout 60s.
+  2. **Security → WAF → Managed rules**: ligar o "Cloudflare Managed
+     Ruleset" pra zona `aimaze.com.br`, se ainda não estiver ativo.
+  Verificação fim-a-fim (`curl https://api-crm.aimaze.com.br/api/v1/me`)
+  ainda não é possível — essa branch (Tasks 1-19) não foi mergeada/deployada
+  em produção ainda; hoje a requisição roteia certo até o Vercel e cai no
+  `/login` da produção atual (comportamento esperado, não é bug da infra).
 
 ---
 
