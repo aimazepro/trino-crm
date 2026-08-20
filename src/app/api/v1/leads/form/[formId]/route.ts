@@ -35,6 +35,13 @@ export async function POST(request: Request, { params }: { params: Promise<{ for
     return jsonError("VALIDATION_ERROR", "Corpo inválido", 400);
   }
 
+  // request.json() accepts any valid JSON, including literal `null` or a
+  // top-level array/string/number — none of those support the `body[...]`
+  // property lookups below, so reject anything that isn't a plain object.
+  if (typeof body !== "object" || body === null) {
+    return jsonError("VALIDATION_ERROR", "Corpo inválido", 400);
+  }
+
   // Honeypot: bots fill every field, including hidden ones. Reply 200 with no
   // side effect so the bot doesn't learn it was caught.
   const honeypotValue = body[form.honeypot_field];
