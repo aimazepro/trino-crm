@@ -157,7 +157,8 @@ export type TriggerType =
   | 'deal_won'
   | 'deal_lost'
   | 'deal_updated'
-  | 'activity_created';
+  | 'activity_created'
+  | 'lead_recebido';
 
 export type AutomationConditionField =
   | 'stage' | 'pipeline' | 'status' | 'value' | 'owner' | 'label';
