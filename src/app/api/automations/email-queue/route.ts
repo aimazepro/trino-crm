@@ -8,6 +8,7 @@ import { timingSafeEqual } from "crypto";
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { createAdmin } from "@/lib/whatsapp/connection";
 import type { Database } from "@/lib/supabase/database.types";
+import { decryptToken, encryptToken } from "@/lib/token-crypto";
 
 export const dynamic = "force-dynamic";
 export const maxDuration = 300;
@@ -68,7 +69,7 @@ export async function POST(req: NextRequest) {
         continue;
       }
 
-      let token = intRow.access_token;
+      let token = decryptToken(intRow.access_token!);
 
       if (intRow.expires_at && new Date(intRow.expires_at) < new Date()) {
         const refreshRes = await fetch("https://oauth2.googleapis.com/token", {
@@ -77,7 +78,7 @@ export async function POST(req: NextRequest) {
           body: new URLSearchParams({
             client_id: process.env.GMAIL_OAUTH_CLIENT_ID!,
             client_secret: process.env.GMAIL_OAUTH_CLIENT_SECRET!,
-            refresh_token: intRow.refresh_token!,
+            refresh_token: decryptToken(intRow.refresh_token!),
             grant_type: "refresh_token",
           }),
         });
@@ -86,7 +87,7 @@ export async function POST(req: NextRequest) {
           token = refreshData.access_token;
           await admin.from("integrations")
             .update({
-              access_token: token,
+              access_token: encryptToken(token),
               expires_at: new Date(Date.now() + refreshData.expires_in * 1000).toISOString(),
             })
             .eq("id", intRow.id);
@@ -117,6 +118,7 @@ export async function POST(req: NextRequest) {
       }
     } catch (e) {
       const message = e instanceof Error ? e.message : String(e);
+      console.error("automations/email-queue", item.id, message);
       await admin.from("automation_email_queue")
         .update({ status: "failed", error: message.slice(0, 500) })
         .eq("id", item.id);
