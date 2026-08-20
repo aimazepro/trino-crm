@@ -47,6 +47,8 @@ const ALL_PERMISSIONS: Permission[] = [
   { label: "Ler campos custom", key: "read_custom_fields" },
   { label: "Criar campos custom", key: "create_custom_fields" },
   { label: "Ler usuarios", key: "read_users" },
+  { label: "Ler notas", key: "read_notes" },
+  { label: "Criar/editar notas", key: "edit_notes" },
 ];
 
 async function hashKey(raw: string): Promise<string> {
@@ -97,11 +99,11 @@ export default function ApiKeysPage() {
     // Load keys — only select columns we know exist
     const { data: keysData } = await supabase
       .from("api_keys")
-      .select("id, name, key_prefix, created_at")
+      .select("id, name, key_prefix, permissions, created_at")
       .eq("revoked", false)
       .order("created_at", { ascending: false });
 
-    setKeys(keysData ?? []);
+    setKeys((keysData as unknown as ApiKeyRow[] | null) ?? []);
     setLoading(false);
   }, [supabase]);
 
@@ -175,18 +177,24 @@ export default function ApiKeysPage() {
         name: tempRow.name,
         key_hash: keyHash,
         key_prefix: keyPrefix,
+        default_owner_id: user.id,
+        permissions: Array.from(formPerms),
       };
 
       const { data: saved } = await supabase
         .from("api_keys")
         .insert(insertPayload)
-        .select("id, name, key_prefix, created_at")
+        .select("id, name, key_prefix, permissions, created_at")
         .single();
 
       // Replace the temp row with the real DB row
       if (saved) {
         setKeys((prev) =>
-          prev.map((k) => (k.id === tempRow.id ? { ...saved, owner_name: currentUserName } : k))
+          prev.map((k) =>
+            k.id === tempRow.id
+              ? { ...(saved as unknown as ApiKeyRow), owner_name: currentUserName }
+              : k
+          )
         );
       }
     }
