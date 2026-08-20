@@ -214,16 +214,35 @@ ainda — não fechar até o deploy + checklist confirmarem.
 
 ### Entrada de leads
 
-- [ ] **Rota pública que valida `x-api-key`** contra `api_keys` e resolve o
-  workspace. A tabela e o hashing SHA-256 já existem — falta só o endpoint.
-  **Hoje nenhuma rota valida `x-api-key`: não existe API pública.** `AUD §3`
-- [ ] **Webhook de entrada + endpoint de formulário.**
-- [ ] **Novo gatilho `lead_recebido`.**
-- [ ] **Distribuição automática para vendedor** (round-robin / por regra) — é o
-  que faz `deals.owner_id` valer alguma coisa.
-- [ ] **Campos de atribuição no schema desde já** (`source`, `utm_*`,
-  `campaign_id`). Barato agora, caro de retrofitar. `AUD §6.0`
-- [ ] **Escrever a doc em `/ajuda/integracao-leads-externos`** e matar o 404.
+**Status 2026-08-20:** implementado inteiro no branch `worktree-entrada-de-leads-api-publica`
+(19 tasks, spec+plano em `docs/superpowers/`), revisado (por tarefa + revisão
+final de branch inteira, que achou e já corrigiu 3 Critical + 6 Important
+antes de fechar), pendente merge + `vercel deploy --prod`. Itens abaixo
+marcados `[x]` estão feitos no branch, não em produção ainda — não fechar
+até o deploy confirmar. Produção já foi auditada e limpa de dados de
+verificação (deals/contatos/chaves de teste desta plan); 2 chaves antigas
+pré-existentes (`lp`, `bvnbv`, permissão `all`) seguem pendentes de revisão
+do dono — inertes antes desta branch, agora funcionais.
+
+- [x] **Rota pública Bearer-auth** contra `api_keys` (hash SHA-256) e resolve o
+  workspace, com permissões reais por rota, rate limit por chave e
+  `Idempotency-Key` em todo `POST`. **`x-api-key` virou `Authorization:
+  Bearer`, decisão registrada na spec** (padrão que a doc de referência usa).
+  `AUD §3`
+- [x] **Webhook de entrada + endpoint de formulário.**
+  `POST /api/v1/leads/form/:formId` — sem auth, honeypot, host-gate pro
+  Cloudflare, aceita tanto JSON quanto `application/x-www-form-urlencoded`
+  (formulário HTML puro sem JS).
+- [x] **Novo gatilho `lead_recebido`.** Trigger `origin in ('api','form')`,
+  Motor confirmado sem regressão (branch UPDATE idêntico ao original).
+- [x] **Distribuição automática para vendedor** — `assign_owner` (Motor) já
+  existente cobre round-robin; `default_owner_id` da key/form agora é
+  persistido de verdade (era o Critical C1 da revisão final: a tela de API
+  keys nunca salvava isso).
+- [x] **Campos de atribuição no schema desde já** (`source`, `utm_*`,
+  `campaign_id`). `AUD §6.0`
+- [x] **Escrever a doc em `/ajuda/integracao-leads-externos`** e matar o 404 —
+  mais `/configuracoes/api/docs`, referência completa.
 - [x] **Infra pedida pelo dono:** subdomínio dedicado + Cloudflare (rate limit /
   WAF na borda, já que o app não tem rate limiting próprio). `AUD §6.4`
   — 2026-08-20: `api-crm.aimaze.com.br` criado (CNAME proxied →
