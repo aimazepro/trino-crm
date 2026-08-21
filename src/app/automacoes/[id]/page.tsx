@@ -604,8 +604,8 @@ export default function AutomationBuilderPage() {
                         className={cn(
                           "relative rounded-xl cursor-pointer transition-all shadow-sm hover:shadow-md border-2 px-4 pt-4 pb-4",
                           isSelected
-                            ? "border-amber-400 bg-amber-50/10"
-                            : "border-zinc-200 bg-white"
+                            ? "border-[#F1A80A] bg-[#FFF9EC]/20"
+                            : "border-2 border-zinc-200 bg-white"
                         )}
                       >
                         <span className="absolute -top-2.5 -left-2 w-[22px] h-[22px] rounded-md bg-[#F1A80A] text-white text-[11px] font-black flex items-center justify-center z-10 shadow-sm">
@@ -720,7 +720,7 @@ export default function AutomationBuilderPage() {
           </div>
 
           {/* Right Config Drawer Panel */}
-          <div className="w-72 shrink-0 border-l border-zinc-200 bg-white overflow-y-auto">
+          <div className="w-80 shrink-0 bg-zinc-50/50 border-l border-zinc-200 overflow-y-auto p-6">
             {selection?.kind === "trigger" && (
               <TriggerPanel
                 value={automation.trigger}
@@ -734,6 +734,7 @@ export default function AutomationBuilderPage() {
             {selection?.kind === "step" && selectedStep?.type === "condition" && (
               <ConditionPanel
                 step={selectedStep}
+                onDelete={() => deleteStep(selectedStep.id)}
                 onChange={(fn) => updateStep(selectedStep.id, fn)}
                 pipelines={crmState.pipelines}
               />
@@ -806,8 +807,9 @@ function InlineActionForm({
   return (
     <div className="mt-3 space-y-3" onClick={(e) => e.stopPropagation()}>
       <Field label="Tipo de ação">
-        <Select
+        <DropdownSelect
           value={actionType}
+          label={ACTION_LABELS[actionType]}
           onChange={(v) => setActionType(v as ActionType)}
         >
           {ACTION_TYPES.map((t) => (
@@ -815,7 +817,7 @@ function InlineActionForm({
               {ACTION_LABELS[t]}
             </option>
           ))}
-        </Select>
+        </DropdownSelect>
       </Field>
 
       <div className="border-t border-zinc-100 pt-3 space-y-3">
@@ -823,8 +825,10 @@ function InlineActionForm({
           <>
             <div className="grid grid-cols-2 gap-2">
               <Field label="Pipeline destino">
-                <Select
+                <DropdownSelect
                   value={(config.pipelineId as string) ?? ""}
+                  label={selectedPipeline?.name}
+                  placeholder="Selecionar pipeline..."
                   onChange={(v) => patchConfig({ pipelineId: v, stageId: "" })}
                 >
                   <option value="">Selecionar pipeline...</option>
@@ -833,11 +837,17 @@ function InlineActionForm({
                       {p.name}
                     </option>
                   ))}
-                </Select>
+                </DropdownSelect>
               </Field>
               <Field label="Etapa destino">
-                <Select
+                <DropdownSelect
                   value={(config.stageId as string) ?? ""}
+                  label={
+                    (selectedPipeline?.stages ?? []).find(
+                      (s) => s.id === config.stageId
+                    )?.name
+                  }
+                  placeholder="Selecionar etapa..."
                   onChange={(v) => patchConfig({ stageId: v })}
                 >
                   <option value="">Selecionar etapa...</option>
@@ -846,7 +856,7 @@ function InlineActionForm({
                       {s.name}
                     </option>
                   ))}
-                </Select>
+                </DropdownSelect>
               </Field>
             </div>
             <Field label="Título do negócio">
@@ -854,7 +864,7 @@ function InlineActionForm({
                 value={(config.title as string) ?? ""}
                 onChange={(e) => patchConfig({ title: e.target.value })}
                 placeholder="[OPP] - {contact.name}"
-                className="w-full px-3 py-2 text-[13px] border border-zinc-200 rounded-lg outline-none focus:border-amber-400 bg-white"
+                className="w-full px-3 py-1.5 text-sm border border-zinc-200 rounded-lg outline-none focus:border-amber-400 bg-white"
               />
               <p className="text-[11px] text-zinc-400 mt-1">
                 Use {"{contact.name}"} para o nome do contato e {"{deal.title}"} para o título original.
@@ -885,8 +895,9 @@ function InlineActionForm({
           <>
             <div className="grid grid-cols-2 gap-2">
               <Field label="Tipo">
-                <Select
+                <DropdownSelect
                   value={(config.activityType as string) ?? "Ligação"}
+                  label={(config.activityType as string) ?? "Ligação"}
                   onChange={(v) => patchConfig({ activityType: v })}
                 >
                   {["Ligação", "Email", "Reunião", "Tarefa", "WhatsApp"].map(
@@ -896,7 +907,7 @@ function InlineActionForm({
                       </option>
                     )
                   )}
-                </Select>
+                </DropdownSelect>
               </Field>
               <Field label="Prazo (dias)">
                 <input
@@ -906,7 +917,7 @@ function InlineActionForm({
                   onChange={(e) =>
                     patchConfig({ deadline: parseInt(e.target.value) || 0 })
                   }
-                  className="w-full px-3 py-2 text-[13px] border border-zinc-200 rounded-lg outline-none focus:border-amber-400 bg-white"
+                  className="w-full px-3 py-1.5 text-sm border border-zinc-200 rounded-lg outline-none focus:border-amber-400 bg-white"
                 />
               </Field>
             </div>
@@ -915,7 +926,7 @@ function InlineActionForm({
                 value={(config.title as string) ?? ""}
                 onChange={(e) => patchConfig({ title: e.target.value })}
                 placeholder="Ex: Ligar para o cliente"
-                className="w-full px-3 py-2 text-[13px] border border-zinc-200 rounded-lg outline-none focus:border-amber-400 bg-white"
+                className="w-full px-3 py-1.5 text-sm border border-zinc-200 rounded-lg outline-none focus:border-amber-400 bg-white"
               />
             </Field>
             <Field label="Observações (opcional)">
@@ -924,7 +935,7 @@ function InlineActionForm({
                 onChange={(e) => patchConfig({ notes: e.target.value })}
                 placeholder="Observações da atividade..."
                 rows={3}
-                className="w-full px-3 py-2 text-[13px] border border-zinc-200 rounded-lg outline-none focus:border-amber-400 resize-none bg-white"
+                className="w-full px-3 py-1.5 text-sm border border-zinc-200 rounded-lg outline-none focus:border-amber-400 resize-none bg-white"
               />
             </Field>
           </>
@@ -933,8 +944,10 @@ function InlineActionForm({
         {actionType === "move_stage" && (
           <div className="grid grid-cols-2 gap-2">
             <Field label="Pipeline">
-              <Select
+              <DropdownSelect
                 value={(config.pipelineId as string) ?? ""}
+                label={selectedPipeline?.name}
+                placeholder="Selecionar pipeline..."
                 onChange={(v) => patchConfig({ pipelineId: v, stageId: "" })}
               >
                 <option value="">Selecionar pipeline...</option>
@@ -943,11 +956,17 @@ function InlineActionForm({
                     {p.name}
                   </option>
                 ))}
-              </Select>
+              </DropdownSelect>
             </Field>
             <Field label="Etapa">
-              <Select
+              <DropdownSelect
                 value={(config.stageId as string) ?? ""}
+                label={
+                  (selectedPipeline?.stages ?? []).find(
+                    (s) => s.id === config.stageId
+                  )?.name
+                }
+                placeholder="Selecionar etapa..."
                 onChange={(v) => patchConfig({ stageId: v })}
               >
                 <option value="">Selecionar etapa...</option>
@@ -956,7 +975,7 @@ function InlineActionForm({
                     {s.name}
                   </option>
                 ))}
-              </Select>
+              </DropdownSelect>
             </Field>
           </div>
         )}
@@ -986,7 +1005,7 @@ function InlineActionForm({
               value={(config.lossReason as string) ?? ""}
               onChange={(e) => patchConfig({ lossReason: e.target.value })}
               placeholder="Ex: Preço, Concorrência..."
-              className="w-full px-3 py-2 text-[13px] border border-zinc-200 rounded-lg outline-none focus:border-amber-400 bg-white"
+              className="w-full px-3 py-1.5 text-sm border border-zinc-200 rounded-lg outline-none focus:border-amber-400 bg-white"
             />
           </Field>
         )}
@@ -997,7 +1016,7 @@ function InlineActionForm({
               value={(config.labelName as string) ?? ""}
               onChange={(e) => patchConfig({ labelName: e.target.value })}
               placeholder="Nome da etiqueta..."
-              className="w-full px-3 py-2 text-[13px] border border-zinc-200 rounded-lg outline-none focus:border-amber-400 bg-white"
+              className="w-full px-3 py-1.5 text-sm border border-zinc-200 rounded-lg outline-none focus:border-amber-400 bg-white"
             />
           </Field>
         )}
@@ -1021,7 +1040,7 @@ function InlineActionForm({
               onChange={(e) => patchConfig({ content: e.target.value })}
               placeholder="Texto da nota automática..."
               rows={4}
-              className="w-full px-3 py-2 text-[13px] border border-zinc-200 rounded-lg outline-none focus:border-amber-400 resize-none bg-white"
+              className="w-full px-3 py-1.5 text-sm border border-zinc-200 rounded-lg outline-none focus:border-amber-400 resize-none bg-white"
             />
           </Field>
         )}
@@ -1033,7 +1052,7 @@ function InlineActionForm({
                 value={(config.url as string) ?? ""}
                 onChange={(e) => patchConfig({ url: e.target.value })}
                 placeholder="https://seu-endpoint.com/webhook"
-                className="w-full px-3 py-2 text-[13px] border border-zinc-200 rounded-lg outline-none focus:border-amber-400 bg-white"
+                className="w-full px-3 py-1.5 text-sm border border-zinc-200 rounded-lg outline-none focus:border-amber-400 bg-white"
               />
             </Field>
             <p className="text-[12px] text-zinc-400">
@@ -1045,12 +1064,13 @@ function InlineActionForm({
         {actionType === "send_email" && (
           <>
             <Field label="Template de email">
-              <Select
+              <DropdownSelect
                 value={(config.templateId as string) ?? ""}
+                placeholder="Selecionar template..."
                 onChange={(v) => patchConfig({ templateId: v })}
               >
                 <option value="">Selecionar template...</option>
-              </Select>
+              </DropdownSelect>
             </Field>
             <p className="text-[11px] text-zinc-400">
               O email será enviado via Gmail do vendedor responsável pelo negócio.
@@ -1061,8 +1081,12 @@ function InlineActionForm({
         {actionType === "send_whatsapp" && (
           <>
             <Field label="Template WhatsApp">
-              <Select
+              <DropdownSelect
                 value={(config.templateId as string) ?? ""}
+                label={
+                  whatsappTemplates.find((t) => t.id === config.templateId)?.name
+                }
+                placeholder="Selecionar template..."
                 onChange={(v) => patchConfig({ templateId: v })}
               >
                 <option value="">Selecionar template...</option>
@@ -1071,7 +1095,7 @@ function InlineActionForm({
                     {t.name}
                   </option>
                 ))}
-              </Select>
+              </DropdownSelect>
             </Field>
             {whatsappTemplates.length === 0 && (
               <p className="text-[11px] text-amber-600">
@@ -1083,12 +1107,13 @@ function InlineActionForm({
 
         {actionType === "start_sequence" && (
           <Field label="Sequência">
-            <Select
+            <DropdownSelect
               value={(config.sequenceId as string) ?? ""}
+              placeholder="Selecionar sequência..."
               onChange={(v) => patchConfig({ sequenceId: v })}
             >
               <option value="">Selecionar sequência...</option>
-            </Select>
+            </DropdownSelect>
           </Field>
         )}
       </div>
@@ -1160,14 +1185,19 @@ function OwnerModeField({
       </div>
 
       {mode === "fixed" && (
-        <Select value={userId} onChange={(v) => onChange({ userId: v })}>
+        <DropdownSelect
+          value={userId}
+          label={teamUsers.find((u) => u.id === userId)?.name}
+          placeholder="Selecionar usuário..."
+          onChange={(v) => onChange({ userId: v })}
+        >
           <option value="">Selecionar usuário...</option>
           {teamUsers.map((u) => (
             <option key={u.id} value={u.id}>
               {u.name}
             </option>
           ))}
-        </Select>
+        </DropdownSelect>
       )}
 
       {mode === "round_robin" && (
@@ -1195,8 +1225,10 @@ function OwnerModeField({
       )}
 
       {mode === "custom_field" && (
-        <Select
+        <DropdownSelect
           value={customFieldId}
+          label={customFields.find((f) => f.id === customFieldId)?.name}
+          placeholder="Selecionar campo personalizado..."
           onChange={(v) => onChange({ customFieldId: v })}
         >
           <option value="">Selecionar campo personalizado...</option>
@@ -1205,7 +1237,7 @@ function OwnerModeField({
               {f.name}
             </option>
           ))}
-        </Select>
+        </DropdownSelect>
       )}
     </div>
   );
@@ -1223,14 +1255,14 @@ function TriggerPanel({
   onChange: (t: TriggerType) => void;
 }) {
   return (
-    <div className="p-5">
-      <h3 className="text-[13px] font-bold text-zinc-900 mb-1">
+    <div>
+      <h3 className="text-sm font-semibold text-zinc-700 mb-1">
         Configurar Gatilho
       </h3>
-      <p className="text-[12px] text-zinc-400 mb-4">
+      <p className="text-xs text-zinc-400 mb-4">
         Selecione o evento que vai disparar esta automação.
       </p>
-      <div className="space-y-0.5">
+      <div className="space-y-1">
         {TRIGGER_TYPES.map((t) => (
           <button
             key={t}
@@ -1238,8 +1270,8 @@ function TriggerPanel({
             className={cn(
               "w-full text-left px-3 py-2.5 rounded-lg border transition-colors cursor-pointer",
               value === t
-                ? "border-amber-400 bg-amber-50"
-                : "border-transparent hover:bg-zinc-50"
+                ? "border-amber-400 bg-amber-50 shadow-xs"
+                : "border-transparent hover:bg-white text-zinc-800"
             )}
           >
             <p className="text-[13px] font-semibold text-zinc-900">
@@ -1263,23 +1295,23 @@ function ActionTypePanel({
   onChange: (t: ActionType) => void;
 }) {
   return (
-    <div className="p-5">
-      <h3 className="text-[13px] font-bold text-zinc-900 mb-1">
+    <div>
+      <h3 className="text-sm font-semibold text-zinc-700 mb-1">
         Configurar Ação
       </h3>
-      <p className="text-[12px] text-zinc-400 mb-4">
+      <p className="text-xs text-zinc-400 mb-4">
         Escolha o que deve acontecer quando o evento for disparado.
       </p>
-      <div className="space-y-0.5">
+      <div className="space-y-1">
         {ACTION_TYPES.map((t) => (
           <button
             key={t}
             onClick={() => onChange(t)}
             className={cn(
-              "w-full text-left px-3 py-2 rounded-lg transition-colors cursor-pointer",
+              "w-full text-left px-3 py-2.5 rounded-lg transition-colors cursor-pointer border",
               value === t
-                ? "bg-amber-50 border border-amber-200 text-amber-800"
-                : "hover:bg-zinc-50 text-zinc-700"
+                ? "bg-amber-50 border-amber-300 text-amber-900 shadow-xs"
+                : "hover:bg-white border-transparent text-zinc-700"
             )}
           >
             <p className="text-[13px] font-semibold">{ACTION_LABELS[t]}</p>
@@ -1292,10 +1324,12 @@ function ActionTypePanel({
 
 function ConditionPanel({
   step,
+  onDelete,
   onChange,
   pipelines,
 }: {
   step: AutomationStep;
+  onDelete: () => void;
   onChange: (fn: (s: AutomationStep) => AutomationStep) => void;
   pipelines: Pipeline[];
 }) {
@@ -1339,137 +1373,193 @@ function ConditionPanel({
     }));
   }
 
-  function renderValueInput(rule: AutomationConditionRule, idx: number) {
+  function getFieldLabel(field: AutomationConditionField) {
+    return CONDITION_FIELD_LABELS[field] || "Campo...";
+  }
+
+  function getOperatorLabel(op: AutomationConditionOperator) {
+    return CONDITION_OPERATORS.find((o) => o.value === op)?.label || "é";
+  }
+
+  function getValueLabel(rule: AutomationConditionRule) {
     if (rule.field === "pipeline") {
       return (
-        <Select
-          value={rule.value}
-          onChange={(v) => updateRule(idx, { value: v })}
-        >
-          <option value="">Selecionar funil...</option>
-          {pipelines.map((p) => (
-            <option key={p.id} value={p.name}>
-              {p.name}
-            </option>
-          ))}
-        </Select>
+        pipelines.find((p) => p.name === rule.value || p.id === rule.value)
+          ?.name || rule.value || "Selecionar funil..."
       );
     }
     if (rule.field === "stage") {
       return (
-        <Select
-          value={rule.value}
-          onChange={(v) => updateRule(idx, { value: v })}
-        >
-          <option value="">Selecionar etapa...</option>
-          {allStages.map((s) => (
-            <option key={s.id} value={s.name}>
-              {s.name} ({s.pipelineName})
-            </option>
-          ))}
-        </Select>
+        allStages.find((s) => s.name === rule.value || s.id === rule.value)
+          ?.name || rule.value || "Selecionar etapa..."
       );
     }
     if (rule.field === "status") {
-      return (
-        <Select
-          value={rule.value}
-          onChange={(v) => updateRule(idx, { value: v })}
-        >
-          <option value="">Selecionar status...</option>
-          <option value="Ativo">Ativo</option>
-          <option value="Ganho">Ganho</option>
-          <option value="Perdido">Perdido</option>
-        </Select>
-      );
+      return rule.value || "Selecionar status...";
     }
-    return (
-      <input
-        value={rule.value}
-        onChange={(e) => updateRule(idx, { value: e.target.value })}
-        placeholder="Valor..."
-        className="w-full px-3 py-2 text-[13px] border border-zinc-200 rounded-lg outline-none focus:border-amber-400 bg-white"
-      />
-    );
+    return rule.value;
   }
 
   return (
-    <div className="p-5">
-      <h3 className="text-[13px] font-bold text-zinc-900 mb-1">Condição</h3>
-      <p className="text-[12px] text-zinc-400 mb-4">
-        A automação só continua se estas condições forem verdadeiras.
+    <div>
+      <h3 className="text-sm font-semibold text-zinc-700 mb-1">Condicao</h3>
+      <p className="text-xs text-zinc-400 mb-4">
+        A automacao so continua se estas condicoes forem verdadeiras.
       </p>
+
       <div className="space-y-3">
-        {rules.map((rule, idx) => (
-          <div key={idx}>
-            {idx > 0 && (
-              <div className="flex items-center gap-2 mb-2">
-                <div className="flex-1 h-px bg-zinc-100" />
-                <span className="text-[11px] font-bold text-zinc-400 bg-zinc-100 px-2 py-0.5 rounded">
-                  AND
-                </span>
-                <div className="flex-1 h-px bg-zinc-100" />
+        {/* Card of conditions */}
+        <div className="rounded-lg border border-zinc-200 bg-zinc-50/50 p-3">
+          <div>
+            {rules.map((rule, idx) => (
+              <div key={idx}>
+                {idx > 0 && (
+                  <div className="flex items-center justify-center my-2">
+                    <button
+                      type="button"
+                      className="rounded-full bg-zinc-200 px-3 py-0.5 text-[10px] font-bold text-zinc-600 hover:bg-zinc-300 transition-colors"
+                    >
+                      AND
+                    </button>
+                  </div>
+                )}
+
+                <div className="space-y-2">
+                  {/* Field selector */}
+                  <DropdownSelect
+                    value={rule.field}
+                    label={getFieldLabel(rule.field)}
+                    placeholder="Campo..."
+                    onChange={(v) =>
+                      updateRule(idx, {
+                        field: v as AutomationConditionField,
+                        value: "",
+                      })
+                    }
+                  >
+                    <option value="">Campo...</option>
+                    {CONDITION_FIELDS.map((f) => (
+                      <option key={f} value={f}>
+                        {CONDITION_FIELD_LABELS[f]}
+                      </option>
+                    ))}
+                  </DropdownSelect>
+
+                  {/* Operator row + delete button */}
+                  <div className="flex items-center gap-2">
+                    <DropdownSelect
+                      value={rule.operator}
+                      label={getOperatorLabel(rule.operator)}
+                      onChange={(v) =>
+                        updateRule(idx, {
+                          operator: v as AutomationConditionOperator,
+                        })
+                      }
+                    >
+                      {CONDITION_OPERATORS.map((op) => (
+                        <option key={op.value} value={op.value}>
+                          {op.label}
+                        </option>
+                      ))}
+                    </DropdownSelect>
+
+                    <button
+                      type="button"
+                      onClick={() => removeRule(idx)}
+                      className="shrink-0 text-zinc-300 hover:text-red-400 transition-colors p-1"
+                    >
+                      <X className="h-3.5 w-3.5" />
+                    </button>
+                  </div>
+
+                  {/* Value field */}
+                  <div>
+                    {rule.field === "pipeline" ? (
+                      <DropdownSelect
+                        value={rule.value}
+                        label={getValueLabel(rule)}
+                        placeholder="Selecionar funil..."
+                        onChange={(v) => updateRule(idx, { value: v })}
+                      >
+                        <option value="">Selecionar funil...</option>
+                        {pipelines.map((p) => (
+                          <option key={p.id} value={p.name}>
+                            {p.name}
+                          </option>
+                        ))}
+                      </DropdownSelect>
+                    ) : rule.field === "stage" ? (
+                      <DropdownSelect
+                        value={rule.value}
+                        label={getValueLabel(rule)}
+                        placeholder="Selecionar etapa..."
+                        onChange={(v) => updateRule(idx, { value: v })}
+                      >
+                        <option value="">Selecionar etapa...</option>
+                        {allStages.map((s) => (
+                          <option key={s.id} value={s.name}>
+                            {s.name} ({s.pipelineName})
+                          </option>
+                        ))}
+                      </DropdownSelect>
+                    ) : rule.field === "status" ? (
+                      <DropdownSelect
+                        value={rule.value}
+                        label={getValueLabel(rule)}
+                        placeholder="Selecionar status..."
+                        onChange={(v) => updateRule(idx, { value: v })}
+                      >
+                        <option value="">Selecionar status...</option>
+                        <option value="Ativo">Ativo</option>
+                        <option value="Ganho">Ganho</option>
+                        <option value="Perdido">Perdido</option>
+                      </DropdownSelect>
+                    ) : (
+                      <input
+                        placeholder="Valor..."
+                        value={rule.value}
+                        onChange={(e) => updateRule(idx, { value: e.target.value })}
+                        className="w-full rounded-lg border border-zinc-200 bg-white px-3 py-1.5 text-xs outline-none focus:border-amber-400 text-zinc-800"
+                        type="text"
+                      />
+                    )}
+                  </div>
+                </div>
               </div>
-            )}
-            <div className="flex items-start gap-1.5">
-              <div className="flex-1 space-y-1.5">
-                <Select
-                  value={rule.field}
-                  onChange={(v) =>
-                    updateRule(idx, {
-                      field: v as AutomationConditionField,
-                      value: "",
-                    })
-                  }
-                >
-                  <option value="">Campo...</option>
-                  {CONDITION_FIELDS.map((f) => (
-                    <option key={f} value={f}>
-                      {CONDITION_FIELD_LABELS[f]}
-                    </option>
-                  ))}
-                </Select>
-                <Select
-                  value={rule.operator}
-                  onChange={(v) =>
-                    updateRule(idx, {
-                      operator: v as AutomationConditionOperator,
-                    })
-                  }
-                >
-                  {CONDITION_OPERATORS.map((op) => (
-                    <option key={op.value} value={op.value}>
-                      {op.label}
-                    </option>
-                  ))}
-                </Select>
-                {renderValueInput(rule, idx)}
-              </div>
-              {rules.length > 1 && (
-                <button
-                  onClick={() => removeRule(idx)}
-                  className="mt-1 p-1.5 rounded text-zinc-300 hover:text-red-500 transition-colors cursor-pointer"
-                >
-                  <X className="h-3.5 w-3.5" />
-                </button>
-              )}
-            </div>
+            ))}
           </div>
-        ))}
-      </div>
-      <button
-        onClick={addRule}
-        className="mt-3 text-[12px] font-semibold text-amber-600 hover:text-amber-700 flex items-center gap-1 cursor-pointer"
-      >
-        <Plus className="h-3.5 w-3.5" /> Adicionar regra
-      </button>
-      <div className="flex justify-center mt-3">
-        <button
-          onClick={addRule}
-          className="text-[12px] font-bold text-zinc-400 hover:text-zinc-600 border border-zinc-200 rounded-full px-4 py-1 hover:border-zinc-300 transition-colors cursor-pointer"
-        >
-          + AND
-        </button>
+
+          {/* Add rule & delete group card */}
+          <div className="flex items-center gap-2 mt-2 pt-2 border-t border-zinc-100">
+            <button
+              type="button"
+              onClick={addRule}
+              className="text-xs text-amber-500 hover:text-amber-600 font-medium cursor-pointer"
+            >
+              + Adicionar regra
+            </button>
+            <div className="flex-1" />
+            <button
+              type="button"
+              onClick={onDelete}
+              className="text-xs text-red-400 hover:text-red-500 p-1 cursor-pointer"
+              title="Excluir condição"
+            >
+              <Trash2 className="h-3 w-3" />
+            </button>
+          </div>
+        </div>
+
+        {/* Add Group button (+ AND) */}
+        <div className="flex items-center justify-center">
+          <button
+            type="button"
+            onClick={addRule}
+            className="rounded-full bg-zinc-100 px-3 py-1 text-[10px] font-bold text-zinc-500 hover:bg-amber-100 hover:text-amber-600 transition-colors cursor-pointer"
+          >
+            + AND
+          </button>
+        </div>
       </div>
     </div>
   );
@@ -1483,15 +1573,15 @@ function NextStepPanel({
   onAddAction: (e: React.MouseEvent) => void;
 }) {
   return (
-    <div className="p-5">
-      <h3 className="text-[13px] font-bold text-zinc-950 mb-1">Próximo passo</h3>
-      <p className="text-[12px] text-zinc-400 mb-4">
+    <div>
+      <h3 className="text-sm font-semibold text-zinc-700 mb-1">Próximo passo</h3>
+      <p className="text-xs text-zinc-400 mb-4">
         Adicione uma condição ou ação ao fluxo.
       </p>
       <div className="space-y-2">
         <button
           onClick={onAddCondition}
-          className="w-full text-left flex items-center gap-3 px-4 py-3 rounded-xl border border-zinc-200 hover:border-blue-300 hover:bg-blue-50/50 transition-colors cursor-pointer"
+          className="w-full text-left flex items-center gap-3 px-4 py-3 rounded-xl border border-zinc-200 bg-white hover:border-blue-300 hover:bg-blue-50/50 transition-colors cursor-pointer shadow-xs"
         >
           <div className="w-8 h-8 rounded-lg bg-blue-50 border border-blue-100 flex items-center justify-center shrink-0">
             <svg
@@ -1515,7 +1605,7 @@ function NextStepPanel({
         </button>
         <button
           onClick={onAddAction}
-          className="w-full text-left flex items-center gap-3 px-4 py-3 rounded-xl border border-zinc-200 hover:border-amber-300 hover:bg-[#FFF9EC]/50 transition-colors cursor-pointer"
+          className="w-full text-left flex items-center gap-3 px-4 py-3 rounded-xl border border-zinc-200 bg-white hover:border-amber-300 hover:bg-[#FFF9EC]/50 transition-colors cursor-pointer shadow-xs"
         >
           <div className="w-8 h-8 rounded-lg bg-[#FFF9EC] border border-amber-100 flex items-center justify-center shrink-0">
             <svg
@@ -1544,28 +1634,42 @@ function NextStepPanel({
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
-// Shared Select & Field
+// Shared DropdownSelect & Field
 // ─────────────────────────────────────────────────────────────────────────────
 
-function Select({
+function DropdownSelect({
   value,
+  label,
+  placeholder,
   onChange,
   children,
 }: {
   value: string;
+  label?: string;
+  placeholder?: string;
   onChange: (v: string) => void;
   children: React.ReactNode;
 }) {
   return (
-    <div className="relative">
+    <div className="relative w-full">
       <select
         value={value}
         onChange={(e) => onChange(e.target.value)}
-        className="w-full appearance-none px-3 py-2 pr-8 text-[13px] border border-zinc-200 rounded-lg outline-none focus:border-amber-400 bg-white cursor-pointer"
+        className="absolute inset-0 w-full h-full opacity-0 z-10 cursor-pointer"
       >
         {children}
       </select>
-      <ChevronDown className="absolute right-2.5 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-zinc-400 pointer-events-none" />
+      <div className="flex items-center gap-1.5 rounded-lg border border-zinc-200 bg-white px-3 py-1.5 text-sm hover:bg-zinc-50 transition-colors min-w-0 w-full">
+        <span
+          className={cn(
+            "min-w-0 truncate flex-1 text-left",
+            label ? "text-zinc-800 font-medium" : "text-zinc-400"
+          )}
+        >
+          {label || placeholder || "Selecionar..."}
+        </span>
+        <ChevronDown className="h-3.5 w-3.5 text-zinc-400 shrink-0" />
+      </div>
     </div>
   );
 }
