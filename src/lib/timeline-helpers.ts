@@ -1,7 +1,7 @@
 import {
   RotateCcw, Pencil, Trophy, CircleX, User, Building2,
   ArrowRight, Plus, CheckCircle2, CalendarPlus, Trash2,
-  FileText, GitMerge, DollarSign, Tag, Package, CalendarDays,
+  FileText, GitMerge, DollarSign, Tag, Package, CalendarDays, Mail,
   type LucideIcon
 } from "lucide-react";
 
@@ -64,6 +64,9 @@ export function getTimelineIconConfig(description: string): TimelineIconConfig {
   }
   if (desc.startsWith("nota")) {
     return { icon: FileText, badgeClass: "bg-zinc-100 text-zinc-600 border-zinc-200/60" };
+  }
+  if (desc.startsWith("email")) {
+    return { icon: Mail, badgeClass: "bg-blue-50 text-blue-600 border-blue-200/60" };
   }
   if (desc.includes("atividade criada")) {
     return { icon: CalendarPlus, badgeClass: "bg-zinc-100 text-zinc-600 border-zinc-200/60" };

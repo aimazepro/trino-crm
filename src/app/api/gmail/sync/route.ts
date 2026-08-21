@@ -211,6 +211,31 @@ export async function POST(req: NextRequest) {
       continue;
     }
     synced++;
+
+    if (direction === "received") {
+      // Surface the reply in the deal's "Todos"/"Histórico" timeline (deal-scoped,
+      // same as every other deal event) and notify the owner, mirroring the
+      // email_open notification in /api/track/[trackId].
+      if (dealId) {
+        const { error: historyErr } = await admin.from("deal_history").insert({
+          deal_id: dealId,
+          description: "Email recebido",
+          subtext: subject,
+        });
+        if (historyErr) console.error("[gmail/sync] deal_history insert failed:", historyErr);
+      }
+
+      const { error: notifErr } = await admin.from("notifications").insert({
+        user_id: user.id,
+        workspace_id: workspaceCtx.workspaceId,
+        type: "email_reply",
+        title: `${fromEmail || "Contato"} respondeu seu email`,
+        subtext: subject || "",
+        href: dealId ? `/negocios/${dealId}?tab=gmail` : "/atividades",
+        read: false,
+      });
+      if (notifErr) console.error("[gmail/sync] notification insert failed:", notifErr);
+    }
   }
 
   // TEMP DEBUG (remove after confirming reply-sync fix in prod)

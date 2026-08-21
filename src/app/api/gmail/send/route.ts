@@ -210,5 +210,16 @@ export async function POST(req: NextRequest) {
     from_email: fromEmail,
   }).eq("id", row.id);
 
+  // Surface the send in the deal's "Todos"/"Histórico" timeline, same as every other
+  // deal event (deal_history is deal-scoped, so skip when there's no linked deal).
+  if (dealId) {
+    const { error: historyErr } = await admin.from("deal_history").insert({
+      deal_id: dealId,
+      description: "Email enviado",
+      subtext: subject,
+    });
+    if (historyErr) console.error("[gmail/send] deal_history insert failed:", historyErr);
+  }
+
   return NextResponse.json({ success: true, id: row.id });
 }
