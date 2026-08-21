@@ -28,6 +28,13 @@ export async function proxy(request: NextRequest) {
 // api/v1 is the public API: Bearer-key auth inside the route (see
 // src/lib/api-auth.ts), no session cookie -- same reasoning as
 // api/whatsapp/webhook and api/automations above.
+// api/auth/gmail/callback and api/auth/google-calendar/callback do their own
+// getUser() check and redirect to a friendly *_error=1 page on failure -- but
+// the actual route paths never matched the old "api/auth/callback" exclusion
+// (no route has ever lived at that literal path), so any request that arrived
+// without a live session cookie hit the middleware's blanket /login redirect
+// first, dumping the user on a blank login page mid-OAuth-flow instead of the
+// route's own error handling.
 export const config = {
-  matcher: ["/((?!_next/static|_next/image|favicon.ico|api/auth/callback|api/track|api/whatsapp/webhook|api/whatsapp/queue|api/convites/aceitar|api/automations|api/v1|.*\\.(?:svg|png|jpg|jpeg|gif|webp)$).*)"],
+  matcher: ["/((?!_next/static|_next/image|favicon.ico|api/auth/gmail/callback|api/auth/google-calendar/callback|api/track|api/whatsapp/webhook|api/whatsapp/queue|api/convites/aceitar|api/automations|api/v1|.*\\.(?:svg|png|jpg|jpeg|gif|webp)$).*)"],
 };
