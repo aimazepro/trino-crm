@@ -14,7 +14,6 @@ import {
   Target,
   Phone,
   Crosshair,
-  Mic,
   ChevronLeft,
   MessageCircle,
 } from "lucide-react";
@@ -180,9 +179,11 @@ export function Sidebar() {
           </span>
           <ul className="space-y-0.5">
             {[
-              { href: "/prospeccao", label: "Prospecção", icon: Crosshair },
+              // "Prospecção" e "Análise de Calls" tirados do menu (Fase 0
+              // item 5): sem page.tsx, sempre foram 404 -- decoração, não
+              // feature. Rotas continuam fora do código; se um dia forem
+              // construídas de verdade, voltam pra cá.
               { href: "/automacoes", label: "Automações", icon: Zap },
-              { href: "/analise-calls", label: "Análise de Calls", icon: Mic },
             ].map((item) => {
               const active = isActive(item.href);
               return (

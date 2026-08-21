@@ -67,11 +67,21 @@ Sem features. Torna o produto honesto e seguro antes de crescer. `AUD §6`
     `(select decrypted_secret from vault.decrypted_secrets where name = 'automation_dispatch_secret')`
     em vez de literal. Verificado: nenhum command contém mais o token,
     `net._http_response` pós-mudança 100% `status_code = 200` (zero 401).
-- [ ] **Ocultar as telas de decoração** — `/configuracoes/billing` (manter no
-  código, ver Fase 6), `/prospeccao`, `/analise-calls`. `AUD §6.3`
-- [ ] **Consertar os links 404** — `/configuracoes/api/docs` e
-  `/ajuda/integracao-leads-externos` ficam como link, apontando para a doc que
-  será escrita na Fase 2. `AUD §6.3`
+- [x] **Ocultar as telas de decoração — FECHADO 2026-08-21.**
+  `/configuracoes/billing`: link "Planos e Faturamento" tirado do menu de
+  configurações (`src/app/configuracoes/layout.tsx`) — a página é 100%
+  mockada (faturas fake hardcoded, botão "Alterar plano" sem ação real),
+  prometia cobrança que não existe. Código fica, ver Fase 6.
+  `/prospeccao` e `/analise-calls`: **não eram só decoração, eram 404 de
+  verdade** — os dois links no sidebar (`src/components/layout/sidebar.tsx`)
+  apontavam pra rotas sem `page.tsx` nenhum. Tirados do menu; código nunca
+  existiu, nada pra manter. `AUD §6.3`
+- [x] **Consertar os links 404 — FECHADO 2026-08-21 (achado já resolvido
+  pela Fase 2, só faltava confirmar e marcar).** `/configuracoes/api/docs` e
+  `/ajuda/integracao-leads-externos` já existem como páginas reais com
+  conteúdo (a doc que a Fase 2 escreveu) — confirmado com `npm run build`:
+  as duas aparecem na lista de rotas estáticas geradas, sem erro. Não eram
+  mais 404. `AUD §6.3`
 - [x] **`.env.example` + validação fail-fast de env vars — FECHADO 2026-08-21.**
   ~40 call sites de `process.env.X!` espalhadas (5 vars únicas) mais outras
   lidas com throw manual em request time (`OAUTH_ENCRYPTION_KEY`,

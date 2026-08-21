@@ -9,7 +9,10 @@ const SECTIONS = [
     title: "MINHA CONTA",
     items: [
       { label: "Perfil", href: "/configuracoes/perfil" },
-      { label: "Planos e Faturamento", href: "/configuracoes/billing" },
+      // "Planos e Faturamento" tirado do menu (Fase 0 item 5): billing é
+      // 100% mockado (faturas fake hardcoded, botão "Alterar plano" não faz
+      // nada) -- decoração enganosa, prometeria cobrança real que não
+      // existe. Código fica (ver docs/BACKLOG.md Fase 6), só o link some.
     ]
   },
   {
