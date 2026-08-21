@@ -229,7 +229,7 @@ function defaultConfig(type: ActionType): Record<string, string | number | boole
     case "add_label":
       return { labelName: "" };
     case "duplicate_deal":
-      return { ownerMode: "keep" };
+      return { copyNotes: false, ownerMode: "keep" };
     case "create_note":
       return { content: "" };
     case "send_webhook":
@@ -1492,15 +1492,28 @@ function InlineActionForm({
       )}
 
       {actionType === "duplicate_deal" && (
-        <OwnerModeField
-          label="Proprietário do novo negócio"
-          mode={(config.ownerMode as string) ?? "keep"}
-          userId={(config.userId as string) ?? ""}
-          roundRobinIds={(config.roundRobinIds as string) ?? ""}
-          customFieldId={(config.customFieldId as string) ?? ""}
-          showKeep
-          onChange={(patch) => patchConfig(patch)}
-        />
+        <>
+          <label className="flex items-center gap-2 cursor-pointer">
+            <input
+              className="rounded border-zinc-300 text-amber-500 focus:ring-amber-400 accent-amber-500"
+              type="checkbox"
+              checked={!!config.copyNotes}
+              onChange={(e) => patchConfig({ copyNotes: e.target.checked })}
+            />
+            <span className="text-xs text-zinc-600">
+              Copiar notas do negócio original
+            </span>
+          </label>
+          <OwnerModeField
+            label="Proprietário do novo negócio"
+            mode={(config.ownerMode as string) ?? "keep"}
+            userId={(config.userId as string) ?? ""}
+            roundRobinIds={(config.roundRobinIds as string) ?? ""}
+            customFieldId={(config.customFieldId as string) ?? ""}
+            showKeep
+            onChange={(patch) => patchConfig(patch)}
+          />
+        </>
       )}
 
       {actionType === "create_note" && (
