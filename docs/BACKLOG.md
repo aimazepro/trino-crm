@@ -7,7 +7,7 @@ entre sessões.
 > **Regra:** item não sai deste arquivo. Ou vira `[x]` com a data, ou vira
 > "Descartado" com o motivo. Nunca some.
 
-Última atualização: 2026-08-20 (Fase 2 — Motor + Entrada de Leads — confirmadas mergeadas e em produção; S-1 parcialmente fechado).
+Última atualização: 2026-08-21 (Fase 0 — 6 de 7 itens fechados; item 6 bloqueado por custo, ver seção Fase 0).
 
 **Detalhe de cada item** está nos docs de origem, referenciados por sigla:
 - `AUD` → `docs/AUDIT-2026-08-19-saas-deep-dive.md` (auditoria profunda, o plano mestre)
@@ -22,9 +22,9 @@ entre sessões.
 
 | | |
 |---|---|
-| Branch | `main`, working tree limpo |
-| Produção | deployada e verificada (Fase 1 + Fase 2 completa no ar) |
-| `origin/main` | em dia, 0 commits à frente (2026-08-20) |
+| Branch | `fase0-hardening` (não mergeada em `main` ainda) |
+| Produção | deployada e verificada (Fase 1 + Fase 2 + Fase 0 itens 1-5,7 no ar) |
+| `origin/main` | não recebeu push desta sessão — deploy prod é direto via `vercel deploy --prod`, independe de merge/push |
 
 Deploy é manual: `vercel deploy --prod`. `git push` não deploya.
 
@@ -116,14 +116,24 @@ Sem features. Torna o produto honesto e seguro antes de crescer. `AUD §6`
   `api/automations`). Verificado com curl direto em prod: com o secret
   certo → `200 {"ok":true,"processed":1,"failed":0}` (1 integração real
   ativa, processada sem erro); sem secret → `401`. `AUD §3`
-- [ ] **Cadência dos crons.** 4 jobs de minuto em minuto contra filas vazias
-  queimam ~130 mil invocações/mês das 500 mil do free tier. Agora que a fila de
-  WhatsApp é usada, reavaliar quais podem cair para 5 min. `AUD §6.5`
+- [x] **Cadência dos crons — FECHADO 2026-08-21.** Medido antes de mudar:
+  1510 de 1511 execuções nos últimos dias (`net._http_response`) vieram
+  vazias (`processed:0, failed:0`) — confirma o desperdício. `email-queue`,
+  `whatsapp-queue`, `webhooks` e `automations-run` (jobs 1,2,4,6) caíram de
+  `* * * * *` pra `*/5 * * * *`, mesma cadência que `sequences` já usava.
+  ~5760 → ~1152 invocações/dia nesses 4 jobs. Mudança só de config no banco
+  (`cron.alter_job`), sem código — não precisou de deploy. `AUD §6.5`
 - [x] **S-6 — revogar `EXECUTE` do `anon`** em `is_workspace_member`,
   `replace_deal_labels`, `replace_deal_products` — fechado junto com a Fase 1 (também
   `my_workspace_ids`, `my_role`, `is_ws_manager`, `is_ws_admin`, as 4 novas). `AUD §S-6`
-- [ ] **Ligar proteção contra senha vazada** (HaveIBeenPwned) no Supabase Auth.
-  Cadastro é aberto, sem convite nem verificação de domínio. `AUD §S-5`
+- [ ] **BLOQUEADO (custo) — Ligar proteção contra senha vazada** (HaveIBeenPwned)
+  no Supabase Auth. Não é toggle simples como se pensava: a feature só existe
+  no **plano Pro do Supabase ($25/mês) ou acima** — confirmado 2026-08-21 via
+  `get_organization` (org "Trino Digital Business" está no plano **free**) e
+  na doc oficial ("Leaked password protection is available on the Pro Plan
+  and above"). Decisão do usuário 2026-08-21: pular por ora, não fazer
+  upgrade sem decisão explícita depois. Cadastro continua aberto, sem convite
+  nem verificação de domínio, enquanto isso ficar pendente. `AUD §S-5`
 
 ---
 
