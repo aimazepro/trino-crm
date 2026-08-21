@@ -41,6 +41,30 @@ function extractBody(payload: GmailPayload): string {
   return "";
 }
 
+// Gmail's messages.list `q=` full-text search is unreliable for this use case (index
+// lag on very recent mail, excludes Spam/Trash unless `in:anywhere` is added, and
+// address matching against the raw header string doesn't reliably account for Gmail's
+// own dot-insensitivity in local-parts). Confirmed via 6+ instrumented syncs this
+// session: q= search found 45-46 old "sent" messages but 0 "received" ones despite a
+// real external reply sitting in the inbox. Fix: list INBOX/SENT labels directly (no
+// text search, no lag) and match the contact by parsed header address in code.
+function extractEmailAddress(headerValue: string): string {
+  const match = headerValue.match(/<([^>]+)>/);
+  return (match ? match[1] : headerValue).trim().toLowerCase();
+}
+
+function normalizeEmail(headerValue: string): string {
+  const address = extractEmailAddress(headerValue);
+  const [local, domain] = address.split("@");
+  if (!domain) return address;
+  const domainLower = domain.toLowerCase();
+  if (domainLower === "gmail.com" || domainLower === "googlemail.com") {
+    const localNormalized = local.replace(/\./g, "").split("+")[0];
+    return `${localNormalized}@gmail.com`;
+  }
+  return address;
+}
+
 export async function POST(req: NextRequest) {
   const cookieStore = await cookies();
   const supabase = createServerClient(
@@ -93,38 +117,40 @@ export async function POST(req: NextRequest) {
 
   const { token, email: myEmail } = integration;
 
-  // in:anywhere -- default Gmail search silently excludes Spam/Trash. 5 instrumented
-  // syncs this session found 45-46 "sent" messages and ZERO "received" ones despite a
-  // confirmed real external reply -- strongly points to the reply landing in Spam and
-  // never being visible to the default search.
-  const query = `in:anywhere (from:${contactEmail} OR to:${contactEmail})`;
-  const listRes = await fetch(
-    `https://gmail.googleapis.com/gmail/v1/users/me/messages?q=${encodeURIComponent(query)}&maxResults=50`,
-    { headers: { Authorization: `Bearer ${token}` } }
-  );
-  const listData = await listRes.json();
-  if (!listRes.ok) {
-    // Most likely cause: the connected account authorized before gmail.readonly was
-    // requested (added alongside this check) -- Google silently returns an
-    // insufficient-scope error here rather than failing the connect itself, so this
-    // surfaced only as "sync always finds nothing," not as a visible connect failure.
-    console.error("[gmail/sync] messages.list failed:", listData.error ?? listData);
-    return NextResponse.json({
-      error: listData.error?.message ?? "Gmail list failed",
-      reconnectRequired: listData.error?.status === "PERMISSION_DENIED",
-    }, { status: 502 });
+  async function listLabel(labelId: string): Promise<{ id: string }[]> {
+    const res = await fetch(
+      `https://gmail.googleapis.com/gmail/v1/users/me/messages?labelIds=${labelId}&maxResults=100`,
+      { headers: { Authorization: `Bearer ${token}` } }
+    );
+    const data = await res.json();
+    if (!res.ok) {
+      // Most likely cause: the connected account authorized before gmail.readonly was
+      // requested -- Google silently returns an insufficient-scope error here rather
+      // than failing the connect itself.
+      console.error(`[gmail/sync] messages.list(${labelId}) failed:`, data.error ?? data);
+      throw Object.assign(new Error(data.error?.message ?? "Gmail list failed"), {
+        reconnectRequired: data.error?.status === "PERMISSION_DENIED",
+      });
+    }
+    return data.messages ?? [];
   }
-  const messages: { id: string }[] = listData.messages ?? [];
 
-  // TEMP DEBUG (remove after diagnosing reply-sync issue): confirms whether
-  // Gmail's messages.list found the reply at all, and with which query/token identity.
-  console.log("[gmail/sync][TEMP]", {
-    query,
-    contactEmail,
-    myEmail,
-    messagesFound: messages.length,
-    messageIds: messages.map((m) => m.id),
+  let inboxMsgs: { id: string }[], sentMsgs: { id: string }[];
+  try {
+    [inboxMsgs, sentMsgs] = await Promise.all([listLabel("INBOX"), listLabel("SENT")]);
+  } catch (err) {
+    const e = err as Error & { reconnectRequired?: boolean };
+    return NextResponse.json({ error: e.message, reconnectRequired: e.reconnectRequired }, { status: 502 });
+  }
+
+  const seen = new Set<string>();
+  const messages: { id: string }[] = [...inboxMsgs, ...sentMsgs].filter((m) => {
+    if (seen.has(m.id)) return false;
+    seen.add(m.id);
+    return true;
   });
+
+  const contactEmailNormalized = normalizeEmail(contactEmail);
 
   const { data: existing } = await admin
     .from("emails")
@@ -136,6 +162,7 @@ export async function POST(req: NextRequest) {
   const existingIds = new Set(((existing ?? []) as any[]).map((e) => e.gmail_message_id as string));
 
   let synced = 0;
+  let skippedNoMatch = 0;
   for (const msg of messages) {
     if (existingIds.has(msg.id)) continue;
 
@@ -153,8 +180,18 @@ export async function POST(req: NextRequest) {
     const dateStr = getHeader("Date");
     const createdAt = dateStr ? new Date(dateStr).toISOString() : new Date().toISOString();
 
+    // Only messages actually to/from this contact belong here -- INBOX/SENT listing
+    // above pulls in the whole mailbox, so this filter replaces the old (unreliable)
+    // Gmail q= search-based filtering.
+    const fromNormalized = normalizeEmail(fromEmail);
+    const toNormalized = normalizeEmail(toEmail);
+    if (fromNormalized !== contactEmailNormalized && toNormalized !== contactEmailNormalized) {
+      skippedNoMatch++;
+      continue;
+    }
+
     const bodyHtml = extractBody(msgData.payload ?? {});
-    const direction = fromEmail.includes(myEmail) ? "sent" : "received";
+    const direction = normalizeEmail(fromEmail) === normalizeEmail(myEmail) ? "sent" : "received";
 
     const { error: insertError } = await admin.from("emails").insert({
       user_id: user.id,
@@ -170,12 +207,23 @@ export async function POST(req: NextRequest) {
       created_at: createdAt,
     });
     if (insertError) {
-      // TEMP DEBUG (remove after diagnosing reply-sync issue)
-      console.error("[gmail/sync][TEMP] insert failed:", insertError, { msgId: msg.id, direction, fromEmail, toEmail });
+      console.error("[gmail/sync] insert failed:", insertError, { msgId: msg.id, direction, fromEmail, toEmail });
       continue;
     }
     synced++;
   }
+
+  // TEMP DEBUG (remove after confirming reply-sync fix in prod)
+  console.log("[gmail/sync][TEMP]", {
+    contactEmail,
+    contactEmailNormalized,
+    myEmail,
+    inboxCount: inboxMsgs.length,
+    sentCount: sentMsgs.length,
+    totalCandidates: messages.length,
+    skippedNoMatch,
+    synced,
+  });
 
   return NextResponse.json({ success: true, synced });
 }
