@@ -93,7 +93,11 @@ export async function POST(req: NextRequest) {
 
   const { token, email: myEmail } = integration;
 
-  const query = `from:${contactEmail} OR to:${contactEmail}`;
+  // in:anywhere -- default Gmail search silently excludes Spam/Trash. 5 instrumented
+  // syncs this session found 45-46 "sent" messages and ZERO "received" ones despite a
+  // confirmed real external reply -- strongly points to the reply landing in Spam and
+  // never being visible to the default search.
+  const query = `in:anywhere (from:${contactEmail} OR to:${contactEmail})`;
   const listRes = await fetch(
     `https://gmail.googleapis.com/gmail/v1/users/me/messages?q=${encodeURIComponent(query)}&maxResults=50`,
     { headers: { Authorization: `Bearer ${token}` } }
