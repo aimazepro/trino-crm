@@ -41,12 +41,12 @@ function evaluateRule(rule: ConditionRule, deal: Deal, pipelines: Pipeline[]): b
 
   switch (field) {
     case "pipeline": {
-      const p = pipelines.find((p) => p.id === deal.pipelineId);
+      const p = pipelines.find((p) => p.id === deal.pipelineId || p.name === deal.pipelineId);
       dealValue = p?.name ?? "";
       break;
     }
     case "stage": {
-      const s = pipelines.flatMap((p) => p.stages).find((s) => s.id === deal.stageId);
+      const s = pipelines.flatMap((p) => p.stages).find((s) => s.id === deal.stageId || s.name === deal.stageId);
       dealValue = s?.name ?? "";
       break;
     }
@@ -56,22 +56,44 @@ function evaluateRule(rule: ConditionRule, deal: Deal, pipelines: Pipeline[]): b
     case "value":
       dealValue = deal.value ?? 0;
       break;
+    case "owner":
+      dealValue = deal.ownerId ?? "";
+      break;
+    case "title":
+      dealValue = deal.title ?? "";
+      break;
     case "label":
+      if (operator === "is_empty") return !deal.labels || deal.labels.length === 0;
+      if (operator === "is_not_empty") return !!deal.labels && deal.labels.length > 0;
+      if (operator === "not_contains") return !deal.labels.includes(value);
       return deal.labels.includes(value);
     default:
       return true;
   }
 
   const dv = String(dealValue).toLowerCase();
-  const rv = value.toLowerCase();
+  const rv = (value || "").toLowerCase();
 
   switch (operator) {
-    case "is": return dv === rv;
-    case "is_not": return dv !== rv;
-    case "contains": return dv.includes(rv);
-    case "greater_than": return Number(dealValue) > Number(value);
-    case "less_than": return Number(dealValue) < Number(value);
-    default: return true;
+    case "is":
+    case "changed_to":
+      return dv === rv;
+    case "is_not":
+      return dv !== rv;
+    case "contains":
+      return dv.includes(rv);
+    case "not_contains":
+      return !dv.includes(rv);
+    case "is_empty":
+      return dv === "" || dealValue === 0 || dealValue === undefined || dealValue === null;
+    case "is_not_empty":
+      return dv !== "" && dealValue !== undefined && dealValue !== null;
+    case "greater_than":
+      return Number(dealValue) > Number(value);
+    case "less_than":
+      return Number(dealValue) < Number(value);
+    default:
+      return true;
   }
 }
 

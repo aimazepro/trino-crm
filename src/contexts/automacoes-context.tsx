@@ -170,6 +170,7 @@ export const TRIGGER_LABELS: Record<string, string> = {
   deal_won: "Negócio ganho",
   deal_lost: "Negócio perdido",
   deal_updated: "Negócio atualizado",
+  deal_updated_any: "Negócio atualizado (qualquer alteração)",
   activity_created: "Atividade criada",
   lead_recebido: "Lead recebido (API/formulário)",
 };
@@ -179,8 +180,9 @@ export const TRIGGER_DESCRIPTIONS: Record<string, string> = {
   stage_changed: "Quando a etapa de um negócio mudar",
   deal_won: "Quando um negócio for marcado como ganho",
   deal_lost: "Quando um negócio for marcado como perdido",
-  deal_updated: "Quando qualquer campo do negócio for alterado",
-  activity_created: "Quando uma nova atividade for registrada",
+  deal_updated: "Quando um campo do negócio for alterado (ganho, perdido e etapa têm gatilhos próprios)",
+  deal_updated_any: "Quando qualquer alteração acontecer no negócio, incluindo ganho, perdido e etapa",
+  activity_created: "Quando alguém criar uma atividade dentro de um negócio. Não vale registro automático de ligação e WhatsApp, nem passo de cadência",
   lead_recebido: "Quando um lead entrar pela API pública ou por um formulário externo",
 };
 
@@ -191,12 +193,17 @@ export const CONDITION_FIELD_LABELS: Record<string, string> = {
   value: "Valor do negócio",
   owner: "Proprietário",
   label: "Etiqueta",
+  title: "Título do negócio",
 };
 
 export const CONDITION_OPERATOR_LABELS: Record<string, string> = {
   is: "é",
   is_not: "não é",
   contains: "contém",
+  not_contains: "não contém",
+  changed_to: "mudou para",
+  is_empty: "está vazio",
+  is_not_empty: "não está vazio",
   greater_than: "maior que",
   less_than: "menor que",
 };

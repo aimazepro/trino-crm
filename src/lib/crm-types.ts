@@ -157,13 +157,23 @@ export type TriggerType =
   | 'deal_won'
   | 'deal_lost'
   | 'deal_updated'
+  | 'deal_updated_any'
   | 'activity_created'
   | 'lead_recebido';
 
 export type AutomationConditionField =
-  | 'stage' | 'pipeline' | 'status' | 'value' | 'owner' | 'label';
+  | 'stage' | 'pipeline' | 'status' | 'value' | 'owner' | 'label' | 'title';
 
-export type AutomationConditionOperator = 'is' | 'is_not' | 'contains' | 'greater_than' | 'less_than';
+export type AutomationConditionOperator =
+  | 'is'
+  | 'is_not'
+  | 'contains'
+  | 'not_contains'
+  | 'changed_to'
+  | 'is_empty'
+  | 'is_not_empty'
+  | 'greater_than'
+  | 'less_than';
 
 export interface AutomationConditionRule {
   field: AutomationConditionField;
