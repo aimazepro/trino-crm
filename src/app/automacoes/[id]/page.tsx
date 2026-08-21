@@ -152,6 +152,42 @@ function useEmailTemplates(): { id: string; name: string }[] {
   return templates;
 }
 
+type WhatsAppConnectionOption = {
+  id: string;
+  phoneNumber: string;
+  profileName: string;
+  instanceName: string;
+};
+
+function useWhatsAppConnections(): WhatsAppConnectionOption[] {
+  const [connections, setConnections] = useState<WhatsAppConnectionOption[]>([]);
+  const { workspaceId } = useWorkspace();
+  useEffect(() => {
+    let cancelled = false;
+    const supabase = createClient();
+    (async () => {
+      const { data } = await supabase
+        .from("whatsapp_connections")
+        .select("id, phone_number, profile_name, instance_name, status")
+        .eq("workspace_id", workspaceId);
+      if (!cancelled) {
+        setConnections(
+          (data ?? []).map((c) => ({
+            id: c.id,
+            phoneNumber: c.phone_number || "",
+            profileName: c.profile_name || "",
+            instanceName: c.instance_name || "",
+          }))
+        );
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [workspaceId]);
+  return connections;
+}
+
 function useDealCustomFields(): CustomFieldOption[] {
   const [fields, setFields] = useState<CustomFieldOption[]>([]);
   const { workspaceId } = useWorkspace();
@@ -1265,6 +1301,7 @@ function InlineActionForm({
   const config = step.action?.config ?? {};
   const whatsappTemplates = useWhatsAppTemplates();
   const emailTemplates = useEmailTemplates();
+  const whatsappConnections = useWhatsAppConnections();
 
   function setActionType(t: ActionType) {
     onChange((s) => ({ ...s, action: { type: t, config: defaultConfig(t) } }));
@@ -1618,27 +1655,61 @@ function InlineActionForm({
         <>
           <div>
             <label className="block text-xs font-semibold text-zinc-500 uppercase tracking-wide mb-1.5">
-              Nome do grupo
+              Número que envia (WhatsApp conectado)
             </label>
-            <input
-              placeholder="Ex: Vendas - Geral"
-              className="w-full rounded-lg border border-zinc-200 px-3 py-2 text-sm text-zinc-900 outline-none focus:border-amber-400 focus:ring-2 focus:ring-amber-100"
-              type="text"
-              value={(config.groupName as string) ?? ""}
-              onChange={(e) => patchConfig({ groupName: e.target.value })}
+            <SearchableSelect
+              value={(config.connectionId as string) ?? ""}
+              placeholder="Selecionar número..."
+              options={whatsappConnections.map((c) => ({
+                value: c.id,
+                label: c.phoneNumber
+                  ? `${c.profileName ? c.profileName + " (" : ""}${c.phoneNumber}${c.profileName ? ")" : ""}`
+                  : c.instanceName || "WhatsApp Conectado",
+              }))}
+              onChange={(v) => patchConfig({ connectionId: v, groupName: "" })}
             />
           </div>
+
           <div>
             <label className="block text-xs font-semibold text-zinc-500 uppercase tracking-wide mb-1.5">
-              Mensagem de aviso
+              Grupo que recebe o aviso
+            </label>
+            {!config.connectionId ? (
+              <button
+                type="button"
+                disabled
+                className="flex items-center gap-1.5 rounded-lg border border-zinc-200 bg-white px-3 py-1.5 text-sm transition-colors min-w-0 w-full text-zinc-400 cursor-not-allowed"
+              >
+                <span className="min-w-0 truncate flex-1 text-left text-zinc-400">
+                  Escolha o número primeiro...
+                </span>
+                <ChevronDown className="h-3.5 w-3.5 text-zinc-400 shrink-0" />
+              </button>
+            ) : (
+              <input
+                placeholder="Nome ou ID do grupo..."
+                className="w-full rounded-lg border border-zinc-200 px-3 py-2 text-sm text-zinc-900 outline-none focus:border-amber-400 focus:ring-2 focus:ring-amber-100"
+                type="text"
+                value={(config.groupName as string) ?? ""}
+                onChange={(e) => patchConfig({ groupName: e.target.value })}
+              />
+            )}
+          </div>
+
+          <div>
+            <label className="block text-xs font-semibold text-zinc-500 uppercase tracking-wide mb-1.5">
+              Mensagem do aviso
             </label>
             <textarea
-              rows={2}
-              placeholder="Ex: Chegou novo lead: {deal.title}"
+              rows={4}
+              placeholder={"Chegou lead novo! 🚀\nNome: {{nome_contato}}\nEtapa: {{nome_etapa}}\nResponsável: {{nome_vendedor}}"}
               className="w-full rounded-lg border border-zinc-200 px-3 py-2 text-sm text-zinc-900 outline-none focus:border-amber-400 focus:ring-2 focus:ring-amber-100 resize-none"
               value={(config.message as string) ?? ""}
               onChange={(e) => patchConfig({ message: e.target.value })}
             />
+            <p className="mt-1 text-xs text-zinc-400">
+              Variáveis: {"{{nome_contato}}"}, {"{{nome_empresa}}"}, {"{{nome_negocio}}"}, {"{{valor_negocio}}"}, {"{{nome_vendedor}}"}, {"{{nome_etapa}}"}, {"{{nome_funil}}"}, {"{{telefone_contato}}"}. O aviso entra numa fila com ritmo seguro — em picos de leads pode levar alguns minutos.
+            </p>
           </div>
         </>
       )}
