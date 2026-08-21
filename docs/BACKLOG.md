@@ -94,8 +94,18 @@ Sem features. Torna o produto honesto e seguro antes de crescer. `AUD §6`
   prever de antemão todos os domínios de avatar/anexo do Gmail e mídia do
   WhatsApp — apertar isso é debt futura, não bloqueou o item. Build local +
   `next start` verificados com os headers batendo. `AUD §S-5`
-- [ ] **Agendar `api/cron/calendar-pull` no `pg_cron`.** Funciona, mas
-  `CRON_SECRET` nunca foi setado em produção → está inerte. `AUD §3`
+- [x] **Agendar `api/cron/calendar-pull` no `pg_cron` — FECHADO 2026-08-21.**
+  `CRON_SECRET` gerado, setado em `vercel env` (production) e guardado no
+  Vault (`name = 'cron_secret'`, mesmo padrão do item S-1 — nunca em texto
+  puro). Job `calendar-pull` (jobid 7) agendado `*/15 * * * *` via
+  `net.http_get`, header resolvido do Vault. **Bug achado e corrigido no
+  caminho**: `src/proxy.ts` redirecionava `/api/cron/*` pra `/login` (307)
+  porque o matcher não excluía esse prefixo — a checagem de `CRON_SECRET`
+  dentro da rota era código morto, nunca era alcançada. `api/cron`
+  adicionado à lista de exclusão (mesma classe de `api/whatsapp/queue`,
+  `api/automations`). Verificado com curl direto em prod: com o secret
+  certo → `200 {"ok":true,"processed":1,"failed":0}` (1 integração real
+  ativa, processada sem erro); sem secret → `401`. `AUD §3`
 - [ ] **Cadência dos crons.** 4 jobs de minuto em minuto contra filas vazias
   queimam ~130 mil invocações/mês das 500 mil do free tier. Agora que a fila de
   WhatsApp é usada, reavaliar quais podem cair para 5 min. `AUD §6.5`

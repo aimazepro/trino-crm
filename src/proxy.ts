@@ -35,6 +35,11 @@ export async function proxy(request: NextRequest) {
 // without a live session cookie hit the middleware's blanket /login redirect
 // first, dumping the user on a blank login page mid-OAuth-flow instead of the
 // route's own error handling.
+// api/cron is pg_cron too (calendar-pull, Fase 0 item 4): same shape as
+// api/whatsapp/queue above. Was missing from this list until 2026-08-21 --
+// the route's own CRON_SECRET check was dead code, every call got a 307 to
+// /login before ever reaching it. Caught before the cron job was scheduled,
+// not after.
 export const config = {
-  matcher: ["/((?!_next/static|_next/image|favicon.ico|api/auth/gmail/callback|api/auth/google-calendar/callback|api/track|api/whatsapp/webhook|api/whatsapp/queue|api/convites/aceitar|api/automations|api/v1|.*\\.(?:svg|png|jpg|jpeg|gif|webp)$).*)"],
+  matcher: ["/((?!_next/static|_next/image|favicon.ico|api/auth/gmail/callback|api/auth/google-calendar/callback|api/track|api/whatsapp/webhook|api/whatsapp/queue|api/convites/aceitar|api/automations|api/v1|api/cron|.*\\.(?:svg|png|jpg|jpeg|gif|webp)$).*)"],
 };
