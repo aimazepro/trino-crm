@@ -44,3 +44,6 @@ next-env.d.ts
 # superpowers sdd scratch workspace
 .superpowers/
 .worktrees/
+
+# graphify generated output (large, regenerable)
+graphify-out/

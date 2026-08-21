@@ -357,16 +357,24 @@ export default function ApiKeysPage() {
                     const highlight = formPerms.has(perm.key);
 
                     return (
-                      <label
+                      <div
                         key={perm.key}
+                        role="checkbox"
+                        aria-checked={checked}
+                        tabIndex={0}
                         className={`flex items-center gap-2 rounded-lg border px-3 py-2 text-sm cursor-pointer transition-colors ${
                           highlight
                             ? "border-amber-400 bg-amber-50 text-amber-700"
                             : "border-zinc-200 text-zinc-600 hover:border-zinc-300"
                         }`}
                         onClick={() => togglePerm(perm.key)}
+                        onKeyDown={(e) => {
+                          if (e.key === "Enter" || e.key === " ") {
+                            e.preventDefault();
+                            togglePerm(perm.key);
+                          }
+                        }}
                       >
-                        <input className="sr-only" type="checkbox" readOnly checked={checked} />
                         <div
                           className={`h-4 w-4 rounded border flex items-center justify-center shrink-0 transition-colors ${
                             highlight
@@ -377,7 +385,7 @@ export default function ApiKeysPage() {
                           {highlight && <Check className="h-3 w-3 text-white" />}
                         </div>
                         {perm.label}
-                      </label>
+                      </div>
                     );
                   })}
                 </div>
