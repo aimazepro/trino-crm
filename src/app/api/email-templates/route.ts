@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { createServerClient } from "@supabase/ssr";
 import { cookies } from "next/headers";
+import { getWorkspaceContext } from "@/lib/workspace-context";
 
 export const dynamic = "force-dynamic";
 
@@ -22,10 +23,14 @@ export async function GET() {
   const { data: { user } } = await supabase.auth.getUser();
   if (!user) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
 
+  // email_templates.user_id doesn't exist post-Phase-1 (workspace_id only).
+  const ctx = await getWorkspaceContext(supabase);
+  if (!ctx) return NextResponse.json({ templates: [] });
+
   const { data: templates } = await supabase
     .from("email_templates")
     .select("id, name, subject, body")
-    .eq("user_id", user.id)
+    .eq("workspace_id", ctx.workspaceId)
     .order("created_at", { ascending: false });
 
   return NextResponse.json({ templates: templates ?? [] });

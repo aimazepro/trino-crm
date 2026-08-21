@@ -3,6 +3,7 @@ import { createServerClient } from "@supabase/ssr";
 import { createClient as createAdminClient } from "@supabase/supabase-js";
 import { cookies } from "next/headers";
 import { getValidGmailToken } from "@/lib/gmail-token";
+import { getWorkspaceContext } from "@/lib/workspace-context";
 
 export const dynamic = "force-dynamic";
 
@@ -61,13 +62,19 @@ export async function POST(req: NextRequest) {
   const { contactEmail, contactId, dealId } = await req.json();
   if (!contactEmail || !contactId) return NextResponse.json({ error: "Missing fields" }, { status: 400 });
 
+  // contacts/deals dropped user_id entirely under Phase 1 multi-tenancy (workspace_id
+  // only) -- the old .eq("user_id", ...) ownership check errored on every call, so sync
+  // always 404'd before ever reaching Gmail.
+  const workspaceCtx = await getWorkspaceContext(supabase);
+  if (!workspaceCtx) return NextResponse.json({ error: "No workspace" }, { status: 400 });
+
   const admin = makeAdmin();
 
   const { data: contactOwner } = await admin
     .from("contacts")
     .select("id")
     .eq("id", contactId)
-    .eq("user_id", user.id)
+    .eq("workspace_id", workspaceCtx.workspaceId)
     .maybeSingle();
   if (!contactOwner) return NextResponse.json({ error: "Not found" }, { status: 404 });
 
@@ -76,7 +83,7 @@ export async function POST(req: NextRequest) {
       .from("deals")
       .select("id")
       .eq("id", dealId)
-      .eq("user_id", user.id)
+      .eq("workspace_id", workspaceCtx.workspaceId)
       .maybeSingle();
     if (!dealOwner) return NextResponse.json({ error: "Not found" }, { status: 404 });
   }
@@ -126,6 +133,7 @@ export async function POST(req: NextRequest) {
 
     await admin.from("emails").insert({
       user_id: user.id,
+      workspace_id: workspaceCtx.workspaceId,
       contact_id: contactId,
       deal_id: dealId ?? null,
       gmail_message_id: msg.id,
