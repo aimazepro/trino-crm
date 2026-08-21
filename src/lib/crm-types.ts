@@ -179,6 +179,8 @@ export interface AutomationConditionRule {
   field: AutomationConditionField;
   operator: AutomationConditionOperator;
   value: string;
+  logic?: 'AND' | 'OR';
+  groupId?: string;
 }
 
 export type ActionType =
@@ -194,6 +196,7 @@ export type ActionType =
   | 'send_webhook'
   | 'send_email'
   | 'send_whatsapp'
+  | 'notify_whatsapp_group'
   | 'start_sequence';
 
 export interface AutomationStep {

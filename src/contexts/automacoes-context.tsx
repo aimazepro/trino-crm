@@ -221,6 +221,7 @@ export const ACTION_LABELS: Record<string, string> = {
   send_webhook: "Enviar webhook",
   send_email: "Enviar email",
   send_whatsapp: "Enviar WhatsApp",
+  notify_whatsapp_group: "Avisar grupo no WhatsApp",
   start_sequence: "Iniciar sequência",
 };
 
@@ -229,7 +230,7 @@ export const ACTION_DESCRIPTIONS: Record<string, string> = {
   create_activity: "Cria uma atividade vinculada ao negócio",
   move_stage: "Move o negócio para outra etapa",
   assign_owner: "Define um responsável para o negócio",
-  mark_won: "Fecha o negócio como ganho.",
+  mark_won: "Fecha o negócio como ganho",
   mark_lost: "Fecha o negócio como perdido",
   add_label: "Adiciona uma etiqueta ao negócio",
   duplicate_deal: "Cria uma cópia do negócio",
@@ -237,6 +238,7 @@ export const ACTION_DESCRIPTIONS: Record<string, string> = {
   send_webhook: "Envia um POST para uma URL externa",
   send_email: "Envia um email via Gmail do vendedor",
   send_whatsapp: "Envia uma mensagem WhatsApp usando template",
+  notify_whatsapp_group: "Envia um aviso interno pra um grupo do time (ex: chegou lead)",
   start_sequence: "Inscreve o negócio numa sequência de atividades",
 };
 

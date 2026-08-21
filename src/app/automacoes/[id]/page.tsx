@@ -26,6 +26,7 @@ import {
   CONDITION_FIELD_LABELS,
   CONDITION_OPERATOR_LABELS,
   ACTION_LABELS,
+  ACTION_DESCRIPTIONS,
   AUTOMATION_TEMPLATES,
 } from "@/contexts/automacoes-context";
 import { useCrm } from "@/contexts/crm-context";
@@ -180,6 +181,7 @@ const ACTION_TYPES: ActionType[] = [
   "send_webhook",
   "send_email",
   "send_whatsapp",
+  "notify_whatsapp_group",
   "start_sequence",
 ];
 
@@ -201,6 +203,8 @@ const CONDITION_OPERATORS: { value: AutomationConditionOperator; label: string }
   { value: "changed_to", label: "mudou para" },
   { value: "is_empty", label: "está vazio" },
   { value: "is_not_empty", label: "não está vazio" },
+  { value: "greater_than", label: "maior que" },
+  { value: "less_than", label: "menor que" },
 ];
 
 function defaultConfig(type: ActionType): Record<string, string | number | boolean> {
@@ -211,7 +215,8 @@ function defaultConfig(type: ActionType): Record<string, string | number | boole
         stageId: "",
         title: "[OPP] - {contact.name}",
         copyAll: true,
-        ownerMode: "keep",
+        copyNotes: false,
+        ownerMode: "round_robin",
       };
     case "create_activity":
       return { activityType: "Ligação", deadline: 1, title: "", notes: "" };
@@ -233,6 +238,8 @@ function defaultConfig(type: ActionType): Record<string, string | number | boole
       return { templateId: "" };
     case "send_whatsapp":
       return { templateId: "" };
+    case "notify_whatsapp_group":
+      return { groupName: "", message: "Novo lead recebido: {deal.title}" };
     case "start_sequence":
       return { sequenceId: "" };
     default:
@@ -328,11 +335,12 @@ export default function AutomationBuilderPage() {
   };
 
   function addConditionStep(atIndex?: number) {
+    const groupId = crypto.randomUUID();
     const step: AutomationStep = {
       id: crypto.randomUUID(),
       type: "condition",
       condition: {
-        rules: [{ field: "pipeline", operator: "is", value: "" }],
+        rules: [{ field: "pipeline", operator: "is", value: "", logic: "AND", groupId }],
       },
     };
     setAutomation((p) => {
@@ -433,7 +441,7 @@ export default function AutomationBuilderPage() {
                       <button
                         type="button"
                         onClick={() => toggleLabel(lid)}
-                        className="text-zinc-400 hover:text-red-500 transition-colors ml-0.5"
+                        className="text-zinc-400 hover:text-red-500 transition-colors ml-0.5 cursor-pointer"
                       >
                         <X className="h-3 w-3" />
                       </button>
@@ -611,7 +619,7 @@ export default function AutomationBuilderPage() {
                       className={cn(
                         "rounded-xl border-2 p-4 cursor-pointer transition-colors bg-white",
                         isSelected
-                          ? "border-blue-400 shadow-xs"
+                          ? "border-blue-500 shadow-xs"
                           : "border-zinc-200 hover:border-zinc-300"
                       )}
                     >
@@ -649,11 +657,12 @@ export default function AutomationBuilderPage() {
                                 const oLabel =
                                   CONDITION_OPERATOR_LABELS[r.operator] || "é";
                                 const vLabel = r.value || "";
+                                const logicLabel = r.logic || "AND";
                                 return (
                                   <span key={rIdx}>
                                     {rIdx > 0 && (
-                                      <span className="font-semibold text-blue-600 mx-1.5">
-                                        AND
+                                      <span className="font-bold text-zinc-900 mx-1.5">
+                                        {logicLabel}
                                       </span>
                                     )}
                                     <span>
@@ -693,7 +702,7 @@ export default function AutomationBuilderPage() {
                             <span className="text-xs text-zinc-400">
                               {step.action
                                 ? ACTION_LABELS[step.action.type]
-                                : "Criar atividade"}
+                                : "Criar novo negócio"}
                             </span>
                           </div>
                           <button
@@ -779,7 +788,7 @@ export default function AutomationBuilderPage() {
 
         {selection?.kind === "step" && selectedStep?.type === "action" && (
           <ActionTypePanel
-            value={selectedStep.action?.type ?? "create_activity"}
+            value={selectedStep.action?.type ?? "create_deal"}
             onChange={(t) =>
               updateStep(selectedStep.id, (s) => ({
                 ...s,
@@ -801,10 +810,10 @@ export default function AutomationBuilderPage() {
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
-// Custom Dropdowns (Matching Screenshots 2, 3, 4)
+// Custom Dropdowns (Screenshots 2, 3, 4, 5)
 // ─────────────────────────────────────────────────────────────────────────────
 
-// Field Dropdown with Search & Category (Screenshots 3 & 4)
+// Field Dropdown with Search & Category (Screenshots 3 & 5)
 function FieldDropdownSelect({
   value,
   onChange,
@@ -877,25 +886,29 @@ function FieldDropdownSelect({
 
           {/* Items List */}
           <div className="max-h-48 overflow-y-auto space-y-0.5">
-            {items.map((item) => (
-              <button
-                key={item.id}
-                type="button"
-                onClick={() => {
-                  onChange(item.id);
-                  setOpen(false);
-                  setSearch("");
-                }}
-                className={cn(
-                  "w-full text-left px-2.5 py-1.5 text-xs rounded-lg transition-colors cursor-pointer flex items-center justify-between",
-                  value === item.id
-                    ? "bg-zinc-100 font-medium text-zinc-900"
-                    : "text-zinc-700 hover:bg-zinc-50"
-                )}
-              >
-                <span>{item.label}</span>
-              </button>
-            ))}
+            {items.map((item) => {
+              const isSelected = value === item.id;
+              return (
+                <button
+                  key={item.id}
+                  type="button"
+                  onClick={() => {
+                    onChange(item.id);
+                    setOpen(false);
+                    setSearch("");
+                  }}
+                  className={cn(
+                    "w-full text-left px-2.5 py-1.5 text-xs rounded-lg transition-colors cursor-pointer flex items-center justify-between",
+                    isSelected
+                      ? "bg-blue-600 text-white font-medium"
+                      : "text-zinc-700 hover:bg-zinc-50"
+                  )}
+                >
+                  <span>{item.label}</span>
+                  {isSelected && <Check className="h-3.5 w-3.5 text-white" />}
+                </button>
+              );
+            })}
             {items.length === 0 && (
               <p className="text-xs text-zinc-400 py-2 text-center">
                 Nenhum campo encontrado
@@ -974,21 +987,18 @@ function OperatorDropdownSelect({
   );
 }
 
-// Generic Select Popup
-function CustomSelect({
+// Stage Selector Grouped by Pipeline with Search (Screenshot 4)
+function StageDropdownSelect({
   value,
-  label,
-  placeholder,
-  options,
+  pipelines,
   onChange,
 }: {
   value: string;
-  label?: string;
-  placeholder?: string;
-  options: { value: string; label: string }[];
+  pipelines: Pipeline[];
   onChange: (v: string) => void;
 }) {
   const [open, setOpen] = useState(false);
+  const [search, setSearch] = useState("");
   const ref = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
@@ -1001,8 +1011,12 @@ function CustomSelect({
     return () => document.removeEventListener("mousedown", handleClickOutside);
   }, []);
 
-  const display =
-    label || options.find((o) => o.value === value)?.label || placeholder;
+  const allStages = pipelines.flatMap((p) =>
+    p.stages.map((s) => ({ ...s, pipelineName: p.name }))
+  );
+  const selectedStage = allStages.find(
+    (s) => s.id === value || s.name === value
+  );
 
   return (
     <div className="relative w-full" ref={ref}>
@@ -1014,38 +1028,195 @@ function CustomSelect({
         <span
           className={cn(
             "min-w-0 truncate flex-1 text-left",
-            value ? "text-zinc-800 font-medium" : "text-zinc-400"
+            selectedStage ? "text-zinc-800 font-medium" : "text-zinc-400"
           )}
         >
-          {display || "Selecionar..."}
+          {selectedStage
+            ? `${selectedStage.name} (${selectedStage.pipelineName})`
+            : "Selecionar etapa..."}
         </span>
         <ChevronDown className="h-3.5 w-3.5 text-zinc-400 shrink-0" />
       </button>
 
       {open && (
-        <div className="absolute top-full left-0 mt-1 w-full bg-white border border-zinc-200 rounded-xl shadow-lg z-50 py-1 max-h-48 overflow-y-auto">
-          {options.map((opt) => {
-            const isSelected = opt.value === value;
-            return (
-              <button
-                key={opt.value}
-                type="button"
-                onClick={() => {
-                  onChange(opt.value);
-                  setOpen(false);
-                }}
-                className={cn(
-                  "w-full text-left px-3 py-2 text-xs transition-colors cursor-pointer flex items-center justify-between",
-                  isSelected
-                    ? "bg-amber-50 text-amber-900 font-medium"
-                    : "text-zinc-800 hover:bg-zinc-50"
-                )}
-              >
-                <span>{opt.label}</span>
-                {isSelected && <Check className="h-3.5 w-3.5 text-amber-600" />}
-              </button>
-            );
-          })}
+        <div className="absolute top-full left-0 mt-1 w-full bg-white border border-zinc-200 rounded-xl shadow-lg z-50 p-2 space-y-2">
+          {/* Search Box */}
+          <div className="flex items-center gap-2 px-2.5 py-1.5 bg-zinc-50 border border-zinc-200 rounded-lg">
+            <Search className="h-3.5 w-3.5 text-zinc-400 shrink-0" />
+            <input
+              type="text"
+              placeholder="Buscar..."
+              value={search}
+              onChange={(e) => setSearch(e.target.value)}
+              className="bg-transparent text-xs text-zinc-800 outline-none w-full placeholder:text-zinc-400"
+              autoFocus
+            />
+          </div>
+
+          {/* Grouped by Pipeline */}
+          <div className="max-h-56 overflow-y-auto space-y-2">
+            {pipelines.map((pipeline) => {
+              const filteredStages = pipeline.stages.filter((st) =>
+                st.name.toLowerCase().includes(search.toLowerCase())
+              );
+              if (filteredStages.length === 0) return null;
+
+              return (
+                <div key={pipeline.id} className="space-y-0.5">
+                  <div className="px-2 pt-1 pb-0.5">
+                    <span className="text-[10px] font-bold uppercase tracking-wider text-zinc-400">
+                      {pipeline.name}
+                    </span>
+                  </div>
+                  {filteredStages.map((st) => {
+                    const isSelected = value === st.name || value === st.id;
+                    return (
+                      <button
+                        key={st.id}
+                        type="button"
+                        onClick={() => {
+                          onChange(st.name);
+                          setOpen(false);
+                          setSearch("");
+                        }}
+                        className={cn(
+                          "w-full text-left px-2.5 py-1.5 text-xs rounded-lg transition-colors cursor-pointer flex items-center justify-between",
+                          isSelected
+                            ? "bg-blue-600 text-white font-medium"
+                            : "text-zinc-700 hover:bg-zinc-50"
+                        )}
+                      >
+                        <span className="truncate">{st.name}</span>
+                        {isSelected && (
+                          <Check className="h-3.5 w-3.5 text-white shrink-0 ml-1" />
+                        )}
+                      </button>
+                    );
+                  })}
+                </div>
+              );
+            })}
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
+// Pipeline / Generic Dropdown with Search & Selection Highlight
+function SearchableSelect({
+  value,
+  placeholder,
+  options,
+  onChange,
+  disabled,
+}: {
+  value: string;
+  placeholder?: string;
+  options: { value: string; label: string }[];
+  onChange: (v: string) => void;
+  disabled?: boolean;
+}) {
+  const [open, setOpen] = useState(false);
+  const [search, setSearch] = useState("");
+  const ref = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    function handleClickOutside(e: MouseEvent) {
+      if (ref.current && !ref.current.contains(e.target as Node)) {
+        setOpen(false);
+      }
+    }
+    document.addEventListener("mousedown", handleClickOutside);
+    return () => document.removeEventListener("mousedown", handleClickOutside);
+  }, []);
+
+  const selectedOption = options.find((o) => o.value === value);
+  const filtered = options.filter((o) =>
+    o.label.toLowerCase().includes(search.toLowerCase())
+  );
+
+  if (disabled) {
+    return (
+      <button
+        type="button"
+        disabled
+        className="flex w-full items-center gap-1.5 rounded-lg border border-zinc-200 bg-zinc-50 px-3 py-1.5 text-sm text-zinc-400 cursor-not-allowed"
+      >
+        <span className="min-w-0 truncate flex-1 text-left">
+          {placeholder || "Selecionar..."}
+        </span>
+        <ChevronDown className="h-3.5 w-3.5 text-zinc-300 shrink-0" />
+      </button>
+    );
+  }
+
+  return (
+    <div className="relative w-full" ref={ref}>
+      <button
+        type="button"
+        onClick={() => setOpen((v) => !v)}
+        className="flex items-center gap-1.5 rounded-lg border border-zinc-200 bg-white px-3 py-1.5 text-sm hover:bg-zinc-50 transition-colors min-w-0 w-full cursor-pointer"
+      >
+        <span
+          className={cn(
+            "min-w-0 truncate flex-1 text-left",
+            selectedOption ? "text-zinc-800 font-medium" : "text-zinc-400"
+          )}
+        >
+          {selectedOption ? selectedOption.label : placeholder || "Selecionar..."}
+        </span>
+        <ChevronDown className="h-3.5 w-3.5 text-zinc-400 shrink-0" />
+      </button>
+
+      {open && (
+        <div className="absolute top-full left-0 mt-1 w-full bg-white border border-zinc-200 rounded-xl shadow-lg z-50 p-2 space-y-2">
+          {options.length > 5 && (
+            <div className="flex items-center gap-2 px-2.5 py-1.5 bg-zinc-50 border border-zinc-200 rounded-lg">
+              <Search className="h-3.5 w-3.5 text-zinc-400 shrink-0" />
+              <input
+                type="text"
+                placeholder="Buscar..."
+                value={search}
+                onChange={(e) => setSearch(e.target.value)}
+                className="bg-transparent text-xs text-zinc-800 outline-none w-full placeholder:text-zinc-400"
+                autoFocus
+              />
+            </div>
+          )}
+
+          <div className="max-h-48 overflow-y-auto space-y-0.5">
+            {filtered.map((opt) => {
+              const isSelected = opt.value === value;
+              return (
+                <button
+                  key={opt.value}
+                  type="button"
+                  onClick={() => {
+                    onChange(opt.value);
+                    setOpen(false);
+                    setSearch("");
+                  }}
+                  className={cn(
+                    "w-full text-left px-2.5 py-1.5 text-xs rounded-lg transition-colors cursor-pointer flex items-center justify-between",
+                    isSelected
+                      ? "bg-blue-600 text-white font-medium"
+                      : "text-zinc-700 hover:bg-zinc-50"
+                  )}
+                >
+                  <span className="truncate">{opt.label}</span>
+                  {isSelected && (
+                    <Check className="h-3.5 w-3.5 text-white shrink-0 ml-1" />
+                  )}
+                </button>
+              );
+            })}
+            {filtered.length === 0 && (
+              <p className="text-xs text-zinc-400 py-2 text-center">
+                Nenhum item encontrado
+              </p>
+            )}
+          </div>
         </div>
       )}
     </div>
@@ -1053,7 +1224,7 @@ function CustomSelect({
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
-// Inline Action Form
+// Inline Action Form (Matching pasted HTML)
 // ─────────────────────────────────────────────────────────────────────────────
 
 function InlineActionForm({
@@ -1065,7 +1236,7 @@ function InlineActionForm({
   onChange: (fn: (s: AutomationStep) => AutomationStep) => void;
   pipelines: Pipeline[];
 }) {
-  const actionType = step.action?.type ?? "create_activity";
+  const actionType = step.action?.type ?? "create_deal";
   const config = step.action?.config ?? {};
   const whatsappTemplates = useWhatsAppTemplates();
 
@@ -1077,7 +1248,7 @@ function InlineActionForm({
     onChange((s) => ({
       ...s,
       action: {
-        type: s.action?.type ?? "create_activity",
+        type: s.action?.type ?? "create_deal",
         config: { ...(s.action?.config ?? {}), ...patch },
       },
     }));
@@ -1087,11 +1258,12 @@ function InlineActionForm({
 
   return (
     <div className="space-y-3">
+      {/* Action Type */}
       <div>
         <label className="block text-xs font-semibold text-zinc-500 uppercase tracking-wide mb-1.5">
           Tipo de ação
         </label>
-        <CustomSelect
+        <SearchableSelect
           value={actionType}
           options={ACTION_TYPES.map((t) => ({
             value: t,
@@ -1101,6 +1273,89 @@ function InlineActionForm({
         />
       </div>
 
+      {actionType === "create_deal" && (
+        <>
+          <div className="grid grid-cols-2 gap-3">
+            <div>
+              <label className="block text-xs font-semibold text-zinc-500 uppercase tracking-wide mb-1.5">
+                Pipeline destino
+              </label>
+              <SearchableSelect
+                value={(config.pipelineId as string) ?? ""}
+                placeholder="Selecionar pipeline..."
+                options={pipelines.map((p) => ({ value: p.id, label: p.name }))}
+                onChange={(v) => patchConfig({ pipelineId: v, stageId: "" })}
+              />
+            </div>
+            <div>
+              <label className="block text-xs font-semibold text-zinc-500 uppercase tracking-wide mb-1.5">
+                Etapa destino
+              </label>
+              <SearchableSelect
+                value={(config.stageId as string) ?? ""}
+                placeholder="Selecionar etapa..."
+                disabled={!config.pipelineId}
+                options={(selectedPipeline?.stages ?? []).map((s) => ({
+                  value: s.id,
+                  label: s.name,
+                }))}
+                onChange={(v) => patchConfig({ stageId: v })}
+              />
+            </div>
+          </div>
+
+          <div>
+            <label className="block text-xs font-semibold text-zinc-500 uppercase tracking-wide mb-1.5">
+              Título do negócio
+            </label>
+            <input
+              placeholder="[OPP] - {contact.name}"
+              className="w-full rounded-lg border border-zinc-200 px-3 py-2 text-sm text-zinc-900 outline-none focus:border-amber-400 focus:ring-2 focus:ring-amber-100"
+              type="text"
+              value={(config.title as string) ?? ""}
+              onChange={(e) => patchConfig({ title: e.target.value })}
+            />
+            <p className="mt-1 text-xs text-zinc-400">
+              Use {"{contact.name}"} para o nome do contato e {"{deal.title}"} para o título original.
+            </p>
+          </div>
+
+          <label className="flex items-center gap-2 cursor-pointer">
+            <input
+              className="rounded border-zinc-300 text-amber-500 focus:ring-amber-400 accent-amber-500"
+              type="checkbox"
+              checked={!!config.copyAll}
+              onChange={(e) => patchConfig({ copyAll: e.target.checked })}
+            />
+            <span className="text-xs text-zinc-600">
+              Copiar contato, empresa, valor e campos personalizados do negócio original
+            </span>
+          </label>
+
+          <label className="flex items-center gap-2 cursor-pointer">
+            <input
+              className="rounded border-zinc-300 text-amber-500 focus:ring-amber-400 accent-amber-500"
+              type="checkbox"
+              checked={!!config.copyNotes}
+              onChange={(e) => patchConfig({ copyNotes: e.target.checked })}
+            />
+            <span className="text-xs text-zinc-600">
+              Copiar notas do negócio original
+            </span>
+          </label>
+
+          <OwnerModeField
+            label="Proprietário do novo negócio"
+            mode={(config.ownerMode as string) ?? "round_robin"}
+            userId={(config.userId as string) ?? ""}
+            roundRobinIds={(config.roundRobinIds as string) ?? ""}
+            customFieldId={(config.customFieldId as string) ?? ""}
+            showKeep
+            onChange={(patch) => patchConfig(patch)}
+          />
+        </>
+      )}
+
       {actionType === "create_activity" && (
         <>
           <div className="grid grid-cols-2 gap-3">
@@ -1108,7 +1363,7 @@ function InlineActionForm({
               <label className="block text-xs font-semibold text-zinc-500 uppercase tracking-wide mb-1.5">
                 Tipo
               </label>
-              <CustomSelect
+              <SearchableSelect
                 value={(config.activityType as string) ?? "Ligação"}
                 options={["Ligação", "Email", "Reunião", "Tarefa", "WhatsApp"].map(
                   (t) => ({ value: t, label: t })
@@ -1158,74 +1413,13 @@ function InlineActionForm({
         </>
       )}
 
-      {actionType === "create_deal" && (
-        <>
-          <div className="grid grid-cols-2 gap-3">
-            <div>
-              <label className="block text-xs font-semibold text-zinc-500 uppercase tracking-wide mb-1.5">
-                Pipeline destino
-              </label>
-              <CustomSelect
-                value={(config.pipelineId as string) ?? ""}
-                placeholder="Selecionar pipeline..."
-                options={pipelines.map((p) => ({ value: p.id, label: p.name }))}
-                onChange={(v) => patchConfig({ pipelineId: v, stageId: "" })}
-              />
-            </div>
-            <div>
-              <label className="block text-xs font-semibold text-zinc-500 uppercase tracking-wide mb-1.5">
-                Etapa destino
-              </label>
-              <CustomSelect
-                value={(config.stageId as string) ?? ""}
-                placeholder="Selecionar etapa..."
-                options={(selectedPipeline?.stages ?? []).map((s) => ({
-                  value: s.id,
-                  label: s.name,
-                }))}
-                onChange={(v) => patchConfig({ stageId: v })}
-              />
-            </div>
-          </div>
-          <div>
-            <label className="block text-xs font-semibold text-zinc-500 uppercase tracking-wide mb-1.5">
-              Título do negócio
-            </label>
-            <input
-              value={(config.title as string) ?? ""}
-              onChange={(e) => patchConfig({ title: e.target.value })}
-              placeholder="[OPP] - {contact.name}"
-              className="w-full rounded-lg border border-zinc-200 px-3 py-2 text-sm text-zinc-900 outline-none focus:border-amber-400 focus:ring-2 focus:ring-amber-100"
-            />
-          </div>
-          <label className="flex items-center gap-2 text-xs text-zinc-600 cursor-pointer pt-1">
-            <input
-              type="checkbox"
-              checked={!!config.copyAll}
-              onChange={(e) => patchConfig({ copyAll: e.target.checked })}
-              className="w-4 h-4 rounded accent-amber-500"
-            />
-            Copiar contato, empresa, valor e campos personalizados
-          </label>
-          <OwnerModeField
-            label="Proprietário do novo negócio"
-            mode={(config.ownerMode as string) ?? "keep"}
-            userId={(config.userId as string) ?? ""}
-            roundRobinIds={(config.roundRobinIds as string) ?? ""}
-            customFieldId={(config.customFieldId as string) ?? ""}
-            showKeep
-            onChange={(patch) => patchConfig(patch)}
-          />
-        </>
-      )}
-
       {actionType === "move_stage" && (
         <div className="grid grid-cols-2 gap-3">
           <div>
             <label className="block text-xs font-semibold text-zinc-500 uppercase tracking-wide mb-1.5">
               Pipeline
             </label>
-            <CustomSelect
+            <SearchableSelect
               value={(config.pipelineId as string) ?? ""}
               placeholder="Selecionar pipeline..."
               options={pipelines.map((p) => ({ value: p.id, label: p.name }))}
@@ -1236,9 +1430,10 @@ function InlineActionForm({
             <label className="block text-xs font-semibold text-zinc-500 uppercase tracking-wide mb-1.5">
               Etapa
             </label>
-            <CustomSelect
+            <SearchableSelect
               value={(config.stageId as string) ?? ""}
               placeholder="Selecionar etapa..."
+              disabled={!config.pipelineId}
               options={(selectedPipeline?.stages ?? []).map((s) => ({
                 value: s.id,
                 label: s.name,
@@ -1345,7 +1540,7 @@ function InlineActionForm({
           <label className="block text-xs font-semibold text-zinc-500 uppercase tracking-wide mb-1.5">
             Template WhatsApp
           </label>
-          <CustomSelect
+          <SearchableSelect
             value={(config.templateId as string) ?? ""}
             placeholder="Selecionar template..."
             options={whatsappTemplates.map((t) => ({
@@ -1356,12 +1551,41 @@ function InlineActionForm({
           />
         </div>
       )}
+
+      {actionType === "notify_whatsapp_group" && (
+        <>
+          <div>
+            <label className="block text-xs font-semibold text-zinc-500 uppercase tracking-wide mb-1.5">
+              Nome do grupo
+            </label>
+            <input
+              placeholder="Ex: Vendas - Geral"
+              className="w-full rounded-lg border border-zinc-200 px-3 py-2 text-sm text-zinc-900 outline-none focus:border-amber-400 focus:ring-2 focus:ring-amber-100"
+              type="text"
+              value={(config.groupName as string) ?? ""}
+              onChange={(e) => patchConfig({ groupName: e.target.value })}
+            />
+          </div>
+          <div>
+            <label className="block text-xs font-semibold text-zinc-500 uppercase tracking-wide mb-1.5">
+              Mensagem de aviso
+            </label>
+            <textarea
+              rows={2}
+              placeholder="Ex: Chegou novo lead: {deal.title}"
+              className="w-full rounded-lg border border-zinc-200 px-3 py-2 text-sm text-zinc-900 outline-none focus:border-amber-400 focus:ring-2 focus:ring-amber-100 resize-none"
+              value={(config.message as string) ?? ""}
+              onChange={(e) => patchConfig({ message: e.target.value })}
+            />
+          </div>
+        </>
+      )}
     </div>
   );
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
-// Owner Mode Field
+// Owner Mode Field (Matches pasted HTML)
 // ─────────────────────────────────────────────────────────────────────────────
 
 function OwnerModeField({
@@ -1384,10 +1608,10 @@ function OwnerModeField({
   const teamUsers = useTeamUsers();
   const customFields = useDealCustomFields();
   const tabOptions = [
-    ...(showKeep ? [{ id: "keep", label: "Manter" }] : []),
-    { id: "fixed", label: "Fixo" },
+    ...(showKeep ? [{ id: "keep", label: "Manter original" }] : []),
+    { id: "fixed", label: "Valor fixo" },
     { id: "round_robin", label: "Rodízio" },
-    { id: "custom_field", label: "Campo" },
+    { id: "custom_field", label: "Campo personalizado" },
   ];
 
   const selectedRrIds = roundRobinIds
@@ -1402,21 +1626,21 @@ function OwnerModeField({
   }
 
   return (
-    <div className="space-y-2 pt-1">
+    <div className="space-y-2">
       <label className="block text-xs font-semibold text-zinc-500 uppercase tracking-wide">
         {label}
       </label>
-      <div className="flex gap-1.5 flex-wrap">
+      <div className="flex flex-wrap gap-1.5">
         {tabOptions.map((opt) => (
           <button
             key={opt.id}
             type="button"
             onClick={() => onChange({ ownerMode: opt.id })}
             className={cn(
-              "text-xs font-medium px-2.5 py-1 rounded-lg border transition-colors cursor-pointer",
+              "px-3 py-1.5 text-xs rounded-lg border transition-colors cursor-pointer",
               mode === opt.id
-                ? "border-amber-400 bg-amber-50 text-amber-700 font-semibold"
-                : "border-zinc-200 bg-white text-zinc-600 hover:border-zinc-300"
+                ? "bg-amber-50 border-amber-300 text-amber-900 font-semibold"
+                : "bg-white border-zinc-200 text-zinc-600 hover:bg-zinc-50"
             )}
           >
             {opt.label}
@@ -1425,7 +1649,7 @@ function OwnerModeField({
       </div>
 
       {mode === "fixed" && (
-        <CustomSelect
+        <SearchableSelect
           value={userId}
           placeholder="Selecionar usuário..."
           options={teamUsers.map((u) => ({ value: u.id, label: u.name }))}
@@ -1434,29 +1658,31 @@ function OwnerModeField({
       )}
 
       {mode === "round_robin" && (
-        <div className="space-y-1 border border-zinc-200 rounded-lg p-2 bg-zinc-50/50">
-          <p className="text-[11px] text-zinc-500 mb-1">
-            Selecione os membros do rodízio:
+        <div className="space-y-2">
+          <p className="text-xs text-zinc-500">
+            Selecione os membros que participarão do rodízio:
           </p>
-          {teamUsers.map((u) => (
-            <label
-              key={u.id}
-              className="flex items-center gap-2 py-1 text-xs text-zinc-700 cursor-pointer"
-            >
-              <input
-                type="checkbox"
-                checked={selectedRrIds.includes(u.id)}
-                onChange={() => toggleRrUser(u.id)}
-                className="w-3.5 h-3.5 rounded accent-amber-500"
-              />
-              {u.name}
-            </label>
-          ))}
+          <div className="space-y-1 max-h-48 overflow-y-auto rounded-lg border border-zinc-200 p-2 bg-white">
+            {teamUsers.map((u) => (
+              <label
+                key={u.id}
+                className="flex items-center gap-2 px-2 py-1.5 rounded-lg hover:bg-zinc-50 cursor-pointer"
+              >
+                <input
+                  type="checkbox"
+                  checked={selectedRrIds.includes(u.id)}
+                  onChange={() => toggleRrUser(u.id)}
+                  className="rounded border-zinc-300 text-amber-500 focus:ring-amber-400 accent-amber-500"
+                />
+                <span className="text-sm text-zinc-800">{u.name}</span>
+              </label>
+            ))}
+          </div>
         </div>
       )}
 
       {mode === "custom_field" && (
-        <CustomSelect
+        <SearchableSelect
           value={customFieldId}
           placeholder="Selecionar campo personalizado..."
           options={customFields.map((f) => ({ value: f.id, label: f.name }))}
@@ -1468,7 +1694,7 @@ function OwnerModeField({
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
-// Right Drawer Panels (Screenshots 1 & 2)
+// Right Drawer Panels (Screenshots 1, 2 & HTML)
 // ─────────────────────────────────────────────────────────────────────────────
 
 function TriggerPanel({
@@ -1522,10 +1748,10 @@ function ActionTypePanel({
   return (
     <div>
       <h3 className="text-sm font-semibold text-zinc-700 mb-1">
-        Configurar Ação
+        Configurar Acao
       </h3>
       <p className="text-xs text-zinc-400 mb-4">
-        Escolha o que deve acontecer quando o evento for disparado.
+        Configure os parametros desta acao.
       </p>
       <div className="space-y-2">
         {ACTION_TYPES.map((t) => (
@@ -1534,14 +1760,17 @@ function ActionTypePanel({
             type="button"
             onClick={() => onChange(t)}
             className={cn(
-              "w-full text-left rounded-xl border-2 p-3.5 transition-colors cursor-pointer",
+              "w-full text-left rounded-lg p-3 transition-colors cursor-pointer border text-left",
               value === t
-                ? "border-amber-400 bg-amber-50/40 shadow-xs"
-                : "border-zinc-100 hover:border-zinc-200 bg-white"
+                ? "bg-amber-50 border-amber-300 text-amber-900 shadow-xs"
+                : "bg-white border-zinc-100 hover:border-zinc-200 text-zinc-700"
             )}
           >
-            <p className="text-sm font-semibold text-zinc-800">
+            <p className="text-xs font-semibold text-zinc-700">
               {ACTION_LABELS[t]}
+            </p>
+            <p className="text-xs text-zinc-400 mt-0.5">
+              {ACTION_DESCRIPTIONS[t]}
             </p>
           </button>
         ))}
@@ -1562,9 +1791,19 @@ function ConditionPanel({
   pipelines: Pipeline[];
 }) {
   const rules = step.condition?.rules ?? [];
-  const allStages = pipelines.flatMap((p) =>
-    p.stages.map((s) => ({ ...s, pipelineName: p.name }))
-  );
+
+  // Group rules into cards if grouped, or split by card
+  // If groupId is present, group rules by groupId, else each rule or pair
+  const groups: { id: string; rules: { rule: AutomationConditionRule; index: number }[] }[] = [];
+  rules.forEach((r, index) => {
+    const gId = r.groupId || "default";
+    let g = groups.find((grp) => grp.id === gId);
+    if (!g) {
+      g = { id: gId, rules: [] };
+      groups.push(g);
+    }
+    g.rules.push({ rule: r, index });
+  });
 
   function updateRule(
     idx: number,
@@ -1580,13 +1819,37 @@ function ConditionPanel({
     }));
   }
 
-  function addRule() {
+  function toggleLogic(idx: number) {
+    onChange((s) => ({
+      ...s,
+      condition: {
+        rules: (s.condition?.rules ?? []).map((r, i) =>
+          i === idx ? { ...r, logic: r.logic === "OR" ? "AND" : "OR" } : r
+        ),
+      },
+    }));
+  }
+
+  function addRuleToGroup(groupId: string) {
     onChange((s) => ({
       ...s,
       condition: {
         rules: [
           ...(s.condition?.rules ?? []),
-          { field: "pipeline", operator: "is", value: "" },
+          { field: "stage", operator: "is", value: "", logic: "AND", groupId },
+        ],
+      },
+    }));
+  }
+
+  function addNewGroup() {
+    const newGId = crypto.randomUUID();
+    onChange((s) => ({
+      ...s,
+      condition: {
+        rules: [
+          ...(s.condition?.rules ?? []),
+          { field: "stage", operator: "is", value: "", logic: "AND", groupId: newGId },
         ],
       },
     }));
@@ -1601,6 +1864,25 @@ function ConditionPanel({
     }));
   }
 
+  function removeGroup(groupId: string) {
+    onChange((s) => {
+      const remaining = (s.condition?.rules ?? []).filter((r) => r.groupId !== groupId);
+      if (remaining.length === 0) {
+        onDelete();
+      }
+      return {
+        ...s,
+        condition: {
+          rules: remaining,
+        },
+      };
+    });
+  }
+
+  const allStages = pipelines.flatMap((p) =>
+    p.stages.map((s) => ({ ...s, pipelineName: p.name }))
+  );
+
   return (
     <div>
       <h3 className="text-sm font-semibold text-zinc-700 mb-1">Condicao</h3>
@@ -1609,119 +1891,127 @@ function ConditionPanel({
       </p>
 
       <div className="space-y-3">
-        {/* Conditions Card (pasted HTML markup) */}
-        <div className="rounded-lg border border-zinc-200 bg-zinc-50/50 p-3">
-          <div className="space-y-3">
-            {rules.map((rule, idx) => (
-              <div key={idx} className="space-y-2">
-                {idx > 0 && (
-                  <div className="flex items-center justify-center py-1">
-                    <span className="rounded-full bg-zinc-200 px-2 py-0.5 text-[9px] font-bold text-zinc-600">
-                      AND
-                    </span>
-                  </div>
-                )}
-
-                {/* Field Selector with Search & Groups */}
-                <FieldDropdownSelect
-                  value={rule.field}
-                  onChange={(f) => updateRule(idx, { field: f, value: "" })}
-                />
-
-                {/* Operator Selector + Remove Rule Button */}
-                <div className="flex items-center gap-2">
-                  <OperatorDropdownSelect
-                    value={rule.operator}
-                    onChange={(op) => updateRule(idx, { operator: op })}
-                  />
-
-                  <button
-                    type="button"
-                    onClick={() => removeRule(idx)}
-                    className="shrink-0 text-zinc-300 hover:text-red-400 transition-colors cursor-pointer p-1"
-                  >
-                    <X className="h-3.5 w-3.5" />
-                  </button>
-                </div>
-
-                {/* Value Input / Dropdown */}
-                {rule.operator !== "is_empty" &&
-                  rule.operator !== "is_not_empty" && (
-                    <div>
-                      {rule.field === "pipeline" ? (
-                        <CustomSelect
-                          value={rule.value}
-                          placeholder="Selecionar funil..."
-                          options={pipelines.map((p) => ({
-                            value: p.name,
-                            label: p.name,
-                          }))}
-                          onChange={(v) => updateRule(idx, { value: v })}
-                        />
-                      ) : rule.field === "stage" ? (
-                        <CustomSelect
-                          value={rule.value}
-                          placeholder="Selecionar etapa..."
-                          options={allStages.map((s) => ({
-                            value: s.name,
-                            label: `${s.name} (${s.pipelineName})`,
-                          }))}
-                          onChange={(v) => updateRule(idx, { value: v })}
-                        />
-                      ) : rule.field === "status" ? (
-                        <CustomSelect
-                          value={rule.value}
-                          placeholder="Selecionar status..."
-                          options={[
-                            { value: "Ativo", label: "Ativo" },
-                            { value: "Ganho", label: "Ganho" },
-                            { value: "Perdido", label: "Perdido" },
-                          ]}
-                          onChange={(v) => updateRule(idx, { value: v })}
-                        />
-                      ) : (
-                        <input
-                          placeholder="Valor..."
-                          className="flex-1 min-w-0 w-full rounded-lg border border-zinc-200 bg-white px-2 py-1.5 text-xs outline-none focus:border-amber-400"
-                          type="text"
-                          value={rule.value}
-                          onChange={(e) =>
-                            updateRule(idx, { value: e.target.value })
-                          }
-                        />
-                      )}
+        {groups.map((grp) => (
+          <div
+            key={grp.id}
+            className="rounded-lg border border-zinc-200 bg-zinc-50/50 p-3"
+          >
+            <div>
+              {grp.rules.map(({ rule, index }, rIndexInGroup) => (
+                <div key={index}>
+                  {/* Logic Connector Button between rules (AND/OR toggle on click) */}
+                  {rIndexInGroup > 0 && (
+                    <div className="flex items-center justify-center my-2">
+                      <button
+                        type="button"
+                        onClick={() => toggleLogic(index)}
+                        className="rounded-full bg-zinc-200 px-3 py-0.5 text-[10px] font-bold text-zinc-600 hover:bg-zinc-300 transition-colors cursor-pointer"
+                        title="Clique para alternar entre AND e OR"
+                      >
+                        {rule.logic || "AND"}
+                      </button>
                     </div>
                   )}
-              </div>
-            ))}
-          </div>
 
-          {/* Add Rule + Delete Step */}
-          <div className="flex items-center gap-2 mt-3 pt-2 border-t border-zinc-200/60">
-            <button
-              type="button"
-              onClick={addRule}
-              className="text-xs text-amber-500 hover:text-amber-600 font-medium cursor-pointer"
-            >
-              + Adicionar regra
-            </button>
-            <div className="flex-1"></div>
-            <button
-              type="button"
-              onClick={onDelete}
-              className="text-xs text-red-400 hover:text-red-500 cursor-pointer p-1"
-              title="Excluir condição"
-            >
-              <Trash2 className="h-3 w-3" />
-            </button>
-          </div>
-        </div>
+                  <div className="space-y-2">
+                    {/* Field selector with search and categories */}
+                    <FieldDropdownSelect
+                      value={rule.field}
+                      onChange={(f) => updateRule(index, { field: f, value: "" })}
+                    />
 
-        {/* AND button outside card */}
+                    {/* Operator selector + X remove button */}
+                    <div className="flex items-center gap-2">
+                      <OperatorDropdownSelect
+                        value={rule.operator}
+                        onChange={(op) => updateRule(index, { operator: op })}
+                      />
+
+                      <button
+                        type="button"
+                        onClick={() => removeRule(index)}
+                        className="shrink-0 text-zinc-300 hover:text-red-400 transition-colors cursor-pointer p-1"
+                      >
+                        <X className="h-3.5 w-3.5" />
+                      </button>
+                    </div>
+
+                    {/* Value Field */}
+                    {rule.operator !== "is_empty" &&
+                      rule.operator !== "is_not_empty" && (
+                        <div>
+                          {rule.field === "pipeline" ? (
+                            <SearchableSelect
+                              value={rule.value}
+                              placeholder="Selecionar funil..."
+                              options={pipelines.map((p) => ({
+                                value: p.name,
+                                label: p.name,
+                              }))}
+                              onChange={(v) => updateRule(index, { value: v })}
+                            />
+                          ) : rule.field === "stage" ? (
+                            <StageDropdownSelect
+                              value={rule.value}
+                              pipelines={pipelines}
+                              onChange={(v) => updateRule(index, { value: v })}
+                            />
+                          ) : rule.field === "status" ? (
+                            <SearchableSelect
+                              value={rule.value}
+                              placeholder="Selecionar status..."
+                              options={[
+                                { value: "Ativo", label: "Ativo" },
+                                { value: "Ganho", label: "Ganho" },
+                                { value: "Perdido", label: "Perdido" },
+                              ]}
+                              onChange={(v) => updateRule(index, { value: v })}
+                            />
+                          ) : (
+                            <input
+                              placeholder="Valor..."
+                              className="flex-1 min-w-0 w-full rounded-lg border border-zinc-200 bg-white px-2 py-1.5 text-xs outline-none focus:border-amber-400"
+                              type="text"
+                              value={rule.value}
+                              onChange={(e) =>
+                                updateRule(index, { value: e.target.value })
+                              }
+                            />
+                          )}
+                        </div>
+                      )}
+                  </div>
+                </div>
+              ))}
+            </div>
+
+            {/* Card Footer: Add rule inside card + Trash delete group */}
+            <div className="flex items-center gap-2 mt-2">
+              <button
+                type="button"
+                onClick={() => addRuleToGroup(grp.id)}
+                className="text-xs text-amber-500 hover:text-amber-600 font-medium cursor-pointer"
+              >
+                + Adicionar regra
+              </button>
+              <div className="flex-1"></div>
+              <button
+                type="button"
+                onClick={() => removeGroup(grp.id)}
+                className="text-xs text-red-400 hover:text-red-500 cursor-pointer p-1"
+                title="Excluir condição"
+              >
+                <Trash2 className="h-3 w-3" />
+              </button>
+            </div>
+          </div>
+        ))}
+
+        {/* + AND button outside cards to add another card */}
         <div className="flex items-center justify-center">
           <button
             type="button"
-            onClick={addRule}
+            onClick={addNewGroup}
             className="rounded-full bg-zinc-100 px-3 py-1 text-[10px] font-bold text-zinc-500 hover:bg-amber-100 hover:text-amber-600 transition-colors cursor-pointer"
           >
             + AND
