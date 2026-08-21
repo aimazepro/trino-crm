@@ -1608,6 +1608,9 @@ function InlineActionForm({
             }))}
             onChange={(v) => patchConfig({ templateId: v })}
           />
+          <p className="mt-1 text-xs text-zinc-400">
+            A mensagem sera enviada via WhatsApp do vendedor responsavel pelo negocio. Variaveis como {"{{contact_name}}"} serao substituidas automaticamente.
+          </p>
         </div>
       )}
 
