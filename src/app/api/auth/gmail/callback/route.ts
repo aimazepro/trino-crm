@@ -3,6 +3,7 @@ import { createServerClient } from "@supabase/ssr";
 import { createClient as createAdminClient } from "@supabase/supabase-js";
 import { cookies } from "next/headers";
 import { encryptToken } from "@/lib/token-crypto";
+import { getWorkspaceContext } from "@/lib/workspace-context";
 
 export const dynamic = "force-dynamic";
 
@@ -63,6 +64,15 @@ export async function GET(req: NextRequest) {
 
   if (!user) {
     console.error("[auth/callback] no Supabase user session in callback");
+    const errorUrl = isCalendar
+      ? "/configuracoes/calendario?calendar_error=1"
+      : "/configuracoes/integracoes?gmail=error";
+    return NextResponse.redirect(new URL(errorUrl, req.url));
+  }
+
+  const workspaceCtx = await getWorkspaceContext(supabase);
+  if (!workspaceCtx) {
+    console.error("[auth/callback] no workspace membership for user", { userId: user.id });
     const errorUrl = isCalendar
       ? "/configuracoes/calendario?calendar_error=1"
       : "/configuracoes/integracoes?gmail=error";
@@ -134,9 +144,10 @@ export async function GET(req: NextRequest) {
     refreshToken = existing?.refresh_token ?? null;
   }
 
-  await admin.from("integrations").upsert(
+  const { error: upsertErr } = await admin.from("integrations").upsert(
     {
       user_id: user.id,
+      workspace_id: workspaceCtx.workspaceId,
       provider,
       account_email: accountEmail,
       access_token: encryptToken(tokens.access_token),
@@ -149,6 +160,18 @@ export async function GET(req: NextRequest) {
     },
     { onConflict: "user_id,provider" }
   );
+
+  if (upsertErr) {
+    console.error("[auth/callback] integrations upsert failed", {
+      userId: user.id,
+      provider,
+      error: upsertErr,
+    });
+    const errorUrl = isCalendar
+      ? "/configuracoes/calendario?calendar_error=1"
+      : "/configuracoes/integracoes?gmail=error";
+    return NextResponse.redirect(new URL(errorUrl, req.url));
+  }
 
   const successUrl = isCalendar
     ? `/configuracoes/calendario?calendar_connected=1&email=${encodeURIComponent(accountEmail)}`

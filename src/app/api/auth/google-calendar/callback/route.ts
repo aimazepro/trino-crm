@@ -3,6 +3,7 @@ import { createServerClient } from "@supabase/ssr";
 import { createClient as createAdminClient } from "@supabase/supabase-js";
 import { cookies } from "next/headers";
 import { encryptToken } from "@/lib/token-crypto";
+import { getWorkspaceContext } from "@/lib/workspace-context";
 
 export const dynamic = "force-dynamic";
 
@@ -54,6 +55,14 @@ export async function GET(req: NextRequest) {
 
   if (!user) {
     console.error("[google-calendar/callback] no Supabase user session in callback");
+    return NextResponse.redirect(
+      new URL("/configuracoes/calendario?calendar_error=1", req.url)
+    );
+  }
+
+  const workspaceCtx = await getWorkspaceContext(supabase);
+  if (!workspaceCtx) {
+    console.error("[google-calendar/callback] no workspace membership for user", { userId: user.id });
     return NextResponse.redirect(
       new URL("/configuracoes/calendario?calendar_error=1", req.url)
     );
@@ -120,9 +129,10 @@ export async function GET(req: NextRequest) {
     refreshToken = existing?.refresh_token ?? null;
   }
 
-  await admin.from("integrations").upsert(
+  const { error: upsertErr } = await admin.from("integrations").upsert(
     {
       user_id: user.id,
+      workspace_id: workspaceCtx.workspaceId,
       provider: "google_calendar",
       account_email: accountEmail,
       access_token: encryptToken(tokens.access_token),
@@ -133,6 +143,16 @@ export async function GET(req: NextRequest) {
     },
     { onConflict: "user_id,provider" }
   );
+
+  if (upsertErr) {
+    console.error("[google-calendar/callback] integrations upsert failed", {
+      userId: user.id,
+      error: upsertErr,
+    });
+    return NextResponse.redirect(
+      new URL("/configuracoes/calendario?calendar_error=1", req.url)
+    );
+  }
 
   const successRes = NextResponse.redirect(
     new URL(
