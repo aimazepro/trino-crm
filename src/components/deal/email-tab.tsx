@@ -2,7 +2,7 @@
 
 import { useState, useEffect, useCallback, useRef } from "react";
 import DOMPurify from "dompurify";
-import { Mail, RefreshCw, Send, Eye, FileText, X, Bold, Italic, Underline, List, ListOrdered, Link2, Braces, ChevronDown, Reply, ArrowDownLeft, SendHorizonal, AlertCircle } from "lucide-react";
+import { Mail, Send, Eye, FileText, X, Bold, Italic, Underline, List, ListOrdered, Link2, Braces, ChevronDown, Reply, ArrowDownLeft, SendHorizonal, AlertCircle } from "lucide-react";
 import Link from "next/link";
 import { cn } from "@/lib/utils";
 
@@ -55,6 +55,20 @@ function getSenderName(fromEmail: string, myEmail: string) {
   return fromEmail.split("@")[0];
 }
 
+// A single status per email instead of two badges stacked together -- one
+// replaces the other as the email moves through its lifecycle: Enviado ->
+// Visualizado for something we sent, Recebido -> Visualizado for a reply.
+function getStatusBadge(email: Pick<Email, "direction" | "opened_at">) {
+  const opened = !!email.opened_at;
+  if (opened) {
+    return { icon: Eye, label: "Visualizado", className: "text-green-700 bg-green-100 border-green-200" };
+  }
+  if (email.direction === "received") {
+    return { icon: ArrowDownLeft, label: "Recebido", className: "text-blue-600 bg-blue-50 border-blue-200" };
+  }
+  return { icon: SendHorizonal, label: "Enviado", className: "text-zinc-500 bg-zinc-100 border-zinc-200" };
+}
+
 function decodeHtml(html: string) {
   return html
     .replace(/&amp;/g, "&")
@@ -79,7 +93,6 @@ export function EmailTab({ contactId, contactEmail, contactName, dealId, gmailAc
   const [emails, setEmails] = useState<Email[]>([]);
   const [templates, setTemplates] = useState<EmailTemplate[]>([]);
   const [loading, setLoading] = useState(true);
-  const [syncing, setSyncing] = useState(false);
   const [composing, setComposing] = useState(false);
   const [subject, setSubject] = useState("");
   const [sending, setSending] = useState(false);
@@ -106,32 +119,30 @@ export function EmailTab({ contactId, contactEmail, contactName, dealId, gmailAc
     }
   }, []);
 
-  useEffect(() => {
-    const init = async () => {
-      // auto-sync on mount (no manual button)
-      await fetch("/api/gmail/sync", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ contactEmail, contactId, dealId }),
-      }).catch(() => {});
-      await fetchEmails();
-      await fetchTemplates();
-    };
-    init();
-    const interval = setInterval(fetchEmails, 30_000);
-    return () => clearInterval(interval);
-  }, [fetchEmails, fetchTemplates, contactEmail, contactId, dealId]);
-
-  const handleSync = async () => {
-    setSyncing(true);
+  // Fire-and-forget sync against Gmail, then refresh the list from the DB.
+  // Never gates the UI: emails already in the DB render immediately (fast, no
+  // Gmail API round-trip needed), and this just quietly pulls in whatever's new.
+  const syncInBackground = useCallback(async () => {
     await fetch("/api/gmail/sync", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ contactEmail, contactId, dealId }),
-    });
+    }).catch(() => {});
     await fetchEmails();
-    setSyncing(false);
-  };
+  }, [fetchEmails, contactEmail, contactId, dealId]);
+
+  useEffect(() => {
+    // Show what's already in the DB right away -- don't block the tab on a
+    // Gmail API round-trip just to render.
+    fetchEmails();
+    fetchTemplates();
+    syncInBackground();
+    // No manual "Sincronizar" button anymore -- replies (and read receipts,
+    // via fetchEmails picking up opened_at) show up on their own.
+    const interval = setInterval(syncInBackground, 15_000);
+    return () => clearInterval(interval);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [contactEmail, contactId, dealId]);
 
   const markOpened = async (emailId: string) => {
     await fetch("/api/gmail/mark-opened", {
@@ -255,15 +266,6 @@ export function EmailTab({ contactId, contactEmail, contactName, dealId, gmailAc
             <p className="text-[11px] text-zinc-400">{gmailAccountEmail}</p>
           </div>
           <div className="flex items-center gap-2">
-            <button
-              onClick={handleSync}
-              disabled={syncing}
-              className="flex items-center gap-1.5 px-3 py-1.5 text-xs text-zinc-500 hover:text-zinc-700 hover:bg-zinc-50 rounded-lg transition-colors"
-              title="Sincronizar emails do Gmail"
-            >
-              <RefreshCw className={cn("h-3.5 w-3.5", syncing && "animate-spin")} />
-              Sincronizar
-            </button>
             <button
               onClick={() => { setReplyTo(null); setComposing(true); }}
               className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium text-white bg-blue-600 hover:bg-blue-700 rounded-lg transition-colors"
@@ -439,7 +441,8 @@ export function EmailTab({ contactId, contactEmail, contactName, dealId, gmailAc
                   email.direction === "received" ? email.from_email : "Você",
                   gmailAccountEmail
                 );
-                const opened = !!email.opened_at;
+                const status = getStatusBadge(email);
+                const StatusIcon = status.icon;
 
                 return (
                   <div key={email.id} className="rounded-lg bg-white border border-zinc-200 overflow-hidden">
@@ -453,24 +456,9 @@ export function EmailTab({ contactId, contactEmail, contactName, dealId, gmailAc
                       <div className="flex-1 min-w-0">
                         <div className="flex items-center gap-2">
                           <p className="text-sm font-medium text-zinc-900 truncate">{email.subject}</p>
-                          {email.direction === "received" ? (
-                            <span className="shrink-0 flex items-center gap-1 text-[10px] font-medium text-blue-600 bg-blue-50 rounded-full px-2 py-0.5 border border-blue-200">
-                              <ArrowDownLeft className="h-3 w-3" /> Recebido
-                            </span>
-                          ) : (
-                            <span className="shrink-0 flex items-center gap-1 text-[10px] font-medium text-zinc-500 bg-zinc-100 rounded-full px-2 py-0.5 border border-zinc-200">
-                              <SendHorizonal className="h-3 w-3" /> Enviado
-                            </span>
-                          )}
-                          {opened ? (
-                            <span className="shrink-0 flex items-center gap-1 text-[10px] font-medium text-green-700 bg-green-100 rounded-full px-2 py-0.5 border border-green-200">
-                              <Eye className="h-3 w-3" /> Visualizado
-                            </span>
-                          ) : (
-                            <span className="shrink-0 flex items-center gap-1 text-[10px] font-medium text-red-600 bg-red-50 rounded-full px-2 py-0.5 border border-red-200">
-                              Não visualizado
-                            </span>
-                          )}
+                          <span className={cn("shrink-0 flex items-center gap-1 text-[10px] font-medium rounded-full px-2 py-0.5 border", status.className)}>
+                            <StatusIcon className="h-3 w-3" /> {status.label}
+                          </span>
                         </div>
                         <p className="text-xs text-zinc-500 truncate mt-0.5">
                           {decodeHtml(email.body_html.replace(/<[^>]+>/g, "")).slice(0, 100)}
@@ -494,25 +482,12 @@ export function EmailTab({ contactId, contactEmail, contactName, dealId, gmailAc
                             <span className="text-xs font-medium text-zinc-700">
                               {email.direction === "sent" ? "Você" : senderName}
                             </span>
-                            {email.direction === "received" ? (
-                              <span className="flex items-center gap-1 text-[10px] font-medium text-blue-600 bg-blue-50 rounded-full px-2 py-0.5 border border-blue-200">
-                                <ArrowDownLeft className="h-3 w-3" /> Recebido
-                              </span>
-                            ) : (
-                              <span className="flex items-center gap-1 text-[10px] font-medium text-zinc-500 bg-zinc-100 rounded-full px-2 py-0.5 border border-zinc-200">
-                                <SendHorizonal className="h-3 w-3" /> Enviado
-                              </span>
-                            )}
-                            {opened ? (
-                              <span className="flex items-center gap-1 text-[10px] font-medium text-green-700 bg-green-100 rounded-full px-2 py-0.5 border border-green-200"
-                                title={`Visualizado em ${new Date(email.opened_at!).toLocaleString("pt-BR")}`}>
-                                <Eye className="h-3 w-3" /> Visualizado
-                              </span>
-                            ) : (
-                              <span className="flex items-center gap-1 text-[10px] font-medium text-red-600 bg-red-50 rounded-full px-2 py-0.5 border border-red-200">
-                                Não visualizado
-                              </span>
-                            )}
+                            <span
+                              className={cn("flex items-center gap-1 text-[10px] font-medium rounded-full px-2 py-0.5 border", status.className)}
+                              title={email.opened_at ? `Visualizado em ${new Date(email.opened_at).toLocaleString("pt-BR")}` : undefined}
+                            >
+                              <StatusIcon className="h-3 w-3" /> {status.label}
+                            </span>
                             <span className="text-[10px] text-zinc-400 ml-auto">
                               {new Date(email.created_at).toLocaleString("pt-BR", {
                                 day: "2-digit", month: "short", year: "numeric",
