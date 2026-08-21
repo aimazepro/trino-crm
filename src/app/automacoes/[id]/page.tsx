@@ -188,6 +188,56 @@ function useWhatsAppConnections(): WhatsAppConnectionOption[] {
   return connections;
 }
 
+type WhatsAppGroupOption = { id: string; subject: string };
+
+/** Groups for the picked connection, fetched server-side (instance token never reaches the browser). */
+function useWhatsAppGroups(connectionId: string): {
+  groups: WhatsAppGroupOption[];
+  loading: boolean;
+  error: string | null;
+} {
+  const [groups, setGroups] = useState<WhatsAppGroupOption[]>([]);
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  useEffect(() => {
+    if (!connectionId) {
+      setGroups([]);
+      setError(null);
+      setLoading(false);
+      return;
+    }
+    let cancelled = false;
+    setLoading(true);
+    setError(null);
+    (async () => {
+      try {
+        const res = await fetch(`/api/whatsapp/groups?connectionId=${encodeURIComponent(connectionId)}`);
+        const data = await res.json();
+        if (cancelled) return;
+        if (!res.ok) {
+          setError(data.error || "Não foi possível buscar os grupos.");
+          setGroups([]);
+        } else {
+          setGroups(data.groups ?? []);
+        }
+      } catch {
+        if (!cancelled) {
+          setError("Não foi possível buscar os grupos.");
+          setGroups([]);
+        }
+      } finally {
+        if (!cancelled) setLoading(false);
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [connectionId]);
+
+  return { groups, loading, error };
+}
+
 function useDealCustomFields(): CustomFieldOption[] {
   const [fields, setFields] = useState<CustomFieldOption[]>([]);
   const { workspaceId } = useWorkspace();
@@ -300,7 +350,7 @@ function defaultConfig(type: ActionType): Record<string, string | number | boole
     case "send_whatsapp":
       return { templateId: "" };
     case "notify_whatsapp_group":
-      return { groupName: "", message: "Novo lead recebido: {deal.title}" };
+      return { connectionId: "", groupId: "", groupName: "", message: "Novo lead recebido: {deal.title}" };
     case "start_sequence":
       return { sequenceId: "" };
     default:
@@ -1302,6 +1352,7 @@ function InlineActionForm({
   const whatsappTemplates = useWhatsAppTemplates();
   const emailTemplates = useEmailTemplates();
   const whatsappConnections = useWhatsAppConnections();
+  const whatsappGroups = useWhatsAppGroups((config.connectionId as string) ?? "");
 
   function setActionType(t: ActionType) {
     onChange((s) => ({ ...s, action: { type: t, config: defaultConfig(t) } }));
@@ -1666,7 +1717,7 @@ function InlineActionForm({
                   ? `${c.profileName ? c.profileName + " (" : ""}${c.phoneNumber}${c.profileName ? ")" : ""}`
                   : c.instanceName || "WhatsApp Conectado",
               }))}
-              onChange={(v) => patchConfig({ connectionId: v, groupName: "" })}
+              onChange={(v) => patchConfig({ connectionId: v, groupId: "", groupName: "" })}
             />
           </div>
 
@@ -1674,26 +1725,31 @@ function InlineActionForm({
             <label className="block text-xs font-semibold text-zinc-500 uppercase tracking-wide mb-1.5">
               Grupo que recebe o aviso
             </label>
-            {!config.connectionId ? (
-              <button
-                type="button"
-                disabled
-                className="flex items-center gap-1.5 rounded-lg border border-zinc-200 bg-white px-3 py-1.5 text-sm transition-colors min-w-0 w-full text-zinc-400 cursor-not-allowed"
-              >
-                <span className="min-w-0 truncate flex-1 text-left text-zinc-400">
-                  Escolha o número primeiro...
-                </span>
-                <ChevronDown className="h-3.5 w-3.5 text-zinc-400 shrink-0" />
-              </button>
-            ) : (
-              <input
-                placeholder="Nome ou ID do grupo..."
-                className="w-full rounded-lg border border-zinc-200 px-3 py-2 text-sm text-zinc-900 outline-none focus:border-amber-400 focus:ring-2 focus:ring-amber-100"
-                type="text"
-                value={(config.groupName as string) ?? ""}
-                onChange={(e) => patchConfig({ groupName: e.target.value })}
-              />
-            )}
+            <SearchableSelect
+              value={(config.groupId as string) ?? ""}
+              disabled={
+                !config.connectionId || whatsappGroups.loading || whatsappGroups.groups.length === 0
+              }
+              placeholder={
+                !config.connectionId
+                  ? "Escolha o número primeiro..."
+                  : whatsappGroups.loading
+                    ? "Buscando grupos..."
+                    : whatsappGroups.error
+                      ? whatsappGroups.error
+                      : whatsappGroups.groups.length === 0
+                        ? "Nenhum grupo encontrado"
+                        : "Escolha um grupo..."
+              }
+              options={whatsappGroups.groups.map((g) => ({ value: g.id, label: g.subject }))}
+              onChange={(v) => {
+                const group = whatsappGroups.groups.find((g) => g.id === v);
+                patchConfig({ groupId: v, groupName: group?.subject ?? "" });
+              }}
+            />
+            {whatsappGroups.error && config.connectionId ? (
+              <p className="mt-1 text-xs text-red-500">{whatsappGroups.error}</p>
+            ) : null}
           </div>
 
           <div>

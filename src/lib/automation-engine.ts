@@ -186,6 +186,26 @@ export async function queueWhatsApp(admin: Admin, params: {
   });
 }
 
+/** Same queue as queueWhatsApp, routed to a group instead of a contact. */
+export async function queueWhatsAppGroup(admin: Admin, params: {
+  workspaceId: string;
+  dealId: string;
+  automationId: string | null;
+  connectionId: string;
+  groupJid: string;
+  message: string;
+}): Promise<void> {
+  await admin.from("automation_whatsapp_queue").insert({
+    workspace_id: params.workspaceId,
+    deal_id: params.dealId,
+    automation_id: params.automationId,
+    connection_id: params.connectionId,
+    group_jid: params.groupJid,
+    message: params.message,
+    status: "pending",
+  });
+}
+
 // ── Per-step logging ─────────────────────────────────────────────────────
 
 async function logStep(
@@ -468,6 +488,31 @@ async function executeAction(
           automationId,
           phone: phone || null,
           templateId,
+          message,
+        });
+        await logStep(admin, runId, step.id, type, "success", null, null);
+        return true;
+      }
+
+      case "notify_whatsapp_group": {
+        const connectionId = (config.connectionId as string) || "";
+        const groupJid = (config.groupId as string) || "";
+        const message = interpolate((config.message as string) ?? "", deal);
+
+        if (!connectionId || !groupJid || !message.trim()) {
+          await logStep(
+            admin, runId, step.id, type, "failed",
+            "Ação não configurada: falta número, grupo ou mensagem.", null,
+          );
+          return false;
+        }
+
+        await queueWhatsAppGroup(admin, {
+          workspaceId: ctx.workspaceId,
+          dealId: deal.id,
+          automationId,
+          connectionId,
+          groupJid,
           message,
         });
         await logStep(admin, runId, step.id, type, "success", null, null);

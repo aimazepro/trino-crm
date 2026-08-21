@@ -552,9 +552,11 @@ export type Database = {
       automation_whatsapp_queue: {
         Row: {
           automation_id: string | null
+          connection_id: string | null
           created_at: string | null
           deal_id: string | null
           error: string | null
+          group_jid: string | null
           id: string
           message: string | null
           phone: string | null
@@ -565,9 +567,11 @@ export type Database = {
         }
         Insert: {
           automation_id?: string | null
+          connection_id?: string | null
           created_at?: string | null
           deal_id?: string | null
           error?: string | null
+          group_jid?: string | null
           id?: string
           message?: string | null
           phone?: string | null
@@ -578,9 +582,11 @@ export type Database = {
         }
         Update: {
           automation_id?: string | null
+          connection_id?: string | null
           created_at?: string | null
           deal_id?: string | null
           error?: string | null
+          group_jid?: string | null
           id?: string
           message?: string | null
           phone?: string | null
@@ -595,6 +601,13 @@ export type Database = {
             columns: ["automation_id"]
             isOneToOne: false
             referencedRelation: "automations"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "automation_whatsapp_queue_connection_id_fkey"
+            columns: ["connection_id"]
+            isOneToOne: false
+            referencedRelation: "whatsapp_connections"
             referencedColumns: ["id"]
           },
           {

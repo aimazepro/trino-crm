@@ -68,6 +68,14 @@ export interface SendResult {
   waMessageId: string | null;
 }
 
+/** A group the connected number belongs to, for the "avisar grupo" action. */
+export interface WhatsAppGroup {
+  /** Provider JID (e.g. "123456789-987654321@g.us") -- also the send target. */
+  id: string;
+  subject: string;
+  participantsCount: number | null;
+}
+
 export interface OutboundMedia {
   /** Raw bytes; the driver encodes them however the provider wants. */
   data: Buffer;
@@ -128,6 +136,8 @@ export interface WhatsAppDriver {
   deleteInstance(): Promise<void>;
   sendText(phone: string, text: string): Promise<SendResult>;
   sendMedia(phone: string, media: OutboundMedia): Promise<SendResult>;
+  /** Groups the connected number belongs to, for the "avisar grupo" action. */
+  fetchGroups(): Promise<WhatsAppGroup[]>;
   /**
    * Asks the provider which JID actually owns a phone number, or null when no
    * candidate is registered on WhatsApp. Never guess this: Brazilian numbers

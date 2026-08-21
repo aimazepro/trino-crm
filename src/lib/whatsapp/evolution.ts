@@ -14,6 +14,7 @@ import {
   SendResult,
   WhatsAppConnection,
   WhatsAppDriver,
+  WhatsAppGroup,
   isGroupJid,
   jidToPhone,
   phoneCandidates,
@@ -333,6 +334,31 @@ export class EvolutionDriver implements WhatsAppDriver {
       },
     });
     return { waMessageId: readSentMessageId(result) };
+  }
+
+  async fetchGroups(): Promise<WhatsAppGroup[]> {
+    // getParticipants=false: the "avisar grupo" picker only needs the name,
+    // and fetching every member of every group is the slow, heavy form of
+    // this call.
+    const result = (await call(
+      `/group/fetchAllGroups/${encodeURIComponent(this.instanceName)}?getParticipants=false`,
+      { apikey: this.key() },
+    )) as unknown;
+
+    if (!Array.isArray(result)) return [];
+
+    const groups: WhatsAppGroup[] = [];
+    for (const entry of result) {
+      const record = asRecord(entry);
+      const id = record ? asString(record.id) : null;
+      if (!id || !isGroupJid(id)) continue;
+      groups.push({
+        id,
+        subject: (record && asString(record.subject)) ?? id,
+        participantsCount: typeof record?.size === "number" ? record.size : null,
+      });
+    }
+    return groups.sort((a, b) => a.subject.localeCompare(b.subject, "pt-BR"));
   }
 
   async resolveJid(phone: string): Promise<string | null> {

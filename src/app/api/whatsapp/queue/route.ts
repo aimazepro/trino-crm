@@ -11,8 +11,9 @@ import type { Database } from "@/lib/supabase/database.types";
 import { NextRequest, NextResponse } from "next/server";
 import { timingSafeEqual } from "crypto";
 import type { SupabaseClient } from "@supabase/supabase-js";
-import { createAdmin, loadConnection } from "@/lib/whatsapp/connection";
+import { createAdmin, loadConnection, loadConnectionById } from "@/lib/whatsapp/connection";
 import { sendWhatsAppMessage, UnreachableNumberError } from "@/lib/whatsapp/send";
+import { getDriver } from "@/lib/whatsapp";
 import type { WhatsAppConnection } from "@/lib/whatsapp/types";
 
 export const dynamic = "force-dynamic";
@@ -93,6 +94,19 @@ async function connectionFor(
   return connection;
 }
 
+/** Same idea as connectionFor, keyed by connection id for group-broadcast rows. */
+async function connectionForId(
+  admin: SupabaseClient<Database>,
+  connectionId: string,
+  cache: Map<string, WhatsAppConnection | null>,
+): Promise<WhatsAppConnection | null> {
+  if (cache.has(connectionId)) return cache.get(connectionId)!;
+
+  const connection = await loadConnectionById(admin, connectionId);
+  cache.set(connectionId, connection);
+  return connection;
+}
+
 /**
  * The message text. Automations resolve their template at enqueue time, where
  * the deal is in hand to interpolate against; this fallback only covers a row
@@ -147,6 +161,13 @@ interface DealContext {
   vars: Record<string, string>;
 }
 
+/** Behind `{{valor_negocio}}`. Empty rather than "R$ NaN" for a null/zero-ish value. */
+function formatCurrencyBRL(value: unknown): string {
+  const n = typeof value === "number" ? value : Number(value);
+  if (!Number.isFinite(n)) return "";
+  return new Intl.NumberFormat("pt-BR", { style: "currency", currency: "BRL" }).format(n);
+}
+
 /**
  * Everything the deal behind a queue row can supply: the number to send to, and
  * the values behind the `{{...}}` placeholders the template editor offers.
@@ -160,14 +181,14 @@ async function loadDealContext(admin: SupabaseClient<Database>, dealId: string |
 
   const { data: deal } = await admin
     .from("deals")
-    .select("title, contact_id, company_id, owner_id")
+    .select("title, value, contact_id, company_id, owner_id, pipeline_id, stage_id")
     .eq("id", dealId)
     .maybeSingle();
 
   if (!deal) return empty;
   const row = deal as any;
 
-  const [contact, company, vendedor] = await Promise.all([
+  const [contact, company, vendedor, stage, pipeline] = await Promise.all([
     row.contact_id
       ? admin.from("contacts").select("name, phones, company_id").eq("id", row.contact_id).maybeSingle()
       : Promise.resolve({ data: null }),
@@ -175,17 +196,28 @@ async function loadDealContext(admin: SupabaseClient<Database>, dealId: string |
       ? admin.from("companies").select("name").eq("id", row.company_id).maybeSingle()
       : Promise.resolve({ data: null }),
     ownerName(admin, row.owner_id ?? null),
+    row.stage_id
+      ? admin.from("pipeline_stages").select("name").eq("id", row.stage_id).maybeSingle()
+      : Promise.resolve({ data: null }),
+    row.pipeline_id
+      ? admin.from("pipelines").select("name").eq("id", row.pipeline_id).maybeSingle()
+      : Promise.resolve({ data: null }),
   ]);
 
   const contactRow = contact.data as any;
+  const contactPhone = firstPhone(contactRow?.phones ?? []);
 
   return {
-    phone: firstPhone(contactRow?.phones ?? []).replace(/\D/g, ""),
+    phone: contactPhone.replace(/\D/g, ""),
     vars: {
       nome_contato: contactRow?.name ?? "",
       nome_empresa: (company.data as any)?.name ?? "",
       nome_negocio: row.title ?? "",
       nome_vendedor: vendedor,
+      valor_negocio: formatCurrencyBRL(row.value),
+      nome_etapa: (stage.data as any)?.name ?? "",
+      nome_funil: (pipeline.data as any)?.name ?? "",
+      telefone_contato: contactPhone,
     },
   };
 }
@@ -223,8 +255,59 @@ export async function POST(req: NextRequest) {
   let processed = 0;
   let failed = 0;
 
+  const connectionsById = new Map<string, WhatsAppConnection | null>();
+
   for (const item of items as any[]) {
     try {
+      if (item.group_jid) {
+        // Group broadcast: no contact, no thread, no JID resolution — the
+        // group JID is already the send target, straight from fetchGroups().
+        const connection = item.connection_id
+          ? await connectionForId(admin, item.connection_id, connectionsById)
+          : await connectionFor(admin, item.workspace_id, connections);
+
+        if (!connection || connection.status !== "open") {
+          await finish(admin, item.id, {
+            status: "failed",
+            error: "WhatsApp não está conectado. Conecte em Configurações > WhatsApp.",
+          });
+          failed++;
+          continue;
+        }
+
+        const template = await resolveText(admin, item);
+        if (!template) {
+          await finish(admin, item.id, {
+            status: "failed",
+            error: "A ação não tem mensagem.",
+          });
+          failed++;
+          continue;
+        }
+
+        const context = await loadDealContext(admin, item.deal_id ?? null);
+        const text = fillVars(template, context.vars).trim();
+        if (!text) {
+          await finish(admin, item.id, {
+            status: "failed",
+            error: "A mensagem ficou vazia depois de substituir as variáveis.",
+          });
+          failed++;
+          continue;
+        }
+
+        try {
+          await getDriver(connection).sendText(item.group_jid, text);
+          await finish(admin, item.id, { status: "sent", sent_at: new Date().toISOString() });
+          processed++;
+        } catch (err) {
+          const message = err instanceof Error ? err.message : "Falha no envio";
+          await finish(admin, item.id, { status: "failed", error: message.slice(0, 500) });
+          failed++;
+        }
+        continue;
+      }
+
       const connection = await connectionFor(admin, item.workspace_id, connections);
       if (!connection || connection.status !== "open") {
         await finish(admin, item.id, {
