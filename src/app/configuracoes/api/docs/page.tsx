@@ -98,7 +98,7 @@ const ERROR_CODES_TABLE = [
   { status: "402", code: "SUBSCRIPTION_REQUIRED", desc: "Workspace sem plano ativo ou trial expirado (reservado)" },
   { status: "403", code: "INSUFFICIENT_SCOPE", desc: "A chave autenticada não possui a permissão requerida para o endpoint" },
   { status: "404", code: "NOT_FOUND", desc: "Recurso solicitado não existe ou não pertence ao seu workspace" },
-  { status: "409", code: "CONFLICT", desc: "Requisição com a mesma Idempotency-Key ainda está em processamento ou chave duplicada" },
+  { status: "409", code: "VALIDATION_ERROR", desc: "Requisição com a mesma Idempotency-Key ainda está em processamento (aguarde alguns segundos e tente de novo)" },
   { status: "429", code: "RATE_LIMIT_EXCEEDED", desc: "Limite de requisições por minuto excedido. Aguarde os segundos indicados no header Retry-After" },
   { status: "500", code: "INTERNAL_ERROR", desc: "Erro interno no servidor ao processar a solicitação" },
 ];
@@ -471,6 +471,7 @@ const ENDPOINTS_DATA: Record<string, EndpointDoc[]> = {
       scope: "edit_contacts",
       title: "Excluir contato",
       description: "Remove um contato do workspace.",
+      note: "Diferente da exclusão de negócios (soft-delete, reversível), esta é uma exclusão permanente — o registro é apagado do banco e não pode ser restaurado.",
       params: [
         { name: "id", type: "string (uuid)", required: true, location: "path", description: "ID do contato." },
       ],
@@ -610,6 +611,7 @@ const ENDPOINTS_DATA: Record<string, EndpointDoc[]> = {
       scope: "edit_companies",
       title: "Excluir empresa",
       description: "Remove a empresa do workspace.",
+      note: "Diferente da exclusão de negócios (soft-delete, reversível), esta é uma exclusão permanente — o registro é apagado do banco e não pode ser restaurado.",
       params: [
         { name: "id", type: "string (uuid)", required: true, location: "path", description: "ID da empresa." },
       ],
@@ -685,6 +687,36 @@ const ENDPOINTS_DATA: Record<string, EndpointDoc[]> = {
       "completed": false
     }
   ]
+}`,
+    },
+    {
+      id: "update-activity",
+      method: "PATCH",
+      path: "/api/v1/activities/:id",
+      scope: "edit_activities",
+      title: "Atualizar atividade",
+      description: "Atualiza campos parciais de uma atividade já agendada. Envie somente os campos que deseja modificar.",
+      params: [
+        { name: "id", type: "string (uuid)", required: true, location: "path", description: "ID único da atividade." },
+        { name: "title", type: "string", required: false, description: "Novo título." },
+        { name: "description", type: "string", required: false, description: "Nova descrição/pauta." },
+        { name: "date", type: "string (ISO date)", required: false, description: "Nova data/hora, com fuso explícito." },
+        { name: "assigneeId", type: "string (uuid)", required: false, description: "Reatribuir a outro membro ativo do workspace." },
+        { name: "type", type: "string", required: false, description: "Novo tipo: 'MEETING', 'CALL', 'VIDEO_CALL', 'EMAIL', 'WHATSAPP', 'INSTAGRAM', 'LINKEDIN', 'OTHER'." },
+      ],
+      curl: `curl -X PATCH https://api-crm.aimaze.com.br/api/v1/activities/2b3c4d5e-6f7a-8b9c-0d1e-2f3a4b5c6d7e \\
+  -H "Authorization: Bearer trn_sua_chave_aqui" \\
+  -H "Content-Type: application/json" \\
+  -d '{
+    "date": "2026-08-26T15:00:00-03:00"
+  }'`,
+      response: `{
+  "data": {
+    "id": "2b3c4d5e-6f7a-8b9c-0d1e-2f3a4b5c6d7e",
+    "title": "Apresentação da Proposta Comercial",
+    "date": "2026-08-26T18:00:00.000Z",
+    "completed": false
+  }
 }`,
     },
     {
@@ -915,6 +947,30 @@ const ENDPOINTS_DATA: Record<string, EndpointDoc[]> = {
       "role": "admin"
     }
   ]
+}`,
+    },
+  ],
+  me: [
+    {
+      id: "get-me",
+      method: "GET",
+      path: "/api/v1/me",
+      scope: "Qualquer chave ativa (sem scope específico)",
+      title: "Verificar API Key e dados do workspace",
+      description: "Retorna o workspace, o proprietário padrão, as permissões e o limite de requisições da chave usada. Não exige nenhum scope além de a chave estar ativa — use para testar rapidamente se uma API Key funciona.",
+      params: [],
+      curl: `curl https://api-crm.aimaze.com.br/api/v1/me \\
+  -H "Authorization: Bearer trn_sua_chave_aqui"`,
+      response: `{
+  "data": {
+    "workspace": {
+      "id": "9a8b7c6d-5e4f-3a2b-1c0d-9e8f7a6b5c4d",
+      "name": "Trino Digital Business"
+    },
+    "defaultOwnerId": "5d4c3b2a-1f0e-9d8c-7b6a-5f4e3d2c1b0a",
+    "permissions": ["read_deals", "edit_deals", "read_contacts"],
+    "rateLimitPerMin": 60
+  }
 }`,
     },
   ],
@@ -1484,6 +1540,27 @@ export default function ApiDocsPage() {
             </div>
           </section>
 
+          {/* Verify API Key Section */}
+          <section id="me" className="space-y-4">
+            <h2 className="text-lg font-bold text-zinc-900 flex items-center gap-2 pb-2 border-b border-zinc-200">
+              <ShieldCheck className="h-5 w-5 text-amber-500" />
+              Verificar API Key
+            </h2>
+            <p className="text-sm text-zinc-600">
+              Endpoint de diagnóstico: confirme que sua chave funciona e veja quais permissões ela tem, sem precisar de nenhum parâmetro.
+            </p>
+            <div className="space-y-3">
+              {ENDPOINTS_DATA.me.map((ep) => (
+                <EndpointCard
+                  key={ep.id}
+                  endpoint={ep}
+                  isOpen={!!openCards[ep.id]}
+                  onToggle={() => toggleCard(ep.id)}
+                />
+              ))}
+            </div>
+          </section>
+
           {/* Rate Limiting & Idempotency Section */}
           <section id="rate-limit" className="space-y-6">
             <h2 className="text-lg font-bold text-zinc-900 flex items-center gap-2 pb-2 border-b border-zinc-200">
@@ -1492,18 +1569,19 @@ export default function ApiDocsPage() {
             </h2>
             <div className="space-y-4 text-sm text-zinc-600 leading-relaxed">
               <p>
-                Cada chave possui um limite configurado de requisições por minuto (padrão de <strong>60 req/min</strong>). Todas as respostas contêm os headers informando o estado da janela:
+                Cada chave possui um limite configurado de requisições por minuto (padrão de <strong>60 req/min</strong>). Se você exceder o limite, o servidor retorna <code className="font-mono text-red-600 bg-red-50 px-1.5 py-0.5 rounded">HTTP 429 RATE_LIMIT_EXCEEDED</code> com os headers abaixo informando o estado da janela:
               </p>
 
               <CodeBlock
                 language="http"
-                code={`X-RateLimit-Limit: 60          # Limite total configurado por minuto
-X-RateLimit-Remaining: 48      # Requisições restantes na janela atual
+                code={`Retry-After: 42                # Segundos de espera até poder tentar de novo
+X-RateLimit-Limit: 60          # Limite total configurado por minuto
+X-RateLimit-Remaining: 0       # Sempre 0 numa resposta 429
 X-RateLimit-Reset: 1710630060  # Timestamp Unix de quando o limite será resetado`}
               />
 
               <p className="text-xs text-zinc-500">
-                Se exceder o limite, o servidor retorna <code className="font-mono text-red-600 bg-red-50 px-1.5 py-0.5 rounded">HTTP 429 RATE_LIMIT_EXCEEDED</code> com o header <code className="font-mono text-zinc-700 bg-zinc-100 px-1 rounded">Retry-After</code> indicando a quantidade de segundos de espera.
+                Esses headers <strong>só aparecem na resposta 429</strong> — uma requisição bem-sucedida (200/201) não carrega header de rate limit nenhum.
               </p>
 
               {/* Idempotency Header Card */}
@@ -1513,7 +1591,7 @@ X-RateLimit-Reset: 1710630060  # Timestamp Unix de quando o limite será resetad
                   <h3 className="text-sm font-bold text-zinc-900">Proteção contra Duplicidade (Idempotência)</h3>
                 </div>
                 <p className="text-xs text-zinc-600 leading-relaxed">
-                  Qualquer requisição <code className="font-mono text-zinc-700 bg-zinc-100 px-1.5 py-0.5 rounded">POST</code> aceita o cabeçalho <code className="font-mono text-zinc-700 bg-zinc-100 px-1.5 py-0.5 rounded">Idempotency-Key: &lt;sua-chave-unica&gt;</code>. Reenviar a mesma chave dentro de 24h devolverá a resposta original gravada sem duplicar o negócio ou contato. Essencial para retries automáticos no Zapier, Make e Meta Ads.
+                  Qualquer requisição <code className="font-mono text-zinc-700 bg-zinc-100 px-1.5 py-0.5 rounded">POST</code> aceita o cabeçalho <code className="font-mono text-zinc-700 bg-zinc-100 px-1.5 py-0.5 rounded">Idempotency-Key: &lt;sua-chave-unica&gt;</code>. Reenviar a mesma chave dentro de 48h devolverá a resposta original gravada sem duplicar o negócio ou contato. Essencial para retries automáticos no Zapier, Make e Meta Ads.
                 </p>
                 <CodeBlock
                   language="bash"
