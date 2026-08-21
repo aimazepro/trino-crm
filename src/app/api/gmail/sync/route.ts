@@ -112,6 +112,16 @@ export async function POST(req: NextRequest) {
   }
   const messages: { id: string }[] = listData.messages ?? [];
 
+  // TEMP DEBUG (remove after diagnosing reply-sync issue): confirms whether
+  // Gmail's messages.list found the reply at all, and with which query/token identity.
+  console.log("[gmail/sync][TEMP]", {
+    query,
+    contactEmail,
+    myEmail,
+    messagesFound: messages.length,
+    messageIds: messages.map((m) => m.id),
+  });
+
   const { data: existing } = await admin
     .from("emails")
     .select("gmail_message_id")
@@ -142,7 +152,7 @@ export async function POST(req: NextRequest) {
     const bodyHtml = extractBody(msgData.payload ?? {});
     const direction = fromEmail.includes(myEmail) ? "sent" : "received";
 
-    await admin.from("emails").insert({
+    const { error: insertError } = await admin.from("emails").insert({
       user_id: user.id,
       workspace_id: workspaceCtx.workspaceId,
       contact_id: contactId,
@@ -155,6 +165,11 @@ export async function POST(req: NextRequest) {
       to_email: toEmail,
       created_at: createdAt,
     });
+    if (insertError) {
+      // TEMP DEBUG (remove after diagnosing reply-sync issue)
+      console.error("[gmail/sync][TEMP] insert failed:", insertError, { msgId: msg.id, direction, fromEmail, toEmail });
+      continue;
+    }
     synced++;
   }
 
