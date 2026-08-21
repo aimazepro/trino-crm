@@ -58,6 +58,7 @@ const NAV_SECTIONS: SectionItem[] = [
   { id: "quickstart", label: "Início rápido", icon: Zap },
   { id: "generate-key", label: "Como gerar API Key", icon: Key },
   { id: "auth", label: "Autenticação", icon: Lock },
+  { id: "me", label: "Verificar API Key", icon: ShieldCheck },
   { id: "rate-limit", label: "Rate limiting", icon: Gauge },
   { id: "deals", label: "Negócios", icon: Briefcase },
   { id: "contacts", label: "Contatos", icon: Users },
@@ -111,7 +112,7 @@ const ENDPOINTS_DATA: Record<string, EndpointDoc[]> = {
       scope: "edit_deals",
       title: "Criar negócio (Entrada de Lead)",
       description: "Cria um novo negócio no funil de vendas. Suporta atribuição automática de contato inline com deduplicação por e-mail ou telefone.",
-      note: "Gatilho automático 'lead_recebido' é disparado para acionar automações e distribuição round-robin.",
+      note: "Gatilho automático 'lead_recebido' é disparado para acionar automações e distribuição round-robin. A chave 'warnings' só aparece na resposta quando há algo a avisar (ex: customField inexistente) — se não houver avisos, a chave não é incluída.",
       params: [
         { name: "title", type: "string", required: false, description: "Título do negócio. Se omitido, é gerado automaticamente como 'Lead — Nome do Contato'." },
         { name: "value", type: "number", required: false, description: "Valor monetário da oportunidade (ex: 5000)." },
@@ -128,7 +129,7 @@ const ENDPOINTS_DATA: Record<string, EndpointDoc[]> = {
         { name: "utmContent", type: "string", required: false, description: "Conteúdo do anúncio UTM." },
         { name: "utmTerm", type: "string", required: false, description: "Termo ou palavra-chave UTM." },
         { name: "campaignId", type: "string", required: false, description: "ID externo da campanha na plataforma de anúncio (Meta/Google)." },
-        { name: "customFields", type: "object", required: false, description: "Objeto com campos customizados: { \"id_ou_nome_do_campo\": \"valor\" }." },
+        { name: "customFields", type: "object", required: false, description: "Objeto com campos customizados, chaveado pelo ID do campo (não o nome/label): { \"id_do_campo\": \"valor\" }. Descubra os IDs em GET /api/v1/custom-fields." },
       ],
       curl: `curl -X POST https://api-crm.aimaze.com.br/api/v1/deals \\
   -H "Authorization: Bearer trn_sua_chave_aqui" \\
@@ -158,8 +159,7 @@ const ENDPOINTS_DATA: Record<string, EndpointDoc[]> = {
     "id": "7fa84b80-1a2b-4c3d-8e4f-5a6b7c8d9e0f",
     "contactId": "1b2c3d4e-5f6a-7b8c-9d0e-1f2a3b4c5d6e",
     "created": true
-  },
-  "warnings": []
+  }
 }`,
     },
     {
@@ -243,7 +243,14 @@ const ENDPOINTS_DATA: Record<string, EndpointDoc[]> = {
         { name: "ownerId", type: "string (uuid)", required: false, description: "Reatribuir a outro vendedor ativo." },
         { name: "contactId", type: "string (uuid)", required: false, description: "Vincular a outro contato." },
         { name: "expectedCloseDate", type: "string (ISO date)", required: false, description: "Previsão de fechamento." },
-        { name: "customFields", type: "object", required: false, description: "Campos customizados a serem atualizados." },
+        { name: "source", type: "string", required: false, description: "Canal de origem." },
+        { name: "utmSource", type: "string", required: false, description: "Parâmetro UTM source." },
+        { name: "utmMedium", type: "string", required: false, description: "Parâmetro UTM medium." },
+        { name: "utmCampaign", type: "string", required: false, description: "Nome da campanha UTM." },
+        { name: "utmContent", type: "string", required: false, description: "Conteúdo do anúncio UTM." },
+        { name: "utmTerm", type: "string", required: false, description: "Termo ou palavra-chave UTM." },
+        { name: "campaignId", type: "string", required: false, description: "ID externo da campanha na plataforma de anúncio." },
+        { name: "customFields", type: "object", required: false, description: "Campos customizados a serem atualizados, chaveados pelo ID do campo." },
       ],
       curl: `curl -X PATCH https://api-crm.aimaze.com.br/api/v1/deals/7fa84b80-1a2b-4c3d-8e4f-5a6b7c8d9e0f \\
   -H "Authorization: Bearer trn_sua_chave_aqui" \\
