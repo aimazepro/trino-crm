@@ -3,6 +3,7 @@ import { createServerClient } from "@supabase/ssr";
 import { createClient as createAdminClient } from "@supabase/supabase-js";
 import { cookies } from "next/headers";
 import { getValidGmailTokenSendOnly } from "@/lib/gmail-token";
+import { getWorkspaceContext } from "@/lib/workspace-context";
 
 export const dynamic = "force-dynamic";
 
@@ -30,6 +31,11 @@ export async function POST(req: NextRequest) {
 
   const { data: { user } } = await supabase.auth.getUser();
   if (!user) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+
+  // emails.workspace_id is NOT NULL (Phase 1 multi-tenancy) — resolve it up front so
+  // the insert below doesn't die on a constraint violation.
+  const workspaceCtx = await getWorkspaceContext(supabase);
+  if (!workspaceCtx) return NextResponse.json({ error: "No workspace" }, { status: 400 });
 
   const { to, subject: rawSubject, bodyHtml: rawBody, contactId, dealId, contactName, contactEmail: contactEmailVar } = await req.json();
   if (!to || !rawSubject || !rawBody || !contactId) {
@@ -129,6 +135,7 @@ export async function POST(req: NextRequest) {
 
   const { data: emailRow, error: insertErr } = await admin.from("emails").insert({
     user_id: user.id,
+    workspace_id: workspaceCtx.workspaceId,
     contact_id: contactId,
     deal_id: dealId ?? null,
     direction: "sent",

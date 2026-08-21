@@ -4,6 +4,7 @@ import { createServerClient } from "@supabase/ssr";
 import { createClient as createAdminClient } from "@supabase/supabase-js";
 import { cookies } from "next/headers";
 import { pushActivity } from "@/lib/calendar-sync";
+import { getWorkspaceContext } from "@/lib/workspace-context";
 
 export const dynamic = "force-dynamic";
 
@@ -22,19 +23,24 @@ export async function POST(req: NextRequest) {
   const { data: { user } } = await supabase.auth.getUser();
   if (!user) return NextResponse.json({ ok: false, error: "not authenticated" }, { status: 401 });
 
+  const workspaceCtx = await getWorkspaceContext(supabase);
+  if (!workspaceCtx) return NextResponse.json({ ok: false, error: "not authenticated" }, { status: 401 });
+
   const admin = createAdminClient(
     process.env.NEXT_PUBLIC_SUPABASE_URL!,
     process.env.SUPABASE_SERVICE_ROLE_KEY!
   );
 
-  // Ownership check — the caller may only push activities they created or are assigned to.
-  // 404 (not 403) so the response doesn't confirm another tenant's activity ID exists.
+  // Ownership check — activities has no per-user "creator" column (Phase 1 multi-tenancy
+  // replaced it with workspace_id + assignee_id), so the boundary is workspace membership:
+  // the caller may only push an activity that belongs to their own workspace. 404 (not 403)
+  // so the response doesn't confirm another tenant's activity ID exists.
   const { data: activity } = await admin
     .from("activities")
-    .select("user_id, assignee_id")
+    .select("workspace_id")
     .eq("id", activityId)
     .maybeSingle();
-  if (!activity || (activity.user_id !== user.id && activity.assignee_id !== user.id)) {
+  if (!activity || activity.workspace_id !== workspaceCtx.workspaceId) {
     return NextResponse.json({ ok: false, error: "not found" }, { status: 404 });
   }
 

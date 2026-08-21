@@ -2,7 +2,7 @@
 
 import { useState, useEffect, useCallback, useRef } from "react";
 import DOMPurify from "dompurify";
-import { Mail, RefreshCw, Send, Eye, FileText, X, Bold, Italic, Underline, List, ListOrdered, Link2, Braces, ChevronDown, Reply, ArrowDownLeft, SendHorizonal } from "lucide-react";
+import { Mail, RefreshCw, Send, Eye, FileText, X, Bold, Italic, Underline, List, ListOrdered, Link2, Braces, ChevronDown, Reply, ArrowDownLeft, SendHorizonal, AlertCircle } from "lucide-react";
 import Link from "next/link";
 import { cn } from "@/lib/utils";
 
@@ -83,6 +83,7 @@ export function EmailTab({ contactId, contactEmail, contactName, dealId, gmailAc
   const [composing, setComposing] = useState(false);
   const [subject, setSubject] = useState("");
   const [sending, setSending] = useState(false);
+  const [sendError, setSendError] = useState<string | null>(null);
   const [expandedId, setExpandedId] = useState<string | null>(null);
   const [showTemplates, setShowTemplates] = useState(false);
   const [replyTo, setReplyTo] = useState<Email | null>(null);
@@ -155,31 +156,39 @@ export function EmailTab({ contactId, contactEmail, contactName, dealId, gmailAc
     const html = editorRef.current?.innerHTML ?? "";
     if (!subject.trim() || !html.trim()) return;
     setSending(true);
+    setSendError(null);
 
     const toEmail = replyTo
       ? (replyTo.direction === "received" ? replyTo.from_email : replyTo.to_email)
       : contactEmail;
 
-    const res = await fetch("/api/gmail/send", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        to: toEmail,
-        subject,
-        bodyHtml: html,
-        contactId,
-        dealId,
-        contactName,
-        contactEmail,
-      }),
-    });
+    try {
+      const res = await fetch("/api/gmail/send", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          to: toEmail,
+          subject,
+          bodyHtml: html,
+          contactId,
+          dealId,
+          contactName,
+          contactEmail,
+        }),
+      });
 
-    if (res.ok) {
-      setComposing(false);
-      setReplyTo(null);
-      setSubject("");
-      if (editorRef.current) editorRef.current.innerHTML = "";
-      await fetchEmails();
+      if (res.ok) {
+        setComposing(false);
+        setReplyTo(null);
+        setSubject("");
+        if (editorRef.current) editorRef.current.innerHTML = "";
+        await fetchEmails();
+      } else {
+        const data = await res.json().catch(() => null);
+        setSendError(data?.error ?? "Falha ao enviar email");
+      }
+    } catch {
+      setSendError("Falha ao enviar email — verifique sua conexão");
     }
     setSending(false);
   };
@@ -224,6 +233,15 @@ export function EmailTab({ contactId, contactEmail, contactName, dealId, gmailAc
 
   return (
     <div className="rounded-xl bg-white border border-zinc-200 overflow-hidden">
+      {sendError && (
+        <div className="fixed bottom-6 right-6 z-50 bg-red-600 text-white text-sm px-4 py-3 rounded-lg shadow-lg flex items-center gap-3 border border-red-700">
+          <AlertCircle className="h-4 w-4 shrink-0" />
+          <span>{sendError}</span>
+          <button onClick={() => setSendError(null)} className="ml-2 text-red-100 hover:text-white border-0 bg-transparent cursor-pointer">
+            <X className="h-4 w-4" />
+          </button>
+        </div>
+      )}
       <div className="flex flex-col" style={{ height: "calc(100vh - 320px)", minHeight: "400px" }}>
         {/* Header */}
         <div className="flex items-center gap-3 px-4 py-2.5 border-b border-zinc-100 bg-white shrink-0">
