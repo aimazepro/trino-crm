@@ -72,8 +72,19 @@ Sem features. Torna o produto honesto e seguro antes de crescer. `AUD §6`
 - [ ] **Consertar os links 404** — `/configuracoes/api/docs` e
   `/ajuda/integracao-leads-externos` ficam como link, apontando para a doc que
   será escrita na Fase 2. `AUD §6.3`
-- [ ] **`.env.example` + validação fail-fast de env vars.** 12 vars são lidas
-  com `!`; faltando uma, quebra em runtime e não no boot. `AUD §S-5`
+- [x] **`.env.example` + validação fail-fast de env vars — FECHADO 2026-08-21.**
+  ~40 call sites de `process.env.X!` espalhadas (5 vars únicas) mais outras
+  lidas com throw manual em request time (`OAUTH_ENCRYPTION_KEY`,
+  `EVOLUTION_API_URL/KEY`) só quebravam quando alguém batia na rota. Agora
+  `src/lib/env.ts` valida as 9 vars obrigatórias uma vez, em
+  `src/instrumentation.ts` (`register()`, roda no boot do processo Node —
+  cold start na Vercel — antes de aceitar requests). Testado isolado (tsx):
+  throw claro listando as faltantes quando nenhuma está setada, silencioso
+  quando todas presentes; e via `next build` + `next start` real, log
+  confirmando que `register()` roda. `.env.example` documenta as 15 vars
+  (obrigatórias e opcionais, com o que cada uma faz e pra onde cai o
+  fallback). Conferido via `vercel env ls production` antes do deploy: as
+  9 obrigatórias já existiam em prod — boot não quebrou. `AUD §S-5`
 - [x] **Security headers — FECHADO 2026-08-21.** `next.config.ts` ganhou
   `headers()`: CSP (sem nonce — `unsafe-inline` em script/style-src até
   implementar nonce+proxy dinâmico), HSTS, X-Frame-Options: DENY,
