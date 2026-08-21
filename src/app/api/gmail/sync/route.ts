@@ -99,6 +99,17 @@ export async function POST(req: NextRequest) {
     { headers: { Authorization: `Bearer ${token}` } }
   );
   const listData = await listRes.json();
+  if (!listRes.ok) {
+    // Most likely cause: the connected account authorized before gmail.readonly was
+    // requested (added alongside this check) -- Google silently returns an
+    // insufficient-scope error here rather than failing the connect itself, so this
+    // surfaced only as "sync always finds nothing," not as a visible connect failure.
+    console.error("[gmail/sync] messages.list failed:", listData.error ?? listData);
+    return NextResponse.json({
+      error: listData.error?.message ?? "Gmail list failed",
+      reconnectRequired: listData.error?.status === "PERMISSION_DENIED",
+    }, { status: 502 });
+  }
   const messages: { id: string }[] = listData.messages ?? [];
 
   const { data: existing } = await admin

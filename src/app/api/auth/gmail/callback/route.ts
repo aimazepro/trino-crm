@@ -155,7 +155,7 @@ export async function GET(req: NextRequest) {
       expires_at: new Date(Date.now() + (tokens.expires_in || 3600) * 1000).toISOString(),
       scopes: isCalendar
         ? ["calendar.events", "calendar.readonly", "userinfo.email"]
-        : ["gmail.send", "userinfo.email"],
+        : ["gmail.send", "gmail.readonly", "userinfo.email"],
       active: true,
     },
     { onConflict: "user_id,provider" }
