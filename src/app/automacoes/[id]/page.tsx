@@ -127,6 +127,31 @@ function useWhatsAppTemplates(): { id: string; name: string }[] {
   return templates;
 }
 
+function useEmailTemplates(): { id: string; name: string }[] {
+  const [templates, setTemplates] = useState<{ id: string; name: string }[]>([]);
+  const { workspaceId } = useWorkspace();
+  useEffect(() => {
+    let cancelled = false;
+    const supabase = createClient();
+    (async () => {
+      const {
+        data: { user },
+      } = await supabase.auth.getUser();
+      if (!user) return;
+      const { data } = await supabase
+        .from("email_templates")
+        .select("id, name")
+        .eq("workspace_id", workspaceId)
+        .order("created_at");
+      if (!cancelled) setTemplates(data ?? []);
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [workspaceId]);
+  return templates;
+}
+
 function useDealCustomFields(): CustomFieldOption[] {
   const [fields, setFields] = useState<CustomFieldOption[]>([]);
   const { workspaceId } = useWorkspace();
@@ -1239,6 +1264,7 @@ function InlineActionForm({
   const actionType = step.action?.type ?? "create_deal";
   const config = step.action?.config ?? {};
   const whatsappTemplates = useWhatsAppTemplates();
+  const emailTemplates = useEmailTemplates();
 
   function setActionType(t: ActionType) {
     onChange((s) => ({ ...s, action: { type: t, config: defaultConfig(t) } }));
@@ -1544,6 +1570,26 @@ function InlineActionForm({
           />
           <p className="text-[11px] text-zinc-400 mt-1">
             Será enviado um POST com os dados do evento.
+          </p>
+        </div>
+      )}
+
+      {actionType === "send_email" && (
+        <div>
+          <label className="block text-xs font-semibold text-zinc-500 uppercase tracking-wide mb-1.5">
+            Template de email
+          </label>
+          <SearchableSelect
+            value={(config.templateId as string) ?? ""}
+            placeholder="Selecionar template..."
+            options={emailTemplates.map((t) => ({
+              value: t.id,
+              label: t.name,
+            }))}
+            onChange={(v) => patchConfig({ templateId: v })}
+          />
+          <p className="mt-1 text-xs text-zinc-400">
+            O email sera enviado via Gmail do vendedor responsavel pelo negocio. Variaveis como {"{{contact_name}}"} serao substituidas automaticamente.
           </p>
         </div>
       )}
