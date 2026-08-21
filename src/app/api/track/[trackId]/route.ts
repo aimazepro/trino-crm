@@ -39,7 +39,7 @@ export async function GET(
 
   const { data } = await admin
     .from("emails")
-    .select("id, created_at, opened_at, user_id, to_email, subject, deal_id, contact_id")
+    .select("id, created_at, opened_at, user_id, workspace_id, to_email, subject, deal_id, contact_id")
     .eq("track_id", trackId)
     .maybeSingle();
 
@@ -58,16 +58,18 @@ export async function GET(
       .update({ opened_at: openedAt })
       .eq("id", row.id);
 
-    await admin
+    const { error: notifErr } = await admin
       .from("notifications")
       .insert({
         user_id: row.user_id,
+        workspace_id: row.workspace_id,
         type: "email_open",
         title: `${row.to_email || "Destinatário"} abriu seu email`,
         subtext: row.subject || "",
         href: row.deal_id ? `/negocios/${row.deal_id}?tab=gmail` : "/atividades",
         read: false
       });
+    if (notifErr) console.error("[track] notification insert failed:", notifErr);
 
     // Fire webhooks subscribed to "email_open" with the prospect's data
     try {
