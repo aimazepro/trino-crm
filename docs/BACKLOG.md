@@ -7,7 +7,7 @@ entre sessões.
 > **Regra:** item não sai deste arquivo. Ou vira `[x]` com a data, ou vira
 > "Descartado" com o motivo. Nunca some.
 
-Última atualização: 2026-08-19 (design da Fase 1 escrito).
+Última atualização: 2026-08-20 (Fase 2 — Motor + Entrada de Leads — confirmadas mergeadas e em produção; S-1 parcialmente fechado).
 
 **Detalhe de cada item** está nos docs de origem, referenciados por sigla:
 - `AUD` → `docs/AUDIT-2026-08-19-saas-deep-dive.md` (auditoria profunda, o plano mestre)
@@ -23,8 +23,8 @@ entre sessões.
 | | |
 |---|---|
 | Branch | `main`, working tree limpo |
-| Produção | deployada e verificada (Fase 1 no ar) |
-| `origin/main` | em dia |
+| Produção | deployada e verificada (Fase 1 + Fase 2 completa no ar) |
+| `origin/main` | em dia, 0 commits à frente (2026-08-20) |
 
 Deploy é manual: `vercel deploy --prod`. `git push` não deploya.
 
@@ -49,30 +49,24 @@ Deploy é manual: `vercel deploy --prod`. `git push` não deploya.
 
 Sem features. Torna o produto honesto e seguro antes de crescer. `AUD §6`
 
-- [ ] **S-1 · CRÍTICO — chave service-role em texto puro no banco.**
-  Os jobs do `pg_cron` guardam o header inteiro dentro de `cron.job.command`,
-  incluindo uma secret key que bypassa RLS de todas as 43 tabelas de todos os
-  tenants. Vaza em dump, backup e transcript de sessão de IA. Ação: rotacionar
-  a chave e re-agendar os jobs lendo do Supabase Vault (`vault.decrypted_secrets`)
-  ou via função `SECURITY DEFINER`. **Primeira coisa a fazer, antes de qualquer
-  feature** — trava o score da auditoria em ≤69 sozinho. `AUD §S-1`
-  - [x] **Job 4 ("webhooks", 2026-08-20)** — `dispatch-webhooks` ganhou checagem
-    de bearer própria (`AUTOMATION_DISPATCH_SECRET`) e foi redeployado com
-    `verify_jwt: false`; o job trocou o header de `sb_secret_...` para
-    `AUTOMATION_DISPATCH_SECRET`. Verificado ao vivo (curl com/sem token,
-    ticks de cron sucessivos com 200). 1 dos 4 vazamentos fechado.
-  - [ ] **Jobs 1 ("email-queue") e 3 ("sequences")** ainda carregam o
-    `sb_secret_...` exposto em `cron.job.command` hoje — só serão apontados
-    para as novas rotas Next.js (`/api/automations/email-queue`,
-    `/api/automations/sequences`) e trocados para `AUTOMATION_DISPATCH_SECRET`
-    depois que esta branch for deployada (`vercel deploy --prod`) e as rotas
-    confirmadas no ar. SQL pronto em
-    `.superpowers/sdd/2026-08-19-motor-automacao-server-side/task-13-post-deploy-checklist.md`.
-  - [ ] Job novo `automations-run` (worker do motor de automação) também
-    fica pendente do mesmo deploy — mesmo checklist acima.
-  - [ ] **Jobs 2 ("whatsapp-queue") e 4 ("webhooks"): `AUTOMATION_DISPATCH_SECRET` em texto puro** —
-    exposição menor que `sb_secret_...` acima (secret dedicado, rotável, sem bypass de RLS),
-    mas mesma classe (credencial visível a quem tem acesso SQL a `cron.job`). Pendente fix via Vault.
+- [x] **S-1 · CRÍTICO — chave service-role em texto puro no banco. FECHADO 2026-08-21.**
+  Os jobs do `pg_cron` guardavam o header inteiro dentro de `cron.job.command`,
+  incluindo uma secret key que bypassava RLS de todas as 43 tabelas de todos os
+  tenants. `AUD §S-1`
+  - [x] **Jobs 1 ("email-queue"), 3 ("sequences"), 4 ("webhooks") e 6
+    ("automations-run") — confirmado direto no banco em 2026-08-20.**
+    Todos chamavam `AUTOMATION_DISPATCH_SECRET`; nenhum carregava mais
+    `sb_secret_...`. A parte "bypassa RLS de todas as 43 tabelas" fechada
+    naquela sessão — verificado, não presumido.
+  - [x] **`AUTOMATION_DISPATCH_SECRET` em texto puro em `cron.job.command`
+    — FECHADO 2026-08-21.** Eram **5 jobs** (1 email-queue, 2 whatsapp-queue,
+    3 sequences, 4 webhooks, 6 automations-run), não 4 — job 2 tinha ficado
+    de fora da contagem da sessão anterior. Secret movido pro Supabase Vault
+    (`vault.create_secret`, name `automation_dispatch_secret`); os 5
+    `cron.job.command` agora resolvem o header via
+    `(select decrypted_secret from vault.decrypted_secrets where name = 'automation_dispatch_secret')`
+    em vez de literal. Verificado: nenhum command contém mais o token,
+    `net._http_response` pós-mudança 100% `status_code = 200` (zero 401).
 - [ ] **Ocultar as telas de decoração** — `/configuracoes/billing` (manter no
   código, ver Fase 6), `/prospeccao`, `/analise-calls`. `AUD §6.3`
 - [ ] **Consertar os links 404** — `/configuracoes/api/docs` e
@@ -80,8 +74,15 @@ Sem features. Torna o produto honesto e seguro antes de crescer. `AUD §6`
   será escrita na Fase 2. `AUD §6.3`
 - [ ] **`.env.example` + validação fail-fast de env vars.** 12 vars são lidas
   com `!`; faltando uma, quebra em runtime e não no boot. `AUD §S-5`
-- [ ] **Security headers** — `next.config.ts` só tem rewrites. Sem CSP, HSTS,
-  X-Frame-Options, Referrer-Policy. `AUD §S-5`
+- [x] **Security headers — FECHADO 2026-08-21.** `next.config.ts` ganhou
+  `headers()`: CSP (sem nonce — `unsafe-inline` em script/style-src até
+  implementar nonce+proxy dinâmico), HSTS, X-Frame-Options: DENY,
+  X-Content-Type-Options: nosniff, Referrer-Policy, Permissions-Policy
+  (`microphone=(self)` preservado — WhatsApp voice-recorder usa
+  `getUserMedia`). `img-src` ficou permissivo (`https:`) por não dar pra
+  prever de antemão todos os domínios de avatar/anexo do Gmail e mídia do
+  WhatsApp — apertar isso é debt futura, não bloqueou o item. Build local +
+  `next start` verificados com os headers batendo. `AUD §S-5`
 - [ ] **Agendar `api/cron/calendar-pull` no `pg_cron`.** Funciona, mas
   `CRON_SECRET` nunca foi setado em produção → está inerte. `AUD §3`
 - [ ] **Cadência dos crons.** 4 jobs de minuto em minuto contra filas vazias
@@ -173,12 +174,13 @@ automação, e automação só é confiável fora do browser. `AUD §6`
 
 ### Motor
 
-**Status 2026-08-20:** implementado inteiro no branch `motor-automacao-server-side`
-(13 tasks, spec+plano em `docs/superpowers/`), revisado (por tarefa + revisão final
-de branch inteiro), pendente merge + `vercel deploy --prod` + checklist pós-deploy
-(`.superpowers/sdd/2026-08-19-motor-automacao-server-side/task-13-post-deploy-checklist.md`,
-não versionado). Itens abaixo marcados `[x]` estão feitos no branch, não em produção
-ainda — não fechar até o deploy + checklist confirmarem.
+**Status 2026-08-20:** implementado inteiro (13 tasks, spec+plano em
+`docs/superpowers/`), revisado (por tarefa + revisão final de branch inteiro),
+**mergeado em `main` e deployado em produção** — confirmado via `git log`
+(`e2b523b`, `0fba2fb`, `47fc400`, `7cf0e6a` etc. já em `main`) e via consulta
+direta a `cron.job` no banco (jobs 1/3/4/6 rodando com
+`AUTOMATION_DISPATCH_SECRET`, ver S-1 acima). Itens abaixo marcados `[x]`
+estão feitos e em produção.
 
 - [x] **S-2 · ALTO — tirar `run-automations.ts` do navegador.** Hoje importa o
   cliente Supabase do browser e é chamado de `use-crm-mutations.ts` (6
@@ -214,15 +216,15 @@ ainda — não fechar até o deploy + checklist confirmarem.
 
 ### Entrada de leads
 
-**Status 2026-08-20:** implementado inteiro no branch `worktree-entrada-de-leads-api-publica`
-(19 tasks, spec+plano em `docs/superpowers/`), revisado (por tarefa + revisão
-final de branch inteira, que achou e já corrigiu 3 Critical + 6 Important
-antes de fechar), pendente merge + `vercel deploy --prod`. Itens abaixo
-marcados `[x]` estão feitos no branch, não em produção ainda — não fechar
-até o deploy confirmar. Produção já foi auditada e limpa de dados de
-verificação (deals/contatos/chaves de teste desta plan). As 2 chaves antigas
-pré-existentes (`lp`, `bvnbv`, permissão `all`, nunca usadas, sem contexto
-claro) foram revogadas pelo dono em 2026-08-20 após confirmação.
+**Status 2026-08-20:** implementado inteiro (19 tasks, spec+plano em
+`docs/superpowers/`), revisado (por tarefa + revisão final de branch inteira,
+que achou e já corrigiu 3 Critical + 6 Important antes de fechar),
+**mergeado em `main` (merge commit `a1298f4`) e deployado em produção**.
+Itens abaixo marcados `[x]` estão feitos e em produção. Produção já foi
+auditada e limpa de dados de verificação (deals/contatos/chaves de teste
+desta plan). As 2 chaves antigas pré-existentes (`lp`, `bvnbv`, permissão
+`all`, nunca usadas, sem contexto claro) foram revogadas pelo dono em
+2026-08-20 após confirmação.
 
 - [x] **Rota pública Bearer-auth** contra `api_keys` (hash SHA-256) e resolve o
   workspace, com permissões reais por rota, rate limit por chave e
@@ -259,10 +261,10 @@ claro) foram revogadas pelo dono em 2026-08-20 após confirmação.
      (`f8804dadad8b4ea2b6233b87ddde509c`) — plano da zona é Free, não Pro,
      então é o "Managed Free Ruleset", não o "Cloudflare Managed Ruleset"
      completo.
-  Verificação fim-a-fim (`curl https://api-crm.aimaze.com.br/api/v1/me`)
-  ainda não é possível — essa branch (Tasks 1-19) não foi mergeada/deployada
-  em produção ainda; hoje a requisição roteia certo até o Vercel e cai no
-  `/login` da produção atual (comportamento esperado, não é bug da infra).
+  **Verificação fim-a-fim feita em 2026-08-20** —
+  `curl https://api-crm.aimaze.com.br/api/v1/me` responde `401
+  AUTH_REQUIRED` (rota pública da API viva em produção, não mais 307 para
+  `/login`). Fecha o item.
 
 ---
 
@@ -383,8 +385,17 @@ Nada disso foi exercitado. `HAND`
   (removida do repo, continua publicada). `HAND`
 - [ ] Apagar o template WhatsApp `dfgd` — lixo de teste, só variáveis sem texto.
 - [ ] Apagar as linhas de teste de `automation_whatsapp_queue`.
-- [ ] Decidir se `main` vai para o `origin` (21 commits à frente; produção está
-  à frente do GitHub).
+- [x] **`main` → `origin`, resolvido.** 2026-08-20: `main` e `origin/main` em
+  dia, 0 commits de diferença.
+- [x] **`docs/historico-conversa-calendario-oauth.md` — apagado (2026-08-20).**
+  Achado untracked, 129 KB / 3344 linhas, dump bruto de conversa sobre a
+  integração OAuth do Calendar. Continha o **client secret do Google em texto
+  puro** (`GOCSPX-...`), não só o client_id — credencial de verdade, não
+  identificador público. Apagado por decisão do dono. `GMAIL_OAUTH_CLIENT_SECRET`
+  já trocado na Vercel prod e redeployado (dpl `bYpdAt39SBnojQoVaS6SNyjPxFba`).
+  Falta: (1) testar conectar Gmail/Calendar em produção com o secret novo,
+  (2) só depois de confirmar, apagar o secret antigo (`...PPf-i`) no Google
+  Cloud Console.
 
 ---
 
