@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useEffect } from "react";
-import { Plus, X, Zap, Trash2, Link2, CircleCheck } from "lucide-react";
+import { Plus, X, Zap, Trash2, Link2, CircleCheck, CircleAlert } from "lucide-react";
 import { createClient } from "@/lib/supabase/client";
 import { useWorkspace } from "@/lib/workspace";
 
@@ -168,6 +168,7 @@ export default function WebhooksPage() {
   const [showModal, setShowModal] = useState(false);
   const [loading, setLoading] = useState(true);
   const [toast, setToast] = useState<string | null>(null);
+  const [toastType, setToastType] = useState<"success" | "error">("success");
 
   const [formUrl, setFormUrl] = useState("");
   const [formEvents, setFormEvents] = useState<Set<string>>(new Set());
@@ -237,6 +238,7 @@ export default function WebhooksPage() {
 
     setWebhooks((prev) => [...prev, tempItem]);
     setShowModal(false);
+    setToastType("success");
     setToast("Webhook criado.");
     setTimeout(() => setToast(null), 4000);
 
@@ -299,7 +301,7 @@ export default function WebhooksPage() {
 
     try {
       // Trigger a real server-side request to the webhook URL via the proxy
-      await fetch("/api/webhooks/trigger", {
+      const res = await fetch("/api/webhooks/trigger", {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
@@ -312,13 +314,25 @@ export default function WebhooksPage() {
           webhookId: wh.id.startsWith("temp_") ? undefined : wh.id,
         }),
       });
+
+      const result = await res.json().catch(() => ({}));
+
+      if (res.ok && result.success) {
+        setToastType("success");
+        setToast(`Teste enviado! (HTTP ${result.status ?? res.status})`);
+      } else {
+        const detail = result.error || `HTTP ${result.status ?? res.status}`;
+        setToastType("error");
+        setToast(`Falha no teste: ${detail}`);
+      }
     } catch (e) {
       console.warn("Test webhook request failed: ", e);
+      setToastType("error");
+      setToast("Falha no teste: não foi possível contatar o servidor.");
     }
 
     setTestingId(null);
-    setToast("Teste enviado!");
-    setTimeout(() => setToast(null), 4000);
+    setTimeout(() => setToast(null), 6000);
   };
 
   const getEventLabel = (key: string) => {
@@ -339,7 +353,11 @@ export default function WebhooksPage() {
         {/* Success Toast */}
         {toast && (
           <div className="fixed bottom-6 right-6 z-50 bg-zinc-900 text-white text-sm px-4 py-3 rounded-lg shadow-lg flex items-center gap-3 animate-fade-in-up">
-            <CircleCheck className="h-4 w-4 text-green-400 shrink-0" />
+            {toastType === "success" ? (
+              <CircleCheck className="h-4 w-4 text-green-400 shrink-0" />
+            ) : (
+              <CircleAlert className="h-4 w-4 text-red-400 shrink-0" />
+            )}
             <span>{toast}</span>
             <button
               onClick={() => setToast(null)}
@@ -360,6 +378,7 @@ export default function WebhooksPage() {
           </div>
           <button
             onClick={() => {
+              setToastType("success");
               setToast(null);
               setShowModal(true);
             }}
