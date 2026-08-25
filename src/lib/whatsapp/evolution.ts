@@ -217,10 +217,14 @@ function defaultMimeFor(type: MessageType): string {
 export class EvolutionDriver implements WhatsAppDriver {
   private readonly instanceName: string;
   private readonly instanceToken: string | null;
+  private readonly groupsEnabled: boolean;
 
-  constructor(connection: Pick<WhatsAppConnection, "instanceName" | "instanceToken">) {
+  constructor(
+    connection: Pick<WhatsAppConnection, "instanceName" | "instanceToken" | "groupsEnabled">,
+  ) {
     this.instanceName = connection.instanceName;
     this.instanceToken = connection.instanceToken;
+    this.groupsEnabled = connection.groupsEnabled;
   }
 
   /** Instance-scoped token when we have one, so a leak is limited to one workspace. */
@@ -236,7 +240,8 @@ export class EvolutionDriver implements WhatsAppDriver {
         instanceName: this.instanceName,
         integration: "WHATSAPP-BAILEYS",
         qrcode: true,
-        // Group traffic never reaches the CRM inbox — filtered at the source.
+        // Groups start disabled for every new connection; updateGroupsSetting()
+        // flips this live once a workspace opts in from Configuracoes > WhatsApp.
         groupsIgnore: true,
         alwaysOnline: false,
         readMessages: false,
@@ -336,6 +341,22 @@ export class EvolutionDriver implements WhatsAppDriver {
     return { waMessageId: readSentMessageId(result) };
   }
 
+  async updateGroupsSetting(enabled: boolean): Promise<void> {
+    // Evolution's /settings/set replaces the whole settings block, so this
+    // resends the same flags createInstance() set -- only groupsIgnore moves.
+    await call(`/settings/set/${encodeURIComponent(this.instanceName)}`, {
+      method: "POST",
+      apikey: this.key(),
+      body: {
+        groupsIgnore: !enabled,
+        alwaysOnline: false,
+        readMessages: false,
+        readStatus: false,
+        syncFullHistory: false,
+      },
+    });
+  }
+
   async fetchGroups(): Promise<WhatsAppGroup[]> {
     // getParticipants=false: the "avisar grupo" picker only needs the name,
     // and fetching every member of every group is the slow, heavy form of
@@ -432,7 +453,7 @@ export class EvolutionDriver implements WhatsAppDriver {
         return normalizeStatusUpdate(data);
 
       case "messages.upsert":
-        return normalizeUpsert(data);
+        return normalizeUpsert(data, this.groupsEnabled);
 
       default:
         return { kind: "ignored", reason: `unhandled event "${event ?? "unknown"}"` };
@@ -466,7 +487,7 @@ function normalizeStatusUpdate(data: unknown): InboundEvent {
   return { kind: "ignored", reason: `status "${status}" needs no write` };
 }
 
-function normalizeUpsert(data: unknown): InboundEvent {
+function normalizeUpsert(data: unknown, groupsEnabled: boolean): InboundEvent {
   const record = asRecord(Array.isArray(data) ? data[0] : data);
   if (!record) return { kind: "ignored", reason: "messages.upsert without payload" };
 
@@ -477,9 +498,12 @@ function normalizeUpsert(data: unknown): InboundEvent {
     return { kind: "ignored", reason: "messages.upsert without key.remoteJid/key.id" };
   }
 
-  // Belt and braces: the instance is created with groupsIgnore, but a config
-  // change on the Evolution side must not start leaking groups into the inbox.
-  if (isGroupJid(remoteJid)) return { kind: "ignored", reason: "group message" };
+  // Belt and braces: updateGroupsSetting() flips groupsIgnore on the Evolution
+  // side too, but a config change there (or a message that raced the toggle)
+  // must not leak a group into the inbox while it's off.
+  if (isGroupJid(remoteJid) && !groupsEnabled) {
+    return { kind: "ignored", reason: "group message (groups disabled)" };
+  }
   if (remoteJid === "status@broadcast") return { kind: "ignored", reason: "status broadcast" };
 
   const message = asRecord(record.message);

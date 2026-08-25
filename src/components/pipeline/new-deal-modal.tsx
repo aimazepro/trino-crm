@@ -10,6 +10,12 @@ interface NewDealModalProps {
   onClose: () => void;
   activePipelineId: string;
   initialStageId?: string;
+  /** Prefills the contact combobox already resolved — e.g. the person who
+   *  texted in on /conversas — instead of making the user search for them. */
+  initialContactId?: string;
+  initialTitle?: string;
+  /** Fires with the new deal's id right after it saves, before onClose. */
+  onCreated?: (dealId: string) => void;
 }
 
 // Combobox for searching contacts or companies with create option
@@ -106,17 +112,19 @@ function SearchCombobox({
   );
 }
 
-export function NewDealModal({ onClose, activePipelineId, initialStageId }: NewDealModalProps) {
+export function NewDealModal({
+  onClose, activePipelineId, initialStageId, initialContactId, initialTitle, onCreated,
+}: NewDealModalProps) {
   const { state, addDeal, addContact, addCompany, updateContact } = useCrm();
 
   const pipeline = state.pipelines.find(p => p.id === activePipelineId);
 
-  const [title, setTitle] = useState("");
+  const [title, setTitle] = useState(initialTitle || "");
   const [stageId, setStageId] = useState(initialStageId || pipeline?.stages[0]?.id || "");
   const [value, setValue] = useState("");
   const [date, setDate] = useState("");
 
-  const [selectedContactId, setSelectedContactId] = useState("");
+  const [selectedContactId, setSelectedContactId] = useState(initialContactId || "");
   const [selectedCompanyId, setSelectedCompanyId] = useState("");
 
   const contactItems = state.contacts.map(c => ({ id: c.id, name: c.name }));
@@ -174,7 +182,10 @@ export function NewDealModal({ onClose, activePipelineId, initialStageId }: NewD
 
     const id = await addDeal(newDeal);
     setSaving(false);
-    if (id) onClose();
+    if (id) {
+      onCreated?.(id);
+      onClose();
+    }
   };
 
   const isSaveDisabled = !title.trim() || saving;

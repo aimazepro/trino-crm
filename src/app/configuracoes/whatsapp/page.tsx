@@ -11,6 +11,7 @@ import {
   RefreshCw,
   CircleAlert,
   PenLine,
+  Users,
 } from "lucide-react";
 
 type Status = "disconnected" | "connecting" | "open" | "close";
@@ -25,6 +26,7 @@ type StatusResponse = {
   isOwner: boolean;
   signatureEnabled?: boolean;
   signatureName?: string | null;
+  groupsEnabled?: boolean;
 };
 
 /** While a QR is on screen we poll for the scan; Evolution rotates it ~every 30s. */
@@ -57,6 +59,9 @@ export default function WhatsAppConfigPage() {
   const [signatureSaving, setSignatureSaving] = useState(false);
   const [signatureSaved, setSignatureSaved] = useState(false);
 
+  const [groupsEnabled, setGroupsEnabled] = useState(false);
+  const [groupsSaving, setGroupsSaving] = useState(false);
+
   // Kept in a ref so the polling effect doesn't restart on every tick.
   const qrRef = useRef<string | null>(null);
   qrRef.current = qr;
@@ -68,6 +73,7 @@ export default function WhatsAppConfigPage() {
       const data = (await res.json()) as StatusResponse;
       setInfo(data);
       setSignatureEnabled(data.signatureEnabled ?? false);
+      setGroupsEnabled(data.groupsEnabled ?? false);
       // The account name is the default, so the field is never blank on first
       // open and turning the toggle on always has something to sign with.
       setSignatureName((current) =>
@@ -152,6 +158,25 @@ export default function WhatsAppConfigPage() {
       setError(err instanceof Error ? err.message : "Falha ao salvar a assinatura");
     } finally {
       setSignatureSaving(false);
+    }
+  }
+
+  async function saveGroups(nextEnabled: boolean) {
+    setGroupsSaving(true);
+    setError(null);
+    try {
+      const res = await fetch("/api/whatsapp/settings", {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ groupsEnabled: nextEnabled }),
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data?.error ?? "Falha ao salvar grupos");
+      setGroupsEnabled(data.groupsEnabled);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Falha ao salvar grupos");
+    } finally {
+      setGroupsSaving(false);
     }
   }
 
@@ -391,6 +416,56 @@ export default function WhatsAppConfigPage() {
                 {!canManage && (
                   <p className="mt-3 text-xs text-zinc-500">
                     Só o dono da conta pode alterar a assinatura deste workspace.
+                  </p>
+                )}
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* Groups card — same gate as the signature card: only meaningful once connected. */}
+        {!loading && status === "open" && (
+          <div className="mt-6 rounded-xl border border-zinc-200 bg-white p-6">
+            <div className="flex items-start gap-3">
+              <div className="h-10 w-10 rounded-xl bg-green-100 flex items-center justify-center shrink-0">
+                <Users className="h-5 w-5 text-green-600" />
+              </div>
+              <div className="flex-1 min-w-0">
+                <h3 className="text-sm font-semibold text-zinc-900">Grupos do WhatsApp</h3>
+                <p className="text-sm text-zinc-600 mt-2">
+                  Por padrão, mensagens de grupo não aparecem no CRM. Ative para ver os grupos em
+                  Conversas e responder por lá também.
+                </p>
+
+                <div className="mt-4 flex flex-wrap items-center gap-3">
+                  <button
+                    onClick={() => void saveGroups(!groupsEnabled)}
+                    disabled={!canManage || groupsSaving}
+                    role="switch"
+                    aria-checked={groupsEnabled}
+                    aria-label="Ativar grupos"
+                    className={`relative h-6 w-11 shrink-0 rounded-full transition-colors disabled:opacity-50 ${
+                      groupsEnabled ? "bg-green-600" : "bg-zinc-300"
+                    }`}
+                  >
+                    <span
+                      className={`absolute top-0.5 h-5 w-5 rounded-full bg-white transition-all ${
+                        groupsEnabled ? "left-[22px]" : "left-0.5"
+                      }`}
+                    />
+                  </button>
+                  <span className="text-sm text-zinc-600">
+                    {groupsSaving
+                      ? "Salvando..."
+                      : groupsEnabled
+                      ? "Grupos ativados"
+                      : "Grupos desativados"}
+                  </span>
+                </div>
+
+                {!canManage && (
+                  <p className="mt-3 text-xs text-zinc-500">
+                    Só o dono da conta pode alterar os grupos deste workspace.
                   </p>
                 )}
               </div>

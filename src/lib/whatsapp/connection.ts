@@ -83,6 +83,7 @@ function rowToConnection(row: any): WhatsAppConnection {
     lastError: row.last_error,
     signatureEnabled: row.signature_enabled ?? false,
     signatureName: row.signature_name ?? null,
+    groupsEnabled: row.groups_enabled ?? false,
   };
 }
 /* eslint-enable @typescript-eslint/no-explicit-any */

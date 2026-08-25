@@ -2126,6 +2126,7 @@ export type Database = {
       whatsapp_connections: {
         Row: {
           created_at: string
+          groups_enabled: boolean
           id: string
           instance_id: string | null
           instance_name: string
@@ -2146,6 +2147,7 @@ export type Database = {
         }
         Insert: {
           created_at?: string
+          groups_enabled?: boolean
           id?: string
           instance_id?: string | null
           instance_name: string
@@ -2166,6 +2168,7 @@ export type Database = {
         }
         Update: {
           created_at?: string
+          groups_enabled?: boolean
           id?: string
           instance_id?: string | null
           instance_name?: string
@@ -2733,3 +2736,4 @@ export const Constants = {
     Enums: {},
   },
 } as const
+

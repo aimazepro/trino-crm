@@ -3,14 +3,16 @@
 import { useMemo, useState } from "react";
 import Link from "next/link";
 import {
-  Search, User, Users, ChevronDown, MessageCircle, ExternalLink,
-  Check, EyeOff, Pin, PinOff, LoaderCircle,
+  Search, User, Users, UsersRound, ChevronDown, MessageCircle, ExternalLink,
+  Check, EyeOff, Pin, PinOff, LoaderCircle, Plus,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { createClient } from "@/lib/supabase/client";
 import { useCrm } from "@/contexts/crm-context";
 import { useOwnerNameMap } from "@/hooks/use-owner-name-map";
 import { useWhatsAppInbox } from "@/hooks/use-whatsapp-inbox";
 import { WhatsAppThread } from "@/components/whatsapp/whatsapp-thread";
+import { NewDealModal } from "@/components/pipeline/new-deal-modal";
 
 type Filter = "Todas" | "Não lidas" | "Fixadas";
 
@@ -31,8 +33,8 @@ function formatPhoneLabel(phone: string) {
 }
 
 export default function ConversasPage() {
-  const { state } = useCrm();
-  const { map: ownerNames, selfId } = useOwnerNameMap();
+  const { state, addContact } = useCrm();
+  const { map: ownerNames, selfId, selfName } = useOwnerNameMap();
   const {
     conversations, selectedId, connection, loading,
     selectConversation, togglePinned, toggleUnread,
@@ -43,6 +45,9 @@ export default function ConversasPage() {
   const [showVendorDropdown, setShowVendorDropdown] = useState(false);
   const [filter, setFilter] = useState<Filter>("Todas");
   const [query, setQuery] = useState("");
+  const [showNewDealModal, setShowNewDealModal] = useState(false);
+  const [pendingDealContactId, setPendingDealContactId] = useState<string | undefined>(undefined);
+  const [creatingDeal, setCreatingDeal] = useState(false);
   const contactsById = useMemo(
     () => new Map(state.contacts.map(c => [c.id, c])),
     [state.contacts],
@@ -51,17 +56,70 @@ export default function ConversasPage() {
     () => new Map(state.deals.map(d => [d.id, d])),
     [state.deals],
   );
+  const companiesById = useMemo(
+    () => new Map(state.companies.map(c => [c.id, c])),
+    [state.companies],
+  );
 
   const enriched = useMemo(
-    () => conversations.map(c => ({
-      ...c,
-      contactName: (c.contactId ? contactsById.get(c.contactId)?.name : null) ?? c.pushName ?? "",
-      dealName: (c.dealId ? dealsById.get(c.dealId)?.title : null) ?? "",
-      ownerName: c.ownerId ? ownerNames[c.ownerId] ?? "" : "",
-      isUnread: c.manuallyUnread || c.unreadCount > 0,
-    })),
-    [conversations, contactsById, dealsById, ownerNames],
+    () => conversations.map(c => {
+      const deal = c.dealId ? dealsById.get(c.dealId) : null;
+      const company = deal?.companyId ? companiesById.get(deal.companyId) : null;
+      return {
+        ...c,
+        contactName: (c.contactId ? contactsById.get(c.contactId)?.name : null) ?? c.pushName ?? "",
+        dealName: deal?.title ?? "",
+        companyName: company?.name ?? "",
+        ownerName: c.ownerId ? ownerNames[c.ownerId] ?? "" : "",
+        isUnread: c.manuallyUnread || c.unreadCount > 0,
+      };
+    }),
+    [conversations, contactsById, dealsById, companiesById, ownerNames],
   );
+
+  // Restores the pipeline the user was last working in Negócios, same key
+  // negocios/page.tsx writes — a deal created from a WhatsApp chat should land
+  // wherever they've actually been working, not always the first pipeline.
+  const activePipelineId = useMemo(() => {
+    if (state.pipelines.length === 0) return "";
+    const saved = typeof window !== "undefined" ? localStorage.getItem("trino_crm_active_pipeline_id") : null;
+    return saved && state.pipelines.some(p => p.id === saved) ? saved : state.pipelines[0].id;
+  }, [state.pipelines]);
+
+  async function handleCreateDeal(conversationId: string, contactName: string, phone: string, existingContactId: string | null) {
+    if (creatingDeal) return;
+    setCreatingDeal(true);
+    try {
+      let contactId = existingContactId;
+      if (!contactId) {
+        contactId = await addContact({
+          id: "",
+          name: contactName,
+          role: "",
+          emails: [],
+          phones: [{ value: phone, type: "WhatsApp" }],
+        });
+        if (!contactId) return;
+      }
+
+      // Client-side on purpose, unlike the rest of this table's writes: the
+      // person clicking this owns the conversation row already (RLS-scoped),
+      // and linking contact_id now is what lets the deal-sync trigger
+      // (migration 20260825180000) fill in deal_id/owner_id the instant the
+      // deal below gets inserted.
+      const supabase = createClient();
+      const { error } = await supabase
+        .from("whatsapp_conversations")
+        .update({ contact_id: contactId })
+        .eq("id", conversationId);
+      if (error) console.error("[Conversas] link contact to conversation failed:", error);
+
+      setPendingDealContactId(contactId);
+      setShowNewDealModal(true);
+    } finally {
+      setCreatingDeal(false);
+    }
+  }
 
   const teamNames = useMemo(() => {
     const names = new Set<string>();
@@ -206,7 +264,8 @@ export default function ConversasPage() {
             <div className="flex items-center justify-center gap-2 py-16 text-sm text-muted-foreground">
               <LoaderCircle className="h-4 w-4 animate-spin" aria-hidden="true" /> Carregando conversas...
             </div>
-          ) : visible.length === 0 ? (
+          ) : conversations.length === 0 ? (
+            // Truly nothing in the inbox yet — worth checking the connection for.
             <div className="flex flex-col items-center justify-center text-center px-6 py-16">
               <div className="h-12 w-12 rounded-full bg-muted flex items-center justify-center mb-3">
                 <MessageCircle className="h-6 w-6 text-muted-foreground" aria-hidden="true" />
@@ -216,6 +275,28 @@ export default function ConversasPage() {
               <Link href="/configuracoes/whatsapp" className="mt-4 text-xs text-green-600 hover:underline">
                 Verificar conexão do WhatsApp
               </Link>
+            </div>
+          ) : visible.length === 0 ? (
+            // There ARE conversations — this filter/search just matched none of
+            // them. Nothing wrong with the connection, so no reason to say so.
+            <div className="flex flex-col items-center justify-center text-center px-6 py-16">
+              <div className="h-12 w-12 rounded-full bg-muted flex items-center justify-center mb-3">
+                <Search className="h-6 w-6 text-muted-foreground" aria-hidden="true" />
+              </div>
+              <p className="text-sm font-medium">
+                {query.trim()
+                  ? "Nenhum resultado para a busca"
+                  : filter === "Não lidas"
+                  ? "Nenhuma conversa não lida"
+                  : filter === "Fixadas"
+                  ? "Nenhuma conversa fixada"
+                  : "Nenhuma conversa aqui"}
+              </p>
+              <p className="text-xs text-muted-foreground mt-1">
+                {scope === "Time" && vendorFilter !== ALL_VENDORS
+                  ? `Sem conversas de ${vendorFilter} com esse filtro.`
+                  : "Troque o filtro ou a busca pra ver as outras conversas."}
+              </p>
             </div>
           ) : (
             visible.map(c => {
@@ -237,8 +318,15 @@ export default function ConversasPage() {
                     </div>
                     <div className="flex-1 min-w-0">
                       <div className="flex items-center justify-between gap-2">
-                        <span className={cn("text-sm truncate", c.isUnread ? "font-semibold" : "font-medium")}>
-                          {title}
+                        <span className="flex min-w-0 items-center gap-1.5">
+                          <span className={cn("text-sm truncate", c.isUnread ? "font-semibold" : "font-medium")}>
+                            {title}
+                          </span>
+                          {c.isGroup && (
+                            <span className="shrink-0 rounded-full bg-muted px-1.5 py-0.5 text-[9px] font-medium uppercase tracking-wide text-muted-foreground">
+                              Grupo
+                            </span>
+                          )}
                         </span>
                         <span
                           className={cn(
@@ -323,21 +411,46 @@ export default function ConversasPage() {
                   {selected.contactName ? selected.contactName.charAt(0).toUpperCase() : <User className="h-4 w-4" aria-hidden="true" />}
                 </div>
                 <div className="min-w-0">
-                  <p className="text-sm font-semibold truncate">
-                    {selected.contactName || formatPhoneLabel(selected.phone)}
-                    {selected.dealName && ` · ${selected.dealName}`}
+                  <p className="flex items-center gap-1.5 text-sm font-semibold truncate">
+                    <span className="truncate">
+                      {selected.contactName || (selected.isGroup ? "Grupo" : formatPhoneLabel(selected.phone))}
+                      {selected.dealName && ` · ${selected.dealName}`}
+                    </span>
+                    {selected.isGroup && (
+                      <span className="shrink-0 flex items-center gap-0.5 rounded-full bg-muted px-1.5 py-0.5 text-[9px] font-medium uppercase tracking-wide text-muted-foreground">
+                        <UsersRound className="h-2.5 w-2.5" aria-hidden="true" /> Grupo
+                      </span>
+                    )}
                   </p>
-                  <p className="text-xs text-muted-foreground truncate">{formatPhoneLabel(selected.phone)}</p>
+                  <p className="text-xs text-muted-foreground truncate">
+                    {selected.isGroup ? "Grupo do WhatsApp" : formatPhoneLabel(selected.phone)}
+                  </p>
                 </div>
               </div>
-              {selected.dealId && (
+              {selected.dealId ? (
                 <Link
                   href={`/negocios/${selected.dealId}`}
                   className="shrink-0 flex items-center gap-1.5 rounded-lg border border-border px-3 py-1.5 text-xs font-medium hover:bg-muted transition-colors"
                 >
                   <ExternalLink className="h-3.5 w-3.5" aria-hidden="true" /> Abrir negócio
                 </Link>
-              )}
+              ) : !selected.isGroup ? (
+                <button
+                  onClick={() => void handleCreateDeal(
+                    selected.id,
+                    selected.contactName || formatPhoneLabel(selected.phone),
+                    selected.phone,
+                    selected.contactId,
+                  )}
+                  disabled={creatingDeal}
+                  className="shrink-0 flex items-center gap-1.5 rounded-lg border border-green-600 bg-green-50 px-3 py-1.5 text-xs font-medium text-green-700 hover:bg-green-100 transition-colors disabled:opacity-50 dark:bg-green-950 dark:text-green-400 dark:hover:bg-green-900"
+                >
+                  {creatingDeal
+                    ? <LoaderCircle className="h-3.5 w-3.5 animate-spin" aria-hidden="true" />
+                    : <Plus className="h-3.5 w-3.5" aria-hidden="true" />}
+                  Criar negócio
+                </button>
+              ) : null}
             </div>
 
             <WhatsAppThread
@@ -345,7 +458,22 @@ export default function ConversasPage() {
               connected={connection === "open"}
               emptyHint={`Envie a primeira mensagem para ${selected.contactName || formatPhoneLabel(selected.phone)}.`}
               className="flex-1 min-h-0"
+              templateContext={{
+                contactName: selected.contactName || undefined,
+                companyName: selected.companyName || undefined,
+                dealName: selected.dealName || undefined,
+                vendorName: selfName || undefined,
+              }}
             />
+
+            {showNewDealModal && (
+              <NewDealModal
+                activePipelineId={activePipelineId}
+                initialContactId={pendingDealContactId}
+                initialTitle={selected.contactName || formatPhoneLabel(selected.phone)}
+                onClose={() => { setShowNewDealModal(false); setPendingDealContactId(undefined); }}
+              />
+            )}
           </>
         )}
       </div>

@@ -6,6 +6,7 @@ import {
   resolveWorkspaceId,
   updateConnection,
 } from "@/lib/whatsapp/connection";
+import { getDriver } from "@/lib/whatsapp";
 
 export const dynamic = "force-dynamic";
 
@@ -37,6 +38,7 @@ export async function PATCH(req: NextRequest) {
   const body = (await req.json().catch(() => null)) as {
     signatureEnabled?: unknown;
     signatureName?: unknown;
+    groupsEnabled?: unknown;
   } | null;
   if (!body) return NextResponse.json({ error: "Corpo inválido" }, { status: 400 });
 
@@ -44,6 +46,10 @@ export async function PATCH(req: NextRequest) {
 
   if (typeof body.signatureEnabled === "boolean") {
     patch.signature_enabled = body.signatureEnabled;
+  }
+
+  if (typeof body.groupsEnabled === "boolean") {
+    patch.groups_enabled = body.groupsEnabled;
   }
 
   if (body.signatureName !== undefined) {
@@ -75,6 +81,24 @@ export async function PATCH(req: NextRequest) {
     );
   }
 
+  const nextGroupsEnabled = (patch.groups_enabled as boolean | undefined) ?? connection.groupsEnabled;
+
+  // The DB flag is what our own ingest gate reads; Evolution's own
+  // groupsIgnore also has to move or a live instance keeps dropping group
+  // webhooks before they ever reach us. Only reachable once an instance
+  // actually exists -- nothing to push to yet otherwise, the flag still
+  // saves and takes effect the moment the instance is created.
+  if ("groups_enabled" in patch && connection.instanceId) {
+    try {
+      await getDriver(connection).updateGroupsSetting(nextGroupsEnabled);
+    } catch (err) {
+      return NextResponse.json(
+        { error: err instanceof Error ? err.message : "Falha ao atualizar grupos no WhatsApp" },
+        { status: 502 },
+      );
+    }
+  }
+
   await updateConnection(admin, connection.id, patch);
 
   return NextResponse.json({
@@ -82,5 +106,6 @@ export async function PATCH(req: NextRequest) {
     signatureName: ("signature_name" in patch
       ? (patch.signature_name as string | null)
       : connection.signatureName),
+    groupsEnabled: nextGroupsEnabled,
   });
 }

@@ -26,6 +26,7 @@ export async function GET() {
       profileName: null,
       signatureEnabled: connection?.signatureEnabled ?? false,
       signatureName: connection?.signatureName ?? null,
+      groupsEnabled: connection?.groupsEnabled ?? false,
       isOwner: ownerId === user.id,
       workspaceOwnerId: ownerId,
     });
@@ -62,6 +63,7 @@ export async function GET() {
     profileName: connection.profileName,
     signatureEnabled: connection.signatureEnabled,
     signatureName: connection.signatureName,
+    groupsEnabled: connection.groupsEnabled,
     lastError: connection.lastError ?? null,
     isOwner: ownerId === user.id,
     workspaceOwnerId: ownerId,

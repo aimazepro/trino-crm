@@ -35,6 +35,9 @@ export interface WhatsAppConnection {
   lastError: string | null;
   signatureEnabled: boolean;
   signatureName: string | null;
+  /** Off by default: group traffic is filtered out at the source (Evolution's
+   *  own groupsIgnore) unless a workspace opts in from Configuracoes > WhatsApp. */
+  groupsEnabled: boolean;
 }
 
 /**
@@ -138,6 +141,8 @@ export interface WhatsAppDriver {
   sendMedia(phone: string, media: OutboundMedia): Promise<SendResult>;
   /** Groups the connected number belongs to, for the "avisar grupo" action. */
   fetchGroups(): Promise<WhatsAppGroup[]>;
+  /** Pushes the groups-enabled choice to the provider (Evolution's groupsIgnore). */
+  updateGroupsSetting(enabled: boolean): Promise<void>;
   /**
    * Asks the provider which JID actually owns a phone number, or null when no
    * candidate is registered on WhatsApp. Never guess this: Brazilian numbers

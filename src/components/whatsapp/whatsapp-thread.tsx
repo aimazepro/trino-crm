@@ -4,11 +4,21 @@ import { useEffect, useRef, useState } from "react";
 import Link from "next/link";
 import {
   Send, Paperclip, Mic, Check, CheckCheck, Clock, CircleAlert,
-  LoaderCircle, FileText, Download, MessageCircle,
+  LoaderCircle, FileText, Download, MessageCircle, MessageSquareText, Search,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { createClient } from "@/lib/supabase/client";
 import { VoiceRecorder } from "./voice-recorder";
 import { useWhatsAppThread, type ThreadTarget, type ThreadMessage } from "@/hooks/use-whatsapp-thread";
+
+/** Fills in for the sender/recipient when a template gets inserted into the
+ *  composer. Whatever isn't known just drops out rather than blocking the send. */
+export interface TemplateContext {
+  contactName?: string;
+  companyName?: string;
+  dealName?: string;
+  vendorName?: string;
+}
 
 interface WhatsAppThreadProps {
   target: ThreadTarget;
@@ -17,6 +27,8 @@ interface WhatsAppThreadProps {
   /** Shown when the conversation has no messages yet. */
   emptyHint?: string;
   className?: string;
+  /** Who this thread is with, for the "Mensagens prontas" template picker. */
+  templateContext?: TemplateContext;
 }
 
 /**
@@ -184,12 +196,120 @@ function Bubble({ message, mediaUrl, grouped, tail }: BubbleProps) {
   );
 }
 
+type Template = { id: string; name: string; message: string };
+
+/** Same four tags Configurações > Templates lets people insert (see VARS there). */
+function fillTemplate(message: string, ctx?: TemplateContext): string {
+  return message
+    .replace(/\{\{nome_contato\}\}/g, ctx?.contactName || "")
+    .replace(/\{\{nome_empresa\}\}/g, ctx?.companyName || "")
+    .replace(/\{\{nome_negocio\}\}/g, ctx?.dealName || "")
+    .replace(/\{\{nome_vendedor\}\}/g, ctx?.vendorName || "");
+}
+
+/**
+ * "Mensagens prontas" — search and drop a saved template straight into the
+ * composer, variables already filled in. Templates load lazily, once, the
+ * first time the popover opens rather than on every thread mount.
+ */
+function TemplatePicker({ onPick }: { onPick: (message: string) => void }) {
+  const [open, setOpen] = useState(false);
+  const [templates, setTemplates] = useState<Template[] | null>(null);
+  const [query, setQuery] = useState("");
+
+  useEffect(() => {
+    if (!open || templates !== null) return;
+    let cancelled = false;
+    const supabase = createClient();
+    void supabase
+      .from("whatsapp_templates")
+      .select("id, name, message")
+      .order("created_at")
+      .then(({ data }) => {
+        if (!cancelled) setTemplates(data ?? []);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [open, templates]);
+
+  const q = query.trim().toLowerCase();
+  const filtered = (templates ?? []).filter(
+    (t) => !q || t.name.toLowerCase().includes(q) || t.message.toLowerCase().includes(q),
+  );
+
+  return (
+    <div className="relative">
+      <button
+        onClick={() => setOpen((v) => !v)}
+        title="Mensagens prontas"
+        aria-label="Mensagens prontas"
+        className={cn(
+          "flex h-10 w-10 shrink-0 items-center justify-center rounded-full transition-colors hover:bg-muted hover:text-foreground",
+          open ? "bg-muted text-foreground" : "text-muted-foreground",
+        )}
+      >
+        <MessageSquareText className="h-5 w-5" aria-hidden="true" />
+      </button>
+
+      {open && (
+        <>
+          <div className="fixed inset-0 z-40" onClick={() => setOpen(false)} />
+          <div className="absolute bottom-full left-0 z-50 mb-2 w-72 overflow-hidden rounded-lg border border-border bg-card shadow-lg">
+            <div className="border-b border-border p-2">
+              <div className="flex items-center gap-2 rounded-md border border-border bg-muted/40 px-2.5 py-1.5">
+                <Search className="h-3.5 w-3.5 shrink-0 text-muted-foreground" aria-hidden="true" />
+                <input
+                  autoFocus
+                  value={query}
+                  onChange={(e) => setQuery(e.target.value)}
+                  placeholder="Buscar template..."
+                  className="flex-1 bg-transparent text-sm text-foreground outline-none placeholder:text-muted-foreground"
+                />
+              </div>
+            </div>
+            <div className="max-h-56 overflow-y-auto">
+              {templates === null ? (
+                <div className="flex items-center justify-center gap-1.5 py-6 text-xs text-muted-foreground">
+                  <LoaderCircle className="h-3.5 w-3.5 animate-spin" aria-hidden="true" /> Carregando...
+                </div>
+              ) : filtered.length === 0 && templates.length === 0 ? (
+                <div className="px-3 py-6 text-center text-xs text-muted-foreground">
+                  Nenhum template ainda.{" "}
+                  <Link href="/configuracoes/whatsapp-templates" className="text-green-600 underline">
+                    Criar um
+                  </Link>
+                </div>
+              ) : filtered.length === 0 ? (
+                <div className="px-3 py-6 text-center text-xs text-muted-foreground">Nenhum resultado</div>
+              ) : (
+                filtered.map((t) => (
+                  <button
+                    key={t.id}
+                    onClick={() => { onPick(t.message); setOpen(false); setQuery(""); }}
+                    className="w-full border-b border-border/60 px-3 py-2 text-left transition-colors last:border-0 hover:bg-muted"
+                  >
+                    <p className="text-sm font-medium text-foreground">{t.name}</p>
+                    <p className="mt-0.5 line-clamp-1 text-xs text-muted-foreground">{t.message}</p>
+                  </button>
+                ))
+              )}
+            </div>
+          </div>
+        </>
+      )}
+    </div>
+  );
+}
+
 /**
  * The message list and composer, shared by /conversas and the deal WhatsApp
  * tab. Each screen supplies its own header, since one shows a conversation
  * picked from a list and the other a contact picked from a deal.
  */
-export function WhatsAppThread({ target, connected, emptyHint, className }: WhatsAppThreadProps) {
+export function WhatsAppThread({
+  target, connected, emptyHint, className, templateContext,
+}: WhatsAppThreadProps) {
   const { messages, loading, sending, error, mediaUrls, sendText, sendFile, clearError } =
     useWhatsAppThread(target);
 
@@ -309,6 +429,7 @@ export function WhatsAppThread({ target, connected, emptyHint, className }: What
             >
               <Paperclip className="h-5 w-5" aria-hidden="true" />
             </button>
+            <TemplatePicker onPick={(message) => setInput(fillTemplate(message, templateContext))} />
             <input
               value={input}
               onChange={(e) => setInput(e.target.value)}

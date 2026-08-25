@@ -9,7 +9,7 @@ export { WEBHOOK_SECRET_HEADER } from "./evolution";
  * a new file — nothing above this layer changes.
  */
 export function getDriver(
-  connection: Pick<WhatsAppConnection, "provider" | "instanceName" | "instanceToken">,
+  connection: Pick<WhatsAppConnection, "provider" | "instanceName" | "instanceToken" | "groupsEnabled">,
 ): WhatsAppDriver {
   switch (connection.provider) {
     case "evolution":

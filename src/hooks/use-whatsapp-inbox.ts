@@ -5,11 +5,13 @@ import type { Database } from "@/lib/supabase/database.types";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import type { RealtimePostgresChangesPayload, SupabaseClient } from "@supabase/supabase-js";
 import { createClient } from "@/lib/supabase/client";
+import { isGroupJid } from "@/lib/whatsapp/types";
 import { useWhatsAppConnection } from "./use-whatsapp-connection";
 
 export interface InboxConversation {
   id: string;
   remoteJid: string;
+  isGroup: boolean;
   phone: string;
   contactId: string | null;
   dealId: string | null;
@@ -28,6 +30,7 @@ function toConversation(row: any): InboxConversation {
   return {
     id: row.id,
     remoteJid: row.remote_jid,
+    isGroup: isGroupJid(row.remote_jid),
     phone: row.phone,
     contactId: row.contact_id,
     dealId: row.deal_id,
@@ -102,7 +105,12 @@ export function useWhatsAppInbox() {
           event: "*",
           schema: "public",
           table: "whatsapp_conversations",
-          filter: `user_id=eq.${workspaceOwnerId}`,
+          // Was `user_id`, which this table dropped when it moved to
+          // workspace_id -- the filter matched a column that no longer
+          // exists, so this subscription silently never fired. New messages,
+          // pin toggles from another tab, an owner sync from the deal
+          // trigger -- none of it live-updated the list, only a full reload did.
+          filter: `workspace_id=eq.${workspaceOwnerId}`,
         },
         (payload: RealtimePostgresChangesPayload<Record<string, unknown>>) => {
           if (payload.eventType === "DELETE") return;

@@ -9,7 +9,7 @@ import type { Database } from "@/lib/supabase/database.types";
 // routes; this file only knows Supabase and the driver.
 
 import type { SupabaseClient } from "@supabase/supabase-js";
-import { getDriver, jidToPhone } from "@/lib/whatsapp";
+import { getDriver, isGroupJid, jidToPhone } from "@/lib/whatsapp";
 import { putMedia } from "@/lib/whatsapp/storage";
 import { toVoiceNote } from "@/lib/whatsapp/audio";
 import { resolveConversationLinks } from "@/lib/whatsapp/linking";
@@ -107,7 +107,7 @@ export async function resolveConversation(
   admin: SupabaseClient<Database>,
   connection: WhatsAppConnection,
   input: { conversationId?: string; phone?: string },
-): Promise<{ id: string; phone: string } | null> {
+): Promise<{ id: string; phone: string; remoteJid: string } | null> {
   if (input.conversationId) {
     const { data } = await admin
       .from("whatsapp_conversations")
@@ -119,8 +119,9 @@ export async function resolveConversation(
 
     if (!data) return null;
     const row = data as any;
-    if (row.jid_verified) return { id: row.id, phone: row.phone };
-    return verifyJid(admin, connection, row);
+    if (row.jid_verified) return { id: row.id, phone: row.phone, remoteJid: row.remote_jid };
+    const verified = await verifyJid(admin, connection, row);
+    return { ...verified, remoteJid: row.remote_jid };
   }
 
   const requested = (input.phone ?? "").replace(/\D/g, "");
@@ -136,12 +137,18 @@ export async function resolveConversation(
 
   const { data: existing } = await admin
     .from("whatsapp_conversations")
-    .select("id, phone")
+    .select("id, phone, remote_jid")
     .eq("connection_id", connection.id)
     .eq("remote_jid", jid)
     .maybeSingle();
 
-  if (existing) return { id: (existing as any).id, phone: (existing as any).phone };
+  if (existing) {
+    return {
+      id: (existing as any).id,
+      phone: (existing as any).phone,
+      remoteJid: (existing as any).remote_jid,
+    };
+  }
 
   const links = await resolveConversationLinks(admin, connection.userId, phone);
 
@@ -161,7 +168,7 @@ export async function resolveConversation(
     .single();
 
   if (error) throw new Error(error.message);
-  return { id: (created as any).id, phone: (created as any).phone };
+  return { id: (created as any).id, phone: (created as any).phone, remoteJid: jid };
 }
 
 /**
@@ -239,7 +246,12 @@ export async function sendWhatsAppMessage(
 
   try {
     const driver = getDriver(connection);
-    const target = jidToPhone(conversation.phone);
+    // A group JID has to reach the provider intact -- jidToPhone would mangle
+    // it into digits that mean nothing. Individual chats still go by number,
+    // the way resolveJid expects.
+    const target = isGroupJid(conversation.remoteJid)
+      ? conversation.remoteJid
+      : jidToPhone(conversation.phone);
 
     // Storage keeps the original — the browser that recorded it can always play
     // that back — while WhatsApp gets the Opus its voice notes require.

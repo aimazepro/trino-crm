@@ -40,7 +40,8 @@ export function DealTabs({ dealId }: DealTabsProps) {
   const { selfName } = useOwnerNameMap();
   const deal = state.deals.find(d => d.id === dealId);
   const contact = deal && deal.contactId ? state.contacts.find(c => c.id === deal.contactId) : null;
-  
+  const company = deal && deal.companyId ? state.companies.find(c => c.id === deal.companyId) : null;
+
   const whatsapp = useWhatsAppConnection();
   const contactPhone = contact?.phones?.[0]?.value ?? null;
 
@@ -371,6 +372,12 @@ export function DealTabs({ dealId }: DealTabsProps) {
                    connected
                    emptyHint={`Envie a primeira mensagem para ${contact?.name ?? contactPhone}.`}
                    className="flex-1 min-h-0"
+                   templateContext={{
+                     contactName: contact?.name,
+                     companyName: company?.name,
+                     dealName: deal?.title,
+                     vendorName: selfName || undefined,
+                   }}
                  />
                </>
              )}
