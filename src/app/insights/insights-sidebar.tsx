@@ -1,6 +1,7 @@
 "use client";
 
 import { RefObject } from "react";
+import Link from "next/link";
 import {
   Plus, ChevronDown, Search, PanelTop, LayoutDashboard,
   Trash2, FileText, BarChart2, Check, X, Pencil,
@@ -15,6 +16,7 @@ interface InsightsSidebarProps {
   onCloseCreateDropdown: () => void;
   onCreateReportZero: () => void;
   onCreateDashboard: () => void;
+  onRenameDashboard: () => void;
   searchQuery: string;
   onSearchChange: (v: string) => void;
   dashboardPopulated: boolean;
@@ -30,6 +32,7 @@ interface InsightsSidebarProps {
   onStartRename: (id: string, name: string, e: React.MouseEvent) => void;
   onSaveRename: (id: string, e: React.FormEvent) => void;
   onDeleteReport: (id: string, e: React.MouseEvent) => void;
+  dashboardName: string;
 }
 
 export function InsightsSidebar({
@@ -39,12 +42,11 @@ export function InsightsSidebar({
   onCloseCreateDropdown,
   onCreateReportZero,
   onCreateDashboard,
+  onRenameDashboard,
   searchQuery,
   onSearchChange,
   dashboardPopulated,
   activeReportId,
-  onSelectReport,
-  onDeleteDashboard,
   savedReports,
   filteredReports,
   editingReportId,
@@ -54,6 +56,8 @@ export function InsightsSidebar({
   onStartRename,
   onSaveRename,
   onDeleteReport,
+  onDeleteDashboard,
+  dashboardName,
 }: InsightsSidebarProps) {
   return (
     <div className="w-64 shrink-0 border-r border-zinc-200 bg-white overflow-y-auto flex flex-col">
@@ -106,19 +110,24 @@ export function InsightsSidebar({
         <div className="space-y-0.5 mb-3">
           {dashboardPopulated && (
             <div className="group relative">
-              <button
-                onClick={() => onSelectReport(null)}
+              <Link
+                href="/insights"
                 className={cn(
-                  "flex items-center gap-2 w-full px-3 py-1.5 rounded-lg text-sm transition-colors font-medium text-left cursor-pointer",
+                  "flex items-center gap-2 w-full px-3 py-1.5 rounded-lg text-sm transition-colors font-medium text-left",
                   activeReportId === null ? "bg-emerald-50 text-emerald-700" : "text-zinc-500 hover:bg-zinc-50 hover:text-zinc-800"
                 )}
               >
                 <LayoutDashboard className={cn("h-4 w-4 shrink-0", activeReportId === null ? "text-emerald-500" : "text-zinc-400")} />
-                <span className="truncate flex-1 pr-6 font-semibold">Meu Painel</span>
-              </button>
-              <button onClick={onDeleteDashboard} className="absolute right-1 top-1/2 -translate-y-1/2 p-1 rounded opacity-0 group-hover:opacity-100 text-zinc-300 hover:text-red-500 transition-all cursor-pointer">
-                <Trash2 className="h-3 w-3" />
-              </button>
+                <span className="truncate flex-1 pr-11 font-semibold">{dashboardName}</span>
+              </Link>
+              <div className="absolute right-1 top-1/2 -translate-y-1/2 flex items-center gap-0.5 opacity-0 group-hover:opacity-100 transition-all">
+                <button onClick={onRenameDashboard} title="Renomear painel" className="p-1 rounded text-zinc-300 hover:text-blue-500 transition-all cursor-pointer">
+                  <Pencil className="h-3 w-3" />
+                </button>
+                <button onClick={onDeleteDashboard} title="Excluir painel" className="p-1 rounded text-zinc-300 hover:text-red-500 transition-all cursor-pointer">
+                  <Trash2 className="h-3 w-3" />
+                </button>
+              </div>
             </div>
           )}
         </div>
@@ -150,10 +159,10 @@ export function InsightsSidebar({
                   </form>
                 ) : (
                   <>
-                    <button
-                      onClick={() => onSelectReport(report.id)}
+                    <Link
+                      href={`/insights/reports/${report.id}`}
                       className={cn(
-                        "flex items-center gap-2 w-full px-3 py-1.5 rounded-lg text-[13px] font-medium transition-colors text-left cursor-pointer",
+                        "flex items-center gap-2 w-full px-3 py-1.5 rounded-lg text-[13px] font-medium transition-colors text-left",
                         activeReportId === report.id ? "bg-zinc-100 text-zinc-900 font-semibold" : "text-zinc-500 hover:bg-zinc-50 hover:text-zinc-800"
                       )}
                     >
@@ -164,7 +173,7 @@ export function InsightsSidebar({
                           {report.pipeline}
                         </span>
                       )}
-                    </button>
+                    </Link>
                     <div className="absolute right-1 top-1/2 -translate-y-1/2 flex items-center gap-0.5 opacity-0 group-hover:opacity-100 transition-all bg-white pl-1">
                       <button onClick={(e) => onStartRename(report.id, report.name, e)} className="p-1 rounded text-zinc-400 hover:text-zinc-600 hover:bg-zinc-50 cursor-pointer" title="Renomear"><Pencil className="h-3 w-3" /></button>
                       <button onClick={(e) => onDeleteReport(report.id, e)} className="p-1 rounded text-zinc-300 hover:text-red-500 hover:bg-zinc-50 cursor-pointer" title="Excluir"><Trash2 className="h-3 w-3" /></button>

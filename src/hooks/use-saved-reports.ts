@@ -4,28 +4,42 @@ import { useState, useRef, useEffect } from "react";
 import { createClient } from "@/lib/supabase/client";
 import { useWorkspace } from "@/lib/workspace";
 import type { SavedReport } from "@/app/insights/insights-constants";
-import { DEFAULT_REPORTS } from "@/app/insights/insights-constants";
+import type { Json } from "@/lib/supabase/database.types";
 
-function toConfig(r: SavedReport) {
+function toConfig(r: SavedReport): Json {
   return {
+    entity: r.entity,
+    reportType: r.reportType,
     chartType: r.chartType,
     color: r.color,
     pipeline: r.pipeline,
     period: r.period,
+    periodField: r.periodField,
     filters: r.filters,
-  };
+    measureBy: r.measureBy,
+    groupBy: r.groupBy,
+    groupByGranularity: r.groupByGranularity,
+    excludeStage: r.excludeStage,
+  } as unknown as Json;
 }
 
 function fromRow(row: { id: string; name: string; config: unknown }): SavedReport {
-  const config = (row.config ?? {}) as Partial<ReturnType<typeof toConfig>>;
+  const config = (row.config ?? {}) as Partial<Omit<SavedReport, "id" | "name">>;
   return {
     id: row.id,
     name: row.name,
+    entity: config.entity || "deal",
+    reportType: config.reportType || "em_branco",
     chartType: config.chartType || "bar",
     color: config.color || "#ec4899",
-    pipeline: config.pipeline || "Prospecção",
+    pipeline: config.pipeline || "",
     period: config.period || "Este mes",
+    periodField: config.periodField || "created_at",
     filters: config.filters || [],
+    measureBy: config.measureBy,
+    groupBy: config.groupBy,
+    groupByGranularity: config.groupByGranularity,
+    excludeStage: config.excludeStage,
   };
 }
 
@@ -74,14 +88,22 @@ export function useSavedReports(onLoad: (report: SavedReport) => void) {
         const storedReports = localStorage.getItem("insights_saved_reports");
         if (storedReports) {
           try {
-            const parsed = JSON.parse(storedReports) as SavedReport[];
+            const parsed = JSON.parse(storedReports) as Partial<SavedReport>[];
             reports = parsed.map(r => ({
-              ...r,
+              id: r.id!,
+              name: r.name || "Relatório",
+              entity: r.entity || "deal",
+              reportType: r.reportType || "em_branco",
               chartType: r.chartType || "bar",
               color: r.color || "#ec4899",
-              pipeline: r.pipeline || "Prospecção",
+              pipeline: r.pipeline || "",
               period: r.period || "Este mes",
+              periodField: r.periodField || "created_at",
               filters: r.filters || [],
+              measureBy: r.measureBy,
+              groupBy: r.groupBy,
+              groupByGranularity: r.groupByGranularity,
+              excludeStage: r.excludeStage,
             }));
             await supabase.from("saved_reports").upsert(
               reports.map(r => ({
@@ -92,19 +114,12 @@ export function useSavedReports(onLoad: (report: SavedReport) => void) {
             );
             localStorage.removeItem("insights_saved_reports");
           } catch {
-            reports = DEFAULT_REPORTS;
+            reports = [];
           }
         } else {
-          reports = DEFAULT_REPORTS;
-          await supabase.from("saved_reports").upsert(
-            reports.map(r => ({
-              id: r.id, user_id: user.id, workspace_id: workspaceId, name: r.name,
-              config: toConfig(r),
-            })),
-            { onConflict: "id,user_id" }
-          );
-          setDashboardPopulated(true);
-          localStorage.setItem("insights_dashboard_populated", "true");
+          // Sem relatórios salvos ainda — painel fica vazio até o usuário
+          // clicar "Criar relatórios padrão" ou "Criar relatório do zero".
+          reports = [];
         }
       }
 
