@@ -4,7 +4,7 @@ import { useState, useMemo, useRef, useEffect } from "react";
 import Link from "next/link";
 import {
   Plus, List, Calendar as CalendarIcon,
-  CheckCircle, Edit2, Trash2, Phone, Users, Video, Mail,
+  CheckCircle, Circle, Edit2, Trash2, Phone, Users, Video, Mail,
   MessageCircle, Camera, Briefcase, ClipboardList,
   ChevronLeft, ChevronRight, Filter, X, ChevronDown,
 } from "lucide-react";
@@ -29,6 +29,17 @@ const TYPE_ICONS: Record<string, React.ElementType> = {
   "Ligação": Phone, "Reunião": Users, "Videochamada": Video,
   "Email": Mail, "WhatsApp": MessageCircle, "Instagram": Camera,
   "LinkedIn": Briefcase, "Outros": ClipboardList,
+};
+
+const TYPE_BADGE_COLORS: Record<string, string> = {
+  "Ligação": "text-blue-700 bg-blue-50 border-blue-200",
+  "Reunião": "text-indigo-700 bg-indigo-50 border-indigo-200",
+  "Videochamada": "text-cyan-700 bg-cyan-50 border-cyan-200",
+  "Email": "text-purple-700 bg-purple-50 border-purple-200",
+  "WhatsApp": "text-emerald-700 bg-emerald-50 border-emerald-200",
+  "Instagram": "text-pink-700 bg-pink-50 border-pink-200",
+  "LinkedIn": "text-sky-700 bg-sky-50 border-sky-200",
+  "Outros": "text-zinc-700 bg-zinc-50 border-zinc-200",
 };
 
 interface ActivityWithMeta extends Activity {
@@ -500,22 +511,43 @@ export default function AtividadesPage() {
                 {selectedDayActs.length === 0 ? (
                   <p className="text-xs text-zinc-400 text-center py-8">Nenhuma atividade neste dia</p>
                 ) : (
-                  selectedDayActs.map(a => {
-                    const Icon = TYPE_ICONS[a.type] || ClipboardList;
-                    return (
-                      <div key={a.id} className="flex items-start gap-3 rounded-xl bg-zinc-50 p-3.5">
-                        <span className="shrink-0 rounded-full bg-white border border-zinc-200 p-1.5 text-zinc-500">
-                          <Icon className="h-3.5 w-3.5" aria-hidden="true" />
+                  selectedDayActs.map(a => (
+                    <div
+                      key={a.id}
+                      className={cn(
+                        "group flex items-start gap-2 rounded-xl p-3 transition-colors",
+                        a.completed ? "bg-zinc-50/80 opacity-70" : "bg-white hover:bg-zinc-50"
+                      )}
+                    >
+                      <button onClick={() => handleComplete(a)} className="shrink-0 mt-0.5">
+                        {a.completed
+                          ? <CheckCircle className="h-4 w-4 text-green-500" aria-hidden="true" />
+                          : <Circle className="h-4 w-4 text-zinc-300 hover:text-amber-400 transition-colors" aria-hidden="true" />
+                        }
+                      </button>
+                      <div className="flex-1 min-w-0">
+                        <p className={cn("text-xs font-semibold leading-tight", a.completed ? "line-through text-zinc-400" : "text-zinc-800")}>
+                          {format(new Date(a.date), "HH:mm")} - {a.title}
+                        </p>
+                        <span className={cn("inline-block mt-1 rounded-full border px-1.5 py-0.5 text-[9px] font-medium", TYPE_BADGE_COLORS[a.type] || TYPE_BADGE_COLORS["Outros"])}>
+                          {a.type}
                         </span>
-                        <div className="min-w-0 flex-1">
-                          <p className={cn("text-xs font-semibold text-zinc-800", a.completed && "line-through text-zinc-400")}>
-                            {format(new Date(a.date), "HH:mm")} - {a.title}
-                          </p>
-                          <p className="text-[10px] text-amber-500 mt-0.5">{a.dealTitle}</p>
-                        </div>
+                        <Link
+                          href={`/negocios/${a.dealId}`}
+                          className="block text-xs text-amber-500 hover:underline truncate mt-0.5"
+                        >
+                          {a.dealTitle}
+                        </Link>
                       </div>
-                    );
-                  })
+                      <button
+                        onClick={() => deleteActivity(a.id)}
+                        className="opacity-0 group-hover:opacity-100 text-zinc-300 hover:text-red-400 transition-all shrink-0"
+                        title="Excluir atividade"
+                      >
+                        <Trash2 className="h-3.5 w-3.5" aria-hidden="true" />
+                      </button>
+                    </div>
+                  ))
                 )}
               </div>
             </div>
