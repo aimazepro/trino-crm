@@ -46,6 +46,8 @@ export function transformDeal(row: any): Deal {
     contactId: row.contact_id, companyId: row.company_id ?? undefined,
     pipelineId: row.pipeline_id, stageId: row.stage_id,
     status: row.status, lossReason: row.loss_reason ?? undefined,
+    lossReasonId: row.loss_reason_id ?? undefined,
+    lossReasonNote: row.loss_reason_note ?? undefined,
     expectedCloseDate: row.expected_close_date ?? undefined,
     probability: row.probability ?? undefined, source: row.source ?? undefined,
     ownerId: row.owner_id ?? undefined,
@@ -101,6 +103,8 @@ export function dealToDb(fields: Partial<Deal>): Record<string, unknown> {
   if (fields.stageId !== undefined) db.stage_id = fields.stageId;
   if (fields.status !== undefined) db.status = fields.status;
   if (fields.lossReason !== undefined) db.loss_reason = fields.lossReason ?? null;
+  if ("lossReasonId" in fields) db.loss_reason_id = fields.lossReasonId ?? null;
+  if (fields.lossReasonNote !== undefined) db.loss_reason_note = fields.lossReasonNote ?? null;
   if (fields.expectedCloseDate !== undefined) db.expected_close_date = fields.expectedCloseDate ?? null;
   if (fields.probability !== undefined) db.probability = fields.probability ?? null;
   if (fields.source !== undefined) db.source = fields.source ?? null;

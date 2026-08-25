@@ -16,7 +16,7 @@ interface CrmContextType {
   loading: boolean;
   moveDeal: (dealId: string, newStageId: string) => void;
   moveDealToPipeline: (dealId: string, newPipelineId: string, newStageId: string) => void;
-  markDealStatus: (dealId: string, status: "Ganho" | "Perdido" | "Ativo", reason?: string) => void;
+  markDealStatus: (dealId: string, status: "Ganho" | "Perdido" | "Ativo", reason?: string, reasonId?: string | null, reasonNote?: string) => void;
   updateDealFields: (dealId: string, fields: Partial<Deal>) => void;
   addDealNote: (dealId: string, content: string) => void;
   deleteDealNote: (dealId: string, noteId: string) => void;

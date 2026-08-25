@@ -1105,6 +1105,8 @@ export type Database = {
           expected_close_date: string | null
           id: string
           loss_reason: string | null
+          loss_reason_id: string | null
+          loss_reason_note: string | null
           origin: string
           owner_id: string | null
           pipeline_id: string
@@ -1136,6 +1138,8 @@ export type Database = {
           expected_close_date?: string | null
           id?: string
           loss_reason?: string | null
+          loss_reason_id?: string | null
+          loss_reason_note?: string | null
           origin?: string
           owner_id?: string | null
           pipeline_id: string
@@ -1167,6 +1171,8 @@ export type Database = {
           expected_close_date?: string | null
           id?: string
           loss_reason?: string | null
+          loss_reason_id?: string | null
+          loss_reason_note?: string | null
           origin?: string
           owner_id?: string | null
           pipeline_id?: string
@@ -1198,6 +1204,13 @@ export type Database = {
             columns: ["contact_id"]
             isOneToOne: false
             referencedRelation: "contacts"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "deals_loss_reason_id_fkey"
+            columns: ["loss_reason_id"]
+            isOneToOne: false
+            referencedRelation: "loss_reasons"
             referencedColumns: ["id"]
           },
           {
@@ -2465,6 +2478,18 @@ export type Database = {
       [_ in never]: never
     }
     Functions: {
+      build_activity_webhook_payload: {
+        Args: { p_activity: Database["public"]["Tables"]["activities"]["Row"] }
+        Returns: Json
+      }
+      build_contact_webhook_payload: {
+        Args: { p_contact: Database["public"]["Tables"]["contacts"]["Row"] }
+        Returns: Json
+      }
+      build_deal_webhook_payload: {
+        Args: { p_deal: Database["public"]["Tables"]["deals"]["Row"] }
+        Returns: Json
+      }
       claim_due_sequence_enrollments: {
         Args: { p_limit?: number }
         Returns: {
@@ -2531,9 +2556,11 @@ export type Database = {
         Args: { p_limit?: number }
         Returns: {
           automation_id: string | null
+          connection_id: string | null
           created_at: string | null
           deal_id: string | null
           error: string | null
+          group_jid: string | null
           id: string
           message: string | null
           phone: string | null

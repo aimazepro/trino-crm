@@ -213,9 +213,16 @@ export function DealSidebar({ dealId }: DealSidebarProps) {
 
           {deal.status === "Perdido" && (() => {
             const raw = deal.lossReason ?? "";
+            // lossReasonNote is the note captured separately (current data).
+            // Legacy deals concatenated "Tag: nota" into lossReason itself —
+            // fall back to splitting that when there's no separate note.
             const colonIdx = raw.indexOf(": ");
-            const category = colonIdx > -1 ? raw.slice(0, colonIdx) : raw;
-            const observation = colonIdx > -1 ? raw.slice(colonIdx + 2) : "";
+            const category = deal.lossReasonNote !== undefined
+              ? raw
+              : (colonIdx > -1 ? raw.slice(0, colonIdx) : raw);
+            const observation = deal.lossReasonNote !== undefined
+              ? deal.lossReasonNote
+              : (colonIdx > -1 ? raw.slice(colonIdx + 2) : "");
             const lostDate = deal.updatedAt
               ? new Intl.DateTimeFormat("pt-BR", { day: "numeric", month: "long", year: "numeric" }).format(new Date(deal.updatedAt))
               : null;

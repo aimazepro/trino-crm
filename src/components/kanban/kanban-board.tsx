@@ -384,8 +384,8 @@ export function KanbanBoard({ pipelineId, onNewDeal, statusFilter = "Ativo" }: K
 
       {lossModalDealId && (
         <LossReasonModal
-          onConfirm={(reason) => {
-            markDealStatus(lossModalDealId, "Perdido", reason);
+          onConfirm={(reason, reasonId, note) => {
+            markDealStatus(lossModalDealId, "Perdido", reason, reasonId, note);
             setLossModalDealId(null);
           }}
           onCancel={() => setLossModalDealId(null)}

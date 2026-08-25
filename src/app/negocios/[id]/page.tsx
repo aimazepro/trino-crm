@@ -355,8 +355,8 @@ export default function DealPage({ params }: { params: Promise<{ id: string }> }
 
       {showLossModal && (
         <LossReasonModal
-          onConfirm={(reason) => {
-            markDealStatus(deal.id, "Perdido", reason);
+          onConfirm={(reason, reasonId, note) => {
+            markDealStatus(deal.id, "Perdido", reason, reasonId, note);
             setShowLossModal(false);
           }}
           onCancel={() => setShowLossModal(false)}

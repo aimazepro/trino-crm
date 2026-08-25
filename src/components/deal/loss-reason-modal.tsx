@@ -9,14 +9,15 @@ import { useWorkspace } from "@/lib/workspace";
 const FALLBACK = ["Preço", "Concorrência", "Timing ruim", "Sem budget", "Produto não atende", "Sem resposta", "Não qualificado", "Outros"];
 
 interface LossReasonModalProps {
-  onConfirm: (reason: string) => void;
+  onConfirm: (reason: string, reasonId: string | null, note: string) => void;
   onCancel: () => void;
 }
 
 export function LossReasonModal({ onConfirm, onCancel }: LossReasonModalProps) {
   const [reasons, setReasons] = useState<string[]>(FALLBACK);
+  const [reasonIds, setReasonIds] = useState<Record<string, string>>({});
   const [selectedTag, setSelectedTag] = useState("");
-  const [description, setDescription] = useState("");
+  const [note, setNote] = useState("");
   const supabase = createClient();
   const { workspaceId } = useWorkspace();
 
@@ -24,23 +25,22 @@ export function LossReasonModal({ onConfirm, onCancel }: LossReasonModalProps) {
     async function load() {
       const { data: { user } } = await supabase.auth.getUser();
       if (!user) return;
-      const { data } = await supabase.from("loss_reasons").select("name").eq("workspace_id", workspaceId).eq("active", true).order("sort_order");
+      const { data } = await supabase.from("loss_reasons").select("id, name").eq("workspace_id", workspaceId).eq("active", true).order("sort_order");
       if (data && data.length > 0) {
         const unique = Array.from(new Set([...data.map(r => r.name), "Outros"]));
         setReasons(unique);
+        setReasonIds(Object.fromEntries(data.map(r => [r.name, r.id])));
       }
     }
     load();
   }, [supabase, workspaceId]);
 
   const handleConfirm = () => {
-    const finalReason = selectedTag === "Outros"
-      ? description
-      : (selectedTag ? `${selectedTag}${description ? `: ${description}` : ""}` : description);
-    onConfirm(finalReason || "Não informado");
+    const reasonId = reasonIds[selectedTag] ?? null;
+    onConfirm(selectedTag, reasonId, note.trim());
   };
 
-  const isDisabled = !selectedTag || (selectedTag === "Outros" && !description.trim());
+  const isDisabled = !selectedTag || (selectedTag === "Outros" && !note.trim());
 
   return (
     <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-gray-900/40 backdrop-blur-sm animate-in fade-in">
@@ -74,8 +74,8 @@ export function LossReasonModal({ onConfirm, onCancel }: LossReasonModalProps) {
               Comentários {selectedTag === "Outros" && <span className="text-red-500">*</span>}
             </label>
             <textarea
-              value={description}
-              onChange={e => setDescription(e.target.value)}
+              value={note}
+              onChange={e => setNote(e.target.value)}
               placeholder="Descreva o motivo (obrigatório quando 'Outros')"
               className="w-full h-28 border border-gray-200 rounded-xl p-4 text-[14px] outline-none focus:border-amber-500 resize-none placeholder:text-gray-400"
             />

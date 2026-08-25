@@ -68,20 +68,25 @@ export function useCrmMutations({ state, setState, userId, workspaceId, supabase
       .then(({ error }) => { if (error) console.error("[CRM] moveDealToPipeline history insert failed:", error); });
   };
 
-  const markDealStatus = (dealId: string, status: "Ganho" | "Perdido" | "Ativo", reason?: string) => {
+  const markDealStatus = (dealId: string, status: "Ganho" | "Perdido" | "Ativo", reason?: string, reasonId?: string | null, reasonNote?: string) => {
     const deal = state.deals.find((d) => d.id === dealId);
     const description = status === "Ativo" ? "Negócio reaberto" : `Negócio marcado como ${status}`;
-    const subtext = reason ? `Motivo: ${reason}` : "";
+    const subtext = reason ? (reasonNote ? `Motivo: ${reason} — ${reasonNote}` : `Motivo: ${reason}`) : "";
 
     setState((prev) => ({
       ...prev,
       deals: prev.deals.map((d) => {
         if (d.id !== dealId) return d;
         const log: HistoryLog = { id: `log_${Date.now()}`, description, subtext, createdAt: new Date().toISOString() };
-        return { ...d, status, lossReason: reason, history: [log, ...d.history] };
+        return { ...d, status, lossReason: reason, lossReasonId: reasonId ?? undefined, lossReasonNote: reasonNote, history: [log, ...d.history] };
       }),
     }));
-    supabase.from("deals").update({ status, loss_reason: reason ?? null }).eq("id", dealId)
+    supabase.from("deals").update({
+      status,
+      loss_reason: reason ?? null,
+      loss_reason_id: status === "Perdido" ? (reasonId ?? null) : null,
+      loss_reason_note: status === "Perdido" ? (reasonNote ?? null) : null,
+    }).eq("id", dealId)
       .then(({ error }) => { if (error) console.error("[CRM] markDealStatus failed:", error); });
     supabase.from("deal_history").insert({ deal_id: dealId, description, subtext })
       .then(({ error }) => { if (error) console.error("[CRM] markDealStatus history insert failed:", error); });

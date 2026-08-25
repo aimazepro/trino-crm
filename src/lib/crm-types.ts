@@ -94,6 +94,8 @@ export interface Deal {
   stageId: string;
   status: LeadStatus;
   lossReason?: string;
+  lossReasonId?: string;
+  lossReasonNote?: string;
   expectedCloseDate?: string;
   probability?: number;
   source?: string;
