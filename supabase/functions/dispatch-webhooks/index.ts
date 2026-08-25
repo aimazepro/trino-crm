@@ -1,6 +1,16 @@
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 import { crypto } from "https://deno.land/std@0.177.0/crypto/mod.ts";
 
+// Keep in sync with EVENTS in src/app/configuracoes/webhooks/page.tsx
+const EVENT_CODES: Record<string, string> = {
+  deal_created: "DEAL_CREATED",
+  deal_won: "DEAL_WON",
+  deal_lost: "DEAL_LOST",
+  contact_created: "CONTACT_CREATED",
+  activity_created: "ACTIVITY_CREATED",
+  email_open: "EMAIL_OPENED",
+};
+
 const PRIVATE_IP_PATTERNS = [
   /^127\./,
   /^10\./,
@@ -76,10 +86,19 @@ Deno.serve(async (req) => {
       continue;
     }
 
-    const body = JSON.stringify(delivery.payload);
+    const eventCode = EVENT_CODES[delivery.event] ?? delivery.event;
+    const envelope = {
+      event: eventCode,
+      timestamp: new Date().toISOString(),
+      payload: delivery.payload,
+    };
+    const body = JSON.stringify(envelope);
     const signature = webhook.secret ? await hmacSha256(webhook.secret, body) : null;
 
-    const headers: Record<string, string> = { "Content-Type": "application/json" };
+    const headers: Record<string, string> = {
+      "Content-Type": "application/json",
+      "x-crm-event": eventCode,
+    };
     if (signature) headers["X-Signature"] = `sha256=${signature}`;
 
     try {
