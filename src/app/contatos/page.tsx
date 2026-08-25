@@ -6,6 +6,7 @@ import { useCrm } from "@/contexts/crm-context";
 import { useOwnerNameMap } from "@/hooks/use-owner-name-map";
 import { createClient } from "@/lib/supabase/client";
 import { BulkFieldSelect } from "@/components/ui/BulkFieldSelect";
+import { CustomizeColumnsModal, ALL_COLUMNS, DEFAULT_COLUMNS } from "@/components/contact/customize-columns-modal";
 import {
   Plus, Search, Download, Settings, X, ChevronDown,
   GripVertical, AlertTriangle, Users, Mail, Phone,
@@ -191,8 +192,6 @@ function NewContactModal({ onClose, onSave }: { onClose: () => void; onSave: (da
   );
 }
 
-const COLS = ["Nome", "Email", "Telefone", "Cargo", "Empresa", "Negócios", "Proprietário", "nome do sdr"];
-
 export default function ContatosPage() {
   const router = useRouter();
   const { state, addContact, updateContact, deleteContact } = useCrm();
@@ -207,6 +206,44 @@ export default function ContatosPage() {
   const [showModal, setShowModal] = useState(false);
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
   const [bulkEditOpen, setBulkEditOpen] = useState(false);
+  const [showCustomizeColumnsModal, setShowCustomizeColumnsModal] = useState(false);
+  const [visibleColumns, setVisibleColumns] = useState<string[]>(DEFAULT_COLUMNS);
+  const [dragColId, setDragColId] = useState<string | null>(null);
+
+  useEffect(() => {
+    const saved = localStorage.getItem("trino_crm_contacts_list_columns");
+    if (saved) {
+      try {
+        const parsed = JSON.parse(saved);
+        if (Array.isArray(parsed) && parsed.length > 0) setVisibleColumns(parsed);
+      } catch (e) {
+        console.error("Failed to parse saved columns", e);
+      }
+    }
+  }, []);
+
+  const handleSaveColumns = (newCols: string[]) => {
+    setVisibleColumns(newCols);
+    localStorage.setItem("trino_crm_contacts_list_columns", JSON.stringify(newCols));
+    setShowCustomizeColumnsModal(false);
+  };
+
+  // Reorder table headers by dragging (mirrors "Personalizar colunas" ordering)
+  const handleColHeaderDrop = (targetId: string) => {
+    if (!dragColId || dragColId === targetId || dragColId === "name") {
+      setDragColId(null);
+      return;
+    }
+    const cols = [...visibleColumns];
+    const fromIndex = cols.indexOf(dragColId);
+    let toIndex = cols.indexOf(targetId);
+    if (fromIndex === -1 || toIndex === -1) { setDragColId(null); return; }
+    if (toIndex === 0) toIndex = 1; // never displace pinned Nome column
+    cols.splice(fromIndex, 1);
+    cols.splice(toIndex, 0, dragColId);
+    setDragColId(null);
+    handleSaveColumns(cols);
+  };
 
   // Bulk edit field states
   const [cargoMode, setCargoMode] = useState<"Manter valor atual" | "Substituir por..." | "Limpar">("Manter valor atual");
@@ -297,13 +334,37 @@ export default function ContatosPage() {
     router.push(`/contatos/${id}`);
   };
 
-  const exportCSV = () => {
-    const rows = [["Nome", "Email", "Telefone", "Cargo", "Empresa", "Negócios"]];
-    filtered.filter(c => selectedIds.has(c.id)).forEach(c => {
-      const company = getCompany(c);
-      rows.push([c.name, c.emails?.[0]?.value || "", c.phones?.[0]?.value || "", c.role || "", company?.name || "", String(getDealsCount(c))]);
+  // Text value for a column id, used by both CSV export and any plain-text needs.
+  const getCellText = (colId: string, c: Contact) => {
+    const company = getCompany(c);
+    switch (colId) {
+      case "name": return c.name;
+      case "email": return c.emails?.[0]?.value || "";
+      case "phone": return c.phones?.[0]?.value || "";
+      case "company": return company?.name || "";
+      case "owner": return currentUserName || "";
+      case "deals": return String(getDealsCount(c));
+      case "role": return c.role || "";
+      case "createdAt": return "";
+      case "companyCity": return company?.city || "";
+      case "companyCnpj": return company?.cnpj || "";
+      case "companyState": return company?.state || "";
+      case "companySize": return company?.size || "";
+      case "companySegment": return company?.segment || "";
+      case "companyWebsite": return company?.website || "";
+      default: return "";
+    }
+  };
+
+  const columnLabel = (colId: string) => ALL_COLUMNS.find(c => c.id === colId)?.label || colId;
+
+  const exportCSV = (scope: "all" | "selected" = "all") => {
+    const source = scope === "selected" ? filtered.filter(c => selectedIds.has(c.id)) : filtered;
+    const rows = [visibleColumns.map(columnLabel)];
+    source.forEach(c => {
+      rows.push(visibleColumns.map(colId => getCellText(colId, c)));
     });
-    const csv = rows.map(r => r.join(",")).join("\n");
+    const csv = rows.map(r => r.map(v => `"${v.replace(/"/g, '""')}"`).join(",")).join("\n");
     const a = document.createElement("a");
     a.href = "data:text/csv;charset=utf-8," + encodeURIComponent(csv);
     a.download = "contatos.csv";
@@ -325,10 +386,14 @@ export default function ContatosPage() {
             <input value={search} onChange={e => setSearch(e.target.value)} placeholder="Buscar contato..."
               className="outline-none text-zinc-700 placeholder-zinc-400 w-48" />
           </div>
-          <button title="Personalizar colunas" className="flex items-center justify-center rounded-md p-1.5 text-zinc-400 hover:bg-zinc-100 hover:text-zinc-600 transition-colors">
+          <button
+            title="Personalizar colunas"
+            onClick={() => setShowCustomizeColumnsModal(true)}
+            className="flex items-center justify-center rounded-md p-1.5 text-zinc-400 hover:bg-zinc-100 hover:text-zinc-600 transition-colors">
             <Settings className="h-4 w-4" aria-hidden="true" />
           </button>
-          <button className="flex items-center gap-1.5 rounded-lg border border-zinc-200 px-3 py-1.5 text-sm font-medium text-zinc-500 hover:bg-zinc-50 transition-colors">
+          <button onClick={() => exportCSV("all")}
+            className="flex items-center gap-1.5 rounded-lg border border-zinc-200 px-3 py-1.5 text-sm font-medium text-zinc-500 hover:bg-zinc-50 transition-colors">
             <Download className="h-3.5 w-3.5" aria-hidden="true" />
             Exportar
           </button>
@@ -353,12 +418,23 @@ export default function ContatosPage() {
                   {allSelected && <svg width="10" height="10" viewBox="0 0 10 10" fill="none"><path d="M2 5l2.5 2.5L8 3" stroke="white" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" /></svg>}
                 </button>
               </th>
-              {COLS.map(col => (
-                <th key={col} className="group px-3 py-2 text-left text-xs font-semibold text-zinc-500 border-r border-zinc-200">
-                  <button type="button" className="cursor-grab text-zinc-300 hover:text-zinc-500 opacity-0 group-hover:opacity-100 transition-opacity touch-none align-middle inline-block mr-1.5" title="Arraste para reordenar">
+              {visibleColumns.map(colId => (
+                <th key={colId}
+                  draggable={colId !== "name"}
+                  onDragStart={() => setDragColId(colId)}
+                  onDragOver={e => e.preventDefault()}
+                  onDrop={() => handleColHeaderDrop(colId)}
+                  className={cn(
+                    "group px-3 py-2 text-left text-xs font-semibold text-zinc-500 border-r border-zinc-200",
+                    dragColId === colId && "opacity-40"
+                  )}>
+                  <button type="button" className={cn(
+                    "text-zinc-300 hover:text-zinc-500 opacity-0 group-hover:opacity-100 transition-opacity touch-none align-middle inline-block mr-1.5",
+                    colId === "name" ? "cursor-not-allowed" : "cursor-grab"
+                  )} title="Arraste para reordenar">
                     <GripVertical className="h-3.5 w-3.5" aria-hidden="true" />
                   </button>
-                  {col}
+                  {columnLabel(colId)}
                 </th>
               ))}
             </tr>
@@ -366,7 +442,7 @@ export default function ContatosPage() {
           <tbody>
             {filtered.length === 0 ? (
               <tr>
-                <td colSpan={COLS.length + 1} className="py-16 text-center text-[13px] font-medium text-zinc-400">
+                <td colSpan={visibleColumns.length + 1} className="py-16 text-center text-[13px] font-medium text-zinc-400">
                   {search ? "Nenhum contato encontrado." : "Nenhum contato cadastrado ainda."}
                 </td>
               </tr>
@@ -387,45 +463,52 @@ export default function ContatosPage() {
                         {selected && <svg width="10" height="10" viewBox="0 0 10 10" fill="none"><path d="M2 5l2.5 2.5L8 3" stroke="white" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" /></svg>}
                       </button>
                     </td>
-                    <td className="px-3 py-1.5 border-r border-zinc-100 truncate overflow-hidden whitespace-nowrap text-zinc-600 max-w-[220px]">
-                      <div className="flex items-center gap-3">
-                        <div className="flex h-8 w-8 items-center justify-center rounded-full bg-zinc-100 text-zinc-600 font-medium text-sm shrink-0">
-                          {c.name.charAt(0).toUpperCase()}
-                        </div>
-                        <span className="font-medium text-zinc-800">{c.name}</span>
-                      </div>
-                    </td>
-                    <td className="px-3 py-1.5 border-r border-zinc-100 truncate overflow-hidden whitespace-nowrap text-zinc-600">
-                      {c.emails?.[0]?.value ? (
-                        <a href={`mailto:${c.emails[0].value}`} onClick={e => e.stopPropagation()}
-                          className="flex items-center gap-1 text-zinc-400 hover:text-amber-500 text-xs">
-                          <Mail className="h-3.5 w-3.5" aria-hidden="true" />{c.emails[0].value}
-                        </a>
-                      ) : <span className="text-zinc-300">-</span>}
-                    </td>
-                    <td className="px-3 py-1.5 border-r border-zinc-100 truncate overflow-hidden whitespace-nowrap text-zinc-600">
-                      {c.phones?.[0]?.value ? (
-                        <a href={`tel:${c.phones[0].value}`} onClick={e => e.stopPropagation()}
-                          className="flex items-center gap-1 text-zinc-400 hover:text-amber-500 text-xs">
-                          <Phone className="h-3.5 w-3.5" aria-hidden="true" />{c.phones[0].value}
-                        </a>
-                      ) : <span className="text-zinc-300">-</span>}
-                    </td>
-                    <td className="px-3 py-1.5 border-r border-zinc-100 truncate overflow-hidden whitespace-nowrap text-zinc-600">
-                      {c.role ? <span className="text-zinc-500">{c.role}</span> : <span className="text-zinc-500">-</span>}
-                    </td>
-                    <td className="px-3 py-1.5 border-r border-zinc-100 truncate overflow-hidden whitespace-nowrap text-zinc-600">
-                      {company ? <span className="text-zinc-500">{company.name}</span> : <span className="text-zinc-500">-</span>}
-                    </td>
-                    <td className="px-3 py-1.5 border-r border-zinc-100 truncate overflow-hidden whitespace-nowrap text-zinc-600">
-                      <span className="text-zinc-500">{dealsCount}</span>
-                    </td>
-                    <td className="px-3 py-1.5 border-r border-zinc-100 truncate overflow-hidden whitespace-nowrap text-zinc-600">
-                      <span className="text-sm text-zinc-600">{currentUserName || "—"}</span>
-                    </td>
-                    <td className="px-3 py-1.5 border-r border-zinc-100 truncate overflow-hidden whitespace-nowrap text-zinc-600">
-                      <span className="text-sm text-zinc-600"><span className="text-zinc-300">-</span></span>
-                    </td>
+                    {visibleColumns.map(colId => (
+                      <td key={colId} className={cn(
+                        "px-3 py-1.5 border-r border-zinc-100 truncate overflow-hidden whitespace-nowrap text-zinc-600",
+                        colId === "name" && "max-w-[220px]"
+                      )}>
+                        {colId === "name" && (
+                          <div className="flex items-center gap-3">
+                            <div className="flex h-8 w-8 items-center justify-center rounded-full bg-zinc-100 text-zinc-600 font-medium text-sm shrink-0">
+                              {c.name.charAt(0).toUpperCase()}
+                            </div>
+                            <span className="font-medium text-zinc-800">{c.name}</span>
+                          </div>
+                        )}
+                        {colId === "email" && (
+                          c.emails?.[0]?.value ? (
+                            <a href={`mailto:${c.emails[0].value}`} onClick={e => e.stopPropagation()}
+                              className="flex items-center gap-1 text-zinc-400 hover:text-amber-500 text-xs">
+                              <Mail className="h-3.5 w-3.5" aria-hidden="true" />{c.emails[0].value}
+                            </a>
+                          ) : <span className="text-zinc-300">-</span>
+                        )}
+                        {colId === "phone" && (
+                          c.phones?.[0]?.value ? (
+                            <a href={`tel:${c.phones[0].value}`} onClick={e => e.stopPropagation()}
+                              className="flex items-center gap-1 text-zinc-400 hover:text-amber-500 text-xs">
+                              <Phone className="h-3.5 w-3.5" aria-hidden="true" />{c.phones[0].value}
+                            </a>
+                          ) : <span className="text-zinc-300">-</span>
+                        )}
+                        {colId === "role" && (
+                          c.role ? <span className="text-zinc-500">{c.role}</span> : <span className="text-zinc-500">-</span>
+                        )}
+                        {colId === "company" && (
+                          company ? <span className="text-zinc-500">{company.name}</span> : <span className="text-zinc-500">-</span>
+                        )}
+                        {colId === "deals" && <span className="text-zinc-500">{dealsCount}</span>}
+                        {colId === "owner" && <span className="text-sm text-zinc-600">{currentUserName || "—"}</span>}
+                        {colId === "createdAt" && <span className="text-zinc-300">-</span>}
+                        {colId === "companyCity" && <span className="text-zinc-500">{company?.city || <span className="text-zinc-300">-</span>}</span>}
+                        {colId === "companyCnpj" && <span className="text-zinc-500">{company?.cnpj || <span className="text-zinc-300">-</span>}</span>}
+                        {colId === "companyState" && <span className="text-zinc-500">{company?.state || <span className="text-zinc-300">-</span>}</span>}
+                        {colId === "companySize" && <span className="text-zinc-500">{company?.size || <span className="text-zinc-300">-</span>}</span>}
+                        {colId === "companySegment" && <span className="text-zinc-500">{company?.segment || <span className="text-zinc-300">-</span>}</span>}
+                        {colId === "companyWebsite" && <span className="text-zinc-500">{company?.website || <span className="text-zinc-300">-</span>}</span>}
+                      </td>
+                    ))}
                   </tr>
                 );
               })
@@ -445,7 +528,7 @@ export default function ContatosPage() {
             className="px-4 py-1.5 bg-emerald-500 hover:bg-emerald-600 text-white text-[12px] font-bold rounded-lg transition-colors">
             Editar {selectedIds.size} {selectedIds.size === 1 ? "contato" : "contatos"}
           </button>
-          <button onClick={exportCSV}
+          <button onClick={() => exportCSV("selected")}
             className="px-4 py-1.5 bg-zinc-100 hover:bg-zinc-200 text-zinc-700 text-[12px] font-semibold rounded-lg transition-colors">
             Exportar CSV
           </button>
@@ -583,6 +666,14 @@ export default function ContatosPage() {
       )}
 
       {showModal && <NewContactModal onClose={() => setShowModal(false)} onSave={handleCreate} />}
+
+      {showCustomizeColumnsModal && (
+        <CustomizeColumnsModal
+          initialColumns={visibleColumns}
+          onClose={() => setShowCustomizeColumnsModal(false)}
+          onSave={handleSaveColumns}
+        />
+      )}
     </div>
   );
 }
