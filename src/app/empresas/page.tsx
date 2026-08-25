@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation";
 import { useCrm } from "@/contexts/crm-context";
 import { createClient } from "@/lib/supabase/client";
 import { BulkFieldSelect } from "@/components/ui/BulkFieldSelect";
+import { CustomizeColumnsModal, ALL_COLUMNS, DEFAULT_COLUMNS } from "@/components/company/customize-columns-modal";
 import {
   Plus, Search, Download, Settings, Building2, X,
   ChevronDown, GripVertical, AlertTriangle, Globe, MapPin,
@@ -98,8 +99,6 @@ function NewCompanyModal({ onClose, onSave }: {
   );
 }
 
-const COLS = ["Empresa", "Website", "Segmento", "Porte", "Cidade", "Estado", "CNPJ", "Contatos", "Negócios", "Proprietário"];
-
 export default function EmpresasPage() {
   const router = useRouter();
   const { state, addCompany, updateCompany, deleteCompany } = useCrm();
@@ -113,6 +112,44 @@ export default function EmpresasPage() {
   const [showModal, setShowModal] = useState(false);
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
   const [bulkEditOpen, setBulkEditOpen] = useState(false);
+  const [showCustomizeColumnsModal, setShowCustomizeColumnsModal] = useState(false);
+  const [visibleColumns, setVisibleColumns] = useState<string[]>(DEFAULT_COLUMNS);
+  const [dragColId, setDragColId] = useState<string | null>(null);
+
+  useEffect(() => {
+    const saved = localStorage.getItem("trino_crm_companies_list_columns");
+    if (saved) {
+      try {
+        const parsed = JSON.parse(saved);
+        if (Array.isArray(parsed) && parsed.length > 0) setVisibleColumns(parsed);
+      } catch (e) {
+        console.error("Failed to parse saved columns", e);
+      }
+    }
+  }, []);
+
+  const handleSaveColumns = (newCols: string[]) => {
+    setVisibleColumns(newCols);
+    localStorage.setItem("trino_crm_companies_list_columns", JSON.stringify(newCols));
+    setShowCustomizeColumnsModal(false);
+  };
+
+  // Reorder table headers by dragging (mirrors "Personalizar colunas" ordering)
+  const handleColHeaderDrop = (targetId: string) => {
+    if (!dragColId || dragColId === targetId || dragColId === "name") {
+      setDragColId(null);
+      return;
+    }
+    const cols = [...visibleColumns];
+    const fromIndex = cols.indexOf(dragColId);
+    let toIndex = cols.indexOf(targetId);
+    if (fromIndex === -1 || toIndex === -1) { setDragColId(null); return; }
+    if (toIndex === 0) toIndex = 1; // never displace pinned Empresa column
+    cols.splice(fromIndex, 1);
+    cols.splice(toIndex, 0, dragColId);
+    setDragColId(null);
+    handleSaveColumns(cols);
+  };
 
   // Bulk edit field states
   const [segMode, setSegMode] = useState<"Manter valor atual" | "Substituir por..." | "Limpar">("Manter valor atual");
@@ -219,12 +256,32 @@ export default function EmpresasPage() {
     router.push(`/empresas/${id}`);
   };
 
-  const exportCSV = () => {
-    const rows = [["Empresa", "Website", "Segmento", "Porte", "Cidade", "Estado", "CNPJ", "Contatos", "Negócios"]];
-    filtered.filter(c => selectedIds.has(c.id)).forEach(c => {
-      rows.push([c.name, c.website || "", c.segment || "", c.size || "", c.city || "", c.state || "", c.cnpj || "", String(getContactsCount(c)), String(getDealsCount(c))]);
+  const getCellText = (colId: string, c: Company) => {
+    switch (colId) {
+      case "name": return c.name;
+      case "website": return c.website || "";
+      case "segment": return c.segment || "";
+      case "size": return c.size || "";
+      case "city": return c.city || "";
+      case "state": return c.state || "";
+      case "cnpj": return c.cnpj || "";
+      case "contacts": return String(getContactsCount(c));
+      case "deals": return String(getDealsCount(c));
+      case "owner": return currentUserName || "";
+      case "createdAt": return "";
+      default: return "";
+    }
+  };
+
+  const columnLabel = (colId: string) => ALL_COLUMNS.find(c => c.id === colId)?.label || colId;
+
+  const exportCSV = (scope: "all" | "selected" = "all") => {
+    const source = scope === "selected" ? filtered.filter(c => selectedIds.has(c.id)) : filtered;
+    const rows = [visibleColumns.map(columnLabel)];
+    source.forEach(c => {
+      rows.push(visibleColumns.map(colId => getCellText(colId, c)));
     });
-    const csv = rows.map(r => r.join(",")).join("\n");
+    const csv = rows.map(r => r.map(v => `"${v.replace(/"/g, '""')}"`).join(",")).join("\n");
     const a = document.createElement("a");
     a.href = "data:text/csv;charset=utf-8," + encodeURIComponent(csv);
     a.download = "empresas.csv";
@@ -246,10 +303,14 @@ export default function EmpresasPage() {
             <input value={search} onChange={e => setSearch(e.target.value)} placeholder="Buscar empresa..."
               className="outline-none text-zinc-700 placeholder-zinc-400 w-48" />
           </div>
-          <button title="Personalizar colunas" className="flex items-center justify-center rounded-md p-1.5 text-zinc-400 hover:bg-zinc-100 hover:text-zinc-600 transition-colors">
+          <button
+            title="Personalizar colunas"
+            onClick={() => setShowCustomizeColumnsModal(true)}
+            className="flex items-center justify-center rounded-md p-1.5 text-zinc-400 hover:bg-zinc-100 hover:text-zinc-600 transition-colors">
             <Settings className="h-4 w-4" aria-hidden="true" />
           </button>
-          <button className="flex items-center gap-1.5 rounded-lg border border-zinc-200 px-3 py-1.5 text-sm font-medium text-zinc-500 hover:bg-zinc-50 transition-colors">
+          <button onClick={() => exportCSV("all")}
+            className="flex items-center gap-1.5 rounded-lg border border-zinc-200 px-3 py-1.5 text-sm font-medium text-zinc-500 hover:bg-zinc-50 transition-colors">
             <Download className="h-3.5 w-3.5" aria-hidden="true" />
             Exportar
           </button>
@@ -287,12 +348,23 @@ export default function EmpresasPage() {
                     {allSelected && <svg width="10" height="10" viewBox="0 0 10 10" fill="none"><path d="M2 5l2.5 2.5L8 3" stroke="white" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" /></svg>}
                   </button>
                 </th>
-                {COLS.map(col => (
-                  <th key={col} className="group px-3 py-2 text-left text-xs font-semibold text-zinc-500 border-r border-zinc-200">
-                    <button type="button" className="cursor-grab text-zinc-300 hover:text-zinc-500 opacity-0 group-hover:opacity-100 transition-opacity touch-none align-middle inline-block mr-1.5" title="Arraste para reordenar">
+                {visibleColumns.map(colId => (
+                  <th key={colId}
+                    draggable={colId !== "name"}
+                    onDragStart={() => setDragColId(colId)}
+                    onDragOver={e => e.preventDefault()}
+                    onDrop={() => handleColHeaderDrop(colId)}
+                    className={cn(
+                      "group px-3 py-2 text-left text-xs font-semibold text-zinc-500 border-r border-zinc-200",
+                      dragColId === colId && "opacity-40"
+                    )}>
+                    <button type="button" className={cn(
+                      "text-zinc-300 hover:text-zinc-500 opacity-0 group-hover:opacity-100 transition-opacity touch-none align-middle inline-block mr-1.5",
+                      colId === "name" ? "cursor-not-allowed" : "cursor-grab"
+                    )} title="Arraste para reordenar">
                       <GripVertical className="h-3.5 w-3.5" aria-hidden="true" />
                     </button>
-                    {col}
+                    {columnLabel(colId)}
                   </th>
                 ))}
               </tr>
@@ -300,7 +372,7 @@ export default function EmpresasPage() {
             <tbody>
               {filtered.length === 0 ? (
                 <tr>
-                  <td colSpan={COLS.length + 1} className="py-16 text-center text-[13px] font-medium text-zinc-400">
+                  <td colSpan={visibleColumns.length + 1} className="py-16 text-center text-[13px] font-medium text-zinc-400">
                     Nenhuma empresa encontrada.
                   </td>
                 </tr>
@@ -321,57 +393,56 @@ export default function EmpresasPage() {
                           {selected && <svg width="10" height="10" viewBox="0 0 10 10" fill="none"><path d="M2 5l2.5 2.5L8 3" stroke="white" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" /></svg>}
                         </button>
                       </td>
-                      <td className="px-3 py-1.5 border-r border-zinc-100 truncate overflow-hidden whitespace-nowrap text-zinc-600">
-                        <div className="flex items-center gap-3">
-                          <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-amber-50 text-amber-600 font-semibold text-sm shrink-0">
-                            {c.name.charAt(0).toUpperCase()}
-                          </div>
-                          <div>
-                            <p className="font-medium text-zinc-800">{c.name}</p>
-                            {c.website && (
-                              <p className="text-xs text-zinc-400 flex items-center gap-1">
-                                <Globe className="h-3 w-3" aria-hidden="true" />{c.website.replace(/^https?:\/\//, "")}
-                              </p>
-                            )}
-                          </div>
-                        </div>
-                      </td>
-                      <td className="px-3 py-1.5 border-r border-zinc-100 truncate overflow-hidden whitespace-nowrap text-zinc-600">
-                        {c.website ? (
-                          <span className="text-zinc-500 flex items-center gap-1">
-                            <Globe className="h-3.5 w-3.5 text-zinc-300" aria-hidden="true" />
-                            {c.website.replace(/^https?:\/\//, "")}
-                          </span>
-                        ) : <span className="text-zinc-300">-</span>}
-                      </td>
-                      <td className="px-3 py-1.5 border-r border-zinc-100 truncate overflow-hidden whitespace-nowrap text-zinc-600">
-                        {c.segment ? <span className="text-zinc-500">{c.segment}</span> : <span className="text-zinc-500">-</span>}
-                      </td>
-                      <td className="px-3 py-1.5 border-r border-zinc-100 truncate overflow-hidden whitespace-nowrap text-zinc-600">
-                        {c.size ? <span className="text-zinc-500">{c.size}</span> : <span className="text-zinc-300">-</span>}
-                      </td>
-                      <td className="px-3 py-1.5 border-r border-zinc-100 truncate overflow-hidden whitespace-nowrap text-zinc-600">
-                        {c.city ? (
-                          <span className="flex items-center gap-1 text-zinc-500">
-                            <MapPin className="h-3.5 w-3.5 text-zinc-300" aria-hidden="true" />{c.city}
-                          </span>
-                        ) : <span className="text-zinc-300">-</span>}
-                      </td>
-                      <td className="px-3 py-1.5 border-r border-zinc-100 truncate overflow-hidden whitespace-nowrap text-zinc-600">
-                        {c.state ? <span className="text-zinc-500">{c.state}</span> : <span className="text-zinc-300">-</span>}
-                      </td>
-                      <td className="px-3 py-1.5 border-r border-zinc-100 truncate overflow-hidden whitespace-nowrap text-zinc-600">
-                        {c.cnpj ? <span className="text-zinc-500">{c.cnpj}</span> : <span className="text-zinc-300">-</span>}
-                      </td>
-                      <td className="px-3 py-1.5 border-r border-zinc-100 truncate overflow-hidden whitespace-nowrap text-zinc-600">
-                        <span className="text-zinc-500">{contacts}</span>
-                      </td>
-                      <td className="px-3 py-1.5 border-r border-zinc-100 truncate overflow-hidden whitespace-nowrap text-zinc-600">
-                        <span className="text-zinc-500">{deals}</span>
-                      </td>
-                      <td className="px-3 py-1.5 border-r border-zinc-100 truncate overflow-hidden whitespace-nowrap text-zinc-600">
-                        <span className="text-sm text-zinc-600">{currentUserName || "—"}</span>
-                      </td>
+                      {visibleColumns.map(colId => (
+                        <td key={colId} className="px-3 py-1.5 border-r border-zinc-100 truncate overflow-hidden whitespace-nowrap text-zinc-600">
+                          {colId === "name" && (
+                            <div className="flex items-center gap-3">
+                              <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-amber-50 text-amber-600 font-semibold text-sm shrink-0">
+                                {c.name.charAt(0).toUpperCase()}
+                              </div>
+                              <div>
+                                <p className="font-medium text-zinc-800">{c.name}</p>
+                                {c.website && (
+                                  <p className="text-xs text-zinc-400 flex items-center gap-1">
+                                    <Globe className="h-3 w-3" aria-hidden="true" />{c.website.replace(/^https?:\/\//, "")}
+                                  </p>
+                                )}
+                              </div>
+                            </div>
+                          )}
+                          {colId === "website" && (
+                            c.website ? (
+                              <span className="text-zinc-500 flex items-center gap-1">
+                                <Globe className="h-3.5 w-3.5 text-zinc-300" aria-hidden="true" />
+                                {c.website.replace(/^https?:\/\//, "")}
+                              </span>
+                            ) : <span className="text-zinc-300">-</span>
+                          )}
+                          {colId === "segment" && (
+                            c.segment ? <span className="text-zinc-500">{c.segment}</span> : <span className="text-zinc-500">-</span>
+                          )}
+                          {colId === "size" && (
+                            c.size ? <span className="text-zinc-500">{c.size}</span> : <span className="text-zinc-300">-</span>
+                          )}
+                          {colId === "city" && (
+                            c.city ? (
+                              <span className="flex items-center gap-1 text-zinc-500">
+                                <MapPin className="h-3.5 w-3.5 text-zinc-300" aria-hidden="true" />{c.city}
+                              </span>
+                            ) : <span className="text-zinc-300">-</span>
+                          )}
+                          {colId === "state" && (
+                            c.state ? <span className="text-zinc-500">{c.state}</span> : <span className="text-zinc-300">-</span>
+                          )}
+                          {colId === "cnpj" && (
+                            c.cnpj ? <span className="text-zinc-500">{c.cnpj}</span> : <span className="text-zinc-300">-</span>
+                          )}
+                          {colId === "contacts" && <span className="text-zinc-500">{contacts}</span>}
+                          {colId === "deals" && <span className="text-zinc-500">{deals}</span>}
+                          {colId === "owner" && <span className="text-sm text-zinc-600">{currentUserName || "—"}</span>}
+                          {colId === "createdAt" && <span className="text-zinc-300">-</span>}
+                        </td>
+                      ))}
                     </tr>
                   );
                 })
@@ -392,7 +463,7 @@ export default function EmpresasPage() {
             className="px-4 py-1.5 bg-emerald-500 hover:bg-emerald-600 text-white text-[12px] font-bold rounded-lg transition-colors">
             Editar {selectedIds.size} {selectedIds.size === 1 ? "empresa" : "empresas"}
           </button>
-          <button onClick={exportCSV}
+          <button onClick={() => exportCSV("selected")}
             className="px-4 py-1.5 bg-zinc-100 hover:bg-zinc-200 text-zinc-700 text-[12px] font-semibold rounded-lg transition-colors">
             Exportar CSV
           </button>
@@ -590,6 +661,14 @@ export default function EmpresasPage() {
       )}
 
       {showModal && <NewCompanyModal onClose={() => setShowModal(false)} onSave={handleCreate} />}
+
+      {showCustomizeColumnsModal && (
+        <CustomizeColumnsModal
+          initialColumns={visibleColumns}
+          onClose={() => setShowCustomizeColumnsModal(false)}
+          onSave={handleSaveColumns}
+        />
+      )}
     </div>
   );
 }
