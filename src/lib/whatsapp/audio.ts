@@ -15,6 +15,7 @@
 
 import { spawn } from "node:child_process";
 import { randomUUID } from "node:crypto";
+import { chmodSync, existsSync } from "node:fs";
 import { mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
@@ -35,6 +36,44 @@ export interface ConvertedAudio {
 
 /** @deprecated name kept for callers; use ConvertedAudio. */
 export type VoiceNote = ConvertedAudio;
+
+/**
+ * Where the ffmpeg binary actually is.
+ *
+ * `ffmpegPath` is computed from the package's own `__dirname`, which only
+ * survives if the package stays external to the bundle — one config change away
+ * from pointing at a directory that does not exist. Production ran for a week
+ * spawning `/ROOT/node_modules/ffmpeg-static/ffmpeg` and swallowing the ENOENT,
+ * so the path is checked here instead of trusted, with the deployed layout as a
+ * fallback. Resolved once: the answer cannot change while the process lives.
+ */
+let resolvedFfmpeg: string | null | undefined;
+
+function ffmpegBinary(): string | null {
+  if (resolvedFfmpeg !== undefined) return resolvedFfmpeg;
+
+  const candidates = [
+    process.env.FFMPEG_BIN,
+    ffmpegPath,
+    join(process.cwd(), "node_modules", "ffmpeg-static", "ffmpeg"),
+  ].filter((c): c is string => typeof c === "string" && c.length > 0);
+
+  resolvedFfmpeg = candidates.find((c) => existsSync(c)) ?? null;
+
+  if (!resolvedFfmpeg) {
+    console.error("whatsapp/audio: ffmpeg binary not found; tried", candidates);
+    return null;
+  }
+
+  // Serverless bundling does not always keep the executable bit.
+  try {
+    chmodSync(resolvedFfmpeg, 0o755);
+  } catch {
+    // Read-only filesystem, or already executable. spawn will say if it is not.
+  }
+
+  return resolvedFfmpeg;
+}
 
 function run(bin: string, args: string[]): Promise<void> {
   return new Promise((resolve, reject) => {
@@ -69,7 +108,8 @@ async function transcode(
   outputExtension: string,
   encodeArgs: string[],
 ): Promise<Buffer | null> {
-  if (!ffmpegPath) return null;
+  const bin = ffmpegBinary();
+  if (!bin) return null;
 
   // Real files, not pipes: an mp4 from Safari keeps its moov atom at the end,
   // and ffmpeg cannot seek back for it on stdin.
@@ -80,7 +120,7 @@ async function transcode(
 
   try {
     await writeFile(input, data);
-    await run(ffmpegPath, [
+    await run(bin, [
       "-hide_banner", "-loglevel", "error", "-y",
       "-i", input,
       "-vn",

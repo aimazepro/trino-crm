@@ -45,12 +45,19 @@ const securityHeaders = [
 ];
 
 const nextConfig: NextConfig = {
-  // The audio route runs the ffmpeg binary that ffmpeg-static ships. Tracing
-  // only follows `require`, and this one is resolved as a path at runtime, so
-  // without this the binary is missing in production and every voice note
-  // silently falls back to the format WhatsApp cannot play.
+  // ffmpeg-static exports a *path*, built from its own __dirname. Bundling the
+  // package rewrites that __dirname to a build-time placeholder, and production
+  // spent every voice note failing on
+  //   spawn /ROOT/node_modules/ffmpeg-static/ffmpeg ENOENT
+  // while falling back silently to the unconverted recording. Keeping it
+  // external means it is required at runtime and __dirname is a real directory.
+  serverExternalPackages: ["ffmpeg-static"],
+
+  // Tracing only follows `require`, and the 45 MB binary next to index.js is
+  // never required — it is spawned. Every route that converts audio has to ask
+  // for it explicitly: sending, the webhook echo, and the automation queue.
   outputFileTracingIncludes: {
-    "/api/whatsapp/send": ["./node_modules/ffmpeg-static/ffmpeg"],
+    "/api/whatsapp/**": ["./node_modules/ffmpeg-static/ffmpeg"],
   },
 
   async headers() {
