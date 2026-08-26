@@ -311,7 +311,12 @@ export function CallDialog({
         }),
       });
 
-      if (blob && blob.size > 0) {
+      // Ligação que ninguém atendeu não gera gravação para guardar: são
+      // segundos de chamada tocando, sem conteúdo, ocupando storage e ampliando
+      // a superfície de LGPD sem contrapartida nenhuma. O áudio é simplesmente
+      // descartado aqui, e nunca chega a sair do navegador.
+      const worthKeeping = chosen ? chosen.connected : true;
+      if (worthKeeping && blob && blob.size > 0) {
         await fetch(`/api/telephony/calls/${callId}/recording`, {
           method: "POST",
           headers: { "Content-Type": blob.type || "audio/webm" },

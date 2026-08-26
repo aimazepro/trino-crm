@@ -20,6 +20,9 @@ const DISPOSITIONS: CallDisposition[] = [
   "ocupado",
 ];
 
+/** Disposições em que a chamada não chegou a conectar — não há o que gravar. */
+const NOT_CONNECTED: CallDisposition[] = ["nao_atendeu", "ocupado"];
+
 const DISPOSITION_LABEL: Record<CallDisposition, string> = {
   atendeu: "Atendeu",
   nao_atendeu: "Não atendeu",
@@ -72,11 +75,26 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
       .update(patch)
       .eq("id", id)
       .eq("workspace_id", workspaceId)
-      .select("id, activity_id, disposition, notes, to_number")
+      .select("id, activity_id, disposition, notes, to_number, recording_status, recording_key")
       .maybeSingle();
 
     if (error) return NextResponse.json({ error: error.message }, { status: 500 });
     if (!data) return NextResponse.json({ error: "Chamada não encontrada" }, { status: 404 });
+
+    // Reclassificar como não atendida depois também descarta o áudio: guardar
+    // gravação de chamada que não conectou é exposição sem contrapartida.
+    if (
+      patch.disposition &&
+      NOT_CONNECTED.includes(patch.disposition) &&
+      data.recording_status === "stored"
+    ) {
+      if (data.recording_key?.startsWith("supabase:")) {
+        await admin.storage
+          .from("call-recordings")
+          .remove([data.recording_key.slice("supabase:".length)]);
+      }
+      await admin.rpc("telephony_mark_recording_deleted", { p_call_id: data.id });
+    }
 
     // A atividade da timeline passa a mostrar o resultado, nao so a duracao.
     if (data.activity_id && patch.disposition) {
