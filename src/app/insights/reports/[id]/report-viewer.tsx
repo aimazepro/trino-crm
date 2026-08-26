@@ -11,6 +11,7 @@ import { createClient } from "@/lib/supabase/client";
 import type { Json } from "@/lib/supabase/database.types";
 import { useCrm } from "@/contexts/crm-context";
 import { useOwnerNameMap } from "@/hooks/use-owner-name-map";
+import { useInsights } from "../../insights-context";
 import { getReportType } from "../../report-types/registry";
 import { applyPeriodFilter, applyCustomFilters, FILTER_FIELDS_BY_ENTITY } from "../../report-types/filters";
 import { COLORS, type SavedReport, type ReportFilter } from "../../insights-constants";
@@ -39,6 +40,7 @@ export function ReportViewer({ reportId }: { reportId: string }) {
   const router = useRouter();
   const { state } = useCrm();
   const { map: ownerNameMap, names: ownerNames } = useOwnerNameMap();
+  const { patchReport, setSavedReports } = useInsights();
   const [report, setReport] = useState<SavedReport | null>(null);
   const [loading, setLoading] = useState(true);
   const [notFound, setNotFound] = useState(false);
@@ -84,9 +86,10 @@ export function ReportViewer({ reportId }: { reportId: string }) {
       if (!prev) return prev;
       const next = { ...prev, ...patch };
       persist(next);
+      patchReport(next.id, patch);   // sidebar reflete rename/cor na hora
       return next;
     });
-  }, [persist]);
+  }, [persist, patchReport]);
 
   const pipeline = useMemo(() => {
     if (!report?.pipeline) return null;
@@ -121,7 +124,9 @@ export function ReportViewer({ reportId }: { reportId: string }) {
   }, [report, filteredDeals, pipeline, state.pipelines, ownerNameMap]);
 
   const handleDelete = async () => {
-    await createClient().from("saved_reports").delete().eq("id", reportId);
+    setSavedReports((prev) => prev.filter((r) => r.id !== reportId));
+    const { error } = await createClient().from("saved_reports").delete().eq("id", reportId);
+    if (error) console.error("[insights] falha ao excluir relatório:", error);
     router.push("/insights");
   };
 

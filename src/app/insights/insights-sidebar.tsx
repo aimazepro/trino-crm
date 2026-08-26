@@ -163,10 +163,10 @@ export function InsightsSidebar({
                       href={`/insights/reports/${report.id}`}
                       className={cn(
                         "flex items-center gap-2 w-full px-3 py-1.5 rounded-lg text-[13px] font-medium transition-colors text-left",
-                        activeReportId === report.id ? "bg-zinc-100 text-zinc-900 font-semibold" : "text-zinc-500 hover:bg-zinc-50 hover:text-zinc-800"
+                        activeReportId === report.id ? "bg-emerald-50 text-emerald-700 font-semibold" : "text-zinc-500 hover:bg-zinc-50 hover:text-zinc-800"
                       )}
                     >
-                      <BarChart2 className="h-3.5 w-3.5 shrink-0" style={{ color: report.color || "#ec4899" }} />
+                      <BarChart2 className={cn("h-3.5 w-3.5 shrink-0", activeReportId === report.id ? "text-emerald-600" : "text-zinc-400")} />
                       <span className="truncate flex-1 min-w-0">{report.name}</span>
                       {report.pipeline && (
                         <span className="text-[10px] font-normal text-zinc-400 shrink-0 group-hover:opacity-0 transition-opacity">
