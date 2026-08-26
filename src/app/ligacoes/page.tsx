@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useMemo } from "react";
+import { useEffect, useMemo, useState } from "react";
 import {
   Phone,
   PhoneCall,
@@ -12,9 +12,6 @@ import {
   Flame,
   Play,
   Pause,
-  Sparkles,
-  Plus,
-  Volume2,
   CheckCircle2,
   XCircle,
   Clock3,
@@ -48,105 +45,79 @@ export interface CallRecord {
   recordingUrl?: string;
 }
 
-const SAMPLE_CALLS: CallRecord[] = [
-  {
-    id: "call-1",
-    vendedor: "João Paulo",
-    telefone: "(11) 98765-4321",
-    contactName: "Acme Corp (Carlos)",
-    status: "Atendida",
-    durationSeconds: 245,
-    timestamp: "2026-08-12T14:32:00Z",
-    recordingUrl: "sample.mp3",
-  },
-  {
-    id: "call-2",
-    vendedor: "Ana Silva",
-    telefone: "(21) 99876-1234",
-    contactName: "Tech Solutions",
-    status: "Atendida",
-    durationSeconds: 180,
-    timestamp: "2026-08-12T11:15:00Z",
-    recordingUrl: "sample.mp3",
-  },
-  {
-    id: "call-3",
-    vendedor: "João Paulo",
-    telefone: "(31) 97654-8899",
-    contactName: "Mariana Costa",
-    status: "Não atendida",
-    durationSeconds: 0,
-    timestamp: "2026-08-12T10:05:00Z",
-  },
-  {
-    id: "call-4",
-    vendedor: "Carlos Eduardo",
-    telefone: "(41) 98822-3344",
-    contactName: "Logística Brasil",
-    status: "Atendida",
-    durationSeconds: 412,
-    timestamp: "2026-08-11T16:45:00Z",
-    recordingUrl: "sample.mp3",
-  },
-  {
-    id: "call-5",
-    vendedor: "Ana Silva",
-    telefone: "(11) 97111-2233",
-    contactName: "Grupo Vanguarda",
-    status: "Não atendida",
-    durationSeconds: 0,
-    timestamp: "2026-08-11T15:20:00Z",
-  },
-  {
-    id: "call-6",
-    vendedor: "João Paulo",
-    telefone: "(19) 99333-4455",
-    contactName: "Fernanda Lima",
-    status: "Atendida",
-    durationSeconds: 135,
-    timestamp: "2026-08-10T14:10:00Z",
-    recordingUrl: "sample.mp3",
-  },
-  {
-    id: "call-7",
-    vendedor: "Carlos Eduardo",
-    telefone: "(51) 98444-5566",
-    contactName: "Sul Inovação",
-    status: "Ocupado",
-    durationSeconds: 0,
-    timestamp: "2026-08-10T09:30:00Z",
-  },
-  {
-    id: "call-8",
-    vendedor: "Ana Silva",
-    telefone: "(81) 99555-6677",
-    contactName: "Nordeste Tech",
-    status: "Atendida",
-    durationSeconds: 310,
-    timestamp: "2026-08-09T17:00:00Z",
-    recordingUrl: "sample.mp3",
-  },
-];
 
 export default function LigacoesPage() {
-  const { names: sellerNames } = useOwnerNameMap();
+  const { names: sellerNames, map: sellerMap } = useOwnerNameMap();
   const [sellerFilter, setSellerFilter] = useState("");
   const [periodFilter, setPeriodFilter] = useState<"Hoje" | "7 dias" | "30 dias" | "90 dias">("30 dias");
-  const [useDemoData, setUseDemoData] = useState(false);
   const [playingId, setPlayingId] = useState<string | null>(null);
+  const [allCalls, setAllCalls] = useState<CallRecord[]>([]);
+  const [loadingCalls, setLoadingCalls] = useState(true);
+  const [callsError, setCallsError] = useState<string | null>(null);
 
-  // Calls dataset (either sample or empty based on state)
-  const allCalls: CallRecord[] = useMemo(() => {
-    return useDemoData ? SAMPLE_CALLS : [];
-  }, [useDemoData]);
+  // CDR real do workspace. Antes esta pagina plotava um array hardcoded --
+  // cinco graficos bonitos sobre dado nenhum.
+  useEffect(() => {
+    let cancelled = false;
 
-  // Filtered calls
+    (async () => {
+      try {
+        const res = await fetch("/api/telephony/calls?limit=500", { cache: "no-store" });
+        const data = await res.json();
+        if (cancelled) return;
+        if (!res.ok) throw new Error(data?.error ?? "Falha ao carregar as ligações");
+
+        type ApiCall = {
+          id: string;
+          userId: string | null;
+          toNumber: string;
+          status: string;
+          startedAt: string;
+          durationSeconds: number;
+          hasRecording: boolean;
+        };
+
+        setAllCalls(
+          (data.calls as ApiCall[]).map((c) => ({
+            id: c.id,
+            vendedor: (c.userId && sellerMap[c.userId]) || "Sem responsável",
+            telefone: c.toNumber,
+            status:
+              c.status === "completed"
+                ? "Atendida"
+                : c.status === "busy"
+                  ? "Ocupado"
+                  : "Não atendida",
+            durationSeconds: c.durationSeconds,
+            timestamp: c.startedAt,
+            recordingUrl: c.hasRecording ? `/api/telephony/calls/${c.id}/recording` : undefined,
+          })),
+        );
+        setCallsError(null);
+      } catch (err) {
+        if (!cancelled) setCallsError(err instanceof Error ? err.message : "Erro desconhecido");
+      } finally {
+        if (!cancelled) setLoadingCalls(false);
+      }
+    })();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [sellerMap]);
+
+  // Filtro de vendedor E de periodo. O periodo existia no state mas nunca era
+  // aplicado -- trocar a opcao nao mudava nada na tela.
   const filteredCalls = useMemo(() => {
+    const days = periodFilter === "Hoje" ? 1 : parseInt(periodFilter, 10);
+    const cutoff = Date.now() - days * 24 * 60 * 60 * 1000;
+
     return allCalls.filter((c) => {
       if (sellerFilter && c.vendedor !== sellerFilter) return false;
+      if (new Date(c.timestamp).getTime() < cutoff) return false;
       return true;
     });
-  }, [allCalls, sellerFilter]);
+  }, [allCalls, sellerFilter, periodFilter]);
 
   // Derived KPI Stats
   const stats = useMemo(() => {
@@ -315,19 +286,6 @@ export default function LigacoesPage() {
             <p className="text-sm text-zinc-400">Visualize e analise suas chamadas</p>
           </div>
           <div className="flex items-center gap-2 flex-wrap sm:flex-nowrap">
-            <button
-              onClick={() => setUseDemoData((prev) => !prev)}
-              className={cn(
-                "h-9 px-3 text-xs font-medium rounded-lg border transition-all flex items-center gap-1.5 cursor-pointer shadow-sm",
-                useDemoData
-                  ? "bg-amber-500 text-white border-amber-600 hover:bg-amber-600"
-                  : "bg-white text-zinc-600 border-zinc-200 hover:bg-zinc-50"
-              )}
-              title="Alternar entre estado limpo e dados de teste"
-            >
-              <Sparkles className={cn("h-3.5 w-3.5", useDemoData ? "text-white fill-white" : "text-amber-500")} />
-              {useDemoData ? "Dados de Exemplo (Ativos)" : "Modo Exemplo"}
-            </button>
             <select
               value={sellerFilter}
               onChange={(e) => setSellerFilter(e.target.value)}
@@ -636,7 +594,11 @@ export default function LigacoesPage() {
                 {filteredCalls.length === 0 ? (
                   <tr>
                     <td colSpan={6} className="text-center py-16 text-zinc-300 text-sm">
-                      Nenhuma ligação no período
+                      {loadingCalls
+                        ? "Carregando ligações..."
+                        : callsError
+                          ? callsError
+                          : "Nenhuma ligação no período"}
                     </td>
                   </tr>
                 ) : (

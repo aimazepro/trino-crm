@@ -13,6 +13,7 @@ import { ActivityTab } from "./activity-tab";
 import { EmailTab } from "./email-tab";
 import { WhatsAppThread } from "@/components/whatsapp/whatsapp-thread";
 import { useWhatsAppConnection } from "@/hooks/use-whatsapp-connection";
+import { DealCallsTab } from "@/components/telephony/deal-calls-tab";
 import { ArrowRight, Settings, Paperclip, PhoneOff, WifiOff, Mail, History, Phone, MessageCircle, FileText, Pencil, Trash2, X, Check, LoaderCircle } from "lucide-react";
 import Link from "next/link";
 import { cn } from "@/lib/utils";
@@ -31,6 +32,7 @@ const TAB_ICONS: Record<string, React.ReactNode> = {
 };
 
 const TAB_ACTIVE_COLOR: Record<string, string> = {
+  "Ligações": "border-purple-500 text-purple-600",
   "WhatsApp": "border-green-500 text-green-600",
   "Email": "border-blue-500 text-blue-600",
 };
@@ -131,15 +133,12 @@ export function DealTabs({ dealId }: DealTabsProps) {
 
         {/* Ligações Tab */}
         {activeTab === "Ligações" && (
-          <div className="rounded-xl bg-white border border-zinc-200 overflow-hidden">
-            <div className="flex flex-col items-center justify-center h-64 text-center px-4">
-              <div className="h-12 w-12 rounded-full bg-zinc-100 flex items-center justify-center mb-3">
-                <Phone className="h-6 w-6 text-zinc-400" />
-              </div>
-              <p className="text-sm font-medium text-zinc-700">Nenhuma ligação registrada</p>
-              <p className="text-xs text-zinc-500 mt-1">As ligações realizadas aparecerão aqui</p>
-            </div>
-          </div>
+          <DealCallsTab
+            dealId={dealId}
+            contactId={contact?.id ?? null}
+            contactPhone={contactPhone}
+            contactName={contact?.name ?? null}
+          />
         )}
 
         {/* Notas Tab */}

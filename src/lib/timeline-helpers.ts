@@ -1,7 +1,7 @@
 import {
   RotateCcw, Pencil, Trophy, CircleX, User, Building2,
   ArrowRight, Plus, CheckCircle2, CalendarPlus, Trash2,
-  FileText, GitMerge, DollarSign, Tag, Package, CalendarDays, Mail,
+  FileText, GitMerge, DollarSign, Tag, Package, CalendarDays, Mail, Phone, PhoneOff,
   type LucideIcon
 } from "lucide-react";
 
@@ -64,6 +64,15 @@ export function getTimelineIconConfig(description: string): TimelineIconConfig {
   }
   if (desc.startsWith("nota")) {
     return { icon: FileText, badgeClass: "bg-zinc-100 text-zinc-600 border-zinc-200/60" };
+  }
+  // Telefonia: sem estes dois ramos, "Ligação atendida" caía no lápis genérico.
+  if (desc.startsWith("ligação") || desc.startsWith("ligacao")) {
+    const failed =
+      desc.includes("não atendida") || desc.includes("nao atendida") ||
+      desc.includes("falhou") || desc.includes("ocupada");
+    return failed
+      ? { icon: PhoneOff, badgeClass: "bg-red-50 text-red-600 border-red-200/60" }
+      : { icon: Phone, badgeClass: "bg-purple-50 text-purple-600 border-purple-200/60" };
   }
   if (desc.startsWith("email")) {
     return { icon: Mail, badgeClass: "bg-blue-50 text-blue-600 border-blue-200/60" };

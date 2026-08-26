@@ -9,4 +9,10 @@ import type { VercelConfig } from "@vercel/config/v1";
 // validates cron limits before building), not just the calendar feature — so it's
 // removed until there's a real cadence decision (Pro plan, an external scheduler
 // hitting /api/cron/calendar-pull, or accepting a daily cadence).
-export const config: VercelConfig = {};
+export const config: VercelConfig = {
+  // Daily only. The Hobby plan rejects anything more frequent, and that rejection
+  // fails the whole project's deploy — see the note above. This one runs once a day
+  // to purge recordings past their LGPD retention window and to release balance
+  // reservations left behind by calls that never got a final provider event.
+  crons: [{ path: "/api/cron/telephony-maintenance", schedule: "0 4 * * *" }],
+};
