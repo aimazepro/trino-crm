@@ -16,13 +16,9 @@ interface InsightsSidebarProps {
   onCloseCreateDropdown: () => void;
   onCreateReportZero: () => void;
   onCreateDashboard: () => void;
-  onRenameDashboard: () => void;
   searchQuery: string;
   onSearchChange: (v: string) => void;
-  dashboardPopulated: boolean;
   activeReportId: string | null;
-  onSelectReport: (id: string | null) => void;
-  onDeleteDashboard: () => void;
   savedReports: SavedReport[];
   filteredReports: SavedReport[];
   editingReportId: string | null;
@@ -32,8 +28,7 @@ interface InsightsSidebarProps {
   onStartRename: (id: string, name: string, e: React.MouseEvent) => void;
   onSaveRename: (id: string, e: React.FormEvent) => void;
   onDeleteReport: (id: string, e: React.MouseEvent) => void;
-  dashboardName: string;
-  panels: { id: string; name: string }[];
+  panels: { id: string; name: string; isDefault: boolean }[];
   activePanelId: string | null;
   onRenamePanel: (id: string, currentName: string, e: React.MouseEvent) => void;
   onDeletePanel: (id: string, e: React.MouseEvent) => void;
@@ -46,10 +41,8 @@ export function InsightsSidebar({
   onCloseCreateDropdown,
   onCreateReportZero,
   onCreateDashboard,
-  onRenameDashboard,
   searchQuery,
   onSearchChange,
-  dashboardPopulated,
   activeReportId,
   savedReports,
   filteredReports,
@@ -60,8 +53,6 @@ export function InsightsSidebar({
   onStartRename,
   onSaveRename,
   onDeleteReport,
-  onDeleteDashboard,
-  dashboardName,
   panels,
   activePanelId,
   onRenamePanel,
@@ -116,33 +107,10 @@ export function InsightsSidebar({
         </button>
 
         <div className="space-y-0.5 mb-3">
-          {dashboardPopulated && (
-            <div className="group relative">
-              <Link
-                href="/insights"
-                className={cn(
-                  "flex items-center gap-2 w-full px-3 py-1.5 rounded-lg text-sm transition-colors font-medium text-left",
-                  activeReportId === null ? "bg-emerald-50 text-emerald-700" : "text-zinc-500 hover:bg-zinc-50 hover:text-zinc-800"
-                )}
-              >
-                <LayoutDashboard className={cn("h-4 w-4 shrink-0", activeReportId === null ? "text-emerald-500" : "text-zinc-400")} />
-                <span className="truncate flex-1 pr-11 font-semibold">{dashboardName}</span>
-              </Link>
-              <div className="absolute right-1 top-1/2 -translate-y-1/2 flex items-center gap-0.5 opacity-0 group-hover:opacity-100 transition-all">
-                <button onClick={onRenameDashboard} title="Renomear painel" className="p-1 rounded text-zinc-300 hover:text-blue-500 transition-all cursor-pointer">
-                  <Pencil className="h-3 w-3" />
-                </button>
-                <button onClick={onDeleteDashboard} title="Excluir painel" className="p-1 rounded text-zinc-300 hover:text-red-500 transition-all cursor-pointer">
-                  <Trash2 className="h-3 w-3" />
-                </button>
-              </div>
-            </div>
-          )}
-
           {panels.map((panel) => (
             <div key={panel.id} className="group relative">
               <Link
-                href={`/insights/dashboards/${panel.id}`}
+                href={panel.isDefault ? "/insights" : `/insights/dashboards/${panel.id}`}
                 className={cn(
                   "flex items-center gap-2 w-full px-3 py-1.5 rounded-lg text-sm transition-colors font-medium text-left",
                   activePanelId === panel.id ? "bg-emerald-50 text-emerald-700" : "text-zinc-500 hover:bg-zinc-50 hover:text-zinc-800"
@@ -155,9 +123,11 @@ export function InsightsSidebar({
                 <button onClick={(e) => onRenamePanel(panel.id, panel.name, e)} title="Renomear painel" className="p-1 rounded text-zinc-300 hover:text-blue-500 transition-all cursor-pointer">
                   <Pencil className="h-3 w-3" />
                 </button>
-                <button onClick={(e) => onDeletePanel(panel.id, e)} title="Excluir painel" className="p-1 rounded text-zinc-300 hover:text-red-500 transition-all cursor-pointer">
-                  <Trash2 className="h-3 w-3" />
-                </button>
+                {!panel.isDefault && (
+                  <button onClick={(e) => onDeletePanel(panel.id, e)} title="Excluir painel" className="p-1 rounded text-zinc-300 hover:text-red-500 transition-all cursor-pointer">
+                    <Trash2 className="h-3 w-3" />
+                  </button>
+                )}
               </div>
             </div>
           ))}

@@ -14,12 +14,14 @@ export interface Dashboard {
   id: string;
   name: string;
   reportIds: string[];
+  isDefault: boolean;
 }
 
 interface DashboardRow {
   id: string;
   name: string;
   report_ids: unknown;
+  is_default?: boolean;
 }
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -33,12 +35,13 @@ function fromRow(row: DashboardRow): Dashboard {
     id: row.id,
     name: row.name,
     reportIds: Array.isArray(row.report_ids) ? (row.report_ids as string[]) : [],
+    isDefault: !!row.is_default,
   };
 }
 
 export async function listDashboards(workspaceId: string): Promise<Dashboard[]> {
   const { data, error } = await table()
-    .select("id, name, report_ids")
+    .select("id, name, report_ids, is_default")
     .eq("workspace_id", workspaceId)
     .order("created_at", { ascending: true });
   if (error) {
@@ -48,10 +51,10 @@ export async function listDashboards(workspaceId: string): Promise<Dashboard[]> 
   return (data ?? []).map(fromRow);
 }
 
-export async function createDashboard(workspaceId: string, userId: string, name: string): Promise<Dashboard> {
+export async function createDashboard(workspaceId: string, userId: string, name: string, isDefault = false): Promise<Dashboard> {
   const { data, error } = await table()
-    .insert({ workspace_id: workspaceId, user_id: userId, name, report_ids: [] })
-    .select("id, name, report_ids")
+    .insert({ workspace_id: workspaceId, user_id: userId, name, report_ids: [], is_default: isDefault })
+    .select("id, name, report_ids, is_default")
     .single();
   if (error || !data) {
     console.error("[insights] falha ao criar painel:", error);

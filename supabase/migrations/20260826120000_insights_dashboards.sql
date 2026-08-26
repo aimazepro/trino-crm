@@ -19,3 +19,12 @@ create policy "dashboards_owner" on public.dashboards
   for all
   using ((select auth.uid()) = user_id)
   with check ((select auth.uid()) = user_id);
+
+-- "Meu Painel" deixou de ser uma grade fixa e virou um painel de verdade:
+-- uma linha por usuário marcada como padrão, com os mesmos cards arrastáveis.
+alter table public.dashboards
+  add column if not exists is_default boolean not null default false;
+
+create unique index if not exists dashboards_one_default_per_user
+  on public.dashboards (workspace_id, user_id)
+  where is_default;

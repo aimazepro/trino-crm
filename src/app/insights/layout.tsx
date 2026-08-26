@@ -22,9 +22,8 @@ function InsightsShell({ children }: { children: ReactNode }) {
   const pathname = usePathname();
   const router = useRouter();
   const {
-    savedReports, createDefaultReports, sync, deleteReport, deleteAllReports,
-    patchReport, dashboardName, renameDashboard,
-    dashboards, createPanel, renamePanel, deletePanel,
+    savedReports, sync, deleteReport, patchReport,
+    dashboards, createPanel, renamePanel, deletePanel, defaultPanelId,
   } = useInsights();
 
   const [showPanelModal, setShowPanelModal] = useState(false);
@@ -54,9 +53,10 @@ function InsightsShell({ children }: { children: ReactNode }) {
   }, [pathname]);
 
   const activePanelId = useMemo(() => {
+    if (pathname === "/insights") return defaultPanelId;
     const match = pathname?.match(/^\/insights\/dashboards\/([^/]+)$/);
     return match ? match[1] : null;
-  }, [pathname]);
+  }, [pathname, defaultPanelId]);
 
   const handleCreatePanel = async () => {
     const name = panelName.trim();
@@ -99,16 +99,6 @@ function InsightsShell({ children }: { children: ReactNode }) {
     deleteReport(id);
   };
 
-  const handleDeleteDashboard = () => {
-    if (!confirm("Excluir o painel apaga todos os relatórios salvos. Continuar?")) return;
-    deleteAllReports();
-  };
-
-  const handleRenameDashboard = () => {
-    const next = prompt("Novo nome do painel:", dashboardName);
-    if (next) renameDashboard(next);
-  };
-
   return (
     <div className="flex h-full w-full overflow-hidden bg-zinc-50">
       <InsightsSidebar
@@ -118,13 +108,9 @@ function InsightsShell({ children }: { children: ReactNode }) {
         onCloseCreateDropdown={() => setShowCreateDropdown(false)}
         onCreateReportZero={() => { window.location.href = "/insights/reports/new"; }}
         onCreateDashboard={() => { setShowCreateDropdown(false); setPanelName(""); setShowPanelModal(true); }}
-        onRenameDashboard={handleRenameDashboard}
         searchQuery={searchQuery}
         onSearchChange={setSearchQuery}
-        dashboardPopulated={savedReports.length > 0}
         activeReportId={activeReportId}
-        onSelectReport={() => {}}
-        onDeleteDashboard={handleDeleteDashboard}
         savedReports={savedReports}
         filteredReports={filteredReports}
         editingReportId={editingReportId}
@@ -134,7 +120,6 @@ function InsightsShell({ children }: { children: ReactNode }) {
         onStartRename={handleStartRename}
         onSaveRename={handleSaveRename}
         onDeleteReport={handleDeleteReport}
-        dashboardName={dashboardName}
         panels={dashboards}
         activePanelId={activePanelId}
         onRenamePanel={(id, currentName, e) => {

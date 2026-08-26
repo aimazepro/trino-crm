@@ -27,6 +27,8 @@ interface InsightsCtx {
   // painéis customizados
   dashboards: Dashboard[];
   createPanel: (name: string) => Promise<Dashboard>;
+  defaultPanelId: string | null;
+  reorderPanelReports: (panelId: string, draggedId: string, targetId: string) => void;
   renamePanel: (id: string, name: string) => void;
   deletePanel: (id: string) => Promise<void>;
   addReportToPanel: (panelId: string, reportId: string) => void;
@@ -60,11 +62,35 @@ export function InsightsProvider({ children }: { children: ReactNode }) {
     if (stored) setDashboardName(stored);
   }, []);
 
+  // "Meu Painel" é uma linha de verdade (is_default), criada na primeira visita.
   useEffect(() => {
     let cancelled = false;
-    listDashboards(workspaceId).then((rows) => { if (!cancelled) setDashboards(rows); });
+    (async () => {
+      const rows = await listDashboards(workspaceId);
+      if (cancelled) return;
+      if (rows.some((d) => d.isDefault)) { setDashboards(rows); return; }
+      try {
+        const created = await createDashboard(workspaceId, userId, "Meu Painel", true);
+        if (!cancelled) setDashboards([created, ...rows]);
+      } catch {
+        if (!cancelled) setDashboards(rows);   // corrida entre abas: recarrega na próxima
+      }
+    })();
     return () => { cancelled = true; };
-  }, [workspaceId]);
+  }, [workspaceId, userId]);
+
+  const defaultPanelId = dashboards.find((d) => d.isDefault)?.id ?? null;
+
+  const reorderPanelReports = useCallback((panelId: string, draggedId: string, targetId: string) => {
+    setDashboards((prev) => prev.map((d) => {
+      if (d.id !== panelId) return d;
+      const ids = d.reportIds.filter((r) => r !== draggedId);
+      const at = ids.indexOf(targetId);
+      ids.splice(at < 0 ? ids.length : at, 0, draggedId);
+      saveDashboardReports(panelId, ids);
+      return { ...d, reportIds: ids };
+    }));
+  }, []);
 
   const createPanel = useCallback(async (name: string) => {
     const panel = await createDashboard(workspaceId, userId, name);
@@ -117,12 +143,18 @@ export function InsightsProvider({ children }: { children: ReactNode }) {
     try {
       await sync(reports);          // grava primeiro; só pinta a tela se o banco confirmar
       setSavedReports(reports);
+      const target = dashboards.find((d) => d.isDefault);
+      if (target) {
+        const ids = reports.map((r) => r.id);
+        setDashboards((prev) => prev.map((d) => (d.id === target.id ? { ...d, reportIds: ids } : d)));
+        await saveDashboardReports(target.id, ids);
+      }
     } catch (err) {
       setSeedError(err instanceof Error ? err.message : "Falha ao criar os relatórios.");
     } finally {
       setSeeding(false);
     }
-  }, [seeding, state.pipelines, sync, setSavedReports]);
+  }, [seeding, state.pipelines, sync, setSavedReports, dashboards]);
 
   const deleteReport = useCallback(async (id: string) => {
     setSavedReports((prev) => prev.filter((r) => r.id !== id));
@@ -145,6 +177,7 @@ export function InsightsProvider({ children }: { children: ReactNode }) {
       createDefaultReports, sync, deleteReport, deleteAllReports, patchReport,
       dashboardName, renameDashboard,
       dashboards, createPanel, renamePanel, deletePanel, addReportToPanel, removeReportFromPanel,
+      defaultPanelId, reorderPanelReports,
     }}>
       {children}
     </Ctx.Provider>

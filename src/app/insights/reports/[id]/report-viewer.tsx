@@ -2,7 +2,7 @@
 
 import { useEffect, useMemo, useState, useCallback, useRef } from "react";
 import { useRouter } from "next/navigation";
-import { ArrowLeft, Palette, Download, Trash2, BarChart2, Layers, GitBranchPlus, ChartPie, Table2, Hash, Plus, X } from "lucide-react";
+import { ArrowLeft, Palette, Download, Trash2, BarChart2, Layers, GitBranchPlus, ChartPie, Table2, Hash, Plus, X, ArrowUpDown } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { createClient } from "@/lib/supabase/client";
 import type { Json } from "@/lib/supabase/database.types";
@@ -353,7 +353,39 @@ function FiltersPanel({ report, fieldOptions, ownerNames, pipelines, onUpdate }:
   );
 }
 
-function RecordsTable({ records, onExport }: { records: { id: string; title: string; value: number; stageName: string; pipelineName: string; ownerName: string; createdAt: string; status: string }[]; onExport: () => void }) {
+type RecordRow = { id: string; title: string; value: number; stageName: string; pipelineName: string; ownerName: string; createdAt: string; status: string };
+
+const RECORD_COLUMNS: { key: keyof RecordRow; label: string }[] = [
+  { key: "title", label: "Titulo" },
+  { key: "value", label: "Valor" },
+  { key: "stageName", label: "Etapa" },
+  { key: "pipelineName", label: "Funil" },
+  { key: "ownerName", label: "Responsavel" },
+  { key: "createdAt", label: "Criado em" },
+  { key: "status", label: "Status" },
+];
+
+function RecordsTable({ records, onExport }: { records: RecordRow[]; onExport: () => void }) {
+  const [sortKey, setSortKey] = useState<keyof RecordRow>("createdAt");
+  const [sortDir, setSortDir] = useState<"asc" | "desc">("desc");
+
+  const sorted = useMemo(() => {
+    const rows = [...records];
+    rows.sort((a, b) => {
+      let cmp: number;
+      if (sortKey === "value") cmp = a.value - b.value;
+      else if (sortKey === "createdAt") cmp = new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime();
+      else cmp = String(a[sortKey]).localeCompare(String(b[sortKey]), "pt-BR");
+      return sortDir === "asc" ? cmp : -cmp;
+    });
+    return rows;
+  }, [records, sortKey, sortDir]);
+
+  const toggleSort = (key: keyof RecordRow) => {
+    if (key === sortKey) setSortDir((d) => (d === "asc" ? "desc" : "asc"));
+    else { setSortKey(key); setSortDir("asc"); }
+  };
+
   return (
     <div className="rounded-xl border border-zinc-200 bg-white overflow-hidden">
       <div className="flex items-center justify-between px-6 py-4 border-b border-zinc-200">
@@ -361,24 +393,33 @@ function RecordsTable({ records, onExport }: { records: { id: string; title: str
           <h2 className="text-base font-semibold text-zinc-900">Registros</h2>
           <p className="text-sm text-zinc-500 mt-0.5">{records.length} registros</p>
         </div>
-        <button onClick={onExport} className="flex items-center gap-1.5 rounded-lg border border-zinc-200 px-3 py-1.5 text-sm text-zinc-600 hover:bg-zinc-50">
+        <button onClick={onExport} className="flex items-center gap-1.5 rounded-lg border border-zinc-200 px-3 py-1.5 text-sm text-zinc-600 hover:bg-zinc-50 cursor-pointer">
           <Download className="h-3.5 w-3.5" /> Exportar
         </button>
       </div>
       <div className="overflow-auto max-h-[600px]">
-        {records.length === 0 ? (
+        {sorted.length === 0 ? (
           <div className="flex items-center justify-center h-48 text-sm text-zinc-400">Nenhum registro encontrado</div>
         ) : (
           <table className="w-full text-sm">
             <thead>
               <tr className="border-b border-zinc-200 bg-zinc-50">
-                {["Titulo", "Valor", "Etapa", "Funil", "Responsavel", "Criado em", "Status"].map((h) => (
-                  <th key={h} className="text-left py-2.5 px-4 font-semibold text-zinc-600 whitespace-nowrap">{h}</th>
+                {RECORD_COLUMNS.map((col) => (
+                  <th
+                    key={col.key}
+                    onClick={() => toggleSort(col.key)}
+                    className="text-left py-2.5 px-4 font-semibold text-zinc-600 whitespace-nowrap select-none cursor-pointer hover:bg-zinc-100 transition-colors"
+                  >
+                    <span className="inline-flex items-center gap-1.5">
+                      {col.label}
+                      <ArrowUpDown className={cn("h-3.5 w-3.5", sortKey === col.key ? "text-emerald-600" : "text-zinc-300")} />
+                    </span>
+                  </th>
                 ))}
               </tr>
             </thead>
             <tbody>
-              {records.map((r) => (
+              {sorted.map((r) => (
                 <tr key={r.id} onClick={() => { window.location.href = `/negocios/${r.id}`; }} className="border-b border-zinc-100 hover:bg-zinc-50 cursor-pointer">
                   <td className="py-2.5 px-4 truncate max-w-[200px]">{r.title}</td>
                   <td className="py-2.5 px-4">R$&nbsp;{r.value.toLocaleString("pt-BR")}</td>
@@ -386,7 +427,7 @@ function RecordsTable({ records, onExport }: { records: { id: string; title: str
                   <td className="py-2.5 px-4">{r.pipelineName}</td>
                   <td className="py-2.5 px-4">{r.ownerName}</td>
                   <td className="py-2.5 px-4">{new Date(r.createdAt).toLocaleString("pt-BR", { day: "2-digit", month: "short", year: "numeric", hour: "2-digit", minute: "2-digit" })}</td>
-                  <td className="py-2.5 px-4">{r.status}</td>
+                  <td className={cn("py-2.5 px-4 font-medium", r.status === "Ganho" ? "text-emerald-600" : r.status === "Perdido" ? "text-red-500" : "text-zinc-500")}>{r.status}</td>
                 </tr>
               ))}
             </tbody>
