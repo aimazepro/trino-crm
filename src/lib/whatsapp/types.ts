@@ -55,6 +55,28 @@ export function applySignature(
   return `*${name}*:\n${text}`;
 }
 
+/** Label the conversation list falls back to when a message has no text body. */
+const PREVIEW_BY_TYPE: Record<MessageType, string> = {
+  text: "",
+  image: "📷 Imagem",
+  audio: "🎤 Áudio",
+  video: "🎬 Vídeo",
+  document: "📄 Documento",
+  sticker: "Figurinha",
+  unsupported: "Mensagem não suportada",
+};
+
+/**
+ * What the conversation list shows as the last-message preview. A media
+ * message with no caption used to fall back to the raw stored filename
+ * ("audio-1787783822175.webm") — this is the one place both send and ingest
+ * go through now, so neither can regress back to that.
+ */
+export function previewFor(type: MessageType, body?: string | null): string {
+  if (body) return body.slice(0, 200);
+  return PREVIEW_BY_TYPE[type] ?? "";
+}
+
 export interface QrResult {
   base64: string | null;
   code: string | null;

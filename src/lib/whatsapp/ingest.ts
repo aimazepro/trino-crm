@@ -9,24 +9,11 @@ import { putMedia } from "./storage";
 import { toPlayable, withExtension } from "./audio";
 import { getDriver } from "./index";
 import { resolveConversationLinks } from "./linking";
+import { previewFor } from "./types";
 import type { InboundEvent, InboundMessage, WhatsAppConnection } from "./types";
 
 /** How long a QR stays valid before the UI should ask for a fresh one. */
 const QR_TTL_MS = 40_000;
-
-const PREVIEW_BY_TYPE: Record<string, string> = {
-  image: "📷 Imagem",
-  audio: "🎤 Áudio",
-  video: "🎬 Vídeo",
-  document: "📄 Documento",
-  sticker: "Figurinha",
-  unsupported: "Mensagem não suportada",
-};
-
-function previewFor(message: Pick<InboundMessage, "type" | "body">): string {
-  if (message.body) return message.body.slice(0, 200);
-  return PREVIEW_BY_TYPE[message.type] ?? "";
-}
 
 /* eslint-disable @typescript-eslint/no-explicit-any */
 
@@ -183,7 +170,7 @@ async function storeMessage(
 
   const patch: Partial<Database["public"]["Tables"]["whatsapp_conversations"]["Update"]> = {
     last_message_at: message.timestamp,
-    last_message_preview: previewFor(message),
+    last_message_preview: previewFor(message.type, message.body),
     last_message_from_me: message.fromMe,
     updated_at: new Date().toISOString(),
   };

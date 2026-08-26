@@ -13,7 +13,7 @@ import { getDriver, isGroupJid, jidToPhone } from "@/lib/whatsapp";
 import { putMedia } from "@/lib/whatsapp/storage";
 import { toPlayable, toVoiceNote, withExtension } from "@/lib/whatsapp/audio";
 import { resolveConversationLinks } from "@/lib/whatsapp/linking";
-import { applySignature } from "@/lib/whatsapp/types";
+import { applySignature, previewFor } from "@/lib/whatsapp/types";
 import type { MessageType, OutboundMedia, WhatsAppConnection } from "@/lib/whatsapp/types";
 
 /* eslint-disable @typescript-eslint/no-explicit-any */
@@ -302,7 +302,7 @@ export async function sendWhatsAppMessage(
       .from("whatsapp_conversations")
       .update({
         last_message_at: new Date().toISOString(),
-        last_message_preview: body ?? media?.filename ?? "",
+        last_message_preview: previewFor(messageType, body),
         last_message_from_me: true,
         unread_count: 0,
         manually_unread: false,
