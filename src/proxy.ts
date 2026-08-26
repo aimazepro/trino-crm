@@ -40,6 +40,13 @@ export async function proxy(request: NextRequest) {
 // the route's own CRON_SECRET check was dead code, every call got a 307 to
 // /login before ever reaching it. Caught before the cron job was scheduled,
 // not after.
+// api/telephony/webhook is the carrier posting call events: no session cookie,
+// authenticates by HMAC signature inside the route against the account's
+// webhook_secret. Same failure mode as api/cron above -- a 307 to /login reads
+// as success to the carrier, so the hangup event never arrives, the call never
+// finalizes, and the minute is never billed. Note this excludes ONLY the
+// webhook subpath: every other api/telephony route is session-based and must
+// keep going through the check.
 export const config = {
-  matcher: ["/((?!_next/static|_next/image|favicon.ico|api/auth/gmail/callback|api/auth/google-calendar/callback|api/track|api/whatsapp/webhook|api/whatsapp/queue|api/convites/aceitar|api/automations|api/v1|api/cron|.*\\.(?:svg|png|jpg|jpeg|gif|webp)$).*)"],
+  matcher: ["/((?!_next/static|_next/image|favicon.ico|api/auth/gmail/callback|api/auth/google-calendar/callback|api/track|api/whatsapp/webhook|api/whatsapp/queue|api/telephony/webhook|api/convites/aceitar|api/automations|api/v1|api/cron|.*\\.(?:svg|png|jpg|jpeg|gif|webp)$).*)"],
 };
