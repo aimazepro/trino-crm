@@ -1,14 +1,16 @@
 // Analise da ligacao por IA.
 //
-// Materia-prima: a transcricao capturada no navegador durante a chamada, mais as
-// notas e a classificacao do vendedor. Transcricao e analise ficam em colunas
-// separadas de proposito -- a transcricao nunca muda, a analise pode ser
-// regerada com outro prompt (ou outro provedor) sem destruir o original.
+// Materia-prima: a transcricao da gravacao, mais as notas e a classificacao do
+// vendedor. Transcricao e analise ficam em colunas separadas de proposito -- a
+// transcricao nunca muda, a analise pode ser regerada com outro prompt (ou outro
+// provedor) sem destruir o original. Quem transcreve e esta rota, uma vez por
+// ligacao: o texto fica salvo e a reanalise nao paga transcricao de novo.
 //
 // Qual IA responde e decidido em src/lib/telephony/analysis. Esta rota nao sabe.
 
 import { NextRequest, NextResponse } from "next/server";
 import { analyzeCall, resolveAnalysisProvider } from "@/lib/telephony/analysis";
+import { geminiCanTranscribe, transcribeWithGemini } from "@/lib/telephony/analysis/gemini";
 import {
   createTelephonyAdmin,
   getSessionUser,
@@ -16,7 +18,9 @@ import {
 } from "@/lib/telephony/server";
 
 export const dynamic = "force-dynamic";
-export const maxDuration = 60;
+export const maxDuration = 300;
+
+const BUCKET = "call-recordings";
 
 export async function POST(_req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   const user = await getSessionUser();
@@ -38,15 +42,47 @@ export async function POST(_req: NextRequest, { params }: { params: Promise<{ id
 
     const { data: call } = await admin
       .from("telephony_calls")
-      .select("id, to_number, duration_seconds, status, disposition, notes, transcript, contact_id, deal_id, script_id, started_at")
+      .select("id, to_number, duration_seconds, status, disposition, notes, transcript, contact_id, deal_id, script_id, started_at, recording_status, recording_key")
       .eq("id", id)
       .eq("workspace_id", workspaceId)
       .maybeSingle();
 
     if (!call) return NextResponse.json({ error: "Chamada não encontrada" }, { status: 404 });
 
-    const transcript = (call.transcript ?? "").trim();
+    let transcript = (call.transcript ?? "").trim();
     const notes = (call.notes ?? "").trim();
+
+    // Transcricao a partir da gravacao. Antes ela vinha da Web Speech API do
+    // navegador, que so o Chrome implementa -- no Safari nenhuma ligacao gerou
+    // transcript, e o botao Analisar ficava desabilitado. Transcrever aqui vale
+    // para todo navegador, e o texto fica guardado: a proxima analise da mesma
+    // ligacao nao paga de novo.
+    if (
+      !transcript &&
+      call.recording_status === "stored" &&
+      call.recording_key?.startsWith("supabase:") &&
+      geminiCanTranscribe()
+    ) {
+      try {
+        const path = call.recording_key.slice("supabase:".length);
+        const { data: blob } = await admin.storage.from(BUCKET).download(path);
+        if (blob) {
+          const audio = new Uint8Array(await blob.arrayBuffer());
+          const text = await transcribeWithGemini(audio, blob.type || "audio/mp4");
+          if (text) {
+            transcript = text;
+            await admin.from("telephony_calls").update({ transcript }).eq("id", call.id);
+          }
+        }
+      } catch (err) {
+        // Falhar aqui nao pode matar a analise: as notas do vendedor ainda sao
+        // material valido, e a ligacao ja esta salva de qualquer jeito.
+        console.error(
+          "telephony/analyze transcribe",
+          err instanceof Error ? err.message : String(err),
+        );
+      }
+    }
 
     if (!transcript && !notes) {
       return NextResponse.json(
@@ -117,7 +153,7 @@ export async function POST(_req: NextRequest, { params }: { params: Promise<{ id
       .update({ analysis, analyzed_at: analyzedAt })
       .eq("id", call.id);
 
-    return NextResponse.json({ analysis, analyzedAt, provider });
+    return NextResponse.json({ analysis, analyzedAt, provider, transcript });
   } catch (err) {
     const message = err instanceof Error ? err.message : "Erro desconhecido";
     console.error("telephony/analyze", message);

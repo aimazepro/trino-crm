@@ -161,7 +161,14 @@ export function DealCallsTab({
       if (!res.ok) throw new Error(data?.error ?? "Falha ao analisar");
       setCalls((cs) =>
         cs.map((c) =>
-          c.id === callId ? { ...c, analysis: data.analysis, analyzedAt: data.analyzedAt } : c,
+          c.id === callId
+            ? {
+                ...c,
+                analysis: data.analysis,
+                analyzedAt: data.analyzedAt,
+                hasTranscript: c.hasTranscript || Boolean(data.transcript),
+              }
+            : c,
         ),
       );
       setExpanded(callId);
@@ -254,7 +261,10 @@ export function DealCallsTab({
             {calls.map((c) => {
               const outcome = outcomeOf(c);
               const isOpen = expanded === c.id;
-              const canAnalyze = c.hasTranscript || Boolean(c.notes?.trim());
+              // Gravacao sozinha ja basta: quem transcreve e o servidor, na
+              // rota de analise. Exigir transcript aqui deixava o botao
+              // desabilitado em todo navegador que nao fosse o Chrome.
+              const canAnalyze = c.hasTranscript || c.hasRecording || Boolean(c.notes?.trim());
 
               return (
                 <div key={c.id}>
@@ -333,7 +343,7 @@ export function DealCallsTab({
                           title={
                             canAnalyze
                               ? "Gerar análise da ligação"
-                              : "Sem transcrição nem notas para analisar"
+                              : "Sem gravação nem notas para analisar"
                           }
                           className="flex shrink-0 flex-col items-center rounded-xl bg-purple-50 px-3 py-1.5 transition-colors hover:bg-purple-100 disabled:cursor-not-allowed disabled:opacity-50"
                         >

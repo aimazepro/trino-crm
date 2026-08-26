@@ -21,6 +21,7 @@ import {
   Zap,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { MicCheck } from "@/components/telephony/mic-check";
 import {
   formatCents,
   useTelephony,
@@ -351,6 +352,11 @@ export default function TelefonePage() {
           ))}
         </div>
       </div>
+
+      {/* Microfone do vendedor. Antes do card de LGPD porque é o primeiro
+          obstáculo real: sem permissão não há gravação, e sem gravação não há
+          transcrição nem análise. */}
+      {active && <MicCheck />}
 
       {/* Gravação e LGPD */}
       {isOwner && active && (

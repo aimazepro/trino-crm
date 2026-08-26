@@ -28,25 +28,53 @@ export function CallAudioPlayer({ src }: { src: string }) {
   const [speed, setSpeed] = useState(1);
   const [menu, setMenu] = useState(false);
   const [error, setError] = useState(false);
+  const probingRef = useRef(false);
 
   useEffect(() => {
     const el = audioRef.current;
     if (!el) return;
 
-    const onTime = () => setCurrent(el.currentTime);
-    const onMeta = () => setDuration(Number.isFinite(el.duration) ? el.duration : 0);
+    const onTime = () => {
+      // Durante a sondagem de duração o currentTime é lixo: não mostrar.
+      if (!probingRef.current) setCurrent(el.currentTime);
+    };
+
+    // Gravação de MediaRecorder sai sem duração no cabeçalho, então o navegador
+    // reporta Infinity e a barra de progresso nunca sai do lugar. Buscar um
+    // instante impossível força o cálculo; ao chegar no fim ele vira o número
+    // real e a posição volta para zero.
+    const onMeta = () => {
+      if (Number.isFinite(el.duration)) {
+        setDuration(el.duration);
+        return;
+      }
+      if (probingRef.current) return;
+      probingRef.current = true;
+      const done = () => {
+        if (!Number.isFinite(el.duration)) return;
+        el.removeEventListener("durationchange", done);
+        setDuration(el.duration);
+        probingRef.current = false;
+        el.currentTime = 0;
+        setCurrent(0);
+      };
+      el.addEventListener("durationchange", done);
+      try {
+        el.currentTime = 1e101;
+      } catch {
+        probingRef.current = false;
+      }
+    };
     const onEnd = () => setPlaying(false);
     const onErr = () => setError(true);
 
     el.addEventListener("timeupdate", onTime);
     el.addEventListener("loadedmetadata", onMeta);
-    el.addEventListener("durationchange", onMeta);
     el.addEventListener("ended", onEnd);
     el.addEventListener("error", onErr);
     return () => {
       el.removeEventListener("timeupdate", onTime);
       el.removeEventListener("loadedmetadata", onMeta);
-      el.removeEventListener("durationchange", onMeta);
       el.removeEventListener("ended", onEnd);
       el.removeEventListener("error", onErr);
     };

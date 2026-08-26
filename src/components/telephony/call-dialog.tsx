@@ -35,6 +35,8 @@ import { fillScript, type ScriptContext } from "@/lib/telephony/script-vars";
 import { ScriptList, useScripts, type CallScript } from "./script-picker";
 import { ActivityModal } from "@/components/deal/activity-modal";
 import { useCrm } from "@/contexts/crm-context";
+import { permanentPermissionHint, useMicPermission } from "@/hooks/use-mic-permission";
+import { RECORDING_CONSTRAINTS, recorderOptions } from "@/lib/telephony/recording";
 
 type Phase = "script" | "starting" | "live" | "wrapup" | "error";
 
@@ -58,14 +60,56 @@ const DTMF: Record<string, [number, number]> = {
   "*": [941, 1209], "0": [941, 1336], "#": [941, 1477],
 };
 
-interface SpeechRecognitionLike extends EventTarget {
-  lang: string;
-  continuous: boolean;
-  interimResults: boolean;
-  start(): void;
-  stop(): void;
-  onresult: ((e: { resultIndex: number; results: ArrayLike<{ isFinal: boolean; 0: { transcript: string } }> }) => void) | null;
-  onerror: ((e: unknown) => void) | null;
+// Estado do microfone antes de discar. Fica no passo do script de proposito:
+// e o unico momento em que dá para resolver permissão sem custar conversa.
+function MicNotice({ mic }: { mic: ReturnType<typeof useMicPermission> }) {
+  if (mic.state === "unsupported") {
+    return (
+      <p className="flex items-start gap-2 rounded-xl bg-amber-50 px-3 py-2 text-xs text-amber-800">
+        <AlertCircle className="mt-0.5 h-3.5 w-3.5 shrink-0" />
+        Este navegador não grava áudio. A ligação funciona, mas sem gravação nem análise.
+      </p>
+    );
+  }
+
+  if (mic.state === "denied") {
+    return (
+      <p className="flex items-start gap-2 rounded-xl bg-red-50 px-3 py-2 text-xs text-red-700">
+        <MicOff className="mt-0.5 h-3.5 w-3.5 shrink-0" />
+        <span>
+          Microfone bloqueado para este site — sem gravação, transcrição nem análise.{" "}
+          {permanentPermissionHint()}
+        </span>
+      </p>
+    );
+  }
+
+  if (mic.state === "granted") {
+    return (
+      <p className="flex items-center gap-2 rounded-xl bg-green-50 px-3 py-2 text-xs text-green-700">
+        <Mic className="h-3.5 w-3.5 shrink-0" />
+        Microfone liberado{mic.temporary ? " só para esta visita" : ""}.
+        {mic.temporary ? ` ${permanentPermissionHint()}` : ""}
+      </p>
+    );
+  }
+
+  return (
+    <div className="flex items-center gap-2 rounded-xl bg-zinc-50 px-3 py-2 text-xs text-zinc-600">
+      <Mic className="h-3.5 w-3.5 shrink-0 text-zinc-400" />
+      <span className="min-w-0 flex-1">
+        O navegador vai pedir o microfone ao discar. Libere agora para não perder o começo da
+        conversa.
+      </span>
+      <button
+        onClick={() => void mic.request()}
+        disabled={mic.requesting}
+        className="shrink-0 rounded-lg bg-white px-2.5 py-1 font-semibold text-purple-700 ring-1 ring-zinc-200 transition-colors hover:bg-purple-50 disabled:opacity-50"
+      >
+        {mic.requesting ? "Pedindo..." : "Liberar microfone"}
+      </button>
+    </div>
+  );
 }
 
 export interface CallDialogProps {
@@ -111,12 +155,11 @@ export function CallDialog({
 
   const { scripts, loading: loadingScripts } = useScripts();
   const { addActivity } = useCrm();
+  const mic = useMicPermission();
 
   const streamRef = useRef<MediaStream | null>(null);
   const recorderRef = useRef<MediaRecorder | null>(null);
   const chunksRef = useRef<Blob[]>([]);
-  const recognitionRef = useRef<SpeechRecognitionLike | null>(null);
-  const transcriptRef = useRef("");
   const audioCtxRef = useRef<AudioContext | null>(null);
 
   const ctx: ScriptContext = {
@@ -127,14 +170,16 @@ export function CallDialog({
     telefone: toNumber,
   };
 
-  // ---- captura de áudio e transcrição --------------------------------------
+  // ---- captura de áudio ----------------------------------------------------
 
   const startCapture = useCallback(async () => {
     try {
-      const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+      const stream = await navigator.mediaDevices.getUserMedia({
+        audio: RECORDING_CONSTRAINTS,
+      });
       streamRef.current = stream;
 
-      const recorder = new MediaRecorder(stream);
+      const recorder = new MediaRecorder(stream, recorderOptions());
       recorder.ondataavailable = (e) => {
         if (e.data.size > 0) chunksRef.current.push(e.data);
       };
@@ -145,41 +190,10 @@ export function CallDialog({
       setWarning(
         "Sem acesso ao microfone: a ligação continua, mas sem gravação nem transcrição.",
       );
-      return;
-    }
-
-    // Web Speech API: só o Chrome implementa. Sem ela a ligação funciona
-    // igual, só não gera transcrição para a análise.
-    const w = window as unknown as {
-      SpeechRecognition?: new () => SpeechRecognitionLike;
-      webkitSpeechRecognition?: new () => SpeechRecognitionLike;
-    };
-    const Ctor = w.SpeechRecognition ?? w.webkitSpeechRecognition;
-    if (!Ctor) return;
-
-    try {
-      const rec = new Ctor();
-      rec.lang = "pt-BR";
-      rec.continuous = true;
-      rec.interimResults = false;
-      rec.onresult = (e) => {
-        for (let i = e.resultIndex; i < e.results.length; i += 1) {
-          const r = e.results[i];
-          if (r.isFinal) transcriptRef.current += `${r[0].transcript.trim()} `;
-        }
-      };
-      rec.onerror = () => {};
-      rec.start();
-      recognitionRef.current = rec;
-    } catch {
-      // Transcrição é opcional: falhar aqui não pode atrapalhar a ligação.
     }
   }, []);
 
   const stopCapture = useCallback(async (): Promise<Blob | null> => {
-    recognitionRef.current?.stop();
-    recognitionRef.current = null;
-
     const recorder = recorderRef.current;
     let blob: Blob | null = null;
 
@@ -238,6 +252,19 @@ export function CallDialog({
   // ---- ciclo da chamada ----------------------------------------------------
 
   const placeCall = useCallback(async () => {
+    // A permissão é pedida aqui, antes de discar. Pedir dentro da chamada
+    // custava os primeiros segundos da conversa -- que são os que decidem --
+    // com o vendedor clicando num diálogo do navegador em vez de falar.
+    if (mic.state !== "granted" && mic.state !== "unsupported") {
+      const ok = await mic.request();
+      if (!ok) {
+        setWarning(
+          "Microfone bloqueado: a ligação acontece, mas sem gravação, transcrição nem análise. " +
+            permanentPermissionHint(),
+        );
+      }
+    }
+
     setPhase("starting");
     setError(null);
     try {
@@ -265,7 +292,7 @@ export function CallDialog({
       setError(err instanceof Error ? err.message : "Erro desconhecido");
       setPhase("error");
     }
-  }, [toNumber, dealId, contactId, script, startCapture]);
+  }, [toNumber, dealId, contactId, script, startCapture, mic]);
 
   useEffect(() => {
     if (phase !== "live") return;
@@ -310,7 +337,6 @@ export function CallDialog({
         body: JSON.stringify({
           disposition: disposition ?? undefined,
           notes: notes || undefined,
-          transcript: transcriptRef.current.trim() || undefined,
         }),
       });
 
@@ -319,18 +345,25 @@ export function CallDialog({
       // a superfície de LGPD sem contrapartida nenhuma. O áudio é simplesmente
       // descartado aqui, e nunca chega a sair do navegador.
       const worthKeeping = chosen ? chosen.connected : true;
+      let recordingSaved = false;
       if (worthKeeping && blob && blob.size > 0) {
-        await fetch(`/api/telephony/calls/${callId}/recording`, {
+        const up = await fetch(`/api/telephony/calls/${callId}/recording`, {
           method: "POST",
           headers: { "Content-Type": blob.type || "audio/webm" },
           body: blob,
         });
+        recordingSaved = up.ok;
       }
 
       // Análise sai na hora, enquanto o vendedor ainda está na tela: pedir para
       // ele voltar depois e clicar num botão é garantia de que ninguém lê.
       // Falha aqui não trava o fechamento -- o botão Analisar continua na lista.
-      const hasMaterial = Boolean(transcriptRef.current.trim() || notes.trim());
+      //
+      // A gravação sozinha já é material: quem transcreve é o servidor, na rota
+      // de análise. O navegador não transcreve mais nada -- a Web Speech API só
+      // existia no Chrome e nunca devolveu uma palavra no Safari, o que deixava
+      // o botão Analisar desabilitado em toda ligação sem notas.
+      const hasMaterial = recordingSaved || Boolean(notes.trim());
       if (hasMaterial) {
         setSavingLabel("Analisando ligação...");
         try {
@@ -351,7 +384,6 @@ export function CallDialog({
 
   useEffect(() => {
     return () => {
-      recognitionRef.current?.stop();
       streamRef.current?.getTracks().forEach((t) => t.stop());
     };
   }, []);
@@ -428,19 +460,23 @@ export function CallDialog({
                 Escolha o script antes de discar
               </h3>
             </div>
-            <ScriptList
-              scripts={scripts}
-              loading={loadingScripts}
-              ctx={ctx}
-              onPick={(s) => {
-                setScript(s);
-                void placeCall();
-              }}
-              emptyHint="Nenhum script cadastrado ainda. Você pode ligar sem roteiro e criar um depois em Configurações → Scripts de Ligação."
-            />
+            <div className="flex-1 overflow-y-auto">
+              <ScriptList
+                scripts={scripts}
+                loading={loadingScripts}
+                ctx={ctx}
+                onPick={(s) => {
+                  setScript(s);
+                  void placeCall();
+                }}
+                emptyHint="Nenhum script cadastrado ainda. Você pode ligar sem roteiro e criar um depois em Configurações → Scripts de Ligação."
+              />
+            </div>
+            <MicNotice mic={mic} />
+
             <button
               onClick={() => void placeCall()}
-              className="mt-auto w-full rounded-xl border border-zinc-200 py-3 text-sm font-medium text-zinc-600 transition-colors hover:bg-zinc-50"
+              className="w-full rounded-xl border border-zinc-200 py-3 text-sm font-medium text-zinc-600 transition-colors hover:bg-zinc-50"
             >
               Ligar sem script
             </button>
@@ -640,7 +676,7 @@ export function CallDialog({
             <div className="flex items-center gap-2">
               <span className="text-xs text-zinc-400">
                 Duração {formatDuration(seconds)}
-                {transcriptRef.current.trim() ? " · transcrição capturada" : ""}
+                {recording ? " · gravando" : ""}
               </span>
               <button
                 onClick={() => void finish()}
