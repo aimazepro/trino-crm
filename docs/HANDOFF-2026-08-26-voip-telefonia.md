@@ -27,6 +27,13 @@ específico, todas falam com a interface `TelephonyProvider`.
 escolhe entre `gemini` (ativo) e `claude`. Prompt e schema são compartilhados,
 então trocar de IA não muda o formato salvo no banco.
 
+**Transcrição é do servidor, não do navegador.** A rota de análise transcreve a
+gravação guardada (Gemini, áudio inline, teto de 18 MB ≈ 18 min) e salva o texto
+antes de analisar; reanalisar não transcreve de novo. Isso é independente de
+`CALL_ANALYSIS_PROVIDER`: o Claude não recebe áudio, então quem transcreve é
+sempre o Gemini. A versão anterior usava a Web Speech API do navegador, e ela
+rendeu transcript vazio em 100% das ligações — só o Chrome a implementa.
+
 ### Banco
 
 7 tabelas `telephony_*` + 7 RPCs. Migrations:
@@ -47,8 +54,10 @@ numa transação. Quem impede cobrança dupla é a constraint UNIQUE em
 
 ### NÃO verificado
 
-Tudo que é de navegador: player, gravação, mudo, teclado DTMF, transcrição,
-diálogo de ligação. Passou typecheck, lint e build; ninguém clicou.
+Mudo, teclado DTMF e o fluxo do diálogo clicado ponta a ponta. Passou typecheck,
+lint e build.
+
+Gravação e análise foram verificadas depois do primeiro uso real (ver abaixo).
 
 ---
 
@@ -69,6 +78,33 @@ até haver contrato.
 
 ---
 
+## Sessão 2 (2026-08-26, tarde): o que o uso real quebrou
+
+Três sintomas, todos confirmados com medição antes de qualquer código.
+
+**Áudio chiado.** Duas gravações de produção medidas com ffmpeg: AAC-LC mono
+44,1 kHz a **29 kb/s** numa, 132 kb/s na outra — mesmo código, bitrate diferente
+a cada chamada. A 29 kb/s o encoder corta tudo acima de 8 kHz (sobra −64 dB) e
+preenche a banda que resta com ruído sintético. **O piso de ruído dos arquivos é
+−inf dB**, ou seja, silêncio digital: não era o microfone. Causa:
+`new MediaRecorder(stream)` sem `audioBitsPerSecond`, deixando o Safari escolher.
+Agora contêiner e bitrate são explícitos em `src/lib/telephony/recording.ts`.
+
+**Botão Analisar cinza.** `transcript_len = 0` em 100% das ligações. A Web Speech
+API só existe no Chrome, e o teste era no Safari. O gate era
+`hasTranscript || notes`, então sem notas o botão morria. Transcrição foi para o
+servidor; o gate agora aceita gravação.
+
+**Permissão de microfone.** Passou a ser pedida antes de discar, não no meio da
+conversa. Concessão temporária é detectada relendo a Permissions API depois de um
+`getUserMedia` aceito: estado que continua `prompt` = o navegador não guardou.
+
+Teste de microfone em Configurações → Telefone grava com os mesmos parâmetros da
+ligação e mostra codec, bitrate e pico — é o que responde "é a gravação ou é meu
+computador?" sem precisar de log.
+
+---
+
 ## Armadilhas que já custaram tempo — não repetir
 
 1. **Rota chamada por máquina precisa entrar no matcher de `src/proxy.ts`.**
@@ -86,7 +122,15 @@ até haver contrato.
    tipado exige `type`, não `interface`, ou tudo vira `never`.
 6. **`.select()` com concatenação de string** apaga a inferência do PostgREST.
    Literal único.
-7. **Nome de modelo do Gemini expira.** `gemini-2.5-flash` respondeu 404
+7. **`MediaRecorder` sem `audioBitsPerSecond` é aposta.** O Safari escolheu
+   29 kb/s e 132 kb/s para duas chamadas seguidas. A 29 kb/s o AAC troca agudo
+   por ruído sintético e a gravação sai chiada, sem erro nenhum em lugar nenhum.
+   Diagnóstico só sai medindo o arquivo (`ffmpeg -af volumedetect`): piso de
+   ruído −inf dB prova que o microfone está limpo e o culpado é o encoder.
+8. **`duration` de arquivo de `MediaRecorder` é `Infinity`.** Nenhum deles traz
+   duração no cabeçalho. Barra de progresso parada em "0:00" é isso, não erro de
+   player. Buscar `currentTime = 1e101` força o navegador a calcular.
+9. **Nome de modelo do Gemini expira.** `gemini-2.5-flash` respondeu 404
    mandando usar outro. Por isso `GEMINI_MODEL` é env, e o adapter tem retry
    para o 503 de sobrecarga, que aconteceu na primeira chamada real.
 
