@@ -9,13 +9,19 @@ import type { NextConfig } from "next";
 // img-src fica permissivo (https:) porque avatares do Google e anexos/mídia
 // do Gmail e do WhatsApp (Evolution API) vêm de domínios variados que não
 // dá pra prever de antemão -- apertar isso é debt, não bloqueia o item.
+//
+// media-src precisa do domínio do Supabase à parte de connect-src: <audio src=...>
+// não é fetch/XHR, é carregado como recurso de mídia, e ficou faltando aqui desde
+// que o header foi criado -- todo áudio do WhatsApp aponta pra uma signed URL do
+// Storage e o navegador bloqueava o load em silêncio (sem erro visível, só no
+// console), então nenhum áudio da conversa tocava, em nenhum formato.
 const cspHeader = `
   default-src 'self';
   script-src 'self' 'unsafe-inline';
   style-src 'self' 'unsafe-inline';
   img-src 'self' data: blob: https:;
   font-src 'self' data:;
-  media-src 'self' blob:;
+  media-src 'self' blob: https://*.supabase.co;
   connect-src 'self' https://*.supabase.co wss://*.supabase.co;
   frame-src https://www.youtube.com;
   object-src 'none';
