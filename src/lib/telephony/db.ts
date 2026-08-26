@@ -83,22 +83,18 @@ export type TelephonyCallRow = {
   finalized_at: string | null;
   transcript: string | null;
   transcript_source: "browser" | "provider" | "manual" | null;
-  analysis: CallAnalysis | null;
+  analysis: import("./analysis/prompt").Analysis | null;
   analyzed_at: string | null;
   created_at: string;
   updated_at: string;
 }
 
-/** Saida estruturada da analise da ligacao. */
-export type CallAnalysis = {
-  resumo: string;
-  pontos_chave: string[];
-  objecoes: string[];
-  proximos_passos: string[];
-  sentimento: "positivo" | "neutro" | "negativo";
-  qualidade: number;
-  observacao_coach: string;
-};
+/**
+ * Saida estruturada da analise da ligacao. Definida junto com o prompt em
+ * ./analysis/prompt para que o schema pedido a IA e o tipo lido do banco nao
+ * possam divergir em silencio.
+ */
+export type { Analysis as CallAnalysis } from "./analysis/prompt";
 
 export type TelephonyLedgerRow = {
   id: string;

@@ -33,7 +33,8 @@ import { cn } from "@/lib/utils";
 import { formatDuration } from "@/hooks/use-telephony";
 import { fillScript, type ScriptContext } from "@/lib/telephony/script-vars";
 import { ScriptList, useScripts, type CallScript } from "./script-picker";
-import { CreateActivityDialog } from "./create-activity-dialog";
+import { ActivityModal } from "@/components/deal/activity-modal";
+import { useCrm } from "@/contexts/crm-context";
 
 type Phase = "script" | "starting" | "live" | "wrapup" | "error";
 
@@ -101,6 +102,7 @@ export function CallDialog({
   const [notes, setNotes] = useState("");
   const [disposition, setDisposition] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
+  const [savingLabel, setSavingLabel] = useState("Salvando...");
   const [muted, setMuted] = useState(false);
   const [showKeypad, setShowKeypad] = useState(false);
   const [dialed, setDialed] = useState("");
@@ -108,6 +110,7 @@ export function CallDialog({
   const [showActivity, setShowActivity] = useState(false);
 
   const { scripts, loading: loadingScripts } = useScripts();
+  const { addActivity } = useCrm();
 
   const streamRef = useRef<MediaStream | null>(null);
   const recorderRef = useRef<MediaRecorder | null>(null);
@@ -324,11 +327,25 @@ export function CallDialog({
         });
       }
 
+      // Análise sai na hora, enquanto o vendedor ainda está na tela: pedir para
+      // ele voltar depois e clicar num botão é garantia de que ninguém lê.
+      // Falha aqui não trava o fechamento -- o botão Analisar continua na lista.
+      const hasMaterial = Boolean(transcriptRef.current.trim() || notes.trim());
+      if (hasMaterial) {
+        setSavingLabel("Analisando ligação...");
+        try {
+          await fetch(`/api/telephony/calls/${callId}/analyze`, { method: "POST" });
+        } catch {
+          // Silêncio proposital: a análise é um extra, o registro já está salvo.
+        }
+      }
+
       onFinished?.({ callId, disposition });
       onClose();
     } catch (err) {
       setError(err instanceof Error ? err.message : "Falha ao salvar o resultado");
       setSaving(false);
+      setSavingLabel("Salvando...");
     }
   }, [callId, disposition, notes, seconds, provider, stopCapture, onFinished, onClose]);
 
@@ -630,18 +647,33 @@ export function CallDialog({
                 disabled={saving}
                 className="ml-auto rounded-xl bg-purple-600 px-6 py-2.5 text-sm font-semibold text-white transition-colors hover:bg-purple-700 disabled:opacity-50"
               >
-                {saving ? "Salvando..." : "Salvar e fechar"}
+                {saving ? savingLabel : "Salvar e fechar"}
               </button>
             </div>
           </div>
         )}
 
+        {/* O mesmo modal de atividade que o resto do sistema usa. Um segundo
+            formulário só para a telefonia seria outra tela para manter, com
+            outros campos e outro comportamento. */}
         {showActivity && dealId && (
-          <CreateActivityDialog
-            dealId={dealId}
-            defaultTitle={`Retornar ligação para ${contactName ?? "o contato"}`}
-            defaultType="Ligação"
+          <ActivityModal
+            defaultDealId={dealId}
             onClose={() => setShowActivity(false)}
+            onSave={(data) => {
+              addActivity({
+                dealId,
+                title: data.title,
+                date: data.date,
+                endDate: data.endDate,
+                type: data.type,
+                description: data.description,
+                guests: data.guests,
+                assigneeId: data.assigneeId,
+                completed: data.markAsDone,
+              });
+              setShowActivity(false);
+            }}
           />
         )}
 

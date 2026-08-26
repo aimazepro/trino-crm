@@ -12,7 +12,7 @@ import {
 
 // Modelo configuravel: nome de modelo do Gemini muda com frequencia, e travar
 // um no codigo garante quebra silenciosa no dia em que ele for aposentado.
-const MODEL = process.env.GEMINI_MODEL ?? "gemini-3.6-flash";
+const MODEL = process.env.GEMINI_MODEL ?? "gemini-3.1-flash-lite";
 
 export function geminiConfigured(): boolean {
   return Boolean(process.env.GEMINI_API_KEY || process.env.GOOGLE_API_KEY);

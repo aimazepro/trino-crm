@@ -85,7 +85,7 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
   }
 }
 
-export async function GET(_req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
+export async function GET(req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   const user = await getSessionUser();
   if (!user) return NextResponse.json({ error: "Não autenticado" }, { status: 401 });
 
@@ -118,11 +118,45 @@ export async function GET(_req: NextRequest, { params }: { params: Promise<{ id:
         return NextResponse.json({ error: "Gravação indisponível" }, { status: 404 });
       }
       const buf = new Uint8Array(await blob.arrayBuffer());
+      const contentType = blob.type || "audio/webm";
+
+      // Range é obrigatório aqui, não um refinamento. O Safari só toca <audio>
+      // servido por uma resposta 206 com Content-Range: com um 200 simples ele
+      // carrega o arquivo, não reproduz nada e não acusa erro nenhum -- foi
+      // exatamente esse o sintoma de "a gravação não toca".
+      const range = req.headers.get("range");
+      if (range) {
+        const match = /bytes=(\d*)-(\d*)/.exec(range);
+        const start = match?.[1] ? Number(match[1]) : 0;
+        const end = match?.[2] ? Number(match[2]) : buf.byteLength - 1;
+
+        if (Number.isNaN(start) || start >= buf.byteLength) {
+          return new NextResponse(null, {
+            status: 416,
+            headers: { "Content-Range": `bytes */${buf.byteLength}` },
+          });
+        }
+
+        const last = Math.min(end, buf.byteLength - 1);
+        const slice = buf.subarray(start, last + 1);
+
+        return new NextResponse(slice, {
+          status: 206,
+          headers: {
+            "Content-Type": contentType,
+            "Content-Length": String(slice.byteLength),
+            "Content-Range": `bytes ${start}-${last}/${buf.byteLength}`,
+            "Accept-Ranges": "bytes",
+            "Cache-Control": "private, no-store",
+          },
+        });
+      }
+
       return new NextResponse(buf, {
         headers: {
-          "Content-Type": blob.type || "audio/webm",
+          "Content-Type": contentType,
           "Content-Length": String(buf.byteLength),
-          "Accept-Ranges": "none",
+          "Accept-Ranges": "bytes",
           "Cache-Control": "private, no-store",
         },
       });

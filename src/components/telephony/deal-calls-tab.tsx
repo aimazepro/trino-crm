@@ -22,7 +22,8 @@ import { cn } from "@/lib/utils";
 import { CallButton } from "./call-button";
 import { CallAudioPlayer } from "./call-audio-player";
 import { ScriptModal } from "./script-picker";
-import { CreateActivityDialog } from "./create-activity-dialog";
+import { ActivityModal } from "@/components/deal/activity-modal";
+import { useCrm } from "@/contexts/crm-context";
 import { formatCents, formatDuration, useTelephony } from "@/hooks/use-telephony";
 import { useOwnerNameMap } from "@/hooks/use-owner-name-map";
 import type { CallAnalysis } from "@/lib/telephony/db";
@@ -53,6 +54,32 @@ const DISPOSITION_LABEL: Record<string, { label: string; tone: string }> = {
   reagendar: { label: "Reagendar", tone: "bg-blue-50 text-blue-700 border-blue-200" },
   sem_interesse: { label: "Sem interesse", tone: "bg-red-50 text-red-700 border-red-200" },
 };
+
+const TIPO_LABEL: Record<string, string> = {
+  cold_call: "Cold call",
+  follow_up: "Follow-up",
+  fechamento: "Fechamento",
+  outro: "Outro",
+};
+
+const BANT_LABEL: Record<string, string> = {
+  confirmado: "confirmado",
+  parcial: "parcial",
+  nao_explorado: "não explorado",
+};
+
+const BANT_TONE: Record<string, string> = {
+  confirmado: "bg-green-100 text-green-700",
+  parcial: "bg-amber-100 text-amber-700",
+  nao_explorado: "bg-zinc-200 text-zinc-600",
+};
+
+/** Nota baixa não pode parecer igual a nota alta — a cor é o que faz o gestor olhar. */
+function notaTone(nota: number): string {
+  if (nota >= 7) return "bg-green-100 text-green-700";
+  if (nota >= 4) return "bg-amber-100 text-amber-700";
+  return "bg-red-100 text-red-700";
+}
 
 const STATUS_LABEL: Record<string, { label: string; tone: string }> = {
   completed: { label: "Atendida", tone: "bg-green-50 text-green-700 border-green-200" },
@@ -104,6 +131,7 @@ export function DealCallsTab({
   const [activityFor, setActivityFor] = useState<{ title: string } | null>(null);
 
   const { status } = useTelephony();
+  const { addActivity } = useCrm();
   const { selfName } = useOwnerNameMap();
 
   const load = useCallback(async () => {
@@ -344,15 +372,26 @@ export function DealCallsTab({
                         </p>
                       )}
 
-                      {c.analysis ? (
-                        <div className="space-y-3 rounded-xl border border-purple-100 bg-white p-4">
-                          <div className="flex items-center gap-2">
+                      {c.analysis && (
+                        <div className="space-y-4 rounded-xl border border-purple-100 bg-white p-4">
+                          <div className="flex flex-wrap items-center gap-2">
                             <Sparkles className="h-3.5 w-3.5 text-purple-600" />
                             <span className="text-xs font-semibold text-purple-700">
                               Análise da ligação
                             </span>
-                            <span className="ml-auto rounded-full bg-zinc-100 px-2 py-0.5 text-[10px] font-medium text-zinc-500">
-                              {c.analysis.sentimento} · nota {c.analysis.qualidade}/10
+                            <span className="rounded-full bg-zinc-100 px-2 py-0.5 text-[10px] font-medium text-zinc-600">
+                              {TIPO_LABEL[c.analysis.tipo_ligacao] ?? c.analysis.tipo_ligacao}
+                            </span>
+                            <span className="ml-auto flex items-center gap-1.5">
+                              <span className="rounded-full bg-zinc-100 px-2 py-0.5 text-[10px] font-medium text-zinc-600">
+                                {c.analysis.sentimento}
+                              </span>
+                              <span className={cn("rounded-full px-2 py-0.5 text-[10px] font-semibold", notaTone(c.analysis.nota_conducao))}>
+                                condução {c.analysis.nota_conducao}/10
+                              </span>
+                              <span className={cn("rounded-full px-2 py-0.5 text-[10px] font-semibold", notaTone(c.analysis.nota_qualificacao))}>
+                                qualificação {c.analysis.nota_qualificacao}/10
+                              </span>
                             </span>
                           </div>
 
@@ -365,19 +404,76 @@ export function DealCallsTab({
                             </p>
                           </div>
 
-                          {[
-                            { title: "Pontos-chave", items: c.analysis.pontos_chave },
-                            { title: "Objeções", items: c.analysis.objecoes },
-                            { title: "Próximos passos", items: c.analysis.proximos_passos },
-                          ]
-                            .filter((s) => s.items?.length)
-                            .map((s) => (
-                              <div key={s.title}>
+                          {/* BANT: o status sozinho vira opinião. A evidência é
+                              a frase que sustenta cada conclusão. */}
+                          <div>
+                            <p className="mb-1.5 text-[11px] font-semibold uppercase tracking-wide text-zinc-400">
+                              Qualificação BANT
+                            </p>
+                            <div className="grid gap-1.5 sm:grid-cols-2">
+                              {([
+                                ["Orçamento", c.analysis.bant.orcamento],
+                                ["Autoridade", c.analysis.bant.autoridade],
+                                ["Necessidade", c.analysis.bant.necessidade],
+                                ["Prazo", c.analysis.bant.prazo],
+                              ] as const).map(([label, item]) => (
+                                <div key={label} className="rounded-lg bg-zinc-50 p-2.5">
+                                  <p className="flex items-center gap-1.5">
+                                    <span className="text-xs font-semibold text-zinc-700">{label}</span>
+                                    <span className={cn("rounded-full px-1.5 py-0.5 text-[9px] font-semibold uppercase", BANT_TONE[item.status])}>
+                                      {BANT_LABEL[item.status]}
+                                    </span>
+                                  </p>
+                                  <p className="mt-1 text-[11px] leading-relaxed text-zinc-500">
+                                    {item.evidencia}
+                                  </p>
+                                </div>
+                              ))}
+                            </div>
+                          </div>
+
+                          {/* SPIN avalia o vendedor, não o cliente. */}
+                          <div>
+                            <p className="mb-1.5 text-[11px] font-semibold uppercase tracking-wide text-zinc-400">
+                              Técnica SPIN
+                            </p>
+                            <div className="space-y-1">
+                              {([
+                                ["Situação", c.analysis.spin.situacao],
+                                ["Problema", c.analysis.spin.problema],
+                                ["Implicação", c.analysis.spin.implicacao],
+                                ["Necessidade", c.analysis.spin.necessidade],
+                              ] as const).map(([label, item]) => (
+                                <p key={label} className="flex items-start gap-2 text-xs">
+                                  <span className={cn("mt-0.5 shrink-0 text-sm leading-none", item.aplicado ? "text-green-600" : "text-zinc-300")}>
+                                    {item.aplicado ? "●" : "○"}
+                                  </span>
+                                  <span className="text-zinc-600">
+                                    <span className="font-semibold text-zinc-700">{label}: </span>
+                                    {item.comentario}
+                                  </span>
+                                </p>
+                              ))}
+                            </div>
+                          </div>
+
+                          {([
+                            ["Pontos-chave", c.analysis.pontos_chave],
+                            ["Dores identificadas", c.analysis.dores],
+                            ["Desejos e objetivos", c.analysis.desejos],
+                            ["Objeções", c.analysis.objecoes],
+                            ["Próximos passos", c.analysis.proximos_passos],
+                            ["O que funcionou", c.analysis.pontos_fortes],
+                            ["O que melhorar", c.analysis.pontos_de_melhoria],
+                          ] as const)
+                            .filter(([, items]) => items?.length)
+                            .map(([title, items]) => (
+                              <div key={title}>
                                 <p className="mb-1 text-[11px] font-semibold uppercase tracking-wide text-zinc-400">
-                                  {s.title}
+                                  {title}
                                 </p>
                                 <ul className="list-disc space-y-0.5 pl-4 text-sm text-zinc-700">
-                                  {s.items.map((it, i) => (
+                                  {items.map((it, i) => (
                                     <li key={i}>{it}</li>
                                   ))}
                                 </ul>
@@ -386,12 +482,12 @@ export function DealCallsTab({
 
                           {c.analysis.observacao_coach && (
                             <p className="rounded-lg bg-amber-50 px-3 py-2 text-xs text-amber-800">
-                              <span className="font-semibold">Feedback: </span>
+                              <span className="font-semibold">Para treinar: </span>
                               {c.analysis.observacao_coach}
                             </p>
                           )}
                         </div>
-                      ) : null}
+                      )}
 
                       {c.transcript && (
                         <details className="group">
@@ -415,11 +511,23 @@ export function DealCallsTab({
       {showScript && <ScriptModal ctx={scriptCtx} onClose={() => setShowScript(false)} />}
 
       {activityFor && (
-        <CreateActivityDialog
-          dealId={dealId}
-          defaultTitle={activityFor.title}
-          defaultType="Ligação"
+        <ActivityModal
+          defaultDealId={dealId}
           onClose={() => setActivityFor(null)}
+          onSave={(data) => {
+            addActivity({
+              dealId,
+              title: data.title,
+              date: data.date,
+              endDate: data.endDate,
+              type: data.type,
+              description: data.description,
+              guests: data.guests,
+              assigneeId: data.assigneeId,
+              completed: data.markAsDone,
+            });
+            setActivityFor(null);
+          }}
         />
       )}
     </div>

@@ -38,7 +38,7 @@ export async function POST(_req: NextRequest, { params }: { params: Promise<{ id
 
     const { data: call } = await admin
       .from("telephony_calls")
-      .select("id, to_number, duration_seconds, status, disposition, notes, transcript, contact_id")
+      .select("id, to_number, duration_seconds, status, disposition, notes, transcript, contact_id, deal_id, script_id, started_at")
       .eq("id", id)
       .eq("workspace_id", workspaceId)
       .maybeSingle();
@@ -65,8 +65,45 @@ export async function POST(_req: NextRequest, { params }: { params: Promise<{ id
       contactName = contact?.name ?? null;
     }
 
+    let dealTitle: string | null = null;
+    if (call.deal_id) {
+      const { data: deal } = await admin
+        .from("deals")
+        .select("title")
+        .eq("id", call.deal_id)
+        .maybeSingle();
+      dealTitle = deal?.title ?? null;
+    }
+
+    let scriptName: string | null = null;
+    if (call.script_id) {
+      const { data: script } = await admin
+        .from("scripts")
+        .select("name")
+        .eq("id", call.script_id)
+        .maybeSingle();
+      scriptName = script?.name ?? null;
+    }
+
+    // Quantas ligações vieram antes desta para o mesmo contato. É o que separa
+    // cold call de follow-up, e os dois pedem critério de avaliação diferente:
+    // cobrar fechamento de um primeiro contato seria avaliar errado.
+    let previousCalls = 0;
+    if (call.contact_id) {
+      const { count } = await admin
+        .from("telephony_calls")
+        .select("id", { count: "exact", head: true })
+        .eq("workspace_id", workspaceId)
+        .eq("contact_id", call.contact_id)
+        .lt("started_at", call.started_at);
+      previousCalls = count ?? 0;
+    }
+
     const { analysis, provider } = await analyzeCall({
       contactName,
+      dealTitle,
+      scriptName,
+      previousCalls,
       toNumber: call.to_number,
       durationSeconds: call.duration_seconds,
       disposition: call.disposition,
