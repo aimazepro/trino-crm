@@ -4,6 +4,11 @@ import { createContext, useContext, useState, useCallback, useEffect, type React
 import { useCrm } from "@/contexts/crm-context";
 import { useSavedReports } from "@/hooks/use-saved-reports";
 import { buildDefaultReports } from "./report-types/seed";
+import { useWorkspace } from "@/lib/workspace";
+import {
+  listDashboards, createDashboard, saveDashboardReports,
+  renameDashboardRow, deleteDashboardRow, type Dashboard,
+} from "./dashboards-api";
 import type { SavedReport } from "./insights-constants";
 
 interface InsightsCtx {
@@ -19,6 +24,13 @@ interface InsightsCtx {
   patchReport: (id: string, patch: Partial<SavedReport>) => void;
   dashboardName: string;
   renameDashboard: (name: string) => void;
+  // painéis customizados
+  dashboards: Dashboard[];
+  createPanel: (name: string) => Promise<Dashboard>;
+  renamePanel: (id: string, name: string) => void;
+  deletePanel: (id: string) => Promise<void>;
+  addReportToPanel: (panelId: string, reportId: string) => void;
+  removeReportFromPanel: (panelId: string, reportId: string) => void;
 }
 
 const Ctx = createContext<InsightsCtx | null>(null);
@@ -36,7 +48,9 @@ export function useInsights(): InsightsCtx {
  */
 export function InsightsProvider({ children }: { children: ReactNode }) {
   const { state } = useCrm();
+  const { workspaceId, userId } = useWorkspace();
   const { savedReports, setSavedReports, loaded, sync, deleteFromDb } = useSavedReports();
+  const [dashboards, setDashboards] = useState<Dashboard[]>([]);
   const [seeding, setSeeding] = useState(false);
   const [seedError, setSeedError] = useState<string | null>(null);
   const [dashboardName, setDashboardName] = useState("Meu Painel");
@@ -44,6 +58,48 @@ export function InsightsProvider({ children }: { children: ReactNode }) {
   useEffect(() => {
     const stored = localStorage.getItem("insights_dashboard_name");
     if (stored) setDashboardName(stored);
+  }, []);
+
+  useEffect(() => {
+    let cancelled = false;
+    listDashboards(workspaceId).then((rows) => { if (!cancelled) setDashboards(rows); });
+    return () => { cancelled = true; };
+  }, [workspaceId]);
+
+  const createPanel = useCallback(async (name: string) => {
+    const panel = await createDashboard(workspaceId, userId, name);
+    setDashboards((prev) => [...prev, panel]);
+    return panel;
+  }, [workspaceId, userId]);
+
+  const renamePanel = useCallback((id: string, name: string) => {
+    const clean = name.trim();
+    if (!clean) return;
+    setDashboards((prev) => prev.map((d) => (d.id === id ? { ...d, name: clean } : d)));
+    renameDashboardRow(id, clean);
+  }, []);
+
+  const deletePanel = useCallback(async (id: string) => {
+    setDashboards((prev) => prev.filter((d) => d.id !== id));
+    await deleteDashboardRow(id);
+  }, []);
+
+  const addReportToPanel = useCallback((panelId: string, reportId: string) => {
+    setDashboards((prev) => prev.map((d) => {
+      if (d.id !== panelId || d.reportIds.includes(reportId)) return d;
+      const reportIds = [...d.reportIds, reportId];
+      saveDashboardReports(panelId, reportIds);
+      return { ...d, reportIds };
+    }));
+  }, []);
+
+  const removeReportFromPanel = useCallback((panelId: string, reportId: string) => {
+    setDashboards((prev) => prev.map((d) => {
+      if (d.id !== panelId) return d;
+      const reportIds = d.reportIds.filter((r) => r !== reportId);
+      saveDashboardReports(panelId, reportIds);
+      return { ...d, reportIds };
+    }));
   }, []);
 
   const renameDashboard = useCallback((name: string) => {
@@ -88,6 +144,7 @@ export function InsightsProvider({ children }: { children: ReactNode }) {
       savedReports, setSavedReports, loaded, seeding, seedError,
       createDefaultReports, sync, deleteReport, deleteAllReports, patchReport,
       dashboardName, renameDashboard,
+      dashboards, createPanel, renamePanel, deletePanel, addReportToPanel, removeReportFromPanel,
     }}>
       {children}
     </Ctx.Provider>

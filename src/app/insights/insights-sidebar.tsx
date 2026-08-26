@@ -33,6 +33,10 @@ interface InsightsSidebarProps {
   onSaveRename: (id: string, e: React.FormEvent) => void;
   onDeleteReport: (id: string, e: React.MouseEvent) => void;
   dashboardName: string;
+  panels: { id: string; name: string }[];
+  activePanelId: string | null;
+  onRenamePanel: (id: string, currentName: string, e: React.MouseEvent) => void;
+  onDeletePanel: (id: string, e: React.MouseEvent) => void;
 }
 
 export function InsightsSidebar({
@@ -58,6 +62,10 @@ export function InsightsSidebar({
   onDeleteReport,
   onDeleteDashboard,
   dashboardName,
+  panels,
+  activePanelId,
+  onRenamePanel,
+  onDeletePanel,
 }: InsightsSidebarProps) {
   return (
     <div className="w-64 shrink-0 border-r border-zinc-200 bg-white overflow-y-auto flex flex-col">
@@ -130,6 +138,29 @@ export function InsightsSidebar({
               </div>
             </div>
           )}
+
+          {panels.map((panel) => (
+            <div key={panel.id} className="group relative">
+              <Link
+                href={`/insights/dashboards/${panel.id}`}
+                className={cn(
+                  "flex items-center gap-2 w-full px-3 py-1.5 rounded-lg text-sm transition-colors font-medium text-left",
+                  activePanelId === panel.id ? "bg-emerald-50 text-emerald-700" : "text-zinc-500 hover:bg-zinc-50 hover:text-zinc-800"
+                )}
+              >
+                <LayoutDashboard className={cn("h-4 w-4 shrink-0", activePanelId === panel.id ? "text-emerald-500" : "text-zinc-400")} />
+                <span className="truncate flex-1 pr-11 font-semibold">{panel.name}</span>
+              </Link>
+              <div className="absolute right-1 top-1/2 -translate-y-1/2 flex items-center gap-0.5 opacity-0 group-hover:opacity-100 transition-all">
+                <button onClick={(e) => onRenamePanel(panel.id, panel.name, e)} title="Renomear painel" className="p-1 rounded text-zinc-300 hover:text-blue-500 transition-all cursor-pointer">
+                  <Pencil className="h-3 w-3" />
+                </button>
+                <button onClick={(e) => onDeletePanel(panel.id, e)} title="Excluir painel" className="p-1 rounded text-zinc-300 hover:text-red-500 transition-all cursor-pointer">
+                  <Trash2 className="h-3 w-3" />
+                </button>
+              </div>
+            </div>
+          ))}
         </div>
 
         <button className="flex items-center gap-2 w-full px-2 py-2 text-xs font-semibold text-zinc-500 uppercase tracking-wider hover:text-zinc-700 text-left">
@@ -144,7 +175,16 @@ export function InsightsSidebar({
             <p className="px-3 py-2 text-xs text-zinc-400">Nenhum relatório salvo</p>
           ) : (
             filteredReports.map(report => (
-              <div key={report.id} className="group relative">
+              <div
+                key={report.id}
+                className="group relative"
+                draggable
+                onDragStart={(e) => {
+                  e.dataTransfer.setData("application/x-trino-report-id", report.id);
+                  e.dataTransfer.setData("text/plain", report.id);
+                  e.dataTransfer.effectAllowed = "copy";
+                }}
+              >
                 {editingReportId === report.id ? (
                   <form onSubmit={(e) => onSaveRename(report.id, e)} className="flex items-center gap-1.5 px-2 py-1 bg-zinc-50 rounded-lg">
                     <input
@@ -162,7 +202,7 @@ export function InsightsSidebar({
                     <Link
                       href={`/insights/reports/${report.id}`}
                       className={cn(
-                        "flex items-center gap-2 w-full px-3 py-1.5 rounded-lg text-[13px] font-medium transition-colors text-left",
+                        "flex items-center gap-2 w-full px-3 py-1.5 rounded-lg text-[13px] font-medium transition-colors text-left cursor-grab active:cursor-grabbing",
                         activeReportId === report.id ? "bg-emerald-50 text-emerald-700 font-semibold" : "text-zinc-500 hover:bg-zinc-50 hover:text-zinc-800"
                       )}
                     >
