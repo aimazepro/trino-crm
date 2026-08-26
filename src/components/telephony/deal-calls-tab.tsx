@@ -9,7 +9,6 @@
 import { useCallback, useEffect, useState } from "react";
 import {
   AlertCircle,
-  CalendarPlus,
   ChevronDown,
   FileText,
   Loader2,
@@ -187,13 +186,6 @@ export function DealCallsTab({
           Script
         </button>
 
-        <button
-          onClick={() => setActivityFor({ title: "Retornar ligação" })}
-          className="flex items-center gap-1.5 rounded-xl border border-zinc-200 bg-white px-3 py-1.5 text-sm font-medium text-zinc-600 transition-colors hover:bg-zinc-50"
-        >
-          <CalendarPlus className="h-3.5 w-3.5 text-zinc-400" />
-          Nova atividade
-        </button>
       </div>
 
       {status && status.status !== "active" && (

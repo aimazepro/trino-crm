@@ -17,6 +17,7 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import {
   AlertCircle,
   ArrowLeft,
+  CalendarPlus,
   Delete,
   FileText,
   Grid3x3,
@@ -32,6 +33,7 @@ import { cn } from "@/lib/utils";
 import { formatDuration } from "@/hooks/use-telephony";
 import { fillScript, type ScriptContext } from "@/lib/telephony/script-vars";
 import { ScriptList, useScripts, type CallScript } from "./script-picker";
+import { CreateActivityDialog } from "./create-activity-dialog";
 
 type Phase = "script" | "starting" | "live" | "wrapup" | "error";
 
@@ -103,6 +105,7 @@ export function CallDialog({
   const [showKeypad, setShowKeypad] = useState(false);
   const [dialed, setDialed] = useState("");
   const [script, setScript] = useState<CallScript | null>(null);
+  const [showActivity, setShowActivity] = useState(false);
 
   const { scripts, loading: loadingScripts } = useScripts();
 
@@ -470,6 +473,20 @@ export function CallDialog({
             </div>
 
             <div className="flex flex-col gap-3 overflow-y-auto p-6">
+              {/* Fica aqui, e não na aba, porque o momento em que a atividade
+                  precisa nascer é durante a conversa: o cliente diz que não pode
+                  falar agora e o retorno tem que virar compromisso antes de a
+                  ligação cair. */}
+              {dealId && (
+                <button
+                  onClick={() => setShowActivity(true)}
+                  className="flex items-center justify-center gap-1.5 rounded-xl border border-zinc-200 bg-white py-2 text-xs font-medium text-zinc-600 transition-colors hover:border-purple-200 hover:bg-purple-50 hover:text-purple-700"
+                >
+                  <CalendarPlus className="h-3.5 w-3.5" />
+                  Nova atividade
+                </button>
+              )}
+
               <p className="text-xs font-medium uppercase text-zinc-400">Notas</p>
               <textarea
                 value={notes}
@@ -580,6 +597,16 @@ export function CallDialog({
               ))}
             </div>
 
+            {dealId && (
+              <button
+                onClick={() => setShowActivity(true)}
+                className="flex w-fit items-center gap-1.5 rounded-xl border border-zinc-200 bg-white px-3 py-2 text-xs font-medium text-zinc-600 transition-colors hover:border-purple-200 hover:bg-purple-50 hover:text-purple-700"
+              >
+                <CalendarPlus className="h-3.5 w-3.5" />
+                Nova atividade
+              </button>
+            )}
+
             <textarea
               value={notes}
               onChange={(e) => setNotes(e.target.value)}
@@ -602,6 +629,15 @@ export function CallDialog({
               </button>
             </div>
           </div>
+        )}
+
+        {showActivity && dealId && (
+          <CreateActivityDialog
+            dealId={dealId}
+            defaultTitle={`Retornar ligação para ${contactName ?? "o contato"}`}
+            defaultType="Ligação"
+            onClose={() => setShowActivity(false)}
+          />
         )}
 
         {phase === "error" && (
