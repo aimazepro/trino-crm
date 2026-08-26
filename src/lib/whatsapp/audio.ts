@@ -1,10 +1,17 @@
-// Turns whatever the browser recorded into a WhatsApp voice note.
+// Audio conversion for WhatsApp attachments.
 //
-// MediaRecorder has no format every browser agrees on: Chrome and Firefox give
-// Opus, Safari gives AAC in an mp4 container. WhatsApp voice notes are Opus in
-// Ogg and nothing else — an AAC blob is accepted by the provider, delivered,
-// and then renders on the phone as a note with no waveform and a 0:00 length.
-// Converting here means the recorder can stay simple and every browser works.
+// Two different targets, because the phone and the browser want opposite things:
+//
+// WhatsApp voice notes are Opus in Ogg and nothing else — an AAC blob is
+// accepted by the provider, delivered, and then renders on the phone as a note
+// with no waveform and a 0:00 length. That is `toVoiceNote`.
+//
+// What we keep in storage and play back in the thread has to satisfy every
+// browser instead, and Opus fails that test twice over: Safari plays neither
+// WebM nor Ogg, and a WebM straight out of MediaRecorder carries no Duration in
+// its header, so Chrome loads it and still shows "0:00 / 0:00" with a dead
+// seek bar. AAC in mp4 is the one audio format all of them play, and ffmpeg
+// writes a real duration into it. That is `toPlayable`.
 
 import { spawn } from "node:child_process";
 import { randomUUID } from "node:crypto";
@@ -15,12 +22,19 @@ import ffmpegPath from "ffmpeg-static";
 
 /** Bitrate WhatsApp's own voice notes use; higher is wasted on speech. */
 const OPUS_BITRATE = "32k";
+/** AAC needs more than Opus for the same speech, and still lands well under the original. */
+const AAC_BITRATE = "64k";
 const TIMEOUT_MS = 30_000;
 
-export interface VoiceNote {
+export interface ConvertedAudio {
   data: Buffer;
   mimetype: string;
+  /** Extension the caller should store the file under, so the two never drift. */
+  extension: string;
 }
+
+/** @deprecated name kept for callers; use ConvertedAudio. */
+export type VoiceNote = ConvertedAudio;
 
 function run(bin: string, args: string[]): Promise<void> {
   return new Promise((resolve, reject) => {
@@ -46,11 +60,15 @@ function run(bin: string, args: string[]): Promise<void> {
 }
 
 /**
- * Re-encodes to mono 48 kHz Opus in Ogg. Returns null when the conversion is
- * not possible, so the caller can fall back to sending the original rather
- * than dropping a recording the user already made.
+ * Runs one re-encode. Returns null on any failure, so every caller can fall
+ * back to the bytes it already has rather than dropping a recording.
  */
-export async function toVoiceNote(data: Buffer, filename: string): Promise<VoiceNote | null> {
+async function transcode(
+  data: Buffer,
+  filename: string,
+  outputExtension: string,
+  encodeArgs: string[],
+): Promise<Buffer | null> {
   if (!ffmpegPath) return null;
 
   // Real files, not pipes: an mp4 from Safari keeps its moov atom at the end,
@@ -58,7 +76,7 @@ export async function toVoiceNote(data: Buffer, filename: string): Promise<Voice
   const dir = await mkdtemp(join(tmpdir(), "wa-audio-"));
   const extension = filename.includes(".") ? filename.slice(filename.lastIndexOf(".")) : ".bin";
   const input = join(dir, `${randomUUID()}${extension}`);
-  const output = join(dir, `${randomUUID()}.ogg`);
+  const output = join(dir, `${randomUUID()}.${outputExtension}`);
 
   try {
     await writeFile(input, data);
@@ -66,20 +84,56 @@ export async function toVoiceNote(data: Buffer, filename: string): Promise<Voice
       "-hide_banner", "-loglevel", "error", "-y",
       "-i", input,
       "-vn",
-      "-c:a", "libopus",
-      "-b:a", OPUS_BITRATE,
-      "-ar", "48000",
-      "-ac", "1",
-      "-f", "ogg",
+      ...encodeArgs,
       output,
     ]);
     const converted = await readFile(output);
-    if (converted.length === 0) return null;
-    return { data: converted, mimetype: "audio/ogg; codecs=opus" };
+    return converted.length > 0 ? converted : null;
   } catch (err) {
     console.error("whatsapp/audio: conversion failed", err);
     return null;
   } finally {
     await rm(dir, { recursive: true, force: true }).catch(() => {});
   }
+}
+
+/**
+ * Re-encodes to mono 48 kHz Opus in Ogg — what WhatsApp needs to render the
+ * message as a voice note. Null when the conversion is not possible.
+ */
+export async function toVoiceNote(data: Buffer, filename: string): Promise<ConvertedAudio | null> {
+  const converted = await transcode(data, filename, "ogg", [
+    "-c:a", "libopus",
+    "-b:a", OPUS_BITRATE,
+    "-ar", "48000",
+    "-ac", "1",
+    "-f", "ogg",
+  ]);
+  if (!converted) return null;
+  return { data: converted, mimetype: "audio/ogg; codecs=opus", extension: "ogg" };
+}
+
+/**
+ * Re-encodes to mono 48 kHz AAC in mp4 — the copy that gets stored and played
+ * back in the thread. `+faststart` moves the moov atom to the front so
+ * `<audio preload="metadata">` learns the duration from the first range
+ * request instead of pulling the whole file.
+ */
+export async function toPlayable(data: Buffer, filename: string): Promise<ConvertedAudio | null> {
+  const converted = await transcode(data, filename, "m4a", [
+    "-c:a", "aac",
+    "-b:a", AAC_BITRATE,
+    "-ar", "48000",
+    "-ac", "1",
+    "-movflags", "+faststart",
+    "-f", "mp4",
+  ]);
+  if (!converted) return null;
+  return { data: converted, mimetype: "audio/mp4", extension: "m4a" };
+}
+
+/** Swaps the extension on a filename, so what is stored matches what it is. */
+export function withExtension(filename: string, extension: string): string {
+  const base = filename.includes(".") ? filename.slice(0, filename.lastIndexOf(".")) : filename;
+  return `${base || "audio"}.${extension}`;
 }

@@ -6,6 +6,7 @@ import type { Database } from "@/lib/supabase/database.types";
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { updateConnection } from "./connection";
 import { putMedia } from "./storage";
+import { toPlayable, withExtension } from "./audio";
 import { getDriver } from "./index";
 import { resolveConversationLinks } from "./linking";
 import type { InboundEvent, InboundMessage, WhatsAppConnection } from "./types";
@@ -128,16 +129,31 @@ async function storeMessage(
     }
 
     if (media) {
+      // WhatsApp hands voice notes over as Opus in Ogg, which Safari cannot
+      // play at all. Re-encoding to AAC here is what makes an inbound audio
+      // message playable in the thread on every browser.
+      let stored = { data: media.data, mimetype: media.mimetype, filename: media.filename };
+      if (message.type === "audio") {
+        const playable = await toPlayable(media.data, media.filename);
+        if (playable) {
+          stored = {
+            data: playable.data,
+            mimetype: playable.mimetype,
+            filename: withExtension(media.filename, playable.extension),
+          };
+        }
+      }
+
       try {
         mediaPath = await putMedia(admin, {
           ownerId: connection.userId,
           conversationId,
-          data: media.data,
-          mimetype: media.mimetype,
-          filename: media.filename,
+          data: stored.data,
+          mimetype: stored.mimetype,
+          filename: stored.filename,
         });
-        mediaMime = media.mimetype;
-        mediaFilename = media.filename;
+        mediaMime = stored.mimetype;
+        mediaFilename = stored.filename;
       } catch (err) {
         console.error("whatsapp: media upload failed", err);
       }

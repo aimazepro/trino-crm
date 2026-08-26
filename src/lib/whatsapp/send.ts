@@ -11,7 +11,7 @@ import type { Database } from "@/lib/supabase/database.types";
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { getDriver, isGroupJid, jidToPhone } from "@/lib/whatsapp";
 import { putMedia } from "@/lib/whatsapp/storage";
-import { toVoiceNote } from "@/lib/whatsapp/audio";
+import { toPlayable, toVoiceNote, withExtension } from "@/lib/whatsapp/audio";
 import { resolveConversationLinks } from "@/lib/whatsapp/linking";
 import { applySignature } from "@/lib/whatsapp/types";
 import type { MessageType, OutboundMedia, WhatsAppConnection } from "@/lib/whatsapp/types";
@@ -206,15 +206,42 @@ export async function sendWhatsAppMessage(
 
   // Our own copy of an outgoing attachment, so the thread renders it without
   // waiting for the webhook echo.
+  //
+  // Audio is re-encoded first. Storing the raw recording looked cheaper and was
+  // the bug: Chrome records WebM/Opus, which Safari refuses outright and which
+  // Chrome itself plays with no duration, so a sent voice note came back as
+  // "Erro" in one browser and "0:00 / 0:00" in the other.
   let mediaPath: string | null = null;
+  let storedMime = media?.mimetype ?? null;
+  let storedFilename = media?.filename ?? null;
   if (media) {
+    let stored: { data: Buffer; mimetype: string; filename: string } = {
+      data: media.bytes,
+      mimetype: media.mimetype,
+      filename: media.filename,
+    };
+
+    if (media.kind === "audio") {
+      const playable = await toPlayable(media.bytes, media.filename);
+      if (playable) {
+        stored = {
+          data: playable.data,
+          mimetype: playable.mimetype,
+          filename: withExtension(media.filename, playable.extension),
+        };
+      }
+    }
+
+    storedMime = stored.mimetype;
+    storedFilename = stored.filename;
+
     try {
       mediaPath = await putMedia(admin, {
         ownerId: connection.userId,
         conversationId: conversation.id,
-        data: media.bytes,
-        mimetype: media.mimetype,
-        filename: media.filename,
+        data: stored.data,
+        mimetype: stored.mimetype,
+        filename: stored.filename,
       });
     } catch (err) {
       console.error("whatsapp/send: media upload failed", err);
@@ -232,8 +259,8 @@ export async function sendWhatsAppMessage(
       type: messageType,
       body,
       media_path: mediaPath,
-      media_mime: media?.mimetype ?? null,
-      media_filename: media?.filename ?? null,
+      media_mime: storedMime,
+      media_filename: storedFilename,
       status: "pending",
       sent_by: input.sentBy,
       timestamp: new Date().toISOString(),
@@ -253,8 +280,9 @@ export async function sendWhatsAppMessage(
       ? conversation.remoteJid
       : jidToPhone(conversation.phone);
 
-    // Storage keeps the original — the browser that recorded it can always play
-    // that back — while WhatsApp gets the Opus its voice notes require.
+    // WhatsApp gets the Opus its voice notes require, encoded from the original
+    // recording rather than from the mp4 we stored: one generation of loss
+    // instead of two.
     let outbound = media;
     if (media && media.kind === "audio") {
       const note = await toVoiceNote(media.bytes, media.filename);
