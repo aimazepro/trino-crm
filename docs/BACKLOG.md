@@ -352,18 +352,43 @@ Inexistente hoje: os 6 gatilhos são todos de evento. `AUD §6`, `AUD §6.0`
 
 ---
 
-## 🟣 Fase 4b — VoIP
+## 🟣 Fase 4b — VoIP — **IMPLEMENTADA E EM PRODUÇÃO (2026-08-26)**
 
-Pedido do dono em 2026-08-19. Torna `/configuracoes/telefone` e `/ligacoes`
+Pedido do dono em 2026-08-19. `/configuracoes/telefone` e `/ligacoes` agora são
 reais. `AUD §6.4`
 
-- [ ] **Decidir provedor vs. WebRTC** (referência citada: api4com; alternativas
-  Twilio, Zenvia).
-- [ ] **Ligação de dentro do CRM** pelos vendedores, com duração e status.
-- [ ] **Gravação de chamada** — implica **LGPD**: consentimento, retenção,
-  storage. O free tier do Supabase não comporta áudio.
-- [ ] **Analytics de ligação** — hoje `/ligacoes` plota `SAMPLE_CALLS`
-  hardcoded com `recordingUrl: "sample.mp3"`.
+Construído com camada de adapter (`src/lib/telephony`) em vez de integração
+direta: nenhuma rota fala com um provedor específico. Ver
+`docs/superpowers/specs/2026-08-26-voip-telefonia-design.md` e o memo de
+provedores em `docs/2026-08-26-voip-provedores-memo.md`.
+
+- [x] **Decidir provedor vs. WebRTC** — decidido *não* decidir ainda, de
+  propósito. Adapter + provedor `mock` que emite os mesmos webhooks assinados de
+  uma operadora real, então o sistema inteiro é exercitável antes de qualquer
+  contrato. Adapter `api4com` escrito contra a doc pública, marcado como
+  não-verificado.
+- [x] **Ligação de dentro do CRM** — aba "Ligações" do negócio e detalhe do
+  contato, com diálogo que mostra o script de cold call, cronômetro, notas e
+  disposição no encerramento.
+- [x] **Gravação de chamada + LGPD** — consentimento configurável, retenção com
+  expurgo diário e áudio servido só por proxy autenticado. Áudio fica no
+  provedor (não no Supabase); a interface `RecordingStore` deixa a troca para
+  Cloudflare R2 ser um arquivo novo quando o volume pedir.
+- [x] **Analytics de ligação** — `SAMPLE_CALLS` removido; os cinco gráficos
+  plotam o CDR real. O filtro de período, que existia no state e nunca era
+  aplicado, agora funciona.
+
+**Pendências reais desta fase (decisão do dono, não código):**
+
+- [ ] **Escolher e contratar o provedor.** O memo ranqueia Zenvia Voice > Telnyx
+  > API4COM para revenda. Achado que muda a conta: **R$ 0,38/min é o preço de
+  balcão histórico da própria API4COM** — revender nesse valor dá margem ~zero.
+- [ ] **Checkout de créditos.** Hoje o dono lança crédito manualmente; a RPC já
+  é idempotente, então o gateway pluga sem mudar nada do resto.
+- [ ] **Bina dinâmica por DDD** — é operação contínua (comprar DID por região,
+  monitorar bloqueio por spam), não código. Define taxa de atendimento.
+- [ ] **Chamadas recebidas (inbound)**, discador preditivo, transferência e
+  conferência — fora do escopo do V1.
 
 ---
 
