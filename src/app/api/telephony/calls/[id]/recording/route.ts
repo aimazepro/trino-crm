@@ -7,6 +7,12 @@
 // Duas origens possiveis, distinguidas pelo prefixo de recording_key:
 //   supabase:<caminho>  audio capturado no navegador (modo simulado)
 //   qualquer outra      referencia do provedor, buscada pelo adapter
+//
+// O audio do navegador NAO sobe por esta rota. O corpo de request da Vercel para
+// em 4,5 MB, o que a ~155 kb/s da menos de 4 minutos de conversa -- e ligacao de
+// 5 e 7 minutos voltava 413, que o cliente lia como sucesso e descartava. O POST
+// aqui so emite uma URL assinada e depois confirma; os bytes vao do navegador
+// direto para o Storage, sem teto e sem passar pela funcao.
 
 import { NextRequest, NextResponse } from "next/server";
 import { getProvider } from "@/lib/telephony";
@@ -21,7 +27,22 @@ import {
 export const dynamic = "force-dynamic";
 
 const BUCKET = "call-recordings";
-const MAX_BYTES = 25 * 1024 * 1024;
+// Teto de armazenamento. Nao e mais o gargalo desde que os bytes deixaram de
+// passar pela funcao; existe so para um bug de cliente nao encher o bucket. A
+// ~155 kb/s isso da ~45 minutos. Acima de 18 MB (~15 min) a transcricao e
+// pulada, porque e o limite do audio inline do Gemini -- a ligacao fica salva e
+// ouvivel, a analise sai so com as notas.
+const MAX_BYTES = 50 * 1024 * 1024;
+
+type PostBody =
+  | { action: "upload-url"; contentType?: string }
+  | { action: "confirm"; contentType?: string };
+
+function extensionFor(contentType: string): string {
+  if (contentType.includes("ogg")) return "ogg";
+  if (contentType.includes("mp4") || contentType.includes("m4a")) return "mp4";
+  return "webm";
+}
 
 export async function POST(req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   const user = await getSessionUser();
@@ -29,6 +50,13 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
 
   const { id } = await params;
   const admin = createTelephonyAdmin();
+
+  let body: PostBody;
+  try {
+    body = (await req.json()) as PostBody;
+  } catch {
+    return NextResponse.json({ error: "Corpo inválido" }, { status: 400 });
+  }
 
   try {
     const workspaceId = await resolveWorkspaceId(admin, user.id);
@@ -41,24 +69,55 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
       .maybeSingle();
     if (!call) return NextResponse.json({ error: "Chamada não encontrada" }, { status: 404 });
 
-    const bytes = new Uint8Array(await req.arrayBuffer());
-    if (bytes.byteLength === 0) {
-      return NextResponse.json({ error: "Áudio vazio" }, { status: 400 });
-    }
-    if (bytes.byteLength > MAX_BYTES) {
-      return NextResponse.json({ error: "Áudio acima do limite de 25 MB" }, { status: 413 });
-    }
-
-    const contentType = req.headers.get("content-type") || "audio/webm";
-    const ext = contentType.includes("ogg") ? "ogg" : contentType.includes("mp4") ? "mp4" : "webm";
+    const contentType = body.contentType || "audio/webm";
+    const ext = extensionFor(contentType);
     const path = `${workspaceId}/${call.id}.${ext}`;
 
-    const { error: upErr } = await admin.storage
-      .from(BUCKET)
-      .upload(path, bytes, { contentType, upsert: true });
+    // O caminho é escolhido aqui, nunca pelo cliente: a URL assinada só serve
+    // para este arquivo, deste workspace, desta chamada.
+    if (body.action === "upload-url") {
+      const { data, error } = await admin.storage
+        .from(BUCKET)
+        .createSignedUploadUrl(path, { upsert: true });
 
-    if (upErr) {
-      return NextResponse.json({ error: `Falha ao guardar o áudio: ${upErr.message}` }, { status: 502 });
+      if (error || !data) {
+        return NextResponse.json(
+          { error: `Falha ao preparar o envio: ${error?.message ?? "sem token"}` },
+          { status: 502 },
+        );
+      }
+      return NextResponse.json({ path: data.path, token: data.token, ext });
+    }
+
+    if (body.action !== "confirm") {
+      return NextResponse.json({ error: "Ação desconhecida" }, { status: 400 });
+    }
+
+    // Confirmar não é acreditar: o arquivo é procurado no bucket, e o tamanho
+    // conferido aqui, porque o limite deixou de existir do lado do cliente.
+    const { data: listed, error: listErr } = await admin.storage
+      .from(BUCKET)
+      .list(workspaceId, { search: `${call.id}.${ext}`, limit: 1 });
+
+    const object = listed?.[0];
+    if (listErr || !object) {
+      return NextResponse.json(
+        { error: "Áudio não chegou ao armazenamento." },
+        { status: 404 },
+      );
+    }
+
+    const size = Number((object.metadata as { size?: number } | null)?.size ?? 0);
+    if (size === 0) {
+      await admin.storage.from(BUCKET).remove([path]);
+      return NextResponse.json({ error: "Áudio vazio" }, { status: 400 });
+    }
+    if (size > MAX_BYTES) {
+      await admin.storage.from(BUCKET).remove([path]);
+      return NextResponse.json(
+        { error: `Áudio acima do limite de ${MAX_BYTES / 1024 / 1024} MB` },
+        { status: 413 },
+      );
     }
 
     const { data: account } = await admin
@@ -77,7 +136,7 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
       })
       .eq("id", call.id);
 
-    return NextResponse.json({ ok: true, bytes: bytes.byteLength });
+    return NextResponse.json({ ok: true, bytes: size });
   } catch (err) {
     const message = err instanceof Error ? err.message : "Erro desconhecido";
     console.error("telephony/recording POST", message);

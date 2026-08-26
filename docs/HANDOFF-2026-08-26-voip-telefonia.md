@@ -129,6 +129,24 @@ foi assim que o bug foi isolado — o WebKit do Playwright reproduz.
 
 ---
 
+### Terceiro: ligação longa não gravava
+
+Correlação limpa nos dados: 16s ✅, **4m44s ❌**, 8s ✅, 7s ✅, **7m15s ❌**.
+
+O áudio subia como corpo do POST da rota de gravação, e **o corpo de request da
+Vercel para em 4,5 MB** (medido contra produção: 4 MB → 307, 5 MB → 413). A
+~155 kb/s isso dá menos de 4 minutos de conversa. O cliente lia o 413 com
+`recordingSaved = up.ok` e seguia em frente — falha silenciosa, gravação
+descartada, ninguém sabia.
+
+Agora os bytes vão do navegador **direto para o Storage**, por URL assinada que a
+rota emite (caminho escolhido no servidor, nunca pelo cliente); a rota só confirma
+depois que o arquivo chegou e confere o tamanho. Verificado: 8 MB sobem, que é o
+tamanho que voltava 413. E se o envio falhar, o diálogo **não fecha** — mostra o
+que aconteceu e o botão vira "Fechar mesmo assim".
+
+---
+
 ## Armadilhas que já custaram tempo — não repetir
 
 1. **Rota chamada por máquina precisa entrar no matcher de `src/proxy.ts`.**
@@ -157,7 +175,12 @@ foi assim que o bug foi isolado — o WebKit do Playwright reproduz.
 8. **`duration` de arquivo de `MediaRecorder` é `Infinity`.** Nenhum deles traz
    duração no cabeçalho. Barra de progresso parada em "0:00" é isso, não erro de
    player. Buscar `currentTime = 1e101` força o navegador a calcular.
-9. **Nome de modelo do Gemini expira.** `gemini-2.5-flash` respondeu 404
+9. **Corpo de request da Vercel para em 4,5 MB.** Qualquer upload de mídia pela
+   nossa própria rota tem esse teto, e ele chega rápido: a 155 kb/s são menos de
+   4 minutos de áudio. A saída é URL assinada e upload direto para o Storage. E
+   `res.ok` de um fetch de upload precisa ser tratado: ignorar o 413 foi o que
+   fez uma ligação de 7 minutos sumir sem aviso.
+10. **Nome de modelo do Gemini expira.** `gemini-2.5-flash` respondeu 404
    mandando usar outro. Por isso `GEMINI_MODEL` é env, e o adapter tem retry
    para o 503 de sobrecarga, que aconteceu na primeira chamada real.
 

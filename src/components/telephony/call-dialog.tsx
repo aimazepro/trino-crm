@@ -36,6 +36,7 @@ import { fillScript, type ScriptContext } from "@/lib/telephony/script-vars";
 import { ScriptList, useScripts, type CallScript } from "./script-picker";
 import { ActivityModal } from "@/components/deal/activity-modal";
 import { useCrm } from "@/contexts/crm-context";
+import { createClient } from "@/lib/supabase/client";
 import { permanentPermissionHint, useMicPermission } from "@/hooks/use-mic-permission";
 import {
   createRecordingGraph,
@@ -65,6 +66,38 @@ const DTMF: Record<string, [number, number]> = {
   "7": [852, 1209], "8": [852, 1336], "9": [852, 1477],
   "*": [941, 1209], "0": [941, 1336], "#": [941, 1477],
 };
+
+// O áudio vai do navegador direto para o Storage. Passar pela nossa rota
+// esbarrava no teto de 4,5 MB de corpo de request da Vercel, que a ~155 kb/s dá
+// menos de 4 minutos de conversa: ligação de 5 ou 7 minutos voltava 413. A rota
+// só assina o envio e depois confere que o arquivo chegou.
+async function uploadRecording(callId: string, blob: Blob): Promise<boolean> {
+  const contentType = blob.type || "audio/webm";
+
+  const signRes = await fetch(`/api/telephony/calls/${callId}/recording`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ action: "upload-url", contentType }),
+  });
+  const signed = await signRes.json();
+  if (!signRes.ok) throw new Error(signed?.error ?? "falha ao preparar o envio");
+
+  const supabase = createClient();
+  const { error } = await supabase.storage
+    .from("call-recordings")
+    .uploadToSignedUrl(signed.path, signed.token, blob, { contentType });
+  if (error) throw new Error(error.message);
+
+  const confirmRes = await fetch(`/api/telephony/calls/${callId}/recording`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ action: "confirm", contentType }),
+  });
+  const confirmed = await confirmRes.json();
+  if (!confirmRes.ok) throw new Error(confirmed?.error ?? "o áudio não chegou ao armazenamento");
+
+  return true;
+}
 
 // Estado do microfone antes de discar. Fica no passo do script de proposito:
 // e o unico momento em que dá para resolver permissão sem custar conversa.
@@ -158,6 +191,8 @@ export function CallDialog({
   const [dialed, setDialed] = useState("");
   const [script, setScript] = useState<CallScript | null>(null);
   const [showActivity, setShowActivity] = useState(false);
+  /** Gravação perdida: segura o diálogo aberto para o vendedor ficar sabendo. */
+  const [saveIssue, setSaveIssue] = useState<string | null>(null);
 
   const { scripts, loading: loadingScripts } = useScripts();
   const { addActivity } = useCrm();
@@ -168,6 +203,7 @@ export function CallDialog({
   const recorderRef = useRef<MediaRecorder | null>(null);
   const chunksRef = useRef<Blob[]>([]);
   const audioCtxRef = useRef<AudioContext | null>(null);
+  const saveIssueRef = useRef<string | null>(null);
 
   const ctx: ScriptContext = {
     nomeContato: contactName,
@@ -362,12 +398,17 @@ export function CallDialog({
       const worthKeeping = chosen ? chosen.connected : true;
       let recordingSaved = false;
       if (worthKeeping && blob && blob.size > 0) {
-        const up = await fetch(`/api/telephony/calls/${callId}/recording`, {
-          method: "POST",
-          headers: { "Content-Type": blob.type || "audio/webm" },
-          body: blob,
-        });
-        recordingSaved = up.ok;
+        setSavingLabel("Enviando gravação...");
+        try {
+          recordingSaved = await uploadRecording(callId, blob);
+        } catch (err) {
+          // Perder a gravação em silêncio foi como uma ligação de sete minutos
+          // sumiu sem ninguém notar. Falhou, o vendedor fica sabendo -- e o
+          // diálogo não fecha sozinho por cima do aviso.
+          const message = err instanceof Error ? err.message : "erro desconhecido";
+          saveIssueRef.current = message;
+          setSaveIssue(message);
+        }
       }
 
       // Análise sai na hora, enquanto o vendedor ainda está na tela: pedir para
@@ -389,6 +430,11 @@ export function CallDialog({
       }
 
       onFinished?.({ callId, disposition });
+      if (saveIssueRef.current) {
+        setSaving(false);
+        setSavingLabel("Salvando...");
+        return;
+      }
       onClose();
     } catch (err) {
       setError(err instanceof Error ? err.message : "Falha ao salvar o resultado");
@@ -449,6 +495,16 @@ export function CallDialog({
           <div className="flex items-start gap-2 border-b border-red-100 bg-red-50 px-6 py-3">
             <AlertCircle className="mt-0.5 h-4 w-4 shrink-0 text-red-500" />
             <p className="text-sm text-red-700">{error}</p>
+          </div>
+        )}
+        {saveIssue && (
+          <div className="flex items-start gap-2 border-b border-amber-200 bg-amber-50 px-6 py-3">
+            <AlertCircle className="mt-0.5 h-4 w-4 shrink-0 text-amber-600" />
+            <p className="text-sm text-amber-900">
+              <span className="font-semibold">A gravação desta ligação não foi salva.</span>{" "}
+              {saveIssue} — o registro, as notas e a classificação estão salvos; só o áudio se
+              perdeu.
+            </p>
           </div>
         )}
         {warning && phase === "live" && (
@@ -695,11 +751,11 @@ export function CallDialog({
                 {recording ? " · gravando" : ""}
               </span>
               <button
-                onClick={() => void finish()}
+                onClick={() => (saveIssue ? onClose() : void finish())}
                 disabled={saving}
                 className="ml-auto rounded-xl bg-purple-600 px-6 py-2.5 text-sm font-semibold text-white transition-colors hover:bg-purple-700 disabled:opacity-50"
               >
-                {saving ? savingLabel : "Salvar e fechar"}
+                {saving ? savingLabel : saveIssue ? "Fechar mesmo assim" : "Salvar e fechar"}
               </button>
             </div>
           </div>
