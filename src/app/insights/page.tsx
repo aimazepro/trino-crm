@@ -14,9 +14,16 @@ export default function InsightsPage() {
   const { map: ownerNameMap, selfName: selfOwnerName } = useOwnerNameMap();
 
   const {
-    savedReports, setSavedReports, dashboardPopulated, setDashboardPopulated,
+    savedReports, setSavedReports, loaded,
     sync: syncReports, deleteFromDb: deleteReportSupabase,
-  } = useSavedReports(() => {});
+  } = useSavedReports();
+
+  const [seeding, setSeeding] = useState(false);
+  const [seedError, setSeedError] = useState<string | null>(null);
+
+  // O painel só existe quando há relatórios salvos — sem isso a tela abre
+  // direto no empty state ("Criar relatorios padrao"), que é o começo certo.
+  const dashboardPopulated = savedReports.length > 0;
 
   const [searchQuery, setSearchQuery] = useState("");
   const [showCreateDropdown, setShowCreateDropdown] = useState(false);
@@ -47,12 +54,19 @@ export default function InsightsPage() {
     return () => document.removeEventListener("mousedown", handleClickOutside);
   }, []);
 
-  const handleCreateDefaultReports = () => {
+  const handleCreateDefaultReports = async () => {
+    if (seeding) return;
+    setSeeding(true);
+    setSeedError(null);
     const reports = buildDefaultReports(state.pipelines);
-    setSavedReports(reports);
-    syncReports(reports);
-    setDashboardPopulated(true);
-    localStorage.setItem("insights_dashboard_populated", "true");
+    try {
+      await syncReports(reports);       // grava primeiro; só mostra na tela se salvou
+      setSavedReports(reports);
+    } catch (err) {
+      setSeedError(err instanceof Error ? err.message : "Falha ao criar os relatórios.");
+    } finally {
+      setSeeding(false);
+    }
   };
 
   const handleRenameDashboard = () => {
@@ -69,9 +83,11 @@ export default function InsightsPage() {
     deleteReportSupabase(id);
   };
 
-  const handleDeleteDashboard = () => {
-    setDashboardPopulated(false);
-    localStorage.setItem("insights_dashboard_populated", "false");
+  const handleDeleteDashboard = async () => {
+    if (!confirm("Excluir o painel apaga todos os relatórios salvos. Continuar?")) return;
+    const ids = savedReports.map((r) => r.id);
+    setSavedReports([]);
+    await Promise.all(ids.map((id) => deleteReportSupabase(id)));
   };
 
   const handleStartRename = (id: string, name: string, e: React.MouseEvent) => {
@@ -85,7 +101,7 @@ export default function InsightsPage() {
     const updated = savedReports.map((r) => (r.id === id ? { ...r, name: editingReportName } : r));
     setSavedReports(updated);
     setEditingReportId(null);
-    syncReports(updated);
+    syncReports(updated).catch((err) => console.error("[insights] rename falhou:", err));
   };
 
   const filteredReports = useMemo(() => {
@@ -145,9 +161,8 @@ export default function InsightsPage() {
         onCloseCreateDropdown={() => setShowCreateDropdown(false)}
         onCreateReportZero={() => { window.location.href = "/insights/reports/new"; }}
         onCreateDashboard={() => {
-          setDashboardPopulated(true);
-          localStorage.setItem("insights_dashboard_populated", "true");
           setShowCreateDropdown(false);
+          handleCreateDefaultReports();
         }}
         onRenameDashboard={handleRenameDashboard}
         searchQuery={searchQuery}
@@ -224,6 +239,9 @@ export default function InsightsPage() {
         <div className="flex-1 overflow-auto">
           <DashboardGrid
             dashboardPopulated={dashboardPopulated}
+            loaded={loaded}
+            seeding={seeding}
+            seedError={seedError}
             onCreateDefaultReports={handleCreateDefaultReports}
             hrefFor={hrefFor}
             cardStats={cardStats}

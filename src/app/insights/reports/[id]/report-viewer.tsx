@@ -46,7 +46,7 @@ export function ReportViewer({ reportId }: { reportId: string }) {
 
   useEffect(() => {
     const supabase = createClient();
-    supabase.from("saved_reports").select("id, name, config").eq("id", reportId).single().then(({ data, error }) => {
+    supabase.from("saved_reports").select("id, name, config").eq("id", reportId).maybeSingle().then(({ data, error }) => {
       setLoading(false);
       if (error || !data) { setNotFound(true); return; }
       const config = (data.config ?? {}) as Partial<SavedReport>;
@@ -73,7 +73,9 @@ export function ReportViewer({ reportId }: { reportId: string }) {
           measureBy: next.measureBy, groupBy: next.groupBy, groupByGranularity: next.groupByGranularity,
           excludeStage: next.excludeStage,
         } as unknown as Json,
-      }).eq("id", next.id).then(() => {});
+      }).eq("id", next.id).then(({ error }) => {
+        if (error) console.error("[insights] falha ao salvar relatório:", error);
+      });
     }, 500);
   }, []);
 

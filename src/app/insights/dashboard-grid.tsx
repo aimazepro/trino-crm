@@ -9,6 +9,9 @@ import { Plus, Sparkles, Pencil, Maximize2, GripVertical, Settings } from "lucid
 
 interface DashboardGridProps {
   dashboardPopulated: boolean;
+  loaded: boolean;
+  seeding: boolean;
+  seedError: string | null;
   onCreateDefaultReports: () => void;
   hrefFor: (name: string, pipeline: string) => string;
   cardStats: { leads: number; decisor: number; reunioes: number; ganhos: number };
@@ -20,6 +23,9 @@ interface DashboardGridProps {
 
 export function DashboardGrid({
   dashboardPopulated,
+  loaded,
+  seeding,
+  seedError,
   onCreateDefaultReports,
   hrefFor,
   cardStats,
@@ -28,6 +34,10 @@ export function DashboardGrid({
   activityOwnerChartData,
   mixActivityChartData,
 }: DashboardGridProps) {
+  if (!loaded) {
+    return <div className="flex items-center justify-center py-20 text-sm text-zinc-400">Carregando relatorios...</div>;
+  }
+
   if (!dashboardPopulated) {
     return (
       <div className="flex flex-col items-center justify-center py-20">
@@ -40,10 +50,11 @@ export function DashboardGrid({
           <div className="flex flex-col gap-3">
             <button
               onClick={onCreateDefaultReports}
+              disabled={seeding}
               className="inline-flex items-center justify-center gap-2 rounded-lg bg-zinc-900 px-4 py-2.5 text-sm font-medium text-white hover:bg-zinc-800 disabled:opacity-50 transition-colors cursor-pointer"
             >
               <Sparkles className="h-4 w-4" />
-              Criar relatorios padrao
+              {seeding ? "Criando..." : "Criar relatorios padrao"}
             </button>
             <Link
               href="/insights/reports/new"
@@ -53,6 +64,9 @@ export function DashboardGrid({
               Criar relatorio do zero
             </Link>
           </div>
+          {seedError && (
+            <p className="mt-4 text-xs text-red-600">{seedError}</p>
+          )}
         </div>
       </div>
     );

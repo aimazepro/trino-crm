@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useRef, useEffect } from "react";
+import { useState, useEffect, useCallback } from "react";
 import { createClient } from "@/lib/supabase/client";
 import { useWorkspace } from "@/lib/workspace";
 import type { SavedReport } from "@/app/insights/insights-constants";
@@ -43,95 +43,50 @@ function fromRow(row: { id: string; name: string; config: unknown }): SavedRepor
   };
 }
 
-export function useSavedReports(onLoad: (report: SavedReport) => void) {
+export function useSavedReports() {
+  // useWorkspace() dá throw se o workspace ainda não resolveu, então
+  // workspaceId/userId aqui são sempre válidos — sem race, sem fallback.
   const { workspaceId, userId } = useWorkspace();
-  const userIdRef = useRef<string | null>(null);
   const [savedReports, setSavedReports] = useState<SavedReport[]>([]);
-  const [dashboardPopulated, setDashboardPopulated] = useState(false);
+  const [loaded, setLoaded] = useState(false);
 
-  const sync = (reports: SavedReport[]) => {
-    if (!userIdRef.current) return;
-    const uid = userIdRef.current;
-    createClient().from("saved_reports").upsert(
+  /** Grava os relatórios no banco. Rejeita se o Supabase recusar — o chamador trata. */
+  const sync = useCallback(async (reports: SavedReport[]): Promise<void> => {
+    if (reports.length === 0) return;
+    const { error } = await createClient().from("saved_reports").upsert(
       reports.map(r => ({
-        id: r.id, user_id: uid, workspace_id: workspaceId, name: r.name,
+        id: r.id, user_id: userId, workspace_id: workspaceId, name: r.name,
         config: toConfig(r),
       })),
-      { onConflict: "id,user_id" }
-    ).then(() => {});
-  };
+      { onConflict: "id" }   // saved_reports_pkey é PRIMARY KEY (id) — não existe unique (id,user_id)
+    );
+    if (error) {
+      console.error("[insights] falha ao salvar relatórios:", error);
+      throw new Error(error.message);
+    }
+  }, [userId, workspaceId]);
 
-  const deleteFromDb = (id: string) => {
-    if (!userIdRef.current) return;
-    createClient().from("saved_reports")
-      .delete().eq("id", id).eq("user_id", userIdRef.current).then(() => {});
-  };
+  const deleteFromDb = useCallback(async (id: string): Promise<void> => {
+    const { error } = await createClient().from("saved_reports")
+      .delete().eq("id", id).eq("user_id", userId);
+    if (error) console.error("[insights] falha ao excluir relatório:", error);
+  }, [userId]);
 
   useEffect(() => {
-    const storedPopulated = localStorage.getItem("insights_dashboard_populated");
-    const storedActiveReport = localStorage.getItem("insights_active_report_id");
-    const supabase = createClient();
+    let cancelled = false;
+    createClient()
+      .from("saved_reports")
+      .select("id, name, config")
+      .eq("workspace_id", workspaceId)
+      .order("created_at", { ascending: true })
+      .then(({ data: rows, error }) => {
+        if (cancelled) return;
+        if (error) console.error("[insights] falha ao carregar relatórios:", error);
+        setSavedReports(rows && rows.length > 0 ? rows.map(fromRow) : []);
+        setLoaded(true);
+      });
+    return () => { cancelled = true; };
+  }, [workspaceId]);
 
-    supabase.auth.getUser().then(async ({ data: { user } }) => {
-      if (!user) return;
-      userIdRef.current = user.id;
-
-      let reports: SavedReport[] = [];
-      const { data: rows } = await supabase
-        .from("saved_reports")
-        .select("id, name, config")
-        .order("created_at", { ascending: true });
-
-      if (rows && rows.length > 0) {
-        reports = rows.map(fromRow);
-      } else {
-        const storedReports = localStorage.getItem("insights_saved_reports");
-        if (storedReports) {
-          try {
-            const parsed = JSON.parse(storedReports) as Partial<SavedReport>[];
-            reports = parsed.map(r => ({
-              id: r.id!,
-              name: r.name || "Relatório",
-              entity: r.entity || "deal",
-              reportType: r.reportType || "em_branco",
-              chartType: r.chartType || "bar",
-              color: r.color || "#ec4899",
-              pipeline: r.pipeline || "",
-              period: r.period || "Este mes",
-              periodField: r.periodField || "created_at",
-              filters: r.filters || [],
-              measureBy: r.measureBy,
-              groupBy: r.groupBy,
-              groupByGranularity: r.groupByGranularity,
-              excludeStage: r.excludeStage,
-            }));
-            await supabase.from("saved_reports").upsert(
-              reports.map(r => ({
-                id: r.id, user_id: user.id, workspace_id: workspaceId, name: r.name,
-                config: toConfig(r),
-              })),
-              { onConflict: "id,user_id" }
-            );
-            localStorage.removeItem("insights_saved_reports");
-          } catch {
-            reports = [];
-          }
-        } else {
-          // Sem relatórios salvos ainda — painel fica vazio até o usuário
-          // clicar "Criar relatórios padrão" ou "Criar relatório do zero".
-          reports = [];
-        }
-      }
-
-      setSavedReports(reports);
-      if (storedPopulated === "true") setDashboardPopulated(true);
-      if (storedActiveReport && storedActiveReport !== "null") {
-        const activeReport = reports.find(r => r.id === storedActiveReport);
-        if (activeReport) onLoad(activeReport);
-      }
-    });
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
-
-  return { savedReports, setSavedReports, dashboardPopulated, setDashboardPopulated, sync, deleteFromDb };
+  return { savedReports, setSavedReports, loaded, sync, deleteFromDb };
 }
