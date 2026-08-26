@@ -1,15 +1,31 @@
 "use client";
 
-// Aba "Ligações" do negócio: o card de onde o vendedor liga e o histórico do
-// que já foi falado com aquele contato.
+// Aba "Ligações" do negócio: de onde o vendedor liga, mais o histórico do que já
+// foi falado com aquele contato.
+//
+// Cada linha abre igual um email abre o corpo: clique e a gravação, a análise e a
+// transcrição aparecem no lugar, sem tirar você da lista.
 
 import { useCallback, useEffect, useState } from "react";
-import { Phone, PhoneOff, PlayCircle, AlertCircle } from "lucide-react";
+import {
+  AlertCircle,
+  CalendarPlus,
+  ChevronDown,
+  FileText,
+  Loader2,
+  Phone,
+  PhoneOff,
+  Sparkles,
+} from "lucide-react";
 import { format } from "date-fns";
 import { ptBR } from "date-fns/locale";
 import { cn } from "@/lib/utils";
 import { CallButton } from "./call-button";
+import { ScriptModal } from "./script-picker";
+import { CreateActivityDialog } from "./create-activity-dialog";
 import { formatCents, formatDuration, useTelephony } from "@/hooks/use-telephony";
+import { useOwnerNameMap } from "@/hooks/use-owner-name-map";
+import type { CallAnalysis } from "@/lib/telephony/db";
 
 interface CallRow {
   id: string;
@@ -22,7 +38,21 @@ interface CallRow {
   hasRecording: boolean;
   disposition: string | null;
   notes: string | null;
+  analysis: CallAnalysis | null;
+  analyzedAt: string | null;
+  hasTranscript: boolean;
+  transcript: string | null;
 }
+
+const DISPOSITION_LABEL: Record<string, { label: string; tone: string }> = {
+  atendeu: { label: "Atendeu", tone: "bg-green-50 text-green-700 border-green-200" },
+  nao_atendeu: { label: "Não atendeu", tone: "bg-zinc-50 text-zinc-600 border-zinc-200" },
+  caixa_postal: { label: "Caixa postal", tone: "bg-zinc-50 text-zinc-600 border-zinc-200" },
+  ocupado: { label: "Ocupado", tone: "bg-amber-50 text-amber-700 border-amber-200" },
+  numero_errado: { label: "Número errado", tone: "bg-amber-50 text-amber-700 border-amber-200" },
+  reagendar: { label: "Reagendar", tone: "bg-blue-50 text-blue-700 border-blue-200" },
+  sem_interesse: { label: "Sem interesse", tone: "bg-red-50 text-red-700 border-red-200" },
+};
 
 const STATUS_LABEL: Record<string, { label: string; tone: string }> = {
   completed: { label: "Atendida", tone: "bg-green-50 text-green-700 border-green-200" },
@@ -35,28 +65,46 @@ const STATUS_LABEL: Record<string, { label: string; tone: string }> = {
   canceled: { label: "Cancelada", tone: "bg-zinc-50 text-zinc-600 border-zinc-200" },
 };
 
-const DISPOSITION_LABEL: Record<string, string> = {
-  atendeu: "Atendeu",
-  nao_atendeu: "Não atendeu",
-  caixa_postal: "Caixa postal",
-  numero_errado: "Número errado",
-  reagendar: "Reagendar",
-  sem_interesse: "Sem interesse",
-  ocupado: "Ocupado",
-};
+/**
+ * O rótulo da linha vem da classificação do vendedor quando ela existe. O status
+ * do CDR só aparece quando ninguém classificou — antes disso a lista mostrava
+ * "Atendida" para chamada que o próprio vendedor tinha marcado como não atendida.
+ */
+function outcomeOf(call: CallRow) {
+  if (call.disposition && DISPOSITION_LABEL[call.disposition]) {
+    return DISPOSITION_LABEL[call.disposition];
+  }
+  return STATUS_LABEL[call.status] ?? { label: call.status, tone: "bg-zinc-50 text-zinc-600 border-zinc-200" };
+}
 
 interface DealCallsTabProps {
   dealId: string;
   contactId?: string | null;
   contactPhone?: string | null;
   contactName?: string | null;
+  companyName?: string | null;
+  dealTitle?: string | null;
 }
 
-export function DealCallsTab({ dealId, contactId, contactPhone, contactName }: DealCallsTabProps) {
+export function DealCallsTab({
+  dealId,
+  contactId,
+  contactPhone,
+  contactName,
+  companyName,
+  dealTitle,
+}: DealCallsTabProps) {
   const [calls, setCalls] = useState<CallRow[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [expanded, setExpanded] = useState<string | null>(null);
+  const [analyzing, setAnalyzing] = useState<string | null>(null);
+  const [analyzeError, setAnalyzeError] = useState<Record<string, string>>({});
+  const [showScript, setShowScript] = useState(false);
+  const [activityFor, setActivityFor] = useState<{ title: string } | null>(null);
+
   const { status } = useTelephony();
+  const { selfName } = useOwnerNameMap();
 
   const load = useCallback(async () => {
     try {
@@ -76,49 +124,90 @@ export function DealCallsTab({ dealId, contactId, contactPhone, contactName }: D
     void load();
   }, [load]);
 
+  async function analyze(callId: string) {
+    setAnalyzing(callId);
+    setAnalyzeError((e) => ({ ...e, [callId]: "" }));
+    try {
+      const res = await fetch(`/api/telephony/calls/${callId}/analyze`, { method: "POST" });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data?.error ?? "Falha ao analisar");
+      setCalls((cs) =>
+        cs.map((c) =>
+          c.id === callId ? { ...c, analysis: data.analysis, analyzedAt: data.analyzedAt } : c,
+        ),
+      );
+      setExpanded(callId);
+    } catch (err) {
+      setAnalyzeError((e) => ({
+        ...e,
+        [callId]: err instanceof Error ? err.message : "Erro desconhecido",
+      }));
+    } finally {
+      setAnalyzing(null);
+    }
+  }
+
+  const scriptCtx = {
+    nomeContato: contactName,
+    nomeVendedor: selfName,
+    empresa: companyName,
+    negocio: dealTitle,
+    telefone: contactPhone,
+  };
+
   return (
     <div className="space-y-4">
-      {/* Card de ligação */}
-      <div className="rounded-xl border border-zinc-200 bg-white p-5">
-        <div className="flex items-center gap-3">
-          <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-purple-100">
-            <Phone className="h-5 w-5 text-purple-600" />
-          </div>
-          <div className="min-w-0 flex-1">
-            <p className="text-sm font-semibold text-zinc-900">
-              {contactPhone ? `Ligar para ${contactName ?? "o contato"}` : "Sem telefone no contato"}
-            </p>
-            <p className="truncate text-xs text-zinc-500">
-              {contactPhone
-                ? `${contactPhone}${
-                    status?.myExtension ? ` · seu ramal ${status.myExtension.extension}` : ""
-                  }`
-                : "Cadastre um telefone no contato para ligar daqui"}
-            </p>
-          </div>
-          <CallButton
-            toNumber={contactPhone}
-            contactName={contactName}
-            dealId={dealId}
-            contactId={contactId}
-            onFinished={load}
-          />
-        </div>
+      {/* Ações */}
+      <div className="flex flex-wrap items-center gap-2">
+        <CallButton
+          toNumber={contactPhone}
+          contactName={contactName}
+          companyName={companyName}
+          dealTitle={dealTitle}
+          sellerName={selfName}
+          dealId={dealId}
+          contactId={contactId}
+          label={contactName ? `Ligar para ${contactName}` : "Ligar"}
+          variant="ghost"
+          className="border border-zinc-200"
+          onFinished={(result) => {
+            void load();
+            // Reagendar sem compromisso marcado é promessa que se perde.
+            if (result.disposition === "reagendar") {
+              setActivityFor({ title: `Retornar ligação para ${contactName ?? "o contato"}` });
+            }
+          }}
+        />
 
-        {status && status.status !== "active" && (
-          <p className="mt-3 flex items-center gap-1.5 rounded-lg bg-amber-50 px-3 py-2 text-xs text-amber-700">
-            <AlertCircle className="h-3.5 w-3.5 shrink-0" />
-            Telefonia não ativada. Configurações → Telefone.
-          </p>
-        )}
-        {status?.status === "active" && !status.myExtension && (
-          <p className="mt-3 flex items-center gap-1.5 rounded-lg bg-amber-50 px-3 py-2 text-xs text-amber-700">
-            <AlertCircle className="h-3.5 w-3.5 shrink-0" />
-            Você ainda não tem ramal. Peça ao dono da conta para vincular.
-          </p>
-        )}
+        <button
+          onClick={() => setShowScript(true)}
+          className="flex items-center gap-1.5 rounded-xl border border-zinc-200 bg-white px-3 py-1.5 text-sm font-medium text-zinc-600 transition-colors hover:bg-zinc-50"
+        >
+          <FileText className="h-3.5 w-3.5 text-zinc-400" />
+          Script
+        </button>
+
+        <button
+          onClick={() => setActivityFor({ title: "Retornar ligação" })}
+          className="flex items-center gap-1.5 rounded-xl border border-zinc-200 bg-white px-3 py-1.5 text-sm font-medium text-zinc-600 transition-colors hover:bg-zinc-50"
+        >
+          <CalendarPlus className="h-3.5 w-3.5 text-zinc-400" />
+          Nova atividade
+        </button>
       </div>
 
+      {status && status.status !== "active" && (
+        <p className="flex items-center gap-1.5 rounded-lg bg-amber-50 px-3 py-2 text-xs text-amber-700">
+          <AlertCircle className="h-3.5 w-3.5 shrink-0" />
+          Telefonia não ativada. Configurações → Telefone.
+        </p>
+      )}
+      {status?.status === "active" && !status.myExtension && (
+        <p className="flex items-center gap-1.5 rounded-lg bg-amber-50 px-3 py-2 text-xs text-amber-700">
+          <AlertCircle className="h-3.5 w-3.5 shrink-0" />
+          Você ainda não tem ramal. Peça ao dono da conta para vincular.
+        </p>
+      )}
       {error && (
         <div className="rounded-xl border border-red-200 bg-red-50 p-4 text-sm text-red-700">
           {error}
@@ -135,58 +224,169 @@ export function DealCallsTab({ dealId, contactId, contactPhone, contactName }: D
               <PhoneOff className="h-6 w-6 text-zinc-400" />
             </div>
             <p className="text-sm font-medium text-zinc-700">Nenhuma ligação registrada</p>
-            <p className="mt-1 text-xs text-zinc-500">As ligações feitas daqui aparecem nesta lista</p>
+            <p className="mt-1 text-xs text-zinc-500">
+              Clique em &ldquo;Ligar&rdquo; acima para fazer sua primeira ligação
+            </p>
           </div>
         ) : (
           <div className="divide-y divide-zinc-100">
             {calls.map((c) => {
-              const s = STATUS_LABEL[c.status] ?? {
-                label: c.status,
-                tone: "bg-zinc-50 text-zinc-600 border-zinc-200",
-              };
+              const outcome = outcomeOf(c);
+              const isOpen = expanded === c.id;
+              const canAnalyze = c.hasTranscript || Boolean(c.notes?.trim());
+
               return (
-                <div key={c.id} className="px-5 py-3.5">
-                  <div className="flex flex-wrap items-center gap-2">
+                <div key={c.id}>
+                  <button
+                    onClick={() => setExpanded(isOpen ? null : c.id)}
+                    className="flex w-full flex-wrap items-center gap-2 px-5 py-3.5 text-left transition-colors hover:bg-zinc-50/70"
+                  >
+                    <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-green-50">
+                      <Phone className="h-3.5 w-3.5 text-green-600" />
+                    </span>
                     <span
                       className={cn(
                         "rounded-full border px-2 py-0.5 text-[11px] font-medium",
-                        s.tone,
+                        outcome.tone,
                       )}
                     >
-                      {s.label}
+                      {outcome.label}
                     </span>
                     <span className="text-sm text-zinc-700">{c.toNumber}</span>
                     {c.durationSeconds > 0 && (
-                      <span className="font-mono text-xs text-zinc-500">
+                      <span className="font-mono text-xs tabular-nums text-zinc-500">
                         {formatDuration(c.durationSeconds)}
                       </span>
                     )}
-                    {c.disposition && (
-                      <span className="rounded-full bg-purple-50 px-2 py-0.5 text-[11px] font-medium text-purple-700">
-                        {DISPOSITION_LABEL[c.disposition] ?? c.disposition}
+                    {c.analysis && (
+                      <span className="inline-flex items-center gap-1 rounded-full bg-purple-50 px-2 py-0.5 text-[10px] font-medium text-purple-700">
+                        <Sparkles className="h-2.5 w-2.5" /> Analisada
                       </span>
                     )}
-                    <span className="ml-auto text-[11px] text-zinc-400">
+                    <span className="ml-auto text-[11px] tabular-nums text-zinc-400">
                       {format(new Date(c.startedAt), "dd/MM HH:mm", { locale: ptBR })}
                     </span>
                     {c.billingMode === "per_minute" && c.billedCents > 0 && (
-                      <span className="text-[11px] font-medium text-zinc-500">
+                      <span className="text-[11px] font-medium tabular-nums text-zinc-500">
                         {formatCents(c.billedCents)}
                       </span>
                     )}
-                  </div>
+                    <ChevronDown
+                      className={cn(
+                        "h-3.5 w-3.5 shrink-0 text-zinc-300 transition-transform",
+                        isOpen && "rotate-180",
+                      )}
+                    />
+                  </button>
 
-                  {c.notes && <p className="mt-1.5 text-xs text-zinc-600">{c.notes}</p>}
+                  {isOpen && (
+                    <div className="space-y-4 border-t border-zinc-100 bg-zinc-50/50 px-5 py-4">
+                      {c.hasRecording ? (
+                        <audio
+                          controls
+                          preload="none"
+                          src={`/api/telephony/calls/${c.id}/recording`}
+                          className="h-9 w-full max-w-md"
+                        />
+                      ) : (
+                        <p className="text-xs text-zinc-400">Sem gravação para esta ligação.</p>
+                      )}
 
-                  {c.hasRecording && (
-                    <div className="mt-2 flex items-center gap-2">
-                      <PlayCircle className="h-3.5 w-3.5 text-zinc-400" />
-                      <audio
-                        controls
-                        preload="none"
-                        src={`/api/telephony/calls/${c.id}/recording`}
-                        className="h-8 max-w-xs"
-                      />
+                      {c.notes && (
+                        <div>
+                          <p className="mb-1 text-[11px] font-semibold uppercase tracking-wide text-zinc-400">
+                            Notas
+                          </p>
+                          <p className="text-sm text-zinc-700">{c.notes}</p>
+                        </div>
+                      )}
+
+                      {analyzeError[c.id] && (
+                        <p className="rounded-lg bg-red-50 px-3 py-2 text-xs text-red-700">
+                          {analyzeError[c.id]}
+                        </p>
+                      )}
+
+                      {c.analysis ? (
+                        <div className="space-y-3 rounded-xl border border-purple-100 bg-white p-4">
+                          <div className="flex items-center gap-2">
+                            <Sparkles className="h-3.5 w-3.5 text-purple-600" />
+                            <span className="text-xs font-semibold text-purple-700">
+                              Análise da ligação
+                            </span>
+                            <span className="ml-auto rounded-full bg-zinc-100 px-2 py-0.5 text-[10px] font-medium text-zinc-500">
+                              {c.analysis.sentimento} · nota {c.analysis.qualidade}/10
+                            </span>
+                          </div>
+
+                          <div>
+                            <p className="mb-1 text-[11px] font-semibold uppercase tracking-wide text-zinc-400">
+                              Resumo
+                            </p>
+                            <p className="text-sm leading-relaxed text-zinc-700">
+                              {c.analysis.resumo}
+                            </p>
+                          </div>
+
+                          {[
+                            { title: "Pontos-chave", items: c.analysis.pontos_chave },
+                            { title: "Objeções", items: c.analysis.objecoes },
+                            { title: "Próximos passos", items: c.analysis.proximos_passos },
+                          ]
+                            .filter((s) => s.items?.length)
+                            .map((s) => (
+                              <div key={s.title}>
+                                <p className="mb-1 text-[11px] font-semibold uppercase tracking-wide text-zinc-400">
+                                  {s.title}
+                                </p>
+                                <ul className="list-disc space-y-0.5 pl-4 text-sm text-zinc-700">
+                                  {s.items.map((it, i) => (
+                                    <li key={i}>{it}</li>
+                                  ))}
+                                </ul>
+                              </div>
+                            ))}
+
+                          {c.analysis.observacao_coach && (
+                            <p className="rounded-lg bg-amber-50 px-3 py-2 text-xs text-amber-800">
+                              <span className="font-semibold">Feedback: </span>
+                              {c.analysis.observacao_coach}
+                            </p>
+                          )}
+                        </div>
+                      ) : (
+                        <button
+                          onClick={() => void analyze(c.id)}
+                          disabled={analyzing === c.id || !canAnalyze}
+                          title={
+                            canAnalyze
+                              ? "Gerar análise da ligação"
+                              : "Sem transcrição nem notas para analisar"
+                          }
+                          className="inline-flex items-center gap-1.5 rounded-lg border border-purple-200 bg-purple-50 px-3 py-1.5 text-xs font-semibold text-purple-700 transition-colors hover:bg-purple-100 disabled:cursor-not-allowed disabled:opacity-50"
+                        >
+                          {analyzing === c.id ? (
+                            <>
+                              <Loader2 className="h-3.5 w-3.5 animate-spin" /> Analisando...
+                            </>
+                          ) : (
+                            <>
+                              <Sparkles className="h-3.5 w-3.5" /> Analisar
+                            </>
+                          )}
+                        </button>
+                      )}
+
+                      {c.transcript && (
+                        <details className="group">
+                          <summary className="cursor-pointer text-[11px] font-semibold uppercase tracking-wide text-zinc-400 hover:text-zinc-600">
+                            Transcrição
+                          </summary>
+                          <p className="mt-2 whitespace-pre-wrap text-sm leading-relaxed text-zinc-600">
+                            {c.transcript}
+                          </p>
+                        </details>
+                      )}
                     </div>
                   )}
                 </div>
@@ -195,6 +395,17 @@ export function DealCallsTab({ dealId, contactId, contactPhone, contactName }: D
           </div>
         )}
       </div>
+
+      {showScript && <ScriptModal ctx={scriptCtx} onClose={() => setShowScript(false)} />}
+
+      {activityFor && (
+        <CreateActivityDialog
+          dealId={dealId}
+          defaultTitle={activityFor.title}
+          defaultType="Ligação"
+          onClose={() => setActivityFor(null)}
+        />
+      )}
     </div>
   );
 }

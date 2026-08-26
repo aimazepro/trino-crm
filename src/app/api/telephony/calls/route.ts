@@ -218,7 +218,7 @@ export async function GET(req: Request) {
       .from("telephony_calls")
       // Literal unico: o PostgREST infere o tipo das colunas a partir da string,
       // e concatenacao apaga essa inferencia.
-      .select("id, user_id, contact_id, deal_id, direction, to_number, from_number, status, started_at, answered_at, ended_at, duration_seconds, billed_cents, recording_status, disposition, notes, hangup_cause, billing_mode")
+      .select("id, user_id, contact_id, deal_id, direction, to_number, from_number, status, started_at, answered_at, ended_at, duration_seconds, billed_cents, recording_status, disposition, notes, hangup_cause, billing_mode, analysis, analyzed_at, transcript")
       .eq("workspace_id", workspaceId)
       .order("started_at", { ascending: false })
       .limit(limit);
@@ -249,6 +249,10 @@ export async function GET(req: Request) {
         disposition: c.disposition,
         notes: c.notes,
         hangupCause: c.hangup_cause,
+        analysis: c.analysis,
+        analyzedAt: c.analyzed_at,
+        hasTranscript: Boolean(c.transcript && c.transcript.trim()),
+        transcript: c.transcript,
       })),
     });
   } catch (err) {

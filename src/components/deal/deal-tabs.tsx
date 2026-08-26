@@ -138,6 +138,8 @@ export function DealTabs({ dealId }: DealTabsProps) {
             contactId={contact?.id ?? null}
             contactPhone={contactPhone}
             contactName={contact?.name ?? null}
+            companyName={company?.name ?? null}
+            dealTitle={deal?.title ?? null}
           />
         )}
 

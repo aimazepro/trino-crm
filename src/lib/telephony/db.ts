@@ -81,9 +81,24 @@ export type TelephonyCallRow = {
   notes: string | null;
   script_id: string | null;
   finalized_at: string | null;
+  transcript: string | null;
+  transcript_source: "browser" | "provider" | "manual" | null;
+  analysis: CallAnalysis | null;
+  analyzed_at: string | null;
   created_at: string;
   updated_at: string;
 }
+
+/** Saida estruturada da analise da ligacao. */
+export type CallAnalysis = {
+  resumo: string;
+  pontos_chave: string[];
+  objecoes: string[];
+  proximos_passos: string[];
+  sentimento: "positivo" | "neutro" | "negativo";
+  qualidade: number;
+  observacao_coach: string;
+};
 
 export type TelephonyLedgerRow = {
   id: string;

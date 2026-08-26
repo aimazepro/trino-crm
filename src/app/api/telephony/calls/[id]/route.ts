@@ -36,7 +36,7 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
 
   const { id } = await params;
   const body = (await req.json().catch(() => null)) as
-    | { disposition?: string; notes?: string }
+    | { disposition?: string; notes?: string; transcript?: string }
     | null;
   if (!body) return NextResponse.json({ error: "Corpo inválido" }, { status: 400 });
 
@@ -45,7 +45,12 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
   try {
     const workspaceId = await resolveWorkspaceId(admin, user.id);
 
-    const patch: { disposition?: CallDisposition; notes?: string } = {};
+    const patch: {
+      disposition?: CallDisposition;
+      notes?: string;
+      transcript?: string;
+      transcript_source?: "browser";
+    } = {};
     if (body.disposition !== undefined) {
       if (!DISPOSITIONS.includes(body.disposition as CallDisposition)) {
         return NextResponse.json({ error: "Disposição inválida" }, { status: 400 });
@@ -53,6 +58,10 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
       patch.disposition = body.disposition as CallDisposition;
     }
     if (body.notes !== undefined) patch.notes = body.notes.slice(0, 5000);
+    if (body.transcript !== undefined) {
+      patch.transcript = body.transcript.slice(0, 60000);
+      patch.transcript_source = "browser";
+    }
 
     if (Object.keys(patch).length === 0) {
       return NextResponse.json({ error: "Nada para atualizar" }, { status: 400 });

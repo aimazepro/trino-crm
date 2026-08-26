@@ -72,9 +72,21 @@ export default function LigacoesPage() {
           userId: string | null;
           toNumber: string;
           status: string;
+          disposition: string | null;
           startedAt: string;
           durationSeconds: number;
           hasRecording: boolean;
+        };
+
+        // A classificacao do vendedor manda: uma chamada que ele marcou como nao
+        // atendida nao pode aparecer como atendida so porque o CDR conectou.
+        const outcomeOf = (c: ApiCall): CallRecord["status"] => {
+          if (c.disposition === "atendeu") return "Atendida";
+          if (c.disposition === "ocupado") return "Ocupado";
+          if (c.disposition) return "Não atendida";
+          if (c.status === "completed") return "Atendida";
+          if (c.status === "busy") return "Ocupado";
+          return "Não atendida";
         };
 
         setAllCalls(
@@ -82,12 +94,7 @@ export default function LigacoesPage() {
             id: c.id,
             vendedor: (c.userId && sellerMap[c.userId]) || "Sem responsável",
             telefone: c.toNumber,
-            status:
-              c.status === "completed"
-                ? "Atendida"
-                : c.status === "busy"
-                  ? "Ocupado"
-                  : "Não atendida",
+            status: outcomeOf(c),
             durationSeconds: c.durationSeconds,
             timestamp: c.startedAt,
             recordingUrl: c.hasRecording ? `/api/telephony/calls/${c.id}/recording` : undefined,

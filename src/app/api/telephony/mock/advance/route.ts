@@ -23,7 +23,7 @@ export async function POST(req: Request) {
   if (!user) return NextResponse.json({ error: "Não autenticado" }, { status: 401 });
 
   const body = (await req.json().catch(() => null)) as
-    | { callId?: string; action?: string; durationSeconds?: number }
+    | { callId?: string; action?: string; durationSeconds?: number; status?: string }
     | null;
 
   if (!body?.callId || !body.action) {
@@ -69,15 +69,30 @@ export async function POST(req: Request) {
               at: now,
               recordingRef: `mockrec-${call.provider_call_id}`,
             }
-          : {
-              eventId: randomUUID(),
-              callId: call.provider_call_id,
-              type: "completed",
-              at: now,
-              durationSeconds: duration,
-              status: duration > 0 ? "completed" : "no_answer",
-              hangupCause: duration > 0 ? "normal" : "no-answer",
-            };
+          : (() => {
+              // No simulado quem sabe se a pessoa atendeu e o vendedor, nao o
+              // cronometro. Sem isso toda chamada virava "Atendida" -- e uma
+              // chamada de 9 segundos marcada como nao atendida era cobrada.
+              const CONNECTED = new Set(["completed", "answered", "busy"]);
+              const status =
+                body.status && CONNECTED.has(body.status)
+                  ? body.status
+                  : body.status === "no_answer"
+                    ? "no_answer"
+                    : duration > 0
+                      ? "completed"
+                      : "no_answer";
+              const billable = status === "completed" ? duration : 0;
+              return {
+                eventId: randomUUID(),
+                callId: call.provider_call_id,
+                type: "completed",
+                at: now,
+                durationSeconds: billable,
+                status,
+                hangupCause: status === "completed" ? "normal" : status,
+              };
+            })();
 
     const rawBody = JSON.stringify(payload);
     const headers = new Headers({

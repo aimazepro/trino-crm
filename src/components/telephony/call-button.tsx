@@ -13,9 +13,12 @@ import { useTelephony } from "@/hooks/use-telephony";
 interface CallButtonProps {
   toNumber: string | null | undefined;
   contactName?: string | null;
+  companyName?: string | null;
+  dealTitle?: string | null;
+  sellerName?: string | null;
   dealId?: string | null;
   contactId?: string | null;
-  onFinished?: () => void;
+  onFinished?: (result: { callId: string | null; disposition: string | null }) => void;
   variant?: "primary" | "ghost";
   className?: string;
   label?: string;
@@ -24,6 +27,9 @@ interface CallButtonProps {
 export function CallButton({
   toNumber,
   contactName,
+  companyName,
+  dealTitle,
+  sellerName,
   dealId,
   contactId,
   onFinished,
@@ -68,6 +74,9 @@ export function CallButton({
         <CallDialog
           toNumber={toNumber}
           contactName={contactName}
+          companyName={companyName}
+          dealTitle={dealTitle}
+          sellerName={sellerName}
           dealId={dealId}
           contactId={contactId}
           onClose={() => setOpen(false)}
