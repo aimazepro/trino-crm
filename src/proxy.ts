@@ -47,6 +47,14 @@ export async function proxy(request: NextRequest) {
 // finalizes, and the minute is never billed. Note this excludes ONLY the
 // webhook subpath: every other api/telephony route is session-based and must
 // keep going through the check.
+// api/convites is excluded wholesale, not just the aceitar subpath: the
+// invitee has no session cookie when the /convite/[token] page calls
+// GET /api/convites/[token] to look up the invite, so that request hit the
+// same blanket /login redirect too -- the page's fetch().json() then choked
+// on the login page's HTML and surfaced as "Não deu para verificar o convite
+// agora" instead of the actual lookup result. POST /api/convites (create)
+// rides along in the exclusion but stays safe: it does its own auth via
+// getWorkspaceContext(supabase) and 401s/403s without the proxy's help.
 export const config = {
-  matcher: ["/((?!_next/static|_next/image|favicon.ico|api/auth/gmail/callback|api/auth/google-calendar/callback|api/track|api/whatsapp/webhook|api/whatsapp/queue|api/telephony/webhook|api/convites/aceitar|api/automations|api/v1|api/cron|.*\\.(?:svg|png|jpg|jpeg|gif|webp)$).*)"],
+  matcher: ["/((?!_next/static|_next/image|favicon.ico|api/auth/gmail/callback|api/auth/google-calendar/callback|api/track|api/whatsapp/webhook|api/whatsapp/queue|api/telephony/webhook|api/convites|api/automations|api/v1|api/cron|.*\\.(?:svg|png|jpg|jpeg|gif|webp)$).*)"],
 };
