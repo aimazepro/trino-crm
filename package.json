@@ -10,6 +10,7 @@
   },
   "dependencies": {
     "@anthropic-ai/sdk": "^0.121.0",
+    "@google/genai": "^2.19.0",
     "@hello-pangea/dnd": "^18.0.1",
     "@supabase/ssr": "^0.10.3",
     "@supabase/supabase-js": "^2.106.1",
