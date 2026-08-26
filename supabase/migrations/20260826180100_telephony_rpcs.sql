@@ -228,6 +228,11 @@ BEGIN
     RETURNING id INTO v_act_id;
 
     UPDATE public.telephony_calls SET activity_id = v_act_id WHERE id = v_call.id;
+
+    -- deal_history e a timeline que o detalhe do negocio renderiza; activities e
+    -- a agenda. A ligacao precisa aparecer nas duas.
+    INSERT INTO public.deal_history (deal_id, description, subtext)
+    VALUES (v_call.deal_id, v_title, 'Para ' || v_call.to_number);
   END IF;
 
   RETURN jsonb_build_object(
