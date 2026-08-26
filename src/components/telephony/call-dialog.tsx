@@ -11,7 +11,8 @@
 // chamada virava "Atendida", inclusive as que ninguém atendeu.
 //
 // Microfone: o mudo desliga a trilha de áudio de verdade (`track.enabled`), a
-// mesma que o MediaRecorder está gravando. Não é um ícone que muda de cor.
+// que alimenta a gravação. Não é um ícone que muda de cor -- o que entra no
+// arquivo durante o mudo é silêncio.
 
 import { useCallback, useEffect, useRef, useState } from "react";
 import {
@@ -36,7 +37,12 @@ import { ScriptList, useScripts, type CallScript } from "./script-picker";
 import { ActivityModal } from "@/components/deal/activity-modal";
 import { useCrm } from "@/contexts/crm-context";
 import { permanentPermissionHint, useMicPermission } from "@/hooks/use-mic-permission";
-import { RECORDING_CONSTRAINTS, recorderOptions } from "@/lib/telephony/recording";
+import {
+  createRecordingGraph,
+  RECORDING_CONSTRAINTS,
+  recorderOptions,
+  type RecordingGraph,
+} from "@/lib/telephony/recording";
 
 type Phase = "script" | "starting" | "live" | "wrapup" | "error";
 
@@ -158,6 +164,7 @@ export function CallDialog({
   const mic = useMicPermission();
 
   const streamRef = useRef<MediaStream | null>(null);
+  const graphRef = useRef<RecordingGraph | null>(null);
   const recorderRef = useRef<MediaRecorder | null>(null);
   const chunksRef = useRef<Blob[]>([]);
   const audioCtxRef = useRef<AudioContext | null>(null);
@@ -179,7 +186,13 @@ export function CallDialog({
       });
       streamRef.current = stream;
 
-      const recorder = new MediaRecorder(stream, recorderOptions());
+      // Nunca entregar a trilha do microfone direto ao MediaRecorder: o Safari
+      // grava a ~20 kb/s quando ela vem em 16 kHz (fone Bluetooth), ignorando o
+      // bitrate pedido sem avisar. Ver src/lib/telephony/recording.ts.
+      const graph = await createRecordingGraph(stream);
+      graphRef.current = graph;
+
+      const recorder = new MediaRecorder(graph.stream, recorderOptions());
       recorder.ondataavailable = (e) => {
         if (e.data.size > 0) chunksRef.current.push(e.data);
       };
@@ -206,6 +219,8 @@ export function CallDialog({
       });
     }
 
+    await graphRef.current?.close();
+    graphRef.current = null;
     streamRef.current?.getTracks().forEach((t) => t.stop());
     streamRef.current = null;
     recorderRef.current = null;
@@ -384,6 +399,7 @@ export function CallDialog({
 
   useEffect(() => {
     return () => {
+      void graphRef.current?.close();
       streamRef.current?.getTracks().forEach((t) => t.stop());
     };
   }, []);

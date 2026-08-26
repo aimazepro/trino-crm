@@ -13,7 +13,13 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import { AlertCircle, CheckCircle2, Loader2, Mic, MicOff, Play, Square } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { permanentPermissionHint, useMicPermission } from "@/hooks/use-mic-permission";
-import { RECORDING_CONSTRAINTS, recorderOptions } from "@/lib/telephony/recording";
+import {
+  createRecordingGraph,
+  NARROWBAND_SAMPLE_RATE,
+  RECORDING_BITS_PER_SECOND,
+  RECORDING_CONSTRAINTS,
+  recorderOptions,
+} from "@/lib/telephony/recording";
 
 const TEST_SECONDS = 6;
 
@@ -23,6 +29,8 @@ interface Result {
   bytes: number;
   seconds: number;
   peak: number;
+  /** Taxa do microfone. 16 kHz = fone Bluetooth em modo chamada. */
+  inputSampleRate: number | null;
 }
 
 /** Bitrate abaixo disso é onde o AAC começa a inventar ruído no lugar de agudos. */
@@ -98,8 +106,12 @@ export function MicCheck() {
       // Sem medidor o teste ainda vale: a gravação é o que importa.
     }
 
+    // Mesmo caminho da ligação, incluindo a reamostragem que contorna o bug do
+    // Safari: um teste que grava melhor que a chamada real não testa nada.
+    const graph = await createRecordingGraph(stream);
+
     const chunks: Blob[] = [];
-    const recorder = new MediaRecorder(stream, recorderOptions());
+    const recorder = new MediaRecorder(graph.stream, recorderOptions());
     recorder.ondataavailable = (e) => {
       if (e.data.size > 0) chunks.push(e.data);
     };
@@ -123,6 +135,7 @@ export function MicCheck() {
         bytes: blob.size,
         seconds,
         peak,
+        inputSampleRate: graph.inputSampleRate,
       });
       setRecording(false);
       setLevel(0);
@@ -131,6 +144,7 @@ export function MicCheck() {
     const stopAll = () => {
       clearInterval(countdown);
       if (raf) cancelAnimationFrame(raf);
+      void graph.close();
       void ctx?.close().catch(() => {});
       stream.getTracks().forEach((t) => t.stop());
       cleanupRef.current = null;
@@ -160,7 +174,10 @@ export function MicCheck() {
   const kbps = result && result.seconds > 0 ? (result.bytes * 8) / result.seconds / 1000 : 0;
   const weakSignal = result ? result.peak < WEAK_PEAK : false;
   const poorBitrate = result ? kbps < POOR_BITRATE_KBPS : false;
-  const healthy = result ? !weakSignal && !poorBitrate : false;
+  const narrowband = result
+    ? (result.inputSampleRate ?? Infinity) < NARROWBAND_SAMPLE_RATE
+    : false;
+  const healthy = result ? !weakSignal && !poorBitrate && !narrowband : false;
 
   return (
     <div className="mb-6 rounded-xl border border-zinc-200 bg-white p-6">
@@ -278,7 +295,11 @@ export function MicCheck() {
               ) : (
                 <>
                   <AlertCircle className="h-3.5 w-3.5" />
-                  {weakSignal ? "Sinal fraco demais" : "Bitrate baixo demais"}
+                  {weakSignal
+                    ? "Sinal fraco demais"
+                    : narrowband
+                      ? "Microfone em banda estreita"
+                      : "Bitrate baixo demais"}
                 </>
               )}
             </span>
@@ -288,8 +309,13 @@ export function MicCheck() {
             {[
               ["Codec", result.mimeType.split(";")[0]],
               ["Bitrate", `${kbps.toFixed(0)} kb/s`],
+              [
+                "Microfone",
+                result.inputSampleRate
+                  ? `${(result.inputSampleRate / 1000).toFixed(1)} kHz`
+                  : "—",
+              ],
               ["Pico", `${(result.peak * 100).toFixed(0)}%`],
-              ["Tamanho", `${(result.bytes / 1024).toFixed(0)} KB`],
             ].map(([k, v]) => (
               <div key={k}>
                 <dt className="text-zinc-400">{k}</dt>
@@ -304,12 +330,21 @@ export function MicCheck() {
               configurações de som do sistema e se não há mudo de hardware ligado.
             </p>
           )}
-          {poorBitrate && !weakSignal && (
+          {narrowband && (
+            <p className="text-[11px] leading-relaxed text-amber-800">
+              Seu microfone está entregando{" "}
+              {((result.inputSampleRate ?? 0) / 1000).toFixed(1)} kHz — banda estreita. É o que o
+              sistema faz quando o microfone é de um fone Bluetooth: ele entra em modo telefone e
+              corta a qualidade na origem, antes de qualquer gravação. Trocar para o microfone
+              interno do computador resolve.
+            </p>
+          )}
+          {poorBitrate && !weakSignal && !narrowband && (
             <p className="text-[11px] leading-relaxed text-amber-800">
               O navegador gravou abaixo de {POOR_BITRATE_KBPS} kb/s mesmo com{" "}
-              {(128_000 / 1000).toFixed(0)} kb/s pedidos. Nesse bitrate o codec troca os agudos por
-              ruído — é o chiado. Fones Bluetooth costumam ser a causa: o sistema cai em modo
-              telefone quando o microfone deles é usado. Teste com o microfone interno.
+              {(RECORDING_BITS_PER_SECOND / 1000).toFixed(0)} kb/s pedidos. Nesse bitrate o codec
+              troca voz por ruído metálico. Se estiver no Safari, teste a mesma ligação no Chrome
+              para comparar.
             </p>
           )}
         </div>

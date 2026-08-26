@@ -88,7 +88,25 @@ a cada chamada. A 29 kb/s o encoder corta tudo acima de 8 kHz (sobra −64 dB) e
 preenche a banda que resta com ruído sintético. **O piso de ruído dos arquivos é
 −inf dB**, ou seja, silêncio digital: não era o microfone. Causa:
 `new MediaRecorder(stream)` sem `audioBitsPerSecond`, deixando o Safari escolher.
-Agora contêiner e bitrate são explícitos em `src/lib/telephony/recording.ts`.
+
+**Só que explicitar o bitrate não bastou** — a correção saiu e o áudio voltou
+pior, agora "robotizado", a 18–32 kb/s. O motivo, isolado em WebKit 26.5 variando
+apenas a taxa da entrada:
+
+    mic 16000 Hz -> direto  21 kb/s | via AudioContext 48k  84 kb/s
+    mic 44100 Hz -> direto 101 kb/s | via AudioContext 48k 104 kb/s
+    mic 48000 Hz -> direto 108 kb/s | via AudioContext 48k 109 kb/s
+
+**O WebKit aceita `audioBitsPerSecond`, passa a reportar 128000 e mesmo assim
+grava a ~20 kb/s quando a trilha de entrada tem 16 kHz.** Não lança, não avisa,
+não registra. E 16 kHz é o que o macOS entrega quando o microfone é de um fone
+Bluetooth (perfil HFP, banda estreita) — uma gravação de produção veio assim.
+O Chrome respeita o pedido; o usuário confirmou isso testando os dois.
+
+A saída foi não entregar a trilha do microfone direto ao MediaRecorder:
+`createRecordingGraph()` passa por um AudioContext de 48 kHz (mono explícito,
+porque o destination node nasce estéreo) e grava a saída dele. Caminho único
+para todo navegador — o Chrome não perde nada (104 vs 101 kb/s).
 
 **Botão Analisar cinza.** `transcript_len = 0` em 100% das ligações. A Web Speech
 API só existe no Chrome, e o teste era no Safari. O gate era
@@ -100,8 +118,14 @@ conversa. Concessão temporária é detectada relendo a Permissions API depois d
 `getUserMedia` aceito: estado que continua `prompt` = o navegador não guardou.
 
 Teste de microfone em Configurações → Telefone grava com os mesmos parâmetros da
-ligação e mostra codec, bitrate e pico — é o que responde "é a gravação ou é meu
-computador?" sem precisar de log.
+ligação e mostra codec, bitrate, taxa do microfone e pico — é o que responde "é a
+gravação ou é meu computador?" sem precisar de log, e é onde a banda estreita do
+Bluetooth aparece nomeada.
+
+**Como reproduzir sem Safari:** `npx playwright install webkit` e gravar um
+stream sintético de taxa controlada (`new AudioContext({ sampleRate })` →
+`createMediaStreamDestination()`). Não precisa de microfone nem de permissão, e
+foi assim que o bug foi isolado — o WebKit do Playwright reproduz.
 
 ---
 
@@ -122,11 +146,14 @@ computador?" sem precisar de log.
    tipado exige `type`, não `interface`, ou tudo vira `never`.
 6. **`.select()` com concatenação de string** apaga a inferência do PostgREST.
    Literal único.
-7. **`MediaRecorder` sem `audioBitsPerSecond` é aposta.** O Safari escolheu
-   29 kb/s e 132 kb/s para duas chamadas seguidas. A 29 kb/s o AAC troca agudo
-   por ruído sintético e a gravação sai chiada, sem erro nenhum em lugar nenhum.
-   Diagnóstico só sai medindo o arquivo (`ffmpeg -af volumedetect`): piso de
-   ruído −inf dB prova que o microfone está limpo e o culpado é o encoder.
+7. **O Safari mente sobre `audioBitsPerSecond`.** Com trilha de entrada de
+   16 kHz ele aceita a opção, reporta o valor pedido em
+   `recorder.audioBitsPerSecond` e grava a ~20 kb/s assim mesmo. Nunca confie no
+   que o recorder reporta — meça o arquivo. A defesa é `createRecordingGraph()`:
+   reamostrar para 48 kHz num AudioContext antes do MediaRecorder. Sem isso,
+   qualquer pessoa usando AirPods grava voz robotizada e ninguém fica sabendo.
+   Diagnóstico só sai medindo (`ffmpeg -af volumedetect`): piso de ruído −inf dB
+   prova que o microfone está limpo e o culpado é o encoder.
 8. **`duration` de arquivo de `MediaRecorder` é `Infinity`.** Nenhum deles traz
    duração no cabeçalho. Barra de progresso parada em "0:00" é isso, não erro de
    player. Buscar `currentTime = 1e101` força o navegador a calcular.
