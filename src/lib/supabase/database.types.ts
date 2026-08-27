@@ -10,7 +10,32 @@ export type Database = {
   // Allows to automatically instantiate createClient with right options
   // instead of createClient<Database, { PostgrestVersion: 'XX' }>(URL, KEY)
   __InternalSupabase: {
-    PostgrestVersion: "14.5"
+    PostgrestVersion: "14.17"
+  }
+  graphql_public: {
+    Tables: {
+      [_ in never]: never
+    }
+    Views: {
+      [_ in never]: never
+    }
+    Functions: {
+      graphql: {
+        Args: {
+          extensions?: Json
+          operationName?: string
+          query?: string
+          variables?: Json
+        }
+        Returns: Json
+      }
+    }
+    Enums: {
+      [_ in never]: never
+    }
+    CompositeTypes: {
+      [_ in never]: never
+    }
   }
   public: {
     Tables: {
@@ -916,6 +941,44 @@ export type Database = {
         Relationships: [
           {
             foreignKeyName: "custom_fields_workspace_id_fkey"
+            columns: ["workspace_id"]
+            isOneToOne: false
+            referencedRelation: "workspaces"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      dashboards: {
+        Row: {
+          created_at: string
+          id: string
+          is_default: boolean
+          name: string
+          report_ids: Json
+          user_id: string
+          workspace_id: string
+        }
+        Insert: {
+          created_at?: string
+          id?: string
+          is_default?: boolean
+          name: string
+          report_ids?: Json
+          user_id: string
+          workspace_id: string
+        }
+        Update: {
+          created_at?: string
+          id?: string
+          is_default?: boolean
+          name?: string
+          report_ids?: Json
+          user_id?: string
+          workspace_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "dashboards_workspace_id_fkey"
             columns: ["workspace_id"]
             isOneToOne: false
             referencedRelation: "workspaces"
@@ -2028,6 +2091,480 @@ export type Database = {
           },
         ]
       }
+      telephony_accounts: {
+        Row: {
+          bill_increment_seconds: number
+          caller_id: string | null
+          consent_mode: string
+          consent_text: string
+          created_at: string
+          credentials_encrypted: string | null
+          id: string
+          last_error: string | null
+          minimum_billable_seconds: number
+          provider: string
+          provider_account_id: string | null
+          recording_enabled: boolean
+          recording_retention_days: number
+          status: string
+          updated_at: string
+          webhook_secret: string
+          workspace_id: string
+        }
+        Insert: {
+          bill_increment_seconds?: number
+          caller_id?: string | null
+          consent_mode?: string
+          consent_text?: string
+          created_at?: string
+          credentials_encrypted?: string | null
+          id?: string
+          last_error?: string | null
+          minimum_billable_seconds?: number
+          provider?: string
+          provider_account_id?: string | null
+          recording_enabled?: boolean
+          recording_retention_days?: number
+          status?: string
+          updated_at?: string
+          webhook_secret: string
+          workspace_id: string
+        }
+        Update: {
+          bill_increment_seconds?: number
+          caller_id?: string | null
+          consent_mode?: string
+          consent_text?: string
+          created_at?: string
+          credentials_encrypted?: string | null
+          id?: string
+          last_error?: string | null
+          minimum_billable_seconds?: number
+          provider?: string
+          provider_account_id?: string | null
+          recording_enabled?: boolean
+          recording_retention_days?: number
+          status?: string
+          updated_at?: string
+          webhook_secret?: string
+          workspace_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "telephony_accounts_workspace_id_fkey"
+            columns: ["workspace_id"]
+            isOneToOne: true
+            referencedRelation: "workspaces"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      telephony_balances: {
+        Row: {
+          balance_cents: number
+          reserved_cents: number
+          updated_at: string
+          workspace_id: string
+        }
+        Insert: {
+          balance_cents?: number
+          reserved_cents?: number
+          updated_at?: string
+          workspace_id: string
+        }
+        Update: {
+          balance_cents?: number
+          reserved_cents?: number
+          updated_at?: string
+          workspace_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "telephony_balances_workspace_id_fkey"
+            columns: ["workspace_id"]
+            isOneToOne: true
+            referencedRelation: "workspaces"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      telephony_calls: {
+        Row: {
+          activity_id: string | null
+          analysis: Json | null
+          analyzed_at: string | null
+          answered_at: string | null
+          billed_cents: number
+          billing_mode: string
+          consent_given: boolean
+          contact_id: string | null
+          created_at: string
+          deal_id: string | null
+          destination_type: string | null
+          direction: string
+          disposition: string | null
+          duration_seconds: number
+          ended_at: string | null
+          extension_id: string | null
+          finalized_at: string | null
+          from_number: string | null
+          hangup_cause: string | null
+          id: string
+          notes: string | null
+          provider: string
+          provider_call_id: string | null
+          rate_cents_per_minute: number
+          recording_expires_at: string | null
+          recording_key: string | null
+          recording_status: string
+          reserved_cents: number
+          script_id: string | null
+          started_at: string
+          status: string
+          to_number: string
+          transcript: string | null
+          transcript_source: string | null
+          updated_at: string
+          user_id: string | null
+          workspace_id: string
+        }
+        Insert: {
+          activity_id?: string | null
+          analysis?: Json | null
+          analyzed_at?: string | null
+          answered_at?: string | null
+          billed_cents?: number
+          billing_mode?: string
+          consent_given?: boolean
+          contact_id?: string | null
+          created_at?: string
+          deal_id?: string | null
+          destination_type?: string | null
+          direction?: string
+          disposition?: string | null
+          duration_seconds?: number
+          ended_at?: string | null
+          extension_id?: string | null
+          finalized_at?: string | null
+          from_number?: string | null
+          hangup_cause?: string | null
+          id?: string
+          notes?: string | null
+          provider: string
+          provider_call_id?: string | null
+          rate_cents_per_minute?: number
+          recording_expires_at?: string | null
+          recording_key?: string | null
+          recording_status?: string
+          reserved_cents?: number
+          script_id?: string | null
+          started_at?: string
+          status?: string
+          to_number: string
+          transcript?: string | null
+          transcript_source?: string | null
+          updated_at?: string
+          user_id?: string | null
+          workspace_id: string
+        }
+        Update: {
+          activity_id?: string | null
+          analysis?: Json | null
+          analyzed_at?: string | null
+          answered_at?: string | null
+          billed_cents?: number
+          billing_mode?: string
+          consent_given?: boolean
+          contact_id?: string | null
+          created_at?: string
+          deal_id?: string | null
+          destination_type?: string | null
+          direction?: string
+          disposition?: string | null
+          duration_seconds?: number
+          ended_at?: string | null
+          extension_id?: string | null
+          finalized_at?: string | null
+          from_number?: string | null
+          hangup_cause?: string | null
+          id?: string
+          notes?: string | null
+          provider?: string
+          provider_call_id?: string | null
+          rate_cents_per_minute?: number
+          recording_expires_at?: string | null
+          recording_key?: string | null
+          recording_status?: string
+          reserved_cents?: number
+          script_id?: string | null
+          started_at?: string
+          status?: string
+          to_number?: string
+          transcript?: string | null
+          transcript_source?: string | null
+          updated_at?: string
+          user_id?: string | null
+          workspace_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "telephony_calls_activity_id_fkey"
+            columns: ["activity_id"]
+            isOneToOne: false
+            referencedRelation: "activities"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "telephony_calls_contact_id_fkey"
+            columns: ["contact_id"]
+            isOneToOne: false
+            referencedRelation: "contacts"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "telephony_calls_deal_id_fkey"
+            columns: ["deal_id"]
+            isOneToOne: false
+            referencedRelation: "deals"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "telephony_calls_extension_id_fkey"
+            columns: ["extension_id"]
+            isOneToOne: false
+            referencedRelation: "telephony_extensions"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "telephony_calls_script_id_fkey"
+            columns: ["script_id"]
+            isOneToOne: false
+            referencedRelation: "scripts"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "telephony_calls_workspace_id_fkey"
+            columns: ["workspace_id"]
+            isOneToOne: false
+            referencedRelation: "workspaces"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      telephony_events: {
+        Row: {
+          call_id: string | null
+          error: string | null
+          event_type: string
+          id: string
+          payload: Json
+          processed_at: string | null
+          provider: string
+          provider_event_id: string
+          received_at: string
+          workspace_id: string | null
+        }
+        Insert: {
+          call_id?: string | null
+          error?: string | null
+          event_type: string
+          id?: string
+          payload?: Json
+          processed_at?: string | null
+          provider: string
+          provider_event_id: string
+          received_at?: string
+          workspace_id?: string | null
+        }
+        Update: {
+          call_id?: string | null
+          error?: string | null
+          event_type?: string
+          id?: string
+          payload?: Json
+          processed_at?: string | null
+          provider?: string
+          provider_event_id?: string
+          received_at?: string
+          workspace_id?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "telephony_events_call_id_fkey"
+            columns: ["call_id"]
+            isOneToOne: false
+            referencedRelation: "telephony_calls"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "telephony_events_workspace_id_fkey"
+            columns: ["workspace_id"]
+            isOneToOne: false
+            referencedRelation: "workspaces"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      telephony_extensions: {
+        Row: {
+          callback_number: string | null
+          created_at: string
+          dial_mode: string
+          extension: string
+          id: string
+          last_error: string | null
+          linked_at: string
+          linked_by: string | null
+          mode: string
+          provider_credential_id: string | null
+          sip_password_encrypted: string | null
+          sip_server: string | null
+          sip_username: string | null
+          status: string
+          updated_at: string
+          user_id: string
+          workspace_id: string
+        }
+        Insert: {
+          callback_number?: string | null
+          created_at?: string
+          dial_mode?: string
+          extension: string
+          id?: string
+          last_error?: string | null
+          linked_at?: string
+          linked_by?: string | null
+          mode?: string
+          provider_credential_id?: string | null
+          sip_password_encrypted?: string | null
+          sip_server?: string | null
+          sip_username?: string | null
+          status?: string
+          updated_at?: string
+          user_id: string
+          workspace_id: string
+        }
+        Update: {
+          callback_number?: string | null
+          created_at?: string
+          dial_mode?: string
+          extension?: string
+          id?: string
+          last_error?: string | null
+          linked_at?: string
+          linked_by?: string | null
+          mode?: string
+          provider_credential_id?: string | null
+          sip_password_encrypted?: string | null
+          sip_server?: string | null
+          sip_username?: string | null
+          status?: string
+          updated_at?: string
+          user_id?: string
+          workspace_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "telephony_extensions_workspace_id_fkey"
+            columns: ["workspace_id"]
+            isOneToOne: false
+            referencedRelation: "workspaces"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      telephony_ledger: {
+        Row: {
+          amount_cents: number
+          balance_after_cents: number
+          call_id: string | null
+          created_at: string
+          created_by: string | null
+          description: string | null
+          id: string
+          idempotency_key: string
+          kind: string
+          workspace_id: string
+        }
+        Insert: {
+          amount_cents: number
+          balance_after_cents: number
+          call_id?: string | null
+          created_at?: string
+          created_by?: string | null
+          description?: string | null
+          id?: string
+          idempotency_key: string
+          kind: string
+          workspace_id: string
+        }
+        Update: {
+          amount_cents?: number
+          balance_after_cents?: number
+          call_id?: string | null
+          created_at?: string
+          created_by?: string | null
+          description?: string | null
+          id?: string
+          idempotency_key?: string
+          kind?: string
+          workspace_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "telephony_ledger_call_id_fkey"
+            columns: ["call_id"]
+            isOneToOne: false
+            referencedRelation: "telephony_calls"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "telephony_ledger_workspace_id_fkey"
+            columns: ["workspace_id"]
+            isOneToOne: false
+            referencedRelation: "workspaces"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      telephony_rates: {
+        Row: {
+          cost_cents_per_minute: number
+          created_at: string
+          destination_type: string
+          effective_from: string
+          id: string
+          price_cents_per_minute: number
+          workspace_id: string | null
+        }
+        Insert: {
+          cost_cents_per_minute?: number
+          created_at?: string
+          destination_type: string
+          effective_from?: string
+          id?: string
+          price_cents_per_minute: number
+          workspace_id?: string | null
+        }
+        Update: {
+          cost_cents_per_minute?: number
+          created_at?: string
+          destination_type?: string
+          effective_from?: string
+          id?: string
+          price_cents_per_minute?: number
+          workspace_id?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "telephony_rates_workspace_id_fkey"
+            columns: ["workspace_id"]
+            isOneToOne: false
+            referencedRelation: "workspaces"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       webhook_deliveries: {
         Row: {
           attempts: number
@@ -2289,6 +2826,38 @@ export type Database = {
           },
         ]
       }
+      whatsapp_member_settings: {
+        Row: {
+          created_at: string
+          signature_enabled: boolean
+          updated_at: string
+          user_id: string
+          workspace_id: string
+        }
+        Insert: {
+          created_at?: string
+          signature_enabled?: boolean
+          updated_at?: string
+          user_id: string
+          workspace_id: string
+        }
+        Update: {
+          created_at?: string
+          signature_enabled?: boolean
+          updated_at?: string
+          user_id?: string
+          workspace_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "whatsapp_member_settings_workspace_id_fkey"
+            columns: ["workspace_id"]
+            isOneToOne: false
+            referencedRelation: "workspaces"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       whatsapp_messages: {
         Row: {
           body: string | null
@@ -2393,6 +2962,7 @@ export type Database = {
       workspace_members: {
         Row: {
           accepted_at: string | null
+          avatar_url: string | null
           email: string
           id: string
           invite_expires_at: string | null
@@ -2407,6 +2977,7 @@ export type Database = {
         }
         Insert: {
           accepted_at?: string | null
+          avatar_url?: string | null
           email: string
           id?: string
           invite_expires_at?: string | null
@@ -2421,6 +2992,7 @@ export type Database = {
         }
         Update: {
           accepted_at?: string | null
+          avatar_url?: string | null
           email?: string
           id?: string
           invite_expires_at?: string | null
@@ -2604,6 +3176,60 @@ export type Database = {
         Args: { p_deal_id: string; p_products: Json }
         Returns: undefined
       }
+      telephony_add_credit: {
+        Args: {
+          p_amount_cents: number
+          p_created_by: string
+          p_description: string
+          p_idempotency_key: string
+          p_kind?: string
+          p_workspace_id: string
+        }
+        Returns: Json
+      }
+      telephony_attach_provider_call: {
+        Args: { p_call_id: string; p_provider_call_id: string }
+        Returns: undefined
+      }
+      telephony_current_rate: {
+        Args: { p_destination_type: string; p_workspace_id: string }
+        Returns: number
+      }
+      telephony_finalize_call: {
+        Args: {
+          p_answered_at: string
+          p_duration_seconds: number
+          p_ended_at: string
+          p_hangup_cause: string
+          p_provider: string
+          p_provider_call_id: string
+          p_status: string
+        }
+        Returns: Json
+      }
+      telephony_mark_recording_deleted: {
+        Args: { p_call_id: string }
+        Returns: undefined
+      }
+      telephony_reconcile_stale_calls: {
+        Args: { p_older_than?: string }
+        Returns: number
+      }
+      telephony_start_call: {
+        Args: {
+          p_contact_id?: string
+          p_deal_id?: string
+          p_destination_type: string
+          p_extension_id: string
+          p_from_number: string
+          p_provider: string
+          p_script_id?: string
+          p_to_number: string
+          p_user_id: string
+          p_workspace_id: string
+        }
+        Returns: Json
+      }
     }
     Enums: {
       [_ in never]: never
@@ -2732,8 +3358,10 @@ export type CompositeTypes<
     : never
 
 export const Constants = {
+  graphql_public: {
+    Enums: {},
+  },
   public: {
     Enums: {},
   },
 } as const
-
