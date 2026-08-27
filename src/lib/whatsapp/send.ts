@@ -13,6 +13,7 @@ import { getDriver, isGroupJid, jidToPhone } from "@/lib/whatsapp";
 import { putMedia } from "@/lib/whatsapp/storage";
 import { toPlayable, toVoiceNote, withExtension } from "@/lib/whatsapp/audio";
 import { resolveConversationLinks } from "@/lib/whatsapp/linking";
+import { loadSenderSignature } from "@/lib/whatsapp/sender-identity";
 import { applySignature, previewFor } from "@/lib/whatsapp/types";
 import type { MessageType, OutboundMedia, WhatsAppConnection } from "@/lib/whatsapp/types";
 
@@ -199,8 +200,9 @@ export async function sendWhatsAppMessage(
   // Signed before the row is written, so the thread shows what the customer
   // actually received rather than a cleaner version of it.
   let text = input.text ?? null;
-  if (text) text = applySignature(text, connection);
-  if (media?.caption) media.caption = applySignature(media.caption, connection);
+  const sender = await loadSenderSignature(admin, connection.userId, input.sentBy);
+  if (text) text = applySignature(text, connection, sender);
+  if (media?.caption) media.caption = applySignature(media.caption, connection, sender);
 
   const body = media ? media.caption ?? null : text;
 

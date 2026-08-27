@@ -43,12 +43,21 @@ export interface WhatsAppConnection {
 /**
  * Prefixes the sender's name the way Chatwoot and the Evolution panel do, so a
  * workspace sharing one number still reads as people rather than a switchboard.
- * Returns the text untouched when the signature is off or has no name to use.
+ *
+ * Quando `sender` vem preenchido, ele MANDA: é a pessoa que clicou em enviar, e
+ * assinar a mensagem dela com o nome da conexão diria ao contato que quem
+ * escreveu foi outra pessoa. A conexão só assina o que não tem gente atrás
+ * (fila de automação, sequências).
  */
 export function applySignature(
   text: string,
   connection: Pick<WhatsAppConnection, "signatureEnabled" | "signatureName" | "profileName">,
+  sender?: { enabled: boolean; name: string | null } | null,
 ): string {
+  if (sender) {
+    if (!sender.enabled || !sender.name) return text;
+    return `*${sender.name}*:\n${text}`;
+  }
   if (!connection.signatureEnabled) return text;
   const name = (connection.signatureName ?? connection.profileName ?? "").trim();
   if (!name) return text;
