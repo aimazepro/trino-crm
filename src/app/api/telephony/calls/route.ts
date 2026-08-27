@@ -11,6 +11,7 @@ import { classifyDestination, toE164BR } from "@/lib/telephony/phone";
 import {
   createTelephonyAdmin,
   credentialsOf,
+  getRequesterRole,
   getSessionUser,
   loadAccount,
   loadExtensionForUser,
@@ -214,6 +215,13 @@ export async function GET(req: Request) {
   try {
     const workspaceId = await resolveWorkspaceId(admin, user.id);
 
+    // admin = service role, ignora a RLS de telephony_calls -- sem este corte
+    // aqui, todo vendedor recebia o CDR do workspace inteiro em vez de só o
+    // que ele mesmo discou/atendeu. gerente e admin continuam vendo tudo,
+    // igual à policy "telephony_calls: select" do banco.
+    const role = await getRequesterRole();
+    const isManager = role === "admin" || role === "gerente";
+
     let query = admin
       .from("telephony_calls")
       // Literal unico: o PostgREST infere o tipo das colunas a partir da string,
@@ -222,6 +230,11 @@ export async function GET(req: Request) {
       .eq("workspace_id", workspaceId)
       .order("started_at", { ascending: false })
       .limit(limit);
+
+    // user_id é nullable (ligação sem usuário atribuído). .eq() nunca casa
+    // com NULL, então isso já exclui essas ligações "órfãs" pra não-gerente
+    // -- coerente com a policy, que também não deixaria elas aparecerem.
+    if (!isManager) query = query.eq("user_id", user.id);
 
     if (dealId) query = query.eq("deal_id", dealId);
     if (contactId) query = query.eq("contact_id", contactId);

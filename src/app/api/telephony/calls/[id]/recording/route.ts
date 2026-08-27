@@ -19,6 +19,7 @@ import { getProvider } from "@/lib/telephony";
 import {
   createTelephonyAdmin,
   credentialsOf,
+  getRequesterRole,
   getSessionUser,
   loadAccount,
   resolveWorkspaceId,
@@ -61,12 +62,21 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
   try {
     const workspaceId = await resolveWorkspaceId(admin, user.id);
 
-    const { data: call } = await admin
+    // admin = service role, ignora a RLS de telephony_calls. Sem este corte,
+    // um vendedor conseguia gerar URL de upload e confirmar gravação de uma
+    // ligação de outra pessoa. user_id é nullable e .eq() nunca casa com
+    // NULL, então ligação sem usuário atribuído também fica fora para
+    // não-gerente -- coerente com a policy do banco.
+    const role = await getRequesterRole();
+    const isManager = role === "admin" || role === "gerente";
+
+    let callQuery = admin
       .from("telephony_calls")
       .select("id, workspace_id, recording_status")
       .eq("id", id)
-      .eq("workspace_id", workspaceId)
-      .maybeSingle();
+      .eq("workspace_id", workspaceId);
+    if (!isManager) callQuery = callQuery.eq("user_id", user.id);
+    const { data: call } = await callQuery.maybeSingle();
     if (!call) return NextResponse.json({ error: "Chamada não encontrada" }, { status: 404 });
 
     const contentType = body.contentType || "audio/webm";
@@ -154,12 +164,19 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ id: 
   try {
     const workspaceId = await resolveWorkspaceId(admin, user.id);
 
-    const { data: call } = await admin
+    // Mesmo corte do POST acima: sem isso, esta rota servia o áudio de
+    // qualquer ligação do workspace pra qualquer vendedor -- a RLS de
+    // telephony_calls autoriza, mas o admin client (service role) ignora.
+    const role = await getRequesterRole();
+    const isManager = role === "admin" || role === "gerente";
+
+    let callQuery = admin
       .from("telephony_calls")
       .select("id, provider, provider_call_id, recording_status, recording_key")
       .eq("id", id)
-      .eq("workspace_id", workspaceId)
-      .maybeSingle();
+      .eq("workspace_id", workspaceId);
+    if (!isManager) callQuery = callQuery.eq("user_id", user.id);
+    const { data: call } = await callQuery.maybeSingle();
 
     if (!call) return NextResponse.json({ error: "Chamada não encontrada" }, { status: 404 });
     if (call.recording_status === "deleted") {

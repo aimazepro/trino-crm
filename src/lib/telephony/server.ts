@@ -10,6 +10,7 @@ import { createServerClient } from "@supabase/ssr";
 import { cookies } from "next/headers";
 import { randomBytes } from "crypto";
 import { decryptToken, encryptToken } from "@/lib/token-crypto";
+import { getWorkspaceContext, type Role } from "@/lib/workspace-context";
 import {
   createTelephonyAdmin,
   type TelephonyAccountRow,
@@ -37,6 +38,29 @@ export async function getSessionUser(): Promise<{ id: string; email: string | nu
   const { data } = await supabase.auth.getUser();
   if (!data.user) return null;
   return { id: data.user.id, email: data.user.email ?? null };
+}
+
+/**
+ * Papel do usuário no workspace, lido via RLS (cliente escopado ao cookie,
+ * não o admin). As rotas de CDR/gravação usam isso só para decidir escopo de
+ * leitura -- vendedor vê a própria ligação, gerente/admin veem todas -- o
+ * mesmo corte que `telephony_calls: select` aplica no banco. Identidade e
+ * workspace "de verdade" continuam vindo de getSessionUser + resolveWorkspaceId.
+ */
+export async function getRequesterRole(): Promise<Role | null> {
+  const cookieStore = await cookies();
+  const supabase = createServerClient(
+    process.env.NEXT_PUBLIC_SUPABASE_URL!,
+    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
+    {
+      cookies: {
+        getAll: () => cookieStore.getAll(),
+        setAll: () => {},
+      },
+    },
+  );
+  const ctx = await getWorkspaceContext(supabase);
+  return ctx?.role ?? null;
 }
 
 export async function resolveWorkspaceId(
