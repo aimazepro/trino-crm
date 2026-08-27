@@ -78,7 +78,7 @@ export interface Activity {
   completed: boolean;
   createdAt: string;
   guests?: string[];
-  assigneeId?: string;
+  assigneeId?: string | null;
   attachments: ActivityAttachment[];
   googleEventId?: string;
   meetLink?: string;

@@ -4,7 +4,6 @@ import { useState, useEffect, useRef } from "react";
 import { X, Phone, Users, Video, Mail, MessageCircle, Camera, Briefcase, ClipboardList, Search, UserPlus, Plus, Paperclip } from "lucide-react";
 import { Activity } from "@/lib/crm-types";
 import { useCrm } from "@/contexts/crm-context";
-import { useOwnerNameMap } from "@/hooks/use-owner-name-map";
 import { useTeam } from "@/hooks/use-team";
 import { cn } from "@/lib/utils";
 import { TimeField } from "@/components/ui/time-field";
@@ -12,7 +11,7 @@ import { TimeField } from "@/components/ui/time-field";
 interface ActivityModalProps {
   activity?: Activity;
   onClose: () => void;
-  onSave: (data: { title: string; type: string; date: string; endDate?: string; description: string; dealId: string; guests: string[]; assigneeId: string; markAsDone: boolean }) => void;
+  onSave: (data: { title: string; type: string; date: string; endDate?: string; description: string; dealId: string; guests: string[]; assigneeId: string | null; markAsDone: boolean }) => void;
   deals?: { id: string; title: string }[];
   defaultDealId?: string;
   userName?: string;
@@ -97,8 +96,7 @@ function toTimeInput(iso: string) {
 
 export function ActivityModal({ activity, onClose, onSave, deals = [], defaultDealId = "" }: ActivityModalProps) {
   const { addActivityAttachment, deleteActivityAttachment } = useCrm();
-  const { map: ownerMap, selfId } = useOwnerNameMap();
-  const { loading: teamLoading } = useTeam();
+  const { map, self, loading: teamLoading } = useTeam();
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   const [type, setType] = useState(activity?.type || "Ligação");
@@ -136,8 +134,8 @@ export function ActivityModal({ activity, onClose, onSave, deals = [], defaultDe
   }, [activity]);
 
   useEffect(() => {
-    if (!activity && selfId && !assigneeId) setAssigneeId(selfId);
-  }, [activity, selfId, assigneeId]);
+    if (!activity && self?.id && !assigneeId) setAssigneeId(self.id);
+  }, [activity, self?.id, assigneeId]);
 
   const handleTypeSelect = (newType: string) => {
     setType(newType);
@@ -148,8 +146,9 @@ export function ActivityModal({ activity, onClose, onSave, deals = [], defaultDe
     if (!title.trim() || !date || !startTime || teamLoading) return;
     const startIso = new Date(`${date}T${startTime}`).toISOString();
     const endIso = endTime ? new Date(`${date}T${endTime}`).toISOString() : undefined;
-    // Garante que assigneeId é válido (nunca string vazia se selfId estiver vazio)
-    const finalAssigneeId = assigneeId || selfId || "";
+    // Se assigneeId vazio e self?.id vazio, passa null (usuário sem membership,
+    // será resolvido pela camada de escrita para userId). Nunca passa "".
+    const finalAssigneeId = assigneeId || self?.id || null;
     onSave({ title, type, date: startIso, endDate: endIso, description: notes, dealId, guests, assigneeId: finalAssigneeId, markAsDone });
   };
 
@@ -332,8 +331,8 @@ export function ActivityModal({ activity, onClose, onSave, deals = [], defaultDe
               onChange={e => setAssigneeId(e.target.value)}
               className="w-full border border-gray-200 rounded-xl px-4 py-2.5 text-sm text-gray-700 outline-none focus:border-amber-400 transition-colors bg-white"
             >
-              {Object.entries(ownerMap).map(([id, name]) => (
-                <option key={id} value={id}>{id === selfId ? `${name} (você)` : name}</option>
+              {Object.entries(map).map(([id, name]) => (
+                <option key={id} value={id}>{id === self?.id ? `${name} (você)` : name}</option>
               ))}
             </select>
           </div>

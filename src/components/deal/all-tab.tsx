@@ -70,7 +70,7 @@ export function AllTab({ deal, userName }: { deal: Deal; userName?: string }) {
     setShowModal(true);
   };
 
-  const saveActivity = (data: { title: string; type: string; date: string; endDate?: string; description: string; dealId: string; guests: string[]; assigneeId: string; markAsDone: boolean }) => {
+  const saveActivity = (data: { title: string; type: string; date: string; endDate?: string; description: string; dealId: string; guests: string[]; assigneeId: string | null; markAsDone: boolean }) => {
     if (editingActivity) {
       updateActivity(editingActivity.id, { title: data.title, date: data.date, endDate: data.endDate, type: data.type, description: data.description, guests: data.guests, assigneeId: data.assigneeId });
     } else {

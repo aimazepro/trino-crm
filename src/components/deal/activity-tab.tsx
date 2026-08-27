@@ -100,7 +100,7 @@ export function ActivityTab({ deal, userName }: { deal: Deal; userName?: string 
     description: string;
     dealId: string;
     guests: string[];
-    assigneeId: string;
+    assigneeId: string | null;
     markAsDone: boolean;
   }) => {
     if (editingActivity) {
