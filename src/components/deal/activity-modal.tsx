@@ -5,6 +5,7 @@ import { X, Phone, Users, Video, Mail, MessageCircle, Camera, Briefcase, Clipboa
 import { Activity } from "@/lib/crm-types";
 import { useCrm } from "@/contexts/crm-context";
 import { useOwnerNameMap } from "@/hooks/use-owner-name-map";
+import { useTeam } from "@/hooks/use-team";
 import { cn } from "@/lib/utils";
 import { TimeField } from "@/components/ui/time-field";
 
@@ -97,6 +98,7 @@ function toTimeInput(iso: string) {
 export function ActivityModal({ activity, onClose, onSave, deals = [], defaultDealId = "" }: ActivityModalProps) {
   const { addActivityAttachment, deleteActivityAttachment } = useCrm();
   const { map: ownerMap, selfId } = useOwnerNameMap();
+  const { loading: teamLoading } = useTeam();
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   const [type, setType] = useState(activity?.type || "Ligação");
@@ -143,10 +145,12 @@ export function ActivityModal({ activity, onClose, onSave, deals = [], defaultDe
   };
 
   const handleSubmit = () => {
-    if (!title.trim() || !date || !startTime) return;
+    if (!title.trim() || !date || !startTime || teamLoading) return;
     const startIso = new Date(`${date}T${startTime}`).toISOString();
     const endIso = endTime ? new Date(`${date}T${endTime}`).toISOString() : undefined;
-    onSave({ title, type, date: startIso, endDate: endIso, description: notes, dealId, guests, assigneeId: assigneeId || selfId, markAsDone });
+    // Garante que assigneeId é válido (nunca string vazia se selfId estiver vazio)
+    const finalAssigneeId = assigneeId || selfId || "";
+    onSave({ title, type, date: startIso, endDate: endIso, description: notes, dealId, guests, assigneeId: finalAssigneeId, markAsDone });
   };
 
   const handleFiles = (files: FileList | null) => {
@@ -348,7 +352,7 @@ export function ActivityModal({ activity, onClose, onSave, deals = [], defaultDe
           {/* Submit */}
           <button
             onClick={handleSubmit}
-            disabled={!title.trim() || !date || !startTime}
+            disabled={!title.trim() || !date || !startTime || teamLoading}
             className="w-full py-3 bg-amber-400 hover:bg-amber-500 disabled:opacity-60 disabled:cursor-not-allowed text-white font-bold rounded-xl transition-colors"
           >
             {activity ? "Salvar Alterações" : "Salvar Atividade"}
