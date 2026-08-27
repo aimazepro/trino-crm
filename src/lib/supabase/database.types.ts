@@ -708,6 +708,7 @@ export type Database = {
           created_at: string
           id: string
           name: string
+          owner_id: string | null
           segment: string | null
           size: string | null
           state: string | null
@@ -720,6 +721,7 @@ export type Database = {
           created_at?: string
           id?: string
           name: string
+          owner_id?: string | null
           segment?: string | null
           size?: string | null
           state?: string | null
@@ -732,6 +734,7 @@ export type Database = {
           created_at?: string
           id?: string
           name?: string
+          owner_id?: string | null
           segment?: string | null
           size?: string | null
           state?: string | null
@@ -825,6 +828,7 @@ export type Database = {
           emails: Json
           id: string
           name: string
+          owner_id: string | null
           phones: Json
           role: string | null
           workspace_id: string
@@ -835,6 +839,7 @@ export type Database = {
           emails?: Json
           id?: string
           name: string
+          owner_id?: string | null
           phones?: Json
           role?: string | null
           workspace_id: string
@@ -845,6 +850,7 @@ export type Database = {
           emails?: Json
           id?: string
           name?: string
+          owner_id?: string | null
           phones?: Json
           role?: string | null
           workspace_id?: string
