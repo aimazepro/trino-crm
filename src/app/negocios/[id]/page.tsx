@@ -4,6 +4,8 @@ import { use, useState, useEffect } from "react";
 import Link from "next/link";
 import { useCrm } from "@/contexts/crm-context";
 import { useOwnerNameMap, getInitials } from "@/hooks/use-owner-name-map";
+import { useTeam } from "@/hooks/use-team";
+import { OwnerSelect } from "@/components/team/owner-select";
 import { createClient } from "@/lib/supabase/client";
 import { transformDeal } from "@/lib/crm-transforms";
 import type { Deal } from "@/lib/crm-types";
@@ -28,6 +30,7 @@ export default function DealPage({ params }: { params: Promise<{ id: string }> }
     deleteDeal, restoreDeal, duplicateDeal, updateDealFields,
   } = useCrm();
   const { map: ownerNameMap, avatars: ownerAvatars, selfId, selfName } = useOwnerNameMap();
+  const { isManager, self, loading: teamLoading } = useTeam();
 
   const [showLossModal, setShowLossModal] = useState(false);
   const [showDropdown, setShowDropdown] = useState(false);
@@ -136,6 +139,17 @@ export default function DealPage({ params }: { params: Promise<{ id: string }> }
     );
   }
 
+  // Dono pode passar o negócio adiante; gerente e admin podem reatribuir
+  // qualquer negócio. A RLS de UPDATE de deals já impõe exatamente isso --
+  // aqui é só não oferecer um controle que o banco vai recusar.
+  // Enquanto useTeam() ainda carrega, isManager/self valem false/null e o
+  // cálculo abaixo daria falso positivo de "sem permissão" só por um
+  // instante; em vez de deixar isso acontecer por acidente, o gate por
+  // teamLoading torna essa janela explícita: o seletor começa desabilitado
+  // e só habilita depois que o time carregou de fato. Preferível ao inverso
+  // (aparecer habilitado e depois desabilitar).
+  const canReassign = !teamLoading && (isManager || deal.ownerId === self?.id);
+
   const handleTitleBlur = () => {
     if (titleValue.trim() && titleValue !== deal.title) {
       updateDealFields(deal.id, { title: titleValue });
@@ -235,9 +249,14 @@ export default function DealPage({ params }: { params: Promise<{ id: string }> }
                 </div>
               );
             })()}
-            <div className="hidden sm:block text-left">
-              <p className="text-xs font-medium text-zinc-700 leading-tight">{ownerNameMap[deal.ownerId ?? ""] || "—"}</p>
-              <p className="text-xs text-zinc-400">Proprietário</p>
+            <div className="hidden sm:block min-w-0">
+              <OwnerSelect
+                value={deal.ownerId ?? null}
+                onChange={(id) => { if (id) updateDealFields(deal.id, { ownerId: id }); }}
+                disabled={!canReassign}
+                className="w-44"
+              />
+              <p className="mt-0.5 text-xs text-zinc-400">Proprietário</p>
             </div>
           </div>
         </div>
