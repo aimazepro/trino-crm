@@ -104,7 +104,16 @@ realtime por `user_id`. A automação `assign_owner` tem round-robin. A rota
 | Tela de WhatsApp para vendedor | Somente leitura do status de conexão, mais o toggle da própria assinatura. |
 | Contatos e empresas | Continuam compartilhados. Ganham `owner_id` apenas informativo e filtrável. |
 | Relatórios para vendedor | Detalhe próprio, mais um placar agregado do time. |
-| Notificações | Mensagem nova notifica o dono da conversa; conversa na fila notifica todos. |
+| Notificações | Fora de escopo — ver abaixo. |
+
+**Notificações ficaram de fora por não existirem.** O desenho previa rotear
+notificação de mensagem nova para o dono da conversa. Ao verificar, nada no
+código nem no banco insere em `notifications`: `src/lib/crm-loader.ts` só lê a
+tabela, `use-realtime-notifications.ts` só escuta o canal, e não há trigger
+algum sobre `whatsapp_messages`. Rotear uma notificação que ninguém emite seria
+construir a feature de notificação inteira, o que é escopo novo e não conserto
+de multiusuário. Quando ela for construída, o roteamento correto é: dono da
+conversa quando houver dono, todos os membros quando estiver na fila.
 
 **Por que número compartilhado.** É o padrão de Kommo, RD Station Conversas,
 Take Blip e Zenvia. O relacionamento pertence à empresa: se o vendedor sair, o
@@ -312,4 +321,6 @@ reatribuição de negócio persiste.
 Número de WhatsApp por vendedor. Matriz de permissões editável (a coluna
 `permissions` em `workspace_members` continua ignorada). Times ou hierarquia
 dentro do workspace. Visibilidade individualizada de contatos e empresas.
-Reescrita da tela de Duplicatas.
+Reescrita da tela de Duplicatas. **Emissão de notificações** — a tabela e o
+canal realtime existem, mas nada escreve neles; construir isso é uma feature
+própria.
