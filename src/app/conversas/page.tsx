@@ -3,20 +3,22 @@
 import { useMemo, useState } from "react";
 import Link from "next/link";
 import {
-  Search, User, Users, UsersRound, ChevronDown, MessageCircle, ExternalLink,
-  Check, EyeOff, Pin, PinOff, LoaderCircle, Plus,
+  Search, User, UsersRound, MessageCircle, ExternalLink,
+  EyeOff, Pin, PinOff, LoaderCircle, Plus,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { createClient } from "@/lib/supabase/client";
 import { useCrm } from "@/contexts/crm-context";
-import { useOwnerNameMap } from "@/hooks/use-owner-name-map";
+import { useTeam } from "@/hooks/use-team";
+import { ScopeToggle } from "@/components/team/scope-toggle";
+import { OwnerSelect } from "@/components/team/owner-select";
+import { OwnerBadge } from "@/components/team/owner-badge";
 import { useWhatsAppInbox } from "@/hooks/use-whatsapp-inbox";
 import { WhatsAppThread } from "@/components/whatsapp/whatsapp-thread";
 import { NewDealModal } from "@/components/pipeline/new-deal-modal";
 
 type Filter = "Todas" | "Não lidas" | "Fixadas";
-
-const ALL_VENDORS = "Todos os vendedores";
+type Scope = "minhas" | "fila" | "time";
 
 function formatTime(iso: string | null) {
   if (!iso) return "";
@@ -34,15 +36,20 @@ function formatPhoneLabel(phone: string) {
 
 export default function ConversasPage() {
   const { state, addContact } = useCrm();
-  const { map: ownerNames, selfId, selfName } = useOwnerNameMap();
+  // `loading` (time) é combinado com o `loading` do inbox mais abaixo: self.id
+  // só existe depois que useTeam() resolve, e o escopo padrão é "minhas" --
+  // sem essa espera a lista pisca vazia em toda carga da página, porque
+  // c.ownerId === "" nunca bate com nada.
+  const { map: ownerNames, self, isManager, loading: teamLoading } = useTeam();
+  const selfId = self?.id ?? "";
+  const selfName = self?.name ?? "";
   const {
     conversations, selectedId, connection, loading,
     selectConversation, togglePinned, toggleUnread,
   } = useWhatsAppInbox();
 
-  const [scope, setScope] = useState<"Minhas" | "Time">("Minhas");
-  const [vendorFilter, setVendorFilter] = useState(ALL_VENDORS);
-  const [showVendorDropdown, setShowVendorDropdown] = useState(false);
+  const [scope, setScope] = useState<Scope>("minhas");
+  const [vendorFilter, setVendorFilter] = useState<string | null>(null); // id, não nome
   const [filter, setFilter] = useState<Filter>("Todas");
   const [query, setQuery] = useState("");
   const [showNewDealModal, setShowNewDealModal] = useState(false);
@@ -121,20 +128,26 @@ export default function ConversasPage() {
     }
   }
 
-  const teamNames = useMemo(() => {
-    const names = new Set<string>();
-    for (const c of enriched) if (c.ownerName) names.add(c.ownerName);
-    return [...names].sort();
-  }, [enriched]);
+  // Contadores dos escopos, calculados antes do filtro de escopo para que a
+  // aba mostre quantas conversas ela tem mesmo sem estar selecionada.
+  const scopeCounts = useMemo(() => ({
+    minhas: enriched.filter(c => c.ownerId === selfId).length,
+    fila: enriched.filter(c => !c.ownerId).length,
+    time: enriched.length,
+  }), [enriched, selfId]);
 
   const unreadCount = enriched.filter(c => c.isUnread).length;
   const pinnedCount = enriched.filter(c => c.pinned).length;
 
   const visible = enriched
-    // "Minhas" means conversations tied to a deal this user owns, plus the ones
-    // nobody owns yet — an unassigned lead has to be visible to somebody.
-    .filter(c => (scope === "Minhas" ? !c.ownerId || c.ownerId === selfId : true))
-    .filter(c => (scope === "Time" && vendorFilter !== ALL_VENDORS ? c.ownerName === vendorFilter : true))
+    // "Minhas" é só o que é meu. A fila tem aba própria agora -- misturar
+    // conversa sem dono em "Minhas" fazia o vendedor achar que já era dele.
+    .filter(c => {
+      if (scope === "minhas") return c.ownerId === selfId;
+      if (scope === "fila") return !c.ownerId;
+      return true; // time
+    })
+    .filter(c => (scope === "time" && vendorFilter ? c.ownerId === vendorFilter : true))
     .filter(c => {
       const q = query.trim().toLowerCase();
       if (!q) return true;
@@ -153,26 +166,15 @@ export default function ConversasPage() {
         <div className="px-4 pt-4 pb-3 border-b border-border space-y-3 shrink-0">
           <div className="flex items-center justify-between">
             <h1 className="text-lg font-semibold">Conversas</h1>
-            <div className="flex rounded-lg border border-border p-0.5 text-xs">
-              <button
-                onClick={() => setScope("Minhas")}
-                className={cn(
-                  "flex items-center gap-1.5 px-2.5 py-1 rounded-md transition-colors",
-                  scope === "Minhas" ? "bg-muted font-medium" : "text-muted-foreground hover:text-foreground"
-                )}
-              >
-                <User className="h-3.5 w-3.5" aria-hidden="true" /> Minhas
-              </button>
-              <button
-                onClick={() => setScope("Time")}
-                className={cn(
-                  "flex items-center gap-1.5 px-2.5 py-1 rounded-md transition-colors",
-                  scope === "Time" ? "bg-muted font-medium" : "text-muted-foreground hover:text-foreground"
-                )}
-              >
-                <Users className="h-3.5 w-3.5" aria-hidden="true" /> Time
-              </button>
-            </div>
+            <ScopeToggle<Scope>
+              value={scope}
+              onChange={(v) => { setScope(v); setVendorFilter(null); }}
+              options={[
+                { value: "minhas", label: "Minhas", count: scopeCounts.minhas },
+                { value: "fila", label: "Fila", count: scopeCounts.fila },
+                { value: "time", label: "Time", count: scopeCounts.time, hidden: !isManager },
+              ]}
+            />
           </div>
 
           <div className="relative">
@@ -185,39 +187,14 @@ export default function ConversasPage() {
             />
           </div>
 
-          {scope === "Time" && (
-            <div className="relative">
-              <button
-                onClick={() => setShowVendorDropdown(v => !v)}
-                className="w-full flex items-center justify-between gap-2 h-9 px-3 rounded-lg border border-border bg-background text-sm"
-              >
-                <span className="flex items-center gap-2 truncate">
-                  <Users className="h-3.5 w-3.5 text-muted-foreground shrink-0" aria-hidden="true" />
-                  {vendorFilter}
-                </span>
-                <ChevronDown className="h-3.5 w-3.5 text-muted-foreground shrink-0" aria-hidden="true" />
-              </button>
-              {showVendorDropdown && (
-                <>
-                  <div className="fixed inset-0 z-40" onClick={() => setShowVendorDropdown(false)} />
-                  <div className="absolute left-0 top-full mt-1 w-full bg-card border border-border rounded-lg z-50 py-1 shadow-lg">
-                    {[ALL_VENDORS, ...teamNames].map(v => (
-                      <button
-                        key={v}
-                        onClick={() => { setVendorFilter(v); setShowVendorDropdown(false); }}
-                        className={cn(
-                          "w-full flex items-center justify-between px-3 py-2 text-sm text-left hover:bg-muted transition-colors",
-                          v === vendorFilter && "text-green-600 font-medium"
-                        )}
-                      >
-                        {v}
-                        {v === vendorFilter && <Check className="h-3.5 w-3.5" aria-hidden="true" />}
-                      </button>
-                    ))}
-                  </div>
-                </>
-              )}
-            </div>
+          {scope === "time" && (
+            <OwnerSelect
+              value={vendorFilter}
+              onChange={setVendorFilter}
+              allowUnassigned
+              unassignedLabel="Todos os vendedores"
+              className="w-full"
+            />
           )}
 
           <div className="flex items-center gap-1.5">
@@ -260,7 +237,7 @@ export default function ConversasPage() {
         )}
 
         <div className="flex-1 overflow-y-auto">
-          {loading ? (
+          {loading || teamLoading ? (
             <div className="flex items-center justify-center gap-2 py-16 text-sm text-muted-foreground">
               <LoaderCircle className="h-4 w-4 animate-spin" aria-hidden="true" /> Carregando conversas...
             </div>
@@ -293,9 +270,11 @@ export default function ConversasPage() {
                   : "Nenhuma conversa aqui"}
               </p>
               <p className="text-xs text-muted-foreground mt-1">
-                {scope === "Time" && vendorFilter !== ALL_VENDORS
-                  ? `Sem conversas de ${vendorFilter} com esse filtro.`
-                  : "Troque o filtro ou a busca pra ver as outras conversas."}
+                {scope === "fila"
+                  ? "Nenhuma conversa esperando atendimento."
+                  : scope === "time" && vendorFilter
+                    ? `Sem conversas de ${ownerNames[vendorFilter] ?? "esse vendedor"} com esse filtro.`
+                    : "Troque o filtro ou a busca pra ver as outras conversas."}
               </p>
             </div>
           ) : (
@@ -344,11 +323,11 @@ export default function ConversasPage() {
                           {c.lastMessageFromMe && <span className="shrink-0 text-muted-foreground/70">Você:</span>}
                           <span className="truncate">{c.lastMessagePreview ?? ""}</span>
                         </span>
-                        {scope === "Minhas" && c.isUnread && (
+                        {scope === "minhas" && c.isUnread && (
                           <span className="shrink-0 h-[14px] w-[14px] rounded-full bg-green-600" title="Não lida" />
                         )}
                       </div>
-                      {scope === "Time" && (
+                      {scope === "time" && (
                         <div className="flex items-center justify-between gap-2 mt-0.5">
                           <p className="text-[11px] text-muted-foreground/70 truncate">{c.ownerName}</p>
                           {c.isUnread && (
