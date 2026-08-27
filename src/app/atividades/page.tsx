@@ -9,7 +9,9 @@ import {
   ChevronLeft, ChevronRight, Filter, X, ChevronDown,
 } from "lucide-react";
 import { useCrm } from "@/contexts/crm-context";
-import { useOwnerNameMap } from "@/hooks/use-owner-name-map";
+import { useTeam } from "@/hooks/use-team";
+import { OwnerBadge } from "@/components/team/owner-badge";
+import { OwnerSelect } from "@/components/team/owner-select";
 import { Activity } from "@/lib/crm-types";
 import { ActivityModal } from "@/components/deal/activity-modal";
 import { NextActivityModal } from "@/components/deal/next-activity-modal";
@@ -62,12 +64,13 @@ const DATE_FILTERS: { key: DateFilter; label: string }[] = [
 
 export default function AtividadesPage() {
   const { state, addActivity, updateActivity, deleteActivity } = useCrm();
-  const { selfName } = useOwnerNameMap();
+  const { self, isManager } = useTeam();
+  const selfName = self?.name ?? "";
   const [viewMode, setViewMode] = useState<ViewMode>("list");
   const [dateFilter, setDateFilter] = useState<DateFilter>("hoje");
   const [filterType, setFilterType] = useState("Todos");
   const [showTypeDropdown, setShowTypeDropdown] = useState(false);
-  const [userFilter, setUserFilter] = useState("");
+  const [assigneeFilter, setAssigneeFilter] = useState<string | null>(null);
   const [selectedDay, setSelectedDay] = useState<Date | null>(null);
   const [currentDate, setCurrentDate] = useState(new Date());
   const [showModal, setShowModal] = useState(false);
@@ -99,6 +102,7 @@ export default function AtividadesPage() {
     const todayEnd = endOfDay(now);
     return allActivities.filter(a => {
       const aDate = new Date(a.date);
+      if (assigneeFilter && a.assigneeId !== assigneeFilter) return false;
       if (filterType !== "Todos" && a.type !== filterType) return false;
       switch (dateFilter) {
         case "hoje": return !a.completed && aDate >= todayStart && aDate <= todayEnd;
@@ -115,7 +119,7 @@ export default function AtividadesPage() {
         default: return true;
       }
     });
-  }, [allActivities, filterType, dateFilter, rangeStart, rangeEnd]);
+  }, [allActivities, assigneeFilter, filterType, dateFilter, rangeStart, rangeEnd]);
 
   const grouped = useMemo(() => {
     const groups: Record<string, ActivityWithMeta[]> = {};
@@ -140,11 +144,12 @@ export default function AtividadesPage() {
   const selectedDayActs = useMemo(() => {
     if (!selectedDay) return [];
     return allActivities.filter(a => {
+      if (assigneeFilter && a.assigneeId !== assigneeFilter) return false;
       if (!isSameDay(new Date(a.date), selectedDay)) return false;
       if (filterType !== "Todos" && a.type !== filterType) return false;
       return true;
     });
-  }, [allActivities, selectedDay, filterType]);
+  }, [allActivities, selectedDay, filterType, assigneeFilter]);
 
   const formatSidebarDate = (date: Date) => {
     const raw = format(date, "EEEE, d 'de' MMMM", { locale: ptBR });
@@ -255,18 +260,17 @@ export default function AtividadesPage() {
             )}
           </div>
 
-          {/* Users filter */}
-          <div className="flex items-center gap-1.5 rounded-lg border border-zinc-200 px-3 py-1.5">
-            <Users className="h-3.5 w-3.5 text-zinc-400" aria-hidden="true" />
-            <select
-              value={userFilter}
-              onChange={e => setUserFilter(e.target.value)}
-              className="text-xs text-zinc-600 bg-transparent border-none outline-none cursor-pointer"
-            >
-              <option value="">Todos os usuarios</option>
-              <option value="mine">Minhas atividades</option>
-            </select>
-          </div>
+          {/* Users filter -- só gestor/admin vê atividade de outros (RLS),
+              então só eles ganham o seletor de responsável */}
+          {isManager && (
+            <OwnerSelect
+              value={assigneeFilter}
+              onChange={setAssigneeFilter}
+              allowUnassigned
+              unassignedLabel="Todos os usuários"
+              className="w-44"
+            />
+          )}
 
           <button
             onClick={() => { setEditingActivity(null); setShowModal(true); }}
@@ -371,9 +375,7 @@ export default function AtividadesPage() {
                                   {a.dealTitle}
                                 </Link>
                               )}
-                              <span className="flex items-center gap-1 text-xs text-zinc-500">
-                                <Users className="h-3 w-3" aria-hidden="true" /> {selfName || "Você"} (você)
-                              </span>
+                              <OwnerBadge ownerId={a.assigneeId ?? null} />
                             </div>
                           </div>
                           <div className="shrink-0 flex items-center gap-2">
@@ -451,6 +453,7 @@ export default function AtividadesPage() {
                       const isCurrentMonth = isSameMonth(day, currentDate);
                       const isLastCol = di === 6;
                       const dayActs = allActivities.filter(a => {
+                        if (assigneeFilter && a.assigneeId !== assigneeFilter) return false;
                         if (!isSameDay(new Date(a.date), day)) return false;
                         if (filterType !== "Todos" && a.type !== filterType) return false;
                         return true;
