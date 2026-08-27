@@ -18,6 +18,24 @@ export async function GET() {
   const ownerId = await resolveWorkspaceId(admin, user.id);
   const connection = await loadConnection(admin, ownerId);
 
+  // Preferência pessoal de quem está pedindo, não do dono da conta: cada
+  // membro assina do seu jeito. Carregada aqui (client admin + user.id) porque
+  // esta rota não passa pelo getWorkspaceContext.
+  const { data: myMember } = await admin
+    .from("workspace_members")
+    .select("name, email")
+    .eq("workspace_id", ownerId)
+    .eq("member_user_id", user.id)
+    .maybeSingle();
+  const { data: mySettings } = await admin
+    .from("whatsapp_member_settings")
+    .select("signature_enabled")
+    .eq("workspace_id", ownerId)
+    .eq("user_id", user.id)
+    .maybeSingle();
+  const mySignatureEnabled = mySettings?.signature_enabled ?? true;
+  const mySignatureName = myMember?.name?.trim() || myMember?.email?.split("@")[0] || null;
+
   if (!connection || !connection.instanceId) {
     return NextResponse.json({
       status: "disconnected",
@@ -29,6 +47,8 @@ export async function GET() {
       groupsEnabled: connection?.groupsEnabled ?? false,
       isOwner: ownerId === user.id,
       workspaceOwnerId: ownerId,
+      mySignatureEnabled,
+      mySignatureName,
     });
   }
 
@@ -67,5 +87,7 @@ export async function GET() {
     lastError: connection.lastError ?? null,
     isOwner: ownerId === user.id,
     workspaceOwnerId: ownerId,
+    mySignatureEnabled,
+    mySignatureName,
   });
 }

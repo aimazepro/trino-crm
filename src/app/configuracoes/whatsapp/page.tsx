@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useRef, useState } from "react";
 import { useWorkspace } from "@/lib/workspace";
+import { cn } from "@/lib/utils";
 import {
   MessageCircle,
   TriangleAlert,
@@ -27,6 +28,8 @@ type StatusResponse = {
   signatureEnabled?: boolean;
   signatureName?: string | null;
   groupsEnabled?: boolean;
+  mySignatureEnabled?: boolean;
+  mySignatureName?: string | null;
 };
 
 /** While a QR is on screen we poll for the scan; Evolution rotates it ~every 30s. */
@@ -62,6 +65,12 @@ export default function WhatsAppConfigPage() {
   const [groupsEnabled, setGroupsEnabled] = useState(false);
   const [groupsSaving, setGroupsSaving] = useState(false);
 
+  // Preferência pessoal de assinatura — visível e editável por qualquer
+  // membro, ao contrário do resto da página (que é do dono da conta).
+  const [mySignatureEnabled, setMySignatureEnabled] = useState(true);
+  const [mySignatureName, setMySignatureName] = useState<string | null>(null);
+  const [mySignatureSaving, setMySignatureSaving] = useState(false);
+
   // Kept in a ref so the polling effect doesn't restart on every tick.
   const qrRef = useRef<string | null>(null);
   qrRef.current = qr;
@@ -79,6 +88,8 @@ export default function WhatsAppConfigPage() {
       setSignatureName((current) =>
         current ? current : data.signatureName ?? data.profileName ?? "",
       );
+      setMySignatureEnabled(data.mySignatureEnabled ?? true);
+      setMySignatureName(data.mySignatureName ?? null);
       if (data.status === "open") setQr(null);
       else if (data.qr) setQr(data.qr);
       else if (data.qrExpired) setQr(null);
@@ -180,17 +191,30 @@ export default function WhatsAppConfigPage() {
     }
   }
 
+  async function saveMySignature(next: boolean) {
+    setMySignatureSaving(true);
+    try {
+      const res = await fetch("/api/whatsapp/my-signature", {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ enabled: next }),
+      });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) { alert(data.error ?? "Erro ao salvar assinatura"); return; }
+      setMySignatureEnabled(data.enabled);
+      setMySignatureName(data.name);
+    } finally {
+      setMySignatureSaving(false);
+    }
+  }
+
   const status = info?.status ?? "disconnected";
   const showQr = status !== "open" && qr != null;
-  const canManage = info?.isOwner !== false;
-
-  if (role !== "admin") {
-    return (
-      <main className="flex-1 flex flex-col items-center justify-center gap-3 py-20 bg-zinc-50/30">
-        <p className="text-[13px] font-semibold text-zinc-500">Só administradores acessam a conexão do WhatsApp.</p>
-      </main>
-    );
-  }
+  // Deriva do papel, não mais de "sou o dono real" (info?.isOwner): quem
+  // administra o workspace administra a conexão. A rota /api/whatsapp/settings
+  // segue com o gate antigo (dono da conta) -- essa página só decide o que
+  // MOSTRAR, não o que a API aceita.
+  const canManage = role === "admin";
 
   return (
     <main className="flex-1 overflow-y-auto bg-zinc-50/30">
@@ -209,29 +233,31 @@ export default function WhatsAppConfigPage() {
           </div>
         </div>
 
-        {/* Warning Banner */}
-        <div className="rounded-xl border border-red-200 bg-red-50 p-4 mb-6">
-          <div className="flex gap-3">
-            <TriangleAlert className="h-5 w-5 text-red-600 shrink-0 mt-0.5" />
-            <div className="text-sm text-red-800">
-              <p className="font-bold mb-2">Antes de conectar, leia com atenção</p>
-              <ul className="space-y-1.5">
-                <li>
-                  <strong>Use um número comercial.</strong> NÃO conecte seu WhatsApp pessoal. Use
-                  um chip dedicado para o CRM.
-                </li>
-                <li>
-                  <strong>Não envie mensagens em massa.</strong> Use para conversas individuais com
-                  leads. Disparos em massa podem resultar em restrição da conta.
-                </li>
-                <li>
-                  <strong>Restrições no número</strong> estão relacionadas à qualidade do chip e
-                  fazem parte do uso.
-                </li>
-              </ul>
+        {/* Warning Banner — só quem pode conectar precisa ler isto */}
+        {canManage && (
+          <div className="rounded-xl border border-red-200 bg-red-50 p-4 mb-6">
+            <div className="flex gap-3">
+              <TriangleAlert className="h-5 w-5 text-red-600 shrink-0 mt-0.5" />
+              <div className="text-sm text-red-800">
+                <p className="font-bold mb-2">Antes de conectar, leia com atenção</p>
+                <ul className="space-y-1.5">
+                  <li>
+                    <strong>Use um número comercial.</strong> NÃO conecte seu WhatsApp pessoal. Use
+                    um chip dedicado para o CRM.
+                  </li>
+                  <li>
+                    <strong>Não envie mensagens em massa.</strong> Use para conversas individuais com
+                    leads. Disparos em massa podem resultar em restrição da conta.
+                  </li>
+                  <li>
+                    <strong>Restrições no número</strong> estão relacionadas à qualidade do chip e
+                    fazem parte do uso.
+                  </li>
+                </ul>
+              </div>
             </div>
           </div>
-        </div>
+        )}
 
         {error && (
           <div className="rounded-xl border border-red-200 bg-red-50 p-4 mb-6 flex gap-3">
@@ -243,7 +269,9 @@ export default function WhatsAppConfigPage() {
           </div>
         )}
 
-        {/* Main Connection Card */}
+        {/* Main Connection Card — QR, status detalhado e desconectar são coisa
+            de quem administra a conexão. */}
+        {canManage && (
         <div className="rounded-xl border border-zinc-200 bg-white p-6">
 
           {loading && (
@@ -344,9 +372,26 @@ export default function WhatsAppConfigPage() {
             </div>
           )}
         </div>
+        )}
 
-        {/* Signature card — only meaningful once a number is connected. */}
-        {!loading && status === "open" && (
+        {/* Resumo somente leitura para quem não administra a conexão. */}
+        {!canManage && (
+          <div className="rounded-xl border border-zinc-200 bg-white p-5">
+            <h2 className="text-sm font-bold text-zinc-900">WhatsApp da empresa</h2>
+            <div className="mt-2 flex items-center gap-2">
+              <span className={cn("h-2 w-2 rounded-full", status === "open" ? "bg-green-500" : "bg-zinc-300")} />
+              <span className="text-xs font-medium text-zinc-600">
+                {status === "open" ? `Conectado · ${formatPhone(info?.phoneNumber ?? null) || "número indisponível"}` : "Desconectado"}
+              </span>
+            </div>
+            <p className="mt-2 text-xs text-zinc-400">
+              A conexão é gerenciada pelo administrador da conta.
+            </p>
+          </div>
+        )}
+
+        {/* Signature card — do dono da conta, só quem administra a conexão vê. */}
+        {canManage && !loading && status === "open" && (
           <div className="mt-6 rounded-xl border border-zinc-200 bg-white p-6">
             <div className="flex items-start gap-3">
               <div className="h-10 w-10 rounded-xl bg-green-100 flex items-center justify-center shrink-0">
@@ -423,8 +468,8 @@ export default function WhatsAppConfigPage() {
           </div>
         )}
 
-        {/* Groups card — same gate as the signature card: only meaningful once connected. */}
-        {!loading && status === "open" && (
+        {/* Groups card — mesmo gate da assinatura: só quem administra a conexão vê. */}
+        {canManage && !loading && status === "open" && (
           <div className="mt-6 rounded-xl border border-zinc-200 bg-white p-6">
             <div className="flex items-start gap-3">
               <div className="h-10 w-10 rounded-xl bg-green-100 flex items-center justify-center shrink-0">
@@ -472,6 +517,44 @@ export default function WhatsAppConfigPage() {
             </div>
           </div>
         )}
+
+        {/* Assinatura pessoal — visível e editável por qualquer membro. */}
+        <div className="mt-6 rounded-xl border border-zinc-200 bg-white p-5">
+          <h2 className="text-sm font-bold text-zinc-900">Sua assinatura</h2>
+          <p className="mt-1 text-xs text-zinc-500">
+            Prefixa seu nome nas mensagens que você enviar, para o contato saber com quem está falando.
+            O nome vem do seu perfil e não pode ser alterado aqui.
+          </p>
+
+          <div className="mt-3 rounded-lg bg-zinc-50 p-3">
+            <p className="text-xs text-zinc-400">Prévia</p>
+            <pre className="mt-1 whitespace-pre-wrap text-xs text-zinc-700">
+              {mySignatureEnabled && mySignatureName
+                ? `*${mySignatureName}*:\nOlá! Tudo bem?`
+                : "Olá! Tudo bem?"}
+            </pre>
+          </div>
+
+          <button
+            type="button"
+            role="switch"
+            aria-checked={mySignatureEnabled}
+            disabled={mySignatureSaving}
+            onClick={() => void saveMySignature(!mySignatureEnabled)}
+            className={cn(
+              "mt-3 relative h-6 w-11 rounded-full transition-colors disabled:opacity-50",
+              mySignatureEnabled ? "bg-green-600" : "bg-zinc-300",
+            )}
+          >
+            <span className={cn(
+              "absolute top-0.5 h-5 w-5 rounded-full bg-white transition-all",
+              mySignatureEnabled ? "left-[22px]" : "left-0.5",
+            )} />
+          </button>
+          <span className="ml-2 align-middle text-xs font-medium text-zinc-600">
+            {mySignatureEnabled ? "Assinatura ativada" : "Assinatura desativada"}
+          </span>
+        </div>
 
         {/* WhatsApp API Oficial card */}
         <div className="mt-6 rounded-xl border border-zinc-200 bg-white p-6">
