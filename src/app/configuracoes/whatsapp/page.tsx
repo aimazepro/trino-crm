@@ -1,7 +1,6 @@
 "use client";
 
 import { useCallback, useEffect, useRef, useState } from "react";
-import { useWorkspace } from "@/lib/workspace";
 import { cn } from "@/lib/utils";
 import {
   MessageCircle,
@@ -19,7 +18,7 @@ type Status = "disconnected" | "connecting" | "open" | "close";
 
 type StatusResponse = {
   status: Status;
-  qr: string | null;
+  qr?: string | null;
   qrExpired?: boolean;
   phoneNumber: string | null;
   profileName: string | null;
@@ -48,7 +47,6 @@ function formatPhone(raw: string | null): string {
 }
 
 export default function WhatsAppConfigPage() {
-  const { role } = useWorkspace();
   const [info, setInfo] = useState<StatusResponse | null>(null);
   const [qr, setQr] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
@@ -210,11 +208,11 @@ export default function WhatsAppConfigPage() {
 
   const status = info?.status ?? "disconnected";
   const showQr = status !== "open" && qr != null;
-  // Deriva do papel, não mais de "sou o dono real" (info?.isOwner): quem
-  // administra o workspace administra a conexão. A rota /api/whatsapp/settings
-  // segue com o gate antigo (dono da conta) -- essa página só decide o que
-  // MOSTRAR, não o que a API aceita.
-  const canManage = role === "admin";
+  // Do DONO do workspace, não de "é admin": /api/whatsapp/settings, /connect
+  // e /disconnect exigem ownerId === user.id (o dono real, não qualquer papel
+  // admin -- um convite pode criar mais de um admin). Um admin que não seja o
+  // dono cairia em 403 a cada clique se este gate fosse por papel.
+  const canManage = info?.isOwner !== false;
 
   return (
     <main className="flex-1 overflow-y-auto bg-zinc-50/30">
@@ -411,7 +409,7 @@ export default function WhatsAppConfigPage() {
                   id="signature-name"
                   value={signatureName}
                   onChange={(e) => { setSignatureName(e.target.value); setSignatureSaved(false); }}
-                  disabled={!canManage || signatureSaving}
+                  disabled={signatureSaving}
                   maxLength={40}
                   placeholder="João Paulo"
                   className="mt-1 w-full max-w-xs rounded-lg border border-zinc-200 px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-green-600/40 disabled:bg-zinc-50 disabled:text-zinc-400"
@@ -429,7 +427,7 @@ export default function WhatsAppConfigPage() {
                 <div className="mt-4 flex flex-wrap items-center gap-3">
                   <button
                     onClick={() => void saveSignature(!signatureEnabled)}
-                    disabled={!canManage || signatureSaving}
+                    disabled={signatureSaving}
                     role="switch"
                     aria-checked={signatureEnabled}
                     aria-label="Ativar assinatura"
@@ -457,12 +455,6 @@ export default function WhatsAppConfigPage() {
                     </button>
                   )}
                 </div>
-
-                {!canManage && (
-                  <p className="mt-3 text-xs text-zinc-500">
-                    Só o dono da conta pode alterar a assinatura deste workspace.
-                  </p>
-                )}
               </div>
             </div>
           </div>
@@ -485,7 +477,7 @@ export default function WhatsAppConfigPage() {
                 <div className="mt-4 flex flex-wrap items-center gap-3">
                   <button
                     onClick={() => void saveGroups(!groupsEnabled)}
-                    disabled={!canManage || groupsSaving}
+                    disabled={groupsSaving}
                     role="switch"
                     aria-checked={groupsEnabled}
                     aria-label="Ativar grupos"
@@ -507,12 +499,6 @@ export default function WhatsAppConfigPage() {
                       : "Grupos desativados"}
                   </span>
                 </div>
-
-                {!canManage && (
-                  <p className="mt-3 text-xs text-zinc-500">
-                    Só o dono da conta pode alterar os grupos deste workspace.
-                  </p>
-                )}
               </div>
             </div>
           </div>
