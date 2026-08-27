@@ -298,7 +298,10 @@ export default function ContatosPage() {
       const patch: Partial<Contact> = {};
       if (cargoMode === "Substituir por...") patch.role = cargoValue;
       else if (cargoMode === "Limpar") patch.role = "";
-      
+
+      if (propMode === "Substituir por...") patch.ownerId = propValue;
+      else if (propMode === "Limpar") patch.ownerId = null;
+
       updateContact(id, patch);
     });
     setBulkEditOpen(false);
