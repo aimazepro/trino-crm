@@ -18,6 +18,7 @@ export function transformContact(row: any): Contact {
     id: row.id, name: row.name, role: row.role ?? "",
     companyId: row.company_id ?? undefined,
     emails: row.emails ?? [], phones: row.phones ?? [],
+    ownerId: row.owner_id ?? null,
   };
 }
 

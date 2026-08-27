@@ -20,7 +20,8 @@ export interface Contact {
   emails: ContactEmail[];
   phones: ContactPhone[];
   role: string;
-  companyId?: string; 
+  companyId?: string;
+  ownerId?: string | null;
 }
 
 export interface Label {

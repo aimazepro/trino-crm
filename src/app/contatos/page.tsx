@@ -3,8 +3,9 @@
 import { useState, useMemo, useRef, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import { useCrm } from "@/contexts/crm-context";
-import { useOwnerNameMap } from "@/hooks/use-owner-name-map";
-import { createClient } from "@/lib/supabase/client";
+import { useTeam } from "@/hooks/use-team";
+import { OwnerBadge } from "@/components/team/owner-badge";
+import { OwnerSelect } from "@/components/team/owner-select";
 import { BulkFieldSelect } from "@/components/ui/BulkFieldSelect";
 import { CustomizeColumnsModal, ALL_COLUMNS, DEFAULT_COLUMNS } from "@/components/contact/customize-columns-modal";
 import {
@@ -195,13 +196,7 @@ function NewContactModal({ onClose, onSave }: { onClose: () => void; onSave: (da
 export default function ContatosPage() {
   const router = useRouter();
   const { state, addContact, updateContact, deleteContact } = useCrm();
-  const { names: ownerNames } = useOwnerNameMap();
-  const [currentUserName, setCurrentUserName] = useState("");
-  useEffect(() => {
-    createClient().auth.getUser().then(({ data: { user } }) => {
-      if (user) setCurrentUserName(user.user_metadata?.full_name || user.user_metadata?.name || user.email || "");
-    });
-  }, []);
+  const { map: ownerNameMap } = useTeam();
   const [search, setSearch] = useState("");
   const [showModal, setShowModal] = useState(false);
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
@@ -250,7 +245,7 @@ export default function ContatosPage() {
   const [cargoValue, setCargoValue] = useState("");
 
   const [propMode, setPropMode] = useState<"Manter valor atual" | "Substituir por..." | "Limpar">("Manter valor atual");
-  const [propValue, setPropValue] = useState("");
+  const [propValue, setPropValue] = useState<string | null>(null);
 
   const [acaoValue, setAcaoValue] = useState<"Manter valor atual" | "Excluir registros">("Manter valor atual");
 
@@ -260,7 +255,7 @@ export default function ContatosPage() {
     setCargoMode("Manter valor atual");
     setCargoValue("");
     setPropMode("Manter valor atual");
-    setPropValue("");
+    setPropValue(null);
     setAcaoValue("Manter valor atual");
     setShowDeleteConfirm(false);
   };
@@ -342,7 +337,7 @@ export default function ContatosPage() {
       case "email": return c.emails?.[0]?.value || "";
       case "phone": return c.phones?.[0]?.value || "";
       case "company": return company?.name || "";
-      case "owner": return currentUserName || "";
+      case "owner": return c.ownerId ? (ownerNameMap[c.ownerId] ?? "Usuário removido") : "";
       case "deals": return String(getDealsCount(c));
       case "role": return c.role || "";
       case "createdAt": return "";
@@ -499,7 +494,7 @@ export default function ContatosPage() {
                           company ? <span className="text-zinc-500">{company.name}</span> : <span className="text-zinc-500">-</span>
                         )}
                         {colId === "deals" && <span className="text-zinc-500">{dealsCount}</span>}
-                        {colId === "owner" && <span className="text-sm text-zinc-600">{currentUserName || "—"}</span>}
+                        {colId === "owner" && <OwnerBadge ownerId={c.ownerId ?? null} />}
                         {colId === "createdAt" && <span className="text-zinc-300">-</span>}
                         {colId === "companyCity" && <span className="text-zinc-500">{company?.city || <span className="text-zinc-300">-</span>}</span>}
                         {colId === "companyCnpj" && <span className="text-zinc-500">{company?.cnpj || <span className="text-zinc-300">-</span>}</span>}
@@ -590,11 +585,9 @@ export default function ContatosPage() {
                   onChange={setPropMode}
                 />
                 {propMode === "Substituir por..." && (
-                  <BulkFieldSelect
-                    label="Selecione Proprietário"
-                    value={propValue || "Selecione..."}
-                    options={["Selecione...", ...ownerNames]}
-                    onChange={v => setPropValue(v === "Selecione..." ? "" : v)}
+                  <OwnerSelect
+                    value={propValue}
+                    onChange={setPropValue}
                   />
                 )}
               </div>

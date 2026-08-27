@@ -477,6 +477,7 @@ export function useCrmMutations({ state, setState, userId, workspaceId, supabase
     if (fields.companyId !== undefined) db.company_id = fields.companyId ?? null;
     if (fields.emails !== undefined) db.emails = fields.emails;
     if (fields.phones !== undefined) db.phones = fields.phones;
+    if ("ownerId" in fields) db.owner_id = fields.ownerId ?? null;
     if (Object.keys(db).length > 0) {
       supabase.from("contacts").update(db).eq("id", contactId)
         .then(({ error }) => { if (error) console.error("[CRM] updateContact failed:", error); });
