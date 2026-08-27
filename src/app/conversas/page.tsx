@@ -140,13 +140,19 @@ export default function ConversasPage() {
     setAssigning(true);
     try {
       const supabase = createClient();
-      const { error } = await supabase
+      const { data, error } = await supabase
         .from("whatsapp_conversations")
         .update({ owner_id: ownerId })
-        .eq("id", conversationId);
+        .eq("id", conversationId)
+        .select("id");
       if (error) {
         console.error("[Conversas] atribuir conversa falhou:", error);
         alert("Não foi possível atribuir a conversa.");
+      } else if (!data || data.length === 0) {
+        // RLS bateu 0 linhas sem devolver error: a conversa não está mais no
+        // estado que este UPDATE esperava (ex.: outro vendedor assumiu da
+        // fila um instante antes). Sem o .select(), isso passava batido.
+        alert("Essa conversa já foi assumida por outra pessoa.");
       }
     } finally {
       setAssigning(false);
