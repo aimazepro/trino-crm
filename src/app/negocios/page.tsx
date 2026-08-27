@@ -10,6 +10,8 @@ import { KanbanBoard } from "@/components/kanban/kanban-board";
 import { KanbanListView } from "@/components/kanban/kanban-list-view";
 import { NewDealModal } from "@/components/pipeline/new-deal-modal";
 import { CustomizeColumnsModal, DEFAULT_COLUMNS } from "@/components/deal/customize-columns-modal";
+import { useTeam } from "@/hooks/use-team";
+import { OwnerSelect } from "@/components/team/owner-select";
 import { cn } from "@/lib/utils";
 import { LeadStatus } from "@/lib/crm-types";
 
@@ -36,6 +38,8 @@ export default function KanbanPage() {
   });
   const [statusFilter, setStatusFilter] = useState<LeadStatus>("Ativo");
   const [showStatusMenu, setShowStatusMenu] = useState(false);
+  const { isManager } = useTeam();
+  const [ownerFilter, setOwnerFilter] = useState<string | null>(null);
   const statusMenuRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
@@ -207,6 +211,19 @@ export default function KanbanPage() {
               )}
             </div>
 
+            {/* Filtro por vendedor -- vendedor já enxerga só os próprios negócios
+                pela RLS, então o filtro só faz sentido para quem vê mais de uma
+                carteira (gerente e admin). */}
+            {isManager && (
+              <OwnerSelect
+                value={ownerFilter}
+                onChange={setOwnerFilter}
+                allowUnassigned
+                unassignedLabel="Todos os vendedores"
+                className="w-44"
+              />
+            )}
+
             {/* Exportar */}
             <button disabled className="flex items-center gap-1.5 rounded-lg border border-zinc-200 px-3 py-1.5 text-sm font-medium text-zinc-500 hover:bg-zinc-50 transition-colors disabled:opacity-50">
               <Download size={14} /> 
@@ -243,12 +260,12 @@ export default function KanbanPage() {
       {viewMode === "kanban" ? (
         <div className="flex-1 overflow-hidden p-6">
           <div className="relative h-full">
-            <KanbanBoard pipelineId={activePipelineId} onNewDeal={openNewDealModal} statusFilter={statusFilter} />
+            <KanbanBoard pipelineId={activePipelineId} onNewDeal={openNewDealModal} statusFilter={statusFilter} ownerFilter={ownerFilter} />
           </div>
         </div>
       ) : (
         <div className="flex-1 overflow-hidden p-6">
-          <KanbanListView pipelineId={activePipelineId} statusFilter={statusFilter} columns={visibleColumns} />
+          <KanbanListView pipelineId={activePipelineId} statusFilter={statusFilter} columns={visibleColumns} ownerFilter={ownerFilter} />
         </div>
       )}
       

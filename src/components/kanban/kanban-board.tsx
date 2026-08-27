@@ -17,9 +17,10 @@ interface KanbanBoardProps {
   pipelineId: string;
   onNewDeal?: (stageId?: string) => void;
   statusFilter?: "Ativo" | "Ganho" | "Perdido";
+  ownerFilter?: string | null;
 }
 
-export function KanbanBoard({ pipelineId, onNewDeal, statusFilter = "Ativo" }: KanbanBoardProps) {
+export function KanbanBoard({ pipelineId, onNewDeal, statusFilter = "Ativo", ownerFilter }: KanbanBoardProps) {
   const { state, moveDeal, markDealStatus, addActivity, updateActivity } = useCrm();
   const { map: ownerNameMap, avatars: ownerAvatars, selfId, selfName } = useOwnerNameMap();
   const [isDragging, setIsDragging] = useState(false);
@@ -36,7 +37,8 @@ export function KanbanBoard({ pipelineId, onNewDeal, statusFilter = "Ativo" }: K
       !d.deletedAt &&
       d.pipelineId === pipelineId &&
       d.stageId === stage.id &&
-      d.status === statusFilter
+      d.status === statusFilter &&
+      (ownerFilter ? d.ownerId === ownerFilter : true)
     );
     return acc;
   }, {} as Record<string, typeof state.deals>);

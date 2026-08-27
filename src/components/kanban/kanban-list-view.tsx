@@ -17,6 +17,7 @@ interface KanbanListViewProps {
   pipelineId: string;
   statusFilter?: "Ativo" | "Ganho" | "Perdido";
   columns?: string[];
+  ownerFilter?: string | null;
 }
 
 
@@ -45,7 +46,7 @@ const COLUMN_HEADERS: Record<string, { label: string; align: "left" | "right" | 
   companyWebsite: { label: "Website", align: "left" },
 };
 
-export function KanbanListView({ pipelineId, columns = DEFAULT_COLUMNS, statusFilter }: KanbanListViewProps) {
+export function KanbanListView({ pipelineId, columns = DEFAULT_COLUMNS, statusFilter, ownerFilter }: KanbanListViewProps) {
   const { state, markDealStatus, deleteDeal, updateDealFields, addLabel } = useCrm();
   const { map: ownerNameMap, names: ownerNames } = useOwnerNameMap();
   const { workspaceId } = useWorkspace();
@@ -191,6 +192,7 @@ export function KanbanListView({ pipelineId, columns = DEFAULT_COLUMNS, statusFi
     if (statusLocalFilter === "ganho" && d.status !== "Ganho") return false;
     if (statusLocalFilter === "perdido" && d.status !== "Perdido") return false;
     if (stageFilter && d.stageId !== stageFilter) return false;
+    if (ownerFilter && d.ownerId !== ownerFilter) return false;
     if (searchQuery) {
       const q = searchQuery.toLowerCase();
       const company = state.companies.find(c => c.id === d.companyId);
