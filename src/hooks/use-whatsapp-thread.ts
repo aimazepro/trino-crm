@@ -13,6 +13,8 @@ export interface ThreadMessage {
   conversationId: string;
   waMessageId: string | null;
   fromMe: boolean;
+  /** Quem clicou em enviar. Nulo em mensagem recebida e em envio de automação. */
+  sentBy: string | null;
   type: string;
   body: string | null;
   mediaPath: string | null;
@@ -42,6 +44,7 @@ function toMessage(row: any): ThreadMessage {
     conversationId: row.conversation_id,
     waMessageId: row.wa_message_id,
     fromMe: row.from_me,
+    sentBy: row.sent_by ?? null,
     type: row.type,
     body: row.body,
     mediaPath: row.media_path,

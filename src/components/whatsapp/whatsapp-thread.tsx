@@ -8,6 +8,7 @@ import {
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { createClient } from "@/lib/supabase/client";
+import { useTeam } from "@/hooks/use-team";
 import { VoiceRecorder } from "./voice-recorder";
 import { useWhatsAppThread, type ThreadTarget, type ThreadMessage } from "@/hooks/use-whatsapp-thread";
 
@@ -107,9 +108,11 @@ interface BubbleProps {
   grouped: boolean;
   /** True when the next message comes from the other side — the tail goes here. */
   tail: boolean;
+  /** id → nome, para assinar quem no time mandou a mensagem. */
+  teamNames: Record<string, string>;
 }
 
-function Bubble({ message, mediaUrl, grouped, tail }: BubbleProps) {
+function Bubble({ message, mediaUrl, grouped, tail, teamNames }: BubbleProps) {
   const mine = message.fromMe;
   const hasMedia = message.type !== "text" && message.type !== "unsupported";
 
@@ -136,6 +139,12 @@ function Bubble({ message, mediaUrl, grouped, tail }: BubbleProps) {
                 : "-left-1.5 [clip-path:polygon(100%_0,100%_100%,0_100%)] bg-white dark:bg-[#202c33]",
             )}
           />
+        )}
+
+        {message.fromMe && (
+          <span className="mb-0.5 block text-[10px] font-semibold text-green-800/70">
+            {message.sentBy ? (teamNames[message.sentBy] ?? "Usuário removido") : "Automação"}
+          </span>
         )}
 
         {message.type === "image" && mediaUrl && (
@@ -312,6 +321,7 @@ export function WhatsAppThread({
 }: WhatsAppThreadProps) {
   const { messages, loading, sending, error, mediaUrls, sendText, sendFile, clearError } =
     useWhatsAppThread(target);
+  const { map: teamNames } = useTeam();
 
   const [input, setInput] = useState("");
   const [recording, setRecording] = useState(false);
@@ -389,6 +399,7 @@ export function WhatsAppThread({
                   mediaUrl={message.mediaPath ? mediaUrls[message.mediaPath] : undefined}
                   grouped={!showDay && previous?.fromMe === message.fromMe}
                   tail={!next || next.fromMe !== message.fromMe}
+                  teamNames={teamNames}
                 />
               </div>
             );
