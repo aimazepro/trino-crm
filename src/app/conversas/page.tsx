@@ -55,6 +55,7 @@ export default function ConversasPage() {
   const [showNewDealModal, setShowNewDealModal] = useState(false);
   const [pendingDealContactId, setPendingDealContactId] = useState<string | undefined>(undefined);
   const [creatingDeal, setCreatingDeal] = useState(false);
+  const [assigning, setAssigning] = useState(false);
   const contactsById = useMemo(
     () => new Map(state.contacts.map(c => [c.id, c])),
     [state.contacts],
@@ -125,6 +126,30 @@ export default function ConversasPage() {
       setShowNewDealModal(true);
     } finally {
       setCreatingDeal(false);
+    }
+  }
+
+  /**
+   * Reatribuição explícita. A política de UPDATE de whatsapp_conversations já
+   * aceita dono atual, gerente/admin, ou conversa sem dono -- então o vendedor
+   * consegue assumir da fila e o gerente consegue passar para outro, sem regra
+   * extra aqui.
+   */
+  async function handleAssign(conversationId: string, ownerId: string | null) {
+    if (assigning) return;
+    setAssigning(true);
+    try {
+      const supabase = createClient();
+      const { error } = await supabase
+        .from("whatsapp_conversations")
+        .update({ owner_id: ownerId })
+        .eq("id", conversationId);
+      if (error) {
+        console.error("[Conversas] atribuir conversa falhou:", error);
+        alert("Não foi possível atribuir a conversa.");
+      }
+    } finally {
+      setAssigning(false);
     }
   }
 
@@ -406,6 +431,26 @@ export default function ConversasPage() {
                   </p>
                 </div>
               </div>
+              {!selected.ownerId ? (
+                <button
+                  onClick={() => void handleAssign(selected.id, selfId)}
+                  disabled={assigning}
+                  className="shrink-0 flex items-center gap-1.5 rounded-lg border border-amber-500 bg-amber-50 px-3 py-1.5 text-xs font-medium text-amber-700 hover:bg-amber-100 transition-colors disabled:opacity-50"
+                >
+                  <User className="h-3.5 w-3.5" aria-hidden="true" /> Assumir conversa
+                </button>
+              ) : isManager ? (
+                <OwnerSelect
+                  value={selected.ownerId}
+                  onChange={(id) => void handleAssign(selected.id, id)}
+                  allowUnassigned
+                  unassignedLabel="Devolver para a fila"
+                  disabled={assigning}
+                  className="w-44 shrink-0"
+                />
+              ) : (
+                <OwnerBadge ownerId={selected.ownerId} className="shrink-0" />
+              )}
               {selected.dealId ? (
                 <Link
                   href={`/negocios/${selected.dealId}`}
