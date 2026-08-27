@@ -14,12 +14,19 @@ interface Props {
  * Avatar mais nome de um membro. Um id que não está mais no time (pessoa
  * removida) renderiza "Usuário removido" em vez de string vazia -- registro
  * histórico não deve virar buraco na interface.
+ *
+ * Enquanto useTeam() ainda carrega, um id que não bate no map não significa
+ * "removido" -- pode ser colega ativo cuja ficha ainda não chegou (cada
+ * instância de useTeam começa com members=[] até a query resolver). Só
+ * depois de loading=false um id ausente é de fato alguém fora do time.
  */
 export function OwnerBadge({ ownerId, size = "sm", showName = true, className }: Props) {
-  const { map, avatars } = useTeam();
+  const { map, avatars, loading } = useTeam();
 
   const known = ownerId ? map[ownerId] : undefined;
-  const name = ownerId ? (known ?? "Usuário removido") : "Sem dono";
+  const name = ownerId
+    ? (known ?? (loading ? "Carregando..." : "Usuário removido"))
+    : "Sem dono";
   const avatar = ownerId ? avatars[ownerId] : null;
   const px = size === "sm" ? "h-5 w-5 text-[9px]" : "h-8 w-8 text-xs";
 

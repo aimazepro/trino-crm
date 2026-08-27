@@ -110,9 +110,12 @@ interface BubbleProps {
   tail: boolean;
   /** id → nome, para assinar quem no time mandou a mensagem. */
   teamNames: Record<string, string>;
+  /** true enquanto useTeam() ainda não resolveu -- um id ausente do map
+   *  aqui pode ser colega ativo cuja ficha não chegou, não alguém removido. */
+  teamLoading: boolean;
 }
 
-function Bubble({ message, mediaUrl, grouped, tail, teamNames }: BubbleProps) {
+function Bubble({ message, mediaUrl, grouped, tail, teamNames, teamLoading }: BubbleProps) {
   const mine = message.fromMe;
   const hasMedia = message.type !== "text" && message.type !== "unsupported";
 
@@ -143,7 +146,9 @@ function Bubble({ message, mediaUrl, grouped, tail, teamNames }: BubbleProps) {
 
         {message.fromMe && (
           <span className="mb-0.5 block text-[10px] font-semibold text-green-800/70">
-            {message.sentBy ? (teamNames[message.sentBy] ?? "Usuário removido") : "Automação"}
+            {message.sentBy
+              ? (teamNames[message.sentBy] ?? (teamLoading ? "Carregando..." : "Usuário removido"))
+              : "Automação"}
           </span>
         )}
 
@@ -321,7 +326,7 @@ export function WhatsAppThread({
 }: WhatsAppThreadProps) {
   const { messages, loading, sending, error, mediaUrls, sendText, sendFile, clearError } =
     useWhatsAppThread(target);
-  const { map: teamNames } = useTeam();
+  const { map: teamNames, loading: teamLoading } = useTeam();
 
   const [input, setInput] = useState("");
   const [recording, setRecording] = useState(false);
@@ -400,6 +405,7 @@ export function WhatsAppThread({
                   grouped={!showDay && previous?.fromMe === message.fromMe}
                   tail={!next || next.fromMe !== message.fromMe}
                   teamNames={teamNames}
+                  teamLoading={teamLoading}
                 />
               </div>
             );
