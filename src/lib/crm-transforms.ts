@@ -37,6 +37,21 @@ export function transformLabel(row: any): Label {
 }
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
+export function transformActivity(a: any): Activity {
+  return {
+    id: a.id, dealId: a.deal_id, title: a.title, description: a.description ?? undefined,
+    date: new Date(a.date).toISOString(), endDate: a.end_date ? new Date(a.end_date).toISOString() : undefined,
+    type: a.type, completed: a.completed, createdAt: a.created_at,
+    guests: a.guests ?? [], assigneeId: a.assignee_id ?? undefined,
+    googleEventId: a.google_event_id ?? undefined, meetLink: a.meet_link ?? undefined,
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    attachments: ((a.activity_attachments ?? []) as any[]).map((att) => ({
+      id: att.id, fileName: att.file_name, filePath: att.file_path, sizeBytes: att.size_bytes,
+    })),
+  };
+}
+
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
 export function transformDeal(row: any): Deal {
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const byDate = (a: any, b: any) =>
@@ -74,17 +89,7 @@ export function transformDeal(row: any): Deal {
       id: p.id, name: p.name, quantity: p.quantity, price: p.price,
     })),
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    activities: ((row.activities ?? []) as any[]).map((a): Activity => ({
-      id: a.id, dealId: a.deal_id, title: a.title, description: a.description ?? undefined,
-      date: new Date(a.date).toISOString(), endDate: a.end_date ? new Date(a.end_date).toISOString() : undefined,
-      type: a.type, completed: a.completed, createdAt: a.created_at,
-      guests: a.guests ?? [], assigneeId: a.assignee_id ?? undefined,
-      googleEventId: a.google_event_id ?? undefined, meetLink: a.meet_link ?? undefined,
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      attachments: ((a.activity_attachments ?? []) as any[]).map((att) => ({
-        id: att.id, fileName: att.file_name, filePath: att.file_path, sizeBytes: att.size_bytes,
-      })),
-    })),
+    activities: ((row.activities ?? []) as any[]).map(transformActivity),
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     appointments: ((row.appointments ?? []) as any[]).map((a): Appointment => ({
       id: a.id, dealId: a.deal_id, attendant: a.attendant, procedure: a.procedure,

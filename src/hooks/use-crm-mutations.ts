@@ -689,6 +689,12 @@ export function useCrmMutations({ state, setState, userId, workspaceId, supabase
       deals: prev.deals.map((d) => ({
         ...d, activities: d.activities.map((a) => (a.id === activityId ? { ...a, ...fields } : a)),
       })),
+      // Atividade órfã (assignee_id sem negócio visível -- ver
+      // CrmState.orphanActivities) não mora em nenhum d.activities acima.
+      // Sem esta linha, completar/editar ela em /atividades só refletia
+      // depois de um reload -- o update no banco já ia, o estado local que
+      // ficava para trás.
+      orphanActivities: prev.orphanActivities.map((a) => (a.id === activityId ? { ...a, ...fields } : a)),
     }));
     const db: Database["public"]["Tables"]["activities"]["Update"] = {};
     if (fields.title !== undefined) db.title = fields.title;
@@ -734,10 +740,13 @@ export function useCrmMutations({ state, setState, userId, workspaceId, supabase
 
   const deleteActivity = (activityId: string) => {
     const owningDeal = state.deals.find((d) => d.activities.some((a) => a.id === activityId));
-    const target = owningDeal?.activities.find((a) => a.id === activityId);
+    const target = owningDeal?.activities.find((a) => a.id === activityId)
+      ?? state.orphanActivities.find((a) => a.id === activityId);
     setState((prev) => ({
       ...prev,
       deals: prev.deals.map((d) => ({ ...d, activities: d.activities.filter((a) => a.id !== activityId) })),
+      // Mesmo motivo do updateActivity: órfã não está em nenhum d.activities.
+      orphanActivities: prev.orphanActivities.filter((a) => a.id !== activityId),
     }));
     // Push the Google-side delete first and wait for it — the route looks the activity
     // back up by id, so it must still exist in the DB when that lookup runs. Firing this

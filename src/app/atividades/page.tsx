@@ -44,6 +44,10 @@ const TYPE_BADGE_COLORS: Record<string, string> = {
 
 interface ActivityWithMeta extends Activity {
   dealTitle: string;
+  // Atividade atribuída a este usuário num negócio que ele não enxerga (RLS
+  // de `deals`) -- vem de state.orphanActivities, não de state.deals. Sem
+  // negócio navegável: o card não pode virar link para /negocios/[dealId].
+  orphan?: boolean;
 }
 
 const DATE_FILTERS: { key: DateFilter; label: string }[] = [
@@ -80,10 +84,12 @@ export default function AtividadesPage() {
     return () => document.removeEventListener("mousedown", h);
   }, []);
 
-  const allActivities: ActivityWithMeta[] = useMemo(() =>
-    state.deals.flatMap(deal => deal.activities.map(a => ({ ...a, dealTitle: deal.title }))),
-    [state.deals]
-  );
+  const allActivities: ActivityWithMeta[] = useMemo(() => [
+    ...state.deals.flatMap(deal => deal.activities.map(a => ({ ...a, dealTitle: deal.title }))),
+    // Órfãs: atribuídas a este usuário num negócio que ele não enxerga.
+    // Rótulo fixo, sem id de negócio nenhum aparecendo na tela.
+    ...state.orphanActivities.map(a => ({ ...a, dealTitle: "Negócio de outro responsável", orphan: true as const })),
+  ], [state.deals, state.orphanActivities]);
 
   const dealOptions = useMemo(() => state.deals.map(d => ({ id: d.id, title: d.title })), [state.deals]);
 
@@ -352,13 +358,19 @@ export default function AtividadesPage() {
                                 <CalendarIcon className="h-3 w-3" aria-hidden="true" />
                                 {format(new Date(a.date), "d 'de' MMM. HH:mm", { locale: ptBR })}
                               </span>
-                              <Link
-                                href={`/negocios/${a.dealId}`}
-                                className="text-xs text-amber-500 hover:underline font-medium truncate"
-                                onClick={e => e.stopPropagation()}
-                              >
-                                {a.dealTitle}
-                              </Link>
+                              {a.orphan ? (
+                                <span className="text-xs text-zinc-400 font-medium truncate">
+                                  {a.dealTitle}
+                                </span>
+                              ) : (
+                                <Link
+                                  href={`/negocios/${a.dealId}`}
+                                  className="text-xs text-amber-500 hover:underline font-medium truncate"
+                                  onClick={e => e.stopPropagation()}
+                                >
+                                  {a.dealTitle}
+                                </Link>
+                              )}
                               <span className="flex items-center gap-1 text-xs text-zinc-500">
                                 <Users className="h-3 w-3" aria-hidden="true" /> {selfName || "Você"} (você)
                               </span>
@@ -532,12 +544,18 @@ export default function AtividadesPage() {
                         <span className={cn("inline-block mt-1 rounded-full border px-1.5 py-0.5 text-[9px] font-medium", TYPE_BADGE_COLORS[a.type] || TYPE_BADGE_COLORS["Outros"])}>
                           {a.type}
                         </span>
-                        <Link
-                          href={`/negocios/${a.dealId}`}
-                          className="block text-xs text-amber-500 hover:underline truncate mt-0.5"
-                        >
-                          {a.dealTitle}
-                        </Link>
+                        {a.orphan ? (
+                          <span className="block text-xs text-zinc-400 truncate mt-0.5">
+                            {a.dealTitle}
+                          </span>
+                        ) : (
+                          <Link
+                            href={`/negocios/${a.dealId}`}
+                            className="block text-xs text-amber-500 hover:underline truncate mt-0.5"
+                          >
+                            {a.dealTitle}
+                          </Link>
+                        )}
                       </div>
                       <button
                         onClick={() => deleteActivity(a.id)}

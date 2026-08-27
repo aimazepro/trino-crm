@@ -59,7 +59,7 @@ export function useCrm() {
 }
 
 export function CrmProvider({ children }: { children: ReactNode }) {
-  const [state, setState] = useState<CrmState>({ pipelines: [], deals: [], contacts: [], companies: [], labels: [], notifications: [] });
+  const [state, setState] = useState<CrmState>({ pipelines: [], deals: [], contacts: [], companies: [], labels: [], notifications: [], orphanActivities: [] });
   const [loading, setLoading] = useState(true);
   const workspace = useWorkspaceInfo();
   const workspaceLoading = useWorkspaceLoading();

@@ -1,6 +1,6 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
 import type { CrmState, CrmNotification } from "@/lib/crm-types";
-import { transformPipeline, transformContact, transformCompany, transformLabel, transformDeal } from "@/lib/crm-transforms";
+import { transformPipeline, transformContact, transformCompany, transformLabel, transformDeal, transformActivity } from "@/lib/crm-transforms";
 import { seedDefaultPipelines } from "@/lib/crm-seeds";
 import type { Database } from "@/lib/supabase/database.types";
 
@@ -43,10 +43,11 @@ export async function loadCrmData(supabase: SupabaseClient<Database>, userId: st
   // Junta as duas fontes de atividade sem duplicar por id. A maioria das
   // atividades atribuídas a este usuário já veio pelo embed (negócio próprio,
   // ou usuário é gerente e enxerga todo mundo); só as "órfãs" (atribuídas
-  // neste usuário num negócio de outra pessoa) faltam. Uma órfã não tem
-  // negócio visível para pendurar (a RLS de `deals` bloqueia o dono alheio) --
-  // ganha um deal-stub mínimo só para existir em /atividades e afins; não é
-  // um negócio navegável (sem pipeline/stage reais, some do Kanban sozinho).
+  // neste usuário num negócio de outra pessoa) faltam. Uma órfã NÃO entra em
+  // `deals` -- nem como negócio real nem como stub (isso já foi tentado e
+  // vazou pra KPI, forecast, export CSV e virou link morto em
+  // /negocios/[id]; ver CrmState.orphanActivities). Ela vai pra uma lista à
+  // parte, devolvida em `orphanActivities`.
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const deals = (dealsRaw ?? []) as any[];
   const embeddedActivityIds = new Set(
@@ -56,21 +57,18 @@ export async function loadCrmData(supabase: SupabaseClient<Database>, userId: st
   const dealById = new Map(deals.map((d) => [d.id, d]));
 
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const orphanActivitiesRaw: any[] = [];
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   for (const activity of (assignedActivitiesRaw ?? []) as any[]) {
     if (embeddedActivityIds.has(activity.id)) continue; // já veio pelo embed
     const parent = dealById.get(activity.deal_id);
     if (parent) {
       parent.activities = [...(parent.activities ?? []), activity];
     } else {
-      deals.push({
-        id: activity.deal_id, title: "Negócio de outro responsável",
-        value: 0, pipeline_id: null, stage_id: null, status: "Ativo",
-        days_in_stage: 0, stage_entered_at: activity.created_at,
-        created_at: activity.created_at, updated_at: activity.created_at,
-        deal_labels: [], deal_notes: [], deal_history: [], deal_products: [],
-        appointments: [], activities: [activity],
-      });
-      dealById.set(activity.deal_id, deals[deals.length - 1]);
+      // Negócio de outro dono: a RLS de `deals` bloqueia a leitura (só dono e
+      // gerente enxergam), mesmo a RLS de `activities` liberando esta linha
+      // por assignee_id.
+      orphanActivitiesRaw.push(activity);
     }
   }
 
@@ -104,5 +102,6 @@ export async function loadCrmData(supabase: SupabaseClient<Database>, userId: st
     labels: (labelsRaw ?? []).map(transformLabel),
     deals: deals.map(transformDeal),
     notifications,
+    orphanActivities: orphanActivitiesRaw.map(transformActivity),
   };
 }

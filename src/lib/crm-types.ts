@@ -149,6 +149,14 @@ export interface CrmState {
   labels: Label[];
   gmailConnected?: boolean;
   notifications: CrmNotification[];
+  // Atividade atribuída a este usuário (assignee_id) num negócio que a RLS de
+  // `deals` não deixa ele ler -- dono é outra pessoa, e só dono/gerente
+  // enxergam o negócio. NÃO entra em `deals` (nem como stub, nem com flag):
+  // qualquer objeto sintético ali exige que todo consumidor de `deals`
+  // aprenda a ignorá-lo (KPI, forecast, export CSV, o link de /negocios/[id]
+  // já quebrou uma vez assim). Vive à parte; só quem sabe tratar "atividade
+  // sem negócio navegável" (hoje, só /atividades) lê daqui.
+  orphanActivities: Activity[];
 }
 
 // ── Automações ──────────────────────────────────────────────────────────────
