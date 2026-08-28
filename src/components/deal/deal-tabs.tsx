@@ -257,10 +257,13 @@ export function DealTabs({ dealId }: DealTabsProps) {
                        {log.subtext && <p className="text-sm text-zinc-500 mt-0.5">{log.subtext}</p>}
                        <p className="text-xs text-zinc-400 mt-1">
                          {(() => {
+                           // deal_history não grava quem fez a ação (sem coluna de autor
+                           // no banco) -- carimbar com selfName mostrava o histórico da
+                           // Ana assinado com o nome de quem abriu o negócio dela. Sem
+                           // dado real, mostra só a data; nunca inventa autoria.
                            try {
                              const d = new Date(log.createdAt);
-                             const formattedDate = format(d, "dd/MM/yyyy HH:mm");
-                             return selfName ? `${formattedDate} · ${selfName}` : formattedDate;
+                             return format(d, "dd/MM/yyyy HH:mm");
                            } catch {
                              return log.createdAt;
                            }
