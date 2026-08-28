@@ -101,3 +101,95 @@ policy, não o botão do Vercel.
 - Comentários e mensagem de commit em PT-BR.
 - Commite na branch `feat/multiusuario-individualizacao`. **Não faça push
   nem merge sem me perguntar.**
+
+---
+
+# Adendo — 2026-08-28, tarde: preparo para dirigir o navegador
+
+Sessão gasta inteira em infraestrutura de verificação. **Nenhuma tela foi
+percorrida ainda; nenhum código foi tocado.** O que mudou:
+
+## Decisão de condução
+
+Perguntado, o usuário escolheu **eu dirijo o navegador** (não o checklist para
+ele percorrer). Depois escolheu dirigir o **Chrome real dele**, via extensão,
+em vez de um Chromium próprio em script.
+
+## O que quebrou e como ficou
+
+- O MCP `playwright` do plugin ECC está pinado em `@playwright/mcp@0.0.69` e
+  roda com `--extension`, ou seja, **só funciona com a extensão de navegador
+  instalada** — sem ela, toda chamada volta `Extension connection timeout`.
+- A extensão **não vem no npm nem nas releases** do `microsoft/playwright-mcp`;
+  o README de lá aponta para um `packages/extension` que **não existe mais**
+  naquele repo (404). Migrou para `microsoft/playwright`, e de lá sai o link
+  oficial da Chrome Web Store: extensão chamada **"Playwright Extension"**,
+  `mmlmfjhmonkocbjadbfplnigmagldckm`. Instalada pelo usuário.
+- Com a extensão nova + servidor velho, o handshake recusa:
+  *"The client uses an unsupported protocol version. Update Playwright MCP or
+  CLI to the latest version."*
+- **Correção aplicada:** servidor MCP novo em escopo de usuário, chamado
+  `playwright-ext`, apontando para `@playwright/mcp@latest` (hoje `0.0.79`, já
+  baixado no cache do `npx`), com o token da extensão em variável de ambiente.
+  Gravado em `~/.claude.json` — **o token não entra no repo, não repita ele
+  aqui.** O servidor `playwright` velho do ECC continua existindo e continua
+  falhando; use o `playwright-ext`.
+- Servidor MCP novo só entra em vigor **reiniciando a sessão** — foi por isso
+  que esta sessão acabou aqui.
+
+## Ao retomar
+
+1. Peça uma aba aberta em `https://trino-crm.vercel.app` e aprove a conexão da
+   extensão quando ela pedir (a primeira chamada abre a página de seleção de
+   aba).
+2. **Peça as senhas ao usuário** — as duas contas entram por
+   `signInWithPassword` (`src/app/login/page.tsx`); o Google OAuth do mesmo
+   formulário não é dirigível. Senha nenhuma fica registrada neste repo.
+   Emails: João `joaoreiscefet@gmail.com`, Ana `claraferrodrigui@gmail.com`
+   (confirmados em `auth.users`; o prompt original trazia o da Ana com typo).
+3. A extensão usa o **perfil real** do usuário: a passada da Ana exige deslogar
+   o João pela UI, e no fim devolva a sessão logada como João.
+
+## Gabarito reconferido no banco hoje
+
+`deals` do workspace, não deletados: **4 abertos, R$ 10.650** — Ana **2 /
+R$ 5.500**, João **2 / R$ 5.150**, todos `Ativo`. Zero `Ganho`, zero `Perdido`,
+o que sustenta Ganhos **R$ 0** e conversão **0%** em qualquer período.
+
+## Ordem acordada da verificação
+
+Leitura pura primeiro, com o banco intacto — é o que fecha os cruzamentos
+numéricos antes de qualquer escrita:
+
+1. **João:** Painel (período existe; "Todos os vendedores" = R$ 10.650 / 4;
+   Ganhos R$ 0; conversão 0%; placar 2 linhas) → filtra Ana (R$ 5.500 / 2) →
+   troca período (Pipeline e "Atividades Hoje" **não** mudam; placar muda) →
+   placar **não** muda ao trocar vendedor.
+2. **João:** `/negocios` filtrado por vendedor — cabeçalho, cards, totais por
+   etapa e contagens do dropdown têm que dar **o mesmo número**; `/conversas`
+   (dropdown com os dois nomes); Insights (placar).
+3. **Ana:** Painel R$ 5.500 / 2 (o cruzamento que pega o defeito do P1), sem
+   seletor de vendedor, placar com 2 pessoas; `/automacoes` e as seis URLs de
+   Configurações do P2 fora do menu e com "Sem acesso"; Produtos abre sem os
+   botões de escrita; WhatsApp sem QR nem desconectar.
+4. Só então os itens que escrevem.
+
+## Autorização de escrita — ainda não dada
+
+Doze ações do roteiro gravam em produção (criar contato, reatribuir negócio,
+aplicar sequência, mudar sharing, enviar WhatsApp, assumir conversa da fila,
+importar CSV, meta + atividade concluída, anexo em atividade órfã, vencer
+atividade, perder/excluir negócio com motivo, nome vazio no Perfil). **Pergunte
+item a item antes da primeira.** Duas merecem cuidado explícito:
+
+- **Enviar mensagem no `/conversas`** manda WhatsApp de verdade para alguém —
+  sugerido negar, ou usar um número seguro combinado.
+- **Perder/excluir negócio com motivo** destrói o gabarito: é justamente a
+  ausência de Ganho/Perdido que faz Ganhos R$ 0. Deixe por último, ou faça num
+  negócio descartável criado na hora.
+
+## Correção ao "Estado" acima
+
+"As duas estão pushadas" vale para `f490abe`. O commit de doc `7056d18` está
+**só local** — a branch está `ahead 1` de `origin/feat/multiusuario-individualizacao`.
+Este adendo é mais um commit local em cima dele.
