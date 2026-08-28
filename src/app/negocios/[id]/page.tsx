@@ -29,7 +29,7 @@ export default function DealPage({ params }: { params: Promise<{ id: string }> }
     state, loading, markDealStatus, moveDeal, moveDealToPipeline,
     deleteDeal, restoreDeal, duplicateDeal, updateDealFields,
   } = useCrm();
-  const { map: ownerNameMap, avatars: ownerAvatars, selfId, selfName } = useOwnerNameMap();
+  const { map: ownerNameMap, avatars: ownerAvatars } = useOwnerNameMap();
   const { isManager, self, loading: teamLoading } = useTeam();
 
   const [showLossModal, setShowLossModal] = useState(false);
@@ -131,7 +131,7 @@ export default function DealPage({ params }: { params: Promise<{ id: string }> }
 
     return (
       <div className="flex flex-col items-center justify-center flex-1 h-full animate-in fade-in">
-        <h2 className="text-xl font-bold mb-4">Negócio não encontrado</h2>
+        <h2 className="text-xl font-bold mb-4">Negócio não encontrado ou sem acesso</h2>
         <Link href="/negocios" className="px-6 py-2 bg-amber-500 text-white rounded-xl">
           Voltar para o Kanban
         </Link>
@@ -225,9 +225,12 @@ export default function DealPage({ params }: { params: Promise<{ id: string }> }
         <div className="relative flex items-center gap-2 shrink-0">
           <div className="flex items-center gap-2">
             {(() => {
-              const ownerId = deal.ownerId || selfId;
-              const ownerName = ownerNameMap[ownerId] || selfName || "—";
-              const avatarUrl = ownerAvatars ? ownerAvatars[ownerId] : null;
+              // Negócio sem dono é "sem dono" -- nunca o usuário logado. O
+              // fallback `|| selfId` antigo desenhava o negócio da Ana com a
+              // cara de quem estava olhando.
+              const ownerId = deal.ownerId ?? null;
+              const ownerName = ownerId ? (ownerNameMap[ownerId] ?? "Usuário removido") : "Sem dono";
+              const avatarUrl = ownerId && ownerAvatars ? ownerAvatars[ownerId] : null;
 
               if (avatarUrl) {
                 return (
@@ -243,9 +246,14 @@ export default function DealPage({ params }: { params: Promise<{ id: string }> }
               return (
                 <div
                   title={ownerName}
-                  className="h-7 w-7 rounded-full bg-gradient-to-tr from-purple-600 to-indigo-500 text-white text-[11px] font-extrabold flex items-center justify-center shrink-0 ring-1 ring-zinc-200 uppercase tracking-tighter shadow-xs"
+                  className={cn(
+                    "h-7 w-7 rounded-full text-[11px] font-extrabold flex items-center justify-center shrink-0 ring-1 ring-zinc-200 uppercase tracking-tighter shadow-xs",
+                    ownerId
+                      ? "bg-gradient-to-tr from-purple-600 to-indigo-500 text-white"
+                      : "bg-zinc-100 text-zinc-400",
+                  )}
                 >
-                  {getInitials(ownerName)}
+                  {ownerId ? getInitials(ownerName) : "?"}
                 </div>
               );
             })()}

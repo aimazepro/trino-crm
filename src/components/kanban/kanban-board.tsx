@@ -22,7 +22,7 @@ interface KanbanBoardProps {
 
 export function KanbanBoard({ pipelineId, onNewDeal, statusFilter = "Ativo", ownerFilter }: KanbanBoardProps) {
   const { state, moveDeal, markDealStatus, addActivity, updateActivity } = useCrm();
-  const { map: ownerNameMap, avatars: ownerAvatars, selfId, selfName } = useOwnerNameMap();
+  const { map: ownerNameMap, avatars: ownerAvatars } = useOwnerNameMap();
   const [isDragging, setIsDragging] = useState(false);
   const [lossModalDealId, setLossModalDealId] = useState<string | null>(null);
   const [activityPopoverDealId, setActivityPopoverDealId] = useState<string | null>(null);
@@ -169,9 +169,12 @@ export function KanbanBoard({ pipelineId, onNewDeal, statusFilter = "Ativo", own
                                       </span>
                                     )}
                                      {(() => {
-                                       const ownerId = deal.ownerId || selfId;
-                                       const ownerName = ownerNameMap[ownerId] || selfName || "Vendedor";
-                                       const avatarUrl = ownerAvatars[ownerId];
+                                       // Negócio sem dono é "sem dono" -- nunca o usuário logado.
+                                       // O fallback `|| selfId` antigo desenhava o negócio da Ana
+                                       // com a cara de quem estava olhando.
+                                       const ownerId = deal.ownerId ?? null;
+                                       const ownerName = ownerId ? (ownerNameMap[ownerId] ?? "Usuário removido") : "Sem dono";
+                                       const avatarUrl = ownerId ? ownerAvatars[ownerId] : null;
 
                                        if (avatarUrl) {
                                          return (
@@ -187,9 +190,14 @@ export function KanbanBoard({ pipelineId, onNewDeal, statusFilter = "Ativo", own
                                        return (
                                          <div
                                            title={ownerName}
-                                           className="h-6 w-6 rounded-full bg-gradient-to-tr from-purple-600 to-indigo-500 text-white text-[10px] font-extrabold flex items-center justify-center shrink-0 ring-1 ring-zinc-200 uppercase tracking-tighter"
+                                           className={cn(
+                                             "h-6 w-6 rounded-full text-[10px] font-extrabold flex items-center justify-center shrink-0 ring-1 ring-zinc-200 uppercase tracking-tighter",
+                                             ownerId
+                                               ? "bg-gradient-to-tr from-purple-600 to-indigo-500 text-white"
+                                               : "bg-zinc-100 text-zinc-400",
+                                           )}
                                          >
-                                           {getInitials(ownerName)}
+                                           {ownerId ? getInitials(ownerName) : "?"}
                                          </div>
                                        );
                                      })()}
