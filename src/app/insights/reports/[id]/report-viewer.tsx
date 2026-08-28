@@ -7,7 +7,7 @@ import { cn } from "@/lib/utils";
 import { createClient } from "@/lib/supabase/client";
 import type { Json } from "@/lib/supabase/database.types";
 import { useCrm } from "@/contexts/crm-context";
-import { useOwnerNameMap } from "@/hooks/use-owner-name-map";
+import { useTeam } from "@/hooks/use-team";
 import { useInsights } from "../../insights-context";
 import { getReportType } from "../../report-types/registry";
 import { applyPeriodFilter, applyCustomFilters, FILTER_FIELDS_BY_ENTITY } from "../../report-types/filters";
@@ -35,7 +35,8 @@ const GROUP_BY_OPTIONS = [
 export function ReportViewer({ reportId }: { reportId: string }) {
   const router = useRouter();
   const { state } = useCrm();
-  const { map: ownerNameMap, names: ownerNames } = useOwnerNameMap();
+  const { map: ownerNameMap, members, self, isManager } = useTeam();
+  const ownerNames = members.map((m) => m.name);
   const { patchReport, setSavedReports } = useInsights();
   const [report, setReport] = useState<SavedReport | null>(null);
   const [loading, setLoading] = useState(true);
@@ -181,7 +182,7 @@ export function ReportViewer({ reportId }: { reportId: string }) {
       </div>
 
       <div className="p-6 space-y-4 flex-1 overflow-auto">
-        <FiltersPanel report={report} fieldOptions={fieldOptions} ownerNames={ownerNames} pipelines={state.pipelines} onUpdate={update} />
+        <FiltersPanel report={report} fieldOptions={fieldOptions} ownerNames={ownerNames} pipelines={state.pipelines} onUpdate={update} isManager={isManager} self={self} />
 
         <div className="rounded-xl border border-zinc-200 bg-white p-6 overflow-hidden">
           <div className="mb-4 flex items-center justify-end gap-2 flex-wrap">
@@ -249,17 +250,25 @@ function ColorPicker({ color, onChange }: { color: string; onChange: (c: string)
   );
 }
 
-function FiltersPanel({ report, fieldOptions, ownerNames, pipelines, onUpdate }: {
+function FiltersPanel({ report, fieldOptions, ownerNames, pipelines, onUpdate, isManager, self }: {
   report: SavedReport;
   fieldOptions: { value: string; label: string; type: string }[];
   ownerNames: string[];
   pipelines: { name: string }[];
   onUpdate: (patch: Partial<SavedReport>) => void;
+  isManager: boolean;
+  self: { name: string } | null;
 }) {
   const [showAdd, setShowAdd] = useState(false);
   const [field, setField] = useState(fieldOptions[0]?.value ?? "Status");
   const [operator, setOperator] = useState("é");
   const [value, setValue] = useState("");
+
+  // Vendedor não escolhe "Responsavel" de outra pessoa: a RLS já devolve
+  // vazio pros negócios alheios, e o filtro pareceria defeito.
+  useEffect(() => {
+    if (!isManager && field === "Responsavel" && self?.name) setValue(self.name);
+  }, [isManager, field, self?.name]);
 
   const addFilter = () => {
     const next: ReportFilter = { field, operator, value };
@@ -336,9 +345,13 @@ function FiltersPanel({ report, fieldOptions, ownerNames, pipelines, onUpdate }:
                 {pipelines.map((p) => <option key={p.name} value={p.name}>{p.name}</option>)}
               </select>
             ) : field === "Responsavel" ? (
-              <select value={value} onChange={(e) => setValue(e.target.value)} className="text-xs border border-zinc-200 bg-white rounded p-1.5">
-                {ownerNames.map((n) => <option key={n} value={n}>{n}</option>)}
-              </select>
+              isManager ? (
+                <select value={value} onChange={(e) => setValue(e.target.value)} className="text-xs border border-zinc-200 bg-white rounded p-1.5">
+                  {ownerNames.map((n) => <option key={n} value={n}>{n}</option>)}
+                </select>
+              ) : (
+                <span className="flex items-center px-1.5 text-xs font-medium text-zinc-600">{self?.name ?? ""}</span>
+              )
             ) : (
               <input value={value} onChange={(e) => setValue(e.target.value)} className="text-xs border border-zinc-200 bg-white rounded p-1.5" />
             )}

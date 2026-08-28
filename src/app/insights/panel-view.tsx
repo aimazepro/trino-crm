@@ -4,7 +4,7 @@ import { useMemo, useRef, useState, useEffect } from "react";
 import Link from "next/link";
 import { Sparkles, Plus, Settings, ChevronDown } from "lucide-react";
 import { cn } from "@/lib/utils";
-import { useOwnerNameMap } from "@/hooks/use-owner-name-map";
+import { useTeam } from "@/hooks/use-team";
 import { useInsights } from "./insights-context";
 import { ReportCard } from "./report-card";
 import { ALL_USERS } from "./use-report-result";
@@ -26,10 +26,13 @@ export function PanelView({ panelId }: { panelId: string }) {
     dashboards, savedReports, loaded, seeding, seedError, createDefaultReports,
     addReportToPanel, removeReportFromPanel, reorderPanelReports,
   } = useInsights();
-  const { names: ownerNames } = useOwnerNameMap();
+  const { members, self, isManager } = useTeam();
+  const ownerNames = members.map((m) => m.name);
 
   const [period, setPeriod] = useState("Este mes");
-  const [owner, setOwner] = useState<string>(ALL_USERS);
+  // Vendedor não escolhe de quem é o relatório: a RLS já devolveria vazio para
+  // os outros, e um seletor que sempre zera parece defeito.
+  const [owner, setOwner] = useState<string>(() => (isManager ? ALL_USERS : self?.name ?? ALL_USERS));
   const [showPeriod, setShowPeriod] = useState(false);
   const [showOwner, setShowOwner] = useState(false);
   const [dragOver, setDragOver] = useState(false);
@@ -45,6 +48,12 @@ export function PanelView({ panelId }: { panelId: string }) {
     document.addEventListener("mousedown", onClickOutside);
     return () => document.removeEventListener("mousedown", onClickOutside);
   }, []);
+
+  // useTeam() carrega assíncrono -- self começa nulo. Sem isto, o vendedor
+  // fica preso em ALL_USERS (relatório vazio) até o próprio nome chegar.
+  useEffect(() => {
+    if (!isManager && self?.name) setOwner(self.name);
+  }, [isManager, self?.name]);
 
   const panel = dashboards.find((d) => d.id === panelId) ?? null;
 
@@ -117,28 +126,34 @@ export function PanelView({ panelId }: { panelId: string }) {
             )}
           </div>
 
-          <div className="relative" ref={ownerRef}>
-            <button
-              onClick={() => setShowOwner((v) => !v)}
-              className="flex items-center gap-1.5 rounded-lg border border-zinc-200 bg-white px-3 py-1.5 text-sm hover:bg-zinc-50 transition-colors cursor-pointer"
-            >
-              <span className="text-zinc-800 font-medium">{owner}</span>
-              <ChevronDown className="h-3.5 w-3.5 text-zinc-400" />
-            </button>
-            {showOwner && (
-              <div className="absolute right-0 mt-1 w-52 rounded-lg border border-zinc-200 bg-white shadow-lg py-1 z-50 max-h-64 overflow-y-auto">
-                {[ALL_USERS, ...ownerNames].map((u) => (
-                  <button
-                    key={u}
-                    onClick={() => { setOwner(u); setShowOwner(false); }}
-                    className={cn("w-full text-left px-3 py-1.5 text-xs text-zinc-700 hover:bg-zinc-50 cursor-pointer", owner === u && "bg-zinc-50 font-semibold text-emerald-700")}
-                  >
-                    {u}
-                  </button>
-                ))}
-              </div>
-            )}
-          </div>
+          {isManager ? (
+            <div className="relative" ref={ownerRef}>
+              <button
+                onClick={() => setShowOwner((v) => !v)}
+                className="flex items-center gap-1.5 rounded-lg border border-zinc-200 bg-white px-3 py-1.5 text-sm hover:bg-zinc-50 transition-colors cursor-pointer"
+              >
+                <span className="text-zinc-800 font-medium">{owner}</span>
+                <ChevronDown className="h-3.5 w-3.5 text-zinc-400" />
+              </button>
+              {showOwner && (
+                <div className="absolute right-0 mt-1 w-52 rounded-lg border border-zinc-200 bg-white shadow-lg py-1 z-50 max-h-64 overflow-y-auto">
+                  {[ALL_USERS, ...ownerNames].map((u) => (
+                    <button
+                      key={u}
+                      onClick={() => { setOwner(u); setShowOwner(false); }}
+                      className={cn("w-full text-left px-3 py-1.5 text-xs text-zinc-700 hover:bg-zinc-50 cursor-pointer", owner === u && "bg-zinc-50 font-semibold text-emerald-700")}
+                    >
+                      {u}
+                    </button>
+                  ))}
+                </div>
+              )}
+            </div>
+          ) : (
+            <span className="rounded-lg border border-zinc-200 bg-white px-3 py-1.5 text-sm font-medium text-zinc-800">
+              {owner}
+            </span>
+          )}
 
           <span className="text-xs text-zinc-400">{cards.length} {cards.length === 1 ? "relatorio" : "relatorios"}</span>
         </div>

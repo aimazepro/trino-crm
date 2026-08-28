@@ -7,6 +7,7 @@ import { useRouter } from "next/navigation";
 import { createClient } from "@/lib/supabase/client";
 import { fetchGoalProgress } from "@/lib/goals-helpers";
 import { useWorkspace } from "@/lib/workspace";
+import { useTeam } from "@/hooks/use-team";
 
 type GoalType = "Negócios Adicionados" | "Negócios em Andamento" | "Negócios Ganhos" | "Receita" | "Atividades";
 
@@ -28,7 +29,8 @@ export default function MetasPage() {
   const router = useRouter();
   const supabase = createClient();
   const { workspaceId } = useWorkspace();
-  
+  const { self, isManager } = useTeam();
+
   const [goals, setGoals] = useState<any[]>([]);
   const [pipelines, setPipelines] = useState<any[]>([]);
   const [users, setUsers] = useState<any[]>([]);
@@ -113,6 +115,15 @@ export default function MetasPage() {
     loadGoals();
   }, [loadGoals]);
 
+  // Vendedor não cria meta pra outra pessoa: sem gerência, o dono fica preso
+  // no próprio id. useTeam() carrega assíncrono, então self pode chegar
+  // depois do formulário já aberto -- este efeito cobre esse caso.
+  useEffect(() => {
+    if (!isManager && self?.id) {
+      setFormData((prev) => (prev.ownerUserId ? prev : { ...prev, ownerUserId: self.id }));
+    }
+  }, [isManager, self?.id]);
+
   const openModal = () => {
     setStep(1);
     setSelectedType("Negócios Adicionados");
@@ -122,7 +133,7 @@ export default function MetasPage() {
       period: "MONTHLY",
       target: "",
       pipelineId: "",
-      ownerUserId: "",
+      ownerUserId: !isManager && self?.id ? self.id : "",
       startDate: "",
       endDate: "",
     });
@@ -461,21 +472,31 @@ export default function MetasPage() {
                     </div>
                   )}
 
-                  {/* Responsavel (opcional) */}
+                  {/* Responsavel -- só gerente e admin escolhem outra pessoa;
+                      vendedor cria meta só pra si (RLS de deals/activities
+                      já limita o progresso à própria carteira mesmo assim). */}
                   <div>
-                    <label className="block text-xs font-medium text-zinc-600 mb-1.5">Responsavel (opcional)</label>
-                    <select
-                      value={formData.ownerUserId}
-                      onChange={(e) => setFormData((prev) => ({ ...prev, ownerUserId: e.target.value }))}
-                      className="w-full rounded-lg border border-zinc-200 px-3 py-2 text-sm text-zinc-900 focus:outline-none focus:ring-2 focus:ring-amber-400"
-                    >
-                      <option value="">Todos os usuarios</option>
-                      {users.map((u) => (
-                        <option key={u.id} value={u.id}>
-                          {u.name}
-                        </option>
-                      ))}
-                    </select>
+                    <label className="block text-xs font-medium text-zinc-600 mb-1.5">
+                      Responsavel{isManager ? " (opcional)" : ""}
+                    </label>
+                    {isManager ? (
+                      <select
+                        value={formData.ownerUserId}
+                        onChange={(e) => setFormData((prev) => ({ ...prev, ownerUserId: e.target.value }))}
+                        className="w-full rounded-lg border border-zinc-200 px-3 py-2 text-sm text-zinc-900 focus:outline-none focus:ring-2 focus:ring-amber-400"
+                      >
+                        <option value="">Todos os usuarios</option>
+                        {users.map((u) => (
+                          <option key={u.id} value={u.id}>
+                            {u.name}
+                          </option>
+                        ))}
+                      </select>
+                    ) : (
+                      <span className="flex w-full items-center rounded-lg border border-zinc-200 bg-zinc-50 px-3 py-2 text-sm font-medium text-zinc-600">
+                        {self?.name ?? "Você"}
+                      </span>
+                    )}
                   </div>
 
                   {/* Datas */}

@@ -17,7 +17,7 @@ import {
   Clock3,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
-import { useOwnerNameMap } from "@/hooks/use-owner-name-map";
+import { useTeam } from "@/hooks/use-team";
 import {
   AreaChart,
   Area,
@@ -47,13 +47,22 @@ export interface CallRecord {
 
 
 export default function LigacoesPage() {
-  const { names: sellerNames, map: sellerMap } = useOwnerNameMap();
-  const [sellerFilter, setSellerFilter] = useState("");
+  const { map: sellerMap, members, self, isManager } = useTeam();
+  const sellerNames = members.map((m) => m.name);
+  // Vendedor não escolhe de quem são as ligações: a rota já corta no servidor
+  // (RLS de telephony_calls), então oferecer o seletor só confundiria.
+  const [sellerFilter, setSellerFilter] = useState<string>(() => (isManager ? "" : self?.name ?? ""));
   const [periodFilter, setPeriodFilter] = useState<"Hoje" | "7 dias" | "30 dias" | "90 dias">("30 dias");
   const [playingId, setPlayingId] = useState<string | null>(null);
   const [allCalls, setAllCalls] = useState<CallRecord[]>([]);
   const [loadingCalls, setLoadingCalls] = useState(true);
   const [callsError, setCallsError] = useState<string | null>(null);
+
+  // useTeam() carrega assíncrono -- self começa nulo. Sem isto, o vendedor
+  // fica preso em "" (mostraria "Todos") até o próprio nome chegar.
+  useEffect(() => {
+    if (!isManager && self?.name) setSellerFilter(self.name);
+  }, [isManager, self?.name]);
 
   // CDR real do workspace. Antes esta pagina plotava um array hardcoded --
   // cinco graficos bonitos sobre dado nenhum.
@@ -293,18 +302,24 @@ export default function LigacoesPage() {
             <p className="text-sm text-zinc-400">Visualize e analise suas chamadas</p>
           </div>
           <div className="flex items-center gap-2 flex-wrap sm:flex-nowrap">
-            <select
-              value={sellerFilter}
-              onChange={(e) => setSellerFilter(e.target.value)}
-              className="h-9 rounded-lg border border-zinc-200 bg-white px-3 text-sm text-zinc-600 outline-none focus:ring-1 focus:ring-zinc-400"
-            >
-              <option value="">Todos</option>
-              {sellerNames.map((name) => (
-                <option key={name} value={name}>
-                  {name}
-                </option>
-              ))}
-            </select>
+            {isManager ? (
+              <select
+                value={sellerFilter}
+                onChange={(e) => setSellerFilter(e.target.value)}
+                className="h-9 rounded-lg border border-zinc-200 bg-white px-3 text-sm text-zinc-600 outline-none focus:ring-1 focus:ring-zinc-400"
+              >
+                <option value="">Todos</option>
+                {sellerNames.map((name) => (
+                  <option key={name} value={name}>
+                    {name}
+                  </option>
+                ))}
+              </select>
+            ) : (
+              <span className="flex h-9 items-center rounded-lg border border-zinc-200 bg-white px-3 text-sm font-medium text-zinc-600">
+                {sellerFilter}
+              </span>
+            )}
             <div className="flex h-9 rounded-lg border border-zinc-200 overflow-hidden bg-white">
               {(["Hoje", "7 dias", "30 dias", "90 dias"] as const).map((period) => (
                 <button

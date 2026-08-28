@@ -2,6 +2,8 @@
 
 import { useMemo, useState } from "react";
 import { useCrm } from "@/contexts/crm-context";
+import { useTeam } from "@/hooks/use-team";
+import { OwnerSelect } from "@/components/team/owner-select";
 import { TrendingUp, DollarSign, Star, Zap, ChevronDown } from "lucide-react";
 import { cn } from "@/lib/utils";
 import {
@@ -22,8 +24,11 @@ function monthKey(iso: string) {
 
 export default function ForecastPage() {
   const { state } = useCrm();
+  const { isManager } = useTeam();
   const [selectedPipeline, setSelectedPipeline] = useState<string>("all");
   const [showPipelineMenu, setShowPipelineMenu] = useState(false);
+  // Vendedor não filtra por dono: a RLS já entrega só a própria carteira.
+  const [ownerFilter, setOwnerFilter] = useState<string | null>(null);
 
   const now = new Date();
   const windowEnd = addMonths(startOfMonth(now), MONTHS_AHEAD);
@@ -33,10 +38,10 @@ export default function ForecastPage() {
   [state.deals]);
 
   const filteredDeals = useMemo(() =>
-    selectedPipeline === "all"
-      ? activeDeals
-      : activeDeals.filter(d => d.pipelineId === selectedPipeline),
-  [activeDeals, selectedPipeline]);
+    activeDeals
+      .filter(d => selectedPipeline === "all" ? true : d.pipelineId === selectedPipeline)
+      .filter(d => ownerFilter ? d.ownerId === ownerFilter : true),
+  [activeDeals, selectedPipeline, ownerFilter]);
 
   // Summary KPIs
   const totalPipeline = filteredDeals.reduce((s, d) => s + d.value, 0);
@@ -103,31 +108,46 @@ export default function ForecastPage() {
             <p className="text-sm text-zinc-400 mt-0.5">Previsão baseada em valor × probabilidade dos negócios ativos</p>
           </div>
 
-          {/* Pipeline filter */}
-          <div className="relative">
-            <button
-              onClick={() => setShowPipelineMenu(v => !v)}
-              className="flex items-center gap-2 rounded-xl border border-zinc-200 bg-white px-3 py-2 text-sm font-medium text-zinc-700 hover:bg-zinc-50 transition-colors"
-            >
-              {selectedPipeline === "all" ? "Todos os pipelines" : getPipelineName(selectedPipeline)}
-              <ChevronDown className="h-4 w-4 text-zinc-400" />
-            </button>
-            {showPipelineMenu && (
-              <div className="absolute right-0 top-full mt-1 z-20 w-52 rounded-xl border border-zinc-200 bg-white shadow-lg overflow-hidden">
-                {[{ id: "all", name: "Todos os pipelines" }, ...state.pipelines].map(p => (
-                  <button
-                    key={p.id}
-                    onClick={() => { setSelectedPipeline(p.id); setShowPipelineMenu(false); }}
-                    className={cn(
-                      "w-full text-left px-4 py-2.5 text-sm transition-colors",
-                      selectedPipeline === p.id ? "bg-amber-50 text-amber-700 font-medium" : "text-zinc-700 hover:bg-zinc-50"
-                    )}
-                  >
-                    {p.name}
-                  </button>
-                ))}
-              </div>
+          <div className="flex items-center gap-2">
+            {/* Filtro por vendedor -- vendedor já enxerga só os próprios
+                negócios pela RLS, então o filtro só faz sentido para gerente
+                e admin. */}
+            {isManager && (
+              <OwnerSelect
+                value={ownerFilter}
+                onChange={setOwnerFilter}
+                allowUnassigned
+                unassignedLabel="Todos os vendedores"
+                className="w-44"
+              />
             )}
+
+            {/* Pipeline filter */}
+            <div className="relative">
+              <button
+                onClick={() => setShowPipelineMenu(v => !v)}
+                className="flex items-center gap-2 rounded-xl border border-zinc-200 bg-white px-3 py-2 text-sm font-medium text-zinc-700 hover:bg-zinc-50 transition-colors"
+              >
+                {selectedPipeline === "all" ? "Todos os pipelines" : getPipelineName(selectedPipeline)}
+                <ChevronDown className="h-4 w-4 text-zinc-400" />
+              </button>
+              {showPipelineMenu && (
+                <div className="absolute right-0 top-full mt-1 z-20 w-52 rounded-xl border border-zinc-200 bg-white shadow-lg overflow-hidden">
+                  {[{ id: "all", name: "Todos os pipelines" }, ...state.pipelines].map(p => (
+                    <button
+                      key={p.id}
+                      onClick={() => { setSelectedPipeline(p.id); setShowPipelineMenu(false); }}
+                      className={cn(
+                        "w-full text-left px-4 py-2.5 text-sm transition-colors",
+                        selectedPipeline === p.id ? "bg-amber-50 text-amber-700 font-medium" : "text-zinc-700 hover:bg-zinc-50"
+                      )}
+                    >
+                      {p.name}
+                    </button>
+                  ))}
+                </div>
+              )}
+            </div>
           </div>
         </div>
 
