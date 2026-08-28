@@ -41,11 +41,33 @@ export function getInitials(name: string): string {
  * duas têm que cair na mesma promise -- senão a segunda dispara outra query
  * antes da primeira responder. Se a query falhar, a entrada sai do cache
  * (ver `.catch` abaixo) para a próxima montagem poder tentar de novo; sem
- * isso um erro de rede pontual envenenaria o cache pro resto da sessão. Não
- * há expiração por tempo de propósito -- nada aqui muda em tempo real, e um
- * reload de página já limpa o módulo.
+ * isso um erro de rede pontual envenenaria o cache pro resto da sessão.
+ *
+ * NÃO É MAIS verdade que "nada aqui muda em tempo real": a tela de Perfil
+ * edita workspace_members.name/avatar_url via sync_my_member_identity, e sem
+ * invalidação o próprio OwnerBadge do usuário, o OwnerSelect e o Placar do
+ * time continuariam servindo o nome/avatar velho pro resto da aba. Por isso
+ * invalidateTeamCache() abaixo não só apaga a entrada como avisa (via
+ * cacheListeners) toda instância de useTeam já montada, pra ela refazer a
+ * busca -- só apagar o Map não bastaria, porque o efeito de useTeam só roda
+ * de novo quando `info`/`workspaceLoading` mudam, e trocar de nome não muda
+ * nenhum dos dois.
  */
 const teamCache = new Map<string, Promise<TeamMember[]>>();
+
+// Assinantes que quiseram saber quando o time de um workspace foi invalidado
+// -- ver invalidateTeamCache() e o efeito de assinatura dentro de useTeam().
+const cacheListeners = new Set<(workspaceId: string) => void>();
+
+/**
+ * Limpa o cache do time de um workspace e força toda instância de useTeam()
+ * já montada na aba a refazer a busca. Chame depois que sync_my_member_identity
+ * confirmar (>0 linhas) uma mudança em nome ou avatar.
+ */
+export function invalidateTeamCache(workspaceId: string) {
+  teamCache.delete(workspaceId);
+  cacheListeners.forEach((notify) => notify(workspaceId));
+}
 
 async function fetchTeam(
   supabase: ReturnType<typeof createClient>,
@@ -94,7 +116,21 @@ export function useTeam(): TeamInfo {
   const workspaceLoading = useWorkspaceLoading();
   const [members, setMembers] = useState<TeamMember[]>([]);
   const [loading, setLoading] = useState(true);
+  // Incrementado por invalidateTeamCache() via cacheListeners -- entra nas
+  // deps do efeito abaixo só para forçar uma nova rodada depois que alguém
+  // invalidou o time deste workspace (nome/avatar editados no Perfil).
+  const [refreshTick, setRefreshTick] = useState(0);
   const supabase = useMemo(() => createClient(), []);
+
+  useEffect(() => {
+    if (!info) return;
+    const workspaceId = info.workspaceId;
+    const listener = (invalidatedWorkspaceId: string) => {
+      if (invalidatedWorkspaceId === workspaceId) setRefreshTick((t) => t + 1);
+    };
+    cacheListeners.add(listener);
+    return () => { cacheListeners.delete(listener); };
+  }, [info]);
 
   useEffect(() => {
     // Dois casos de `info` ser null:
@@ -129,7 +165,7 @@ export function useTeam(): TeamInfo {
     }
 
     return () => { cancelled = true; };
-  }, [supabase, info, workspaceLoading]);
+  }, [supabase, info, workspaceLoading, refreshTick]);
 
   return useMemo(() => {
     const map: Record<string, string> = {};

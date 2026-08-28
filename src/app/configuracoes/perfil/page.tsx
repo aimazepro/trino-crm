@@ -5,12 +5,15 @@ import { useRouter } from "next/navigation";
 import { Camera, Pencil, Lock, LogOut, Trash2 } from "lucide-react";
 import { createClient } from "@/lib/supabase/client";
 import { useCrm } from "@/contexts/crm-context";
+import { useWorkspaceInfo } from "@/lib/workspace";
 
 import { getInitials } from "@/hooks/use-owner-name-map";
+import { invalidateTeamCache } from "@/hooks/use-team";
 
 export default function PerfilPage() {
   const router = useRouter();
   const { state } = useCrm();
+  const workspaceInfo = useWorkspaceInfo();
   const [editingName, setEditingName] = useState(false);
   const [name, setName] = useState("");
   const [tempName, setTempName] = useState("");
@@ -76,6 +79,9 @@ export default function PerfilPage() {
         setBanner({ kind: "err", text: "Nome salvo no seu login, mas não foi possível atualizar para o time." });
         return;
       }
+      // Sem isso, todo useTeam() já montado na aba (Placar do time, OwnerBadge,
+      // OwnerSelect) continuaria servindo o nome velho até um reload.
+      if (workspaceInfo) invalidateTeamCache(workspaceInfo.workspaceId);
     }
     setName(next);
     setEditingName(false);
@@ -139,6 +145,7 @@ export default function PerfilPage() {
       setBanner({ kind: "err", text: "Foto salva no seu login, mas não foi possível atualizar para o time." });
       return;
     }
+    if (workspaceInfo) invalidateTeamCache(workspaceInfo.workspaceId);
     setAvatarUrl(publicUrl);
     setBanner({ kind: "ok", text: "Foto de perfil atualizada." });
   };
