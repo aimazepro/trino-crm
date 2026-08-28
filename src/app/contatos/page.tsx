@@ -6,6 +6,7 @@ import { useCrm } from "@/contexts/crm-context";
 import { useTeam } from "@/hooks/use-team";
 import { OwnerBadge } from "@/components/team/owner-badge";
 import { OwnerSelect } from "@/components/team/owner-select";
+import { OwnerFilterSelect, UNASSIGNED_OWNER_FILTER } from "@/components/team/owner-filter-select";
 import { BulkFieldSelect } from "@/components/ui/BulkFieldSelect";
 import { CustomizeColumnsModal, ALL_COLUMNS, DEFAULT_COLUMNS } from "@/components/contact/customize-columns-modal";
 import {
@@ -198,6 +199,10 @@ export default function ContatosPage() {
   const { state, addContact, updateContact, deleteContact } = useCrm();
   const { map: ownerNameMap } = useTeam();
   const [search, setSearch] = useState("");
+  // Comparado por id (c.ownerId), nunca por nome -- diferente de Negócios,
+  // aparece pra todo papel: a base de contatos é compartilhada, o filtro é
+  // conveniência, não controle de acesso.
+  const [ownerFilter, setOwnerFilter] = useState<string | null>(null);
   const [showModal, setShowModal] = useState(false);
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
   const [bulkEditOpen, setBulkEditOpen] = useState(false);
@@ -262,12 +267,16 @@ export default function ContatosPage() {
 
   const filtered = useMemo(() => {
     const q = search.toLowerCase();
-    return state.contacts.filter(c =>
-      c.name.toLowerCase().includes(q) ||
-      c.emails?.[0]?.value?.toLowerCase().includes(q) ||
-      c.phones?.[0]?.value?.includes(q)
-    );
-  }, [state.contacts, search]);
+    return state.contacts.filter(c => {
+      if (ownerFilter === UNASSIGNED_OWNER_FILTER && c.ownerId) return false;
+      if (ownerFilter && ownerFilter !== UNASSIGNED_OWNER_FILTER && c.ownerId !== ownerFilter) return false;
+      return (
+        c.name.toLowerCase().includes(q) ||
+        c.emails?.[0]?.value?.toLowerCase().includes(q) ||
+        c.phones?.[0]?.value?.includes(q)
+      );
+    });
+  }, [state.contacts, search, ownerFilter]);
 
   const getCompany = (c: Contact) => state.companies.find(co => co.id === c.companyId);
   const getDealsCount = (c: Contact) => state.deals.filter(d => d.contactId === c.id).length;
@@ -384,6 +393,7 @@ export default function ContatosPage() {
             <input value={search} onChange={e => setSearch(e.target.value)} placeholder="Buscar contato..."
               className="outline-none text-zinc-700 placeholder-zinc-400 w-48" />
           </div>
+          <OwnerFilterSelect value={ownerFilter} onChange={setOwnerFilter} className="w-40" />
           <button
             title="Personalizar colunas"
             onClick={() => setShowCustomizeColumnsModal(true)}
@@ -441,7 +451,7 @@ export default function ContatosPage() {
             {filtered.length === 0 ? (
               <tr>
                 <td colSpan={visibleColumns.length + 1} className="py-16 text-center text-[13px] font-medium text-zinc-400">
-                  {search ? "Nenhum contato encontrado." : "Nenhum contato cadastrado ainda."}
+                  {search || ownerFilter ? "Nenhum contato encontrado." : "Nenhum contato cadastrado ainda."}
                 </td>
               </tr>
             ) : (
