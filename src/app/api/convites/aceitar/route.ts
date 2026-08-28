@@ -55,7 +55,13 @@ export async function POST(req: NextRequest) {
   let userId: string;
   if (existing) {
     userId = existing.id;
-    await supabase.auth.admin.updateUserById(userId, { password });
+    // Reconvite após remoção: se um nome novo chegou no convite, grava
+    // full_name aqui também -- senão o usuário reaproveitado nunca ganha o
+    // metadata (só o ramo createUser abaixo cobria isso).
+    await supabase.auth.admin.updateUserById(userId, {
+      password,
+      ...(name ? { user_metadata: { full_name: name, name } } : {}),
+    });
   } else {
     const { data: created, error: createErr } = await supabase.auth.admin.createUser({
       email: member.email,

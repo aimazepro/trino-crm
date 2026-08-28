@@ -358,7 +358,16 @@ function FiltersPanel({ report, fieldOptions, ownerNames, pipelines, onUpdate, i
           </div>
           <div className="flex justify-end gap-2">
             <button onClick={() => setShowAdd(false)} className="px-2 py-1 text-xs border border-zinc-200 rounded text-zinc-500">Cancelar</button>
-            <button onClick={addFilter} className="px-2 py-1 text-xs bg-emerald-600 rounded text-white">Aplicar</button>
+            <button
+              onClick={addFilter}
+              // Vendedor com self ainda não resolvido: bloqueia em vez de
+              // gravar um filtro "Responsavel = " vazio (o rótulo já mostra
+              // "" nesta janela -- ver o useEffect acima).
+              disabled={field === "Responsavel" && !isManager && !self?.name}
+              className="px-2 py-1 text-xs bg-emerald-600 rounded text-white disabled:opacity-50 disabled:cursor-not-allowed"
+            >
+              Aplicar
+            </button>
           </div>
         </div>
       )}

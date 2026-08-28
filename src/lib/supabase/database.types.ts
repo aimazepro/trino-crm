@@ -3184,7 +3184,7 @@ export type Database = {
       }
       sync_my_member_identity: {
         Args: { p_avatar_url?: string; p_name?: string }
-        Returns: undefined
+        Returns: number
       }
       team_scoreboard: {
         Args: { period_end: string; period_start: string }

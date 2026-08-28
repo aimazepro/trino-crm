@@ -67,8 +67,15 @@ export default function PerfilPage() {
     // espelho, mudar o nome aqui não muda nada para o resto do time.
     // RPC porque a RLS de update em workspace_members exige admin -- nem o
     // dono da própria linha teria permissão via update direto na tabela.
+    // Retorno checado: se a RPC não atualizar nenhuma linha (rede, grant,
+    // membership não aceita), o time continua vendo o nome velho -- não dá
+    // pra dizer "Nome atualizado." como se tivesse funcionado.
     if (userId) {
-      await supabase.rpc("sync_my_member_identity", { p_name: next });
+      const { data: rows, error: syncErr } = await supabase.rpc("sync_my_member_identity", { p_name: next });
+      if (syncErr || !rows) {
+        setBanner({ kind: "err", text: "Nome salvo no seu login, mas não foi possível atualizar para o time." });
+        return;
+      }
     }
     setName(next);
     setEditingName(false);
@@ -127,7 +134,11 @@ export default function PerfilPage() {
       setBanner({ kind: "err", text: "Imagem enviada, mas não foi possível salvar no perfil." });
       return;
     }
-    await supabase.rpc("sync_my_member_identity", { p_avatar_url: publicUrl });
+    const { data: rows, error: syncErr } = await supabase.rpc("sync_my_member_identity", { p_avatar_url: publicUrl });
+    if (syncErr || !rows) {
+      setBanner({ kind: "err", text: "Foto salva no seu login, mas não foi possível atualizar para o time." });
+      return;
+    }
     setAvatarUrl(publicUrl);
     setBanner({ kind: "ok", text: "Foto de perfil atualizada." });
   };

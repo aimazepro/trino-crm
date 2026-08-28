@@ -1,8 +1,10 @@
 -- Placar agregado do time.
 --
--- Esta é a ÚNICA superfície que fura a RLS de propósito. Ela existe porque o
--- vendedor deve ver o próprio detalhe mais o comparativo do time, e a RLS de
--- deals impede que ele leia negócio alheio -- um relatório de time montado no
+-- Fura a RLS de propósito (a Task 19 depois abriu uma segunda exceção,
+-- sync_my_member_identity, pelo mesmo motivo: um bypass restrito e auditável
+-- é mais seguro que alargar a policy geral). Esta existe porque o vendedor
+-- deve ver o próprio detalhe mais o comparativo do time, e a RLS de deals
+-- impede que ele leia negócio alheio -- um relatório de time montado no
 -- cliente viria zerado.
 --
 -- O que a protege: só devolve AGREGADO (nunca linha de negócio), e resolve o

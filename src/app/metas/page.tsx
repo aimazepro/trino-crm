@@ -531,7 +531,11 @@ export default function MetasPage() {
                     </button>
                     <button
                       onClick={handleCreateGoal}
-                      disabled={!formData.target || saving}
+                      // Vendedor sem self.id resolvido ainda: bloqueia, não abre.
+                      // Salvar aqui gravaria owner_user_id vazio == "Todos os
+                      // usuarios", uma meta do workspace inteiro em nome de quem
+                      // só queria criar a própria.
+                      disabled={!formData.target || saving || (!isManager && !self?.id)}
                       className="px-5 py-2 text-sm font-medium text-white bg-gradient-to-r from-amber-500 to-amber-400 rounded-lg hover:from-amber-600 hover:to-amber-500 shadow-sm hover:shadow-md disabled:opacity-50 transition-colors"
                     >
                       {saving ? "Criando..." : "Criar Meta"}
