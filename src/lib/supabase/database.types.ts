@@ -3182,6 +3182,20 @@ export type Database = {
         Args: { p_deal_id: string; p_products: Json }
         Returns: undefined
       }
+      team_scoreboard: {
+        Args: { period_end: string; period_start: string }
+        Returns: {
+          activities_done: number
+          avatar_url: string
+          calls_made: number
+          deals_open: number
+          deals_won: number
+          name: string
+          role: string
+          user_id: string
+          value_won: number
+        }[]
+      }
       telephony_add_credit: {
         Args: {
           p_amount_cents: number
