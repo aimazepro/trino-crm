@@ -1,4 +1,4 @@
--- supabase/migrations/20260827100300_contact_company_owner.sql
+-- supabase/migrations/20260827100400_contact_company_owner.sql
 --
 -- Dono informativo. A visibilidade NÃO muda: contatos e empresas continuam
 -- compartilhados no workspace, porque a base de contatos é patrimônio da
