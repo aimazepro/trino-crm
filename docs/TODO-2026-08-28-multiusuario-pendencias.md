@@ -324,15 +324,35 @@ antes/depois.
 Ficam sem dono. `owner_id` nulo é estado válido, o filtro já tem o caso "Sem
 dono" e a RLS de `companies` não usa dono para escrita.
 
-## O que do P4 NÃO foi feito
+## Atividade órfã — os três cantos ásperos, fechados
 
-**Atividade órfã, 2 dos 3 cantos ásperos.** A leitura em `crm-loader.ts` ganhou
-`.order` + `.range(0, 499)` explícitos — continua sem paginar de verdade, mas o
-corte virou determinístico (as mais recentes) em vez do limite default
-silencioso do PostgREST, onde *qual* atividade caía fora era imprevisível.
-Continuam abertos: **anexo fica stale até reload** e **não dispara notificação
-de vencida**. São mudanças de comportamento maiores que fechar dívida, e ficam
-registradas aqui em vez de entrarem de carona.
+Os três tinham a **mesma causa**: a órfã não mora em `state.deals`, mora na
+lista à parte `orphanActivities` (e é assim de propósito — stub em `deals` já
+foi tentado e vazou para KPI, forecast, export CSV e virou link morto em
+`/negocios/[id]`). Cada lugar que varre atividade percorrendo `deals` a perde.
+
+- **Anexo stale até reload.** `addActivityAttachment` e
+  `deleteActivityAttachment` mexiam só em `prev.deals[].activities`. O anexo ia
+  para o banco e a tela da órfã não mudava. O que confirma o diagnóstico é que
+  `updateActivity` e `deleteActivity` **já tratavam** `orphanActivities` —
+  alguém passou por ali e cobriu duas das quatro. Mesma família do defeito que
+  o P1 corrigiu em Negócios: o vizinho coberto, este esquecido.
+- **Sem notificação de vencida.** O laço de `checkDueActivities` era
+  `for (deal of state.deals) for (activity of deal.activities)`. A pessoa nunca
+  era avisada de uma tarefa **dela** vencer. Agora as duas fontes entram numa
+  lista só. O `dealId` passou a sair da própria atividade para a chave de
+  deduplicação continuar **idêntica** à que já está no `localStorage` — mudá-la
+  re-notificaria todo o histórico de uma vez.
+- **A leitura não paginava.** `crm-loader.ts` ganhou `.order` + `.range(0, 499)`
+  explícitos. Continua sem paginar de verdade — é o mesmo teto de contatos e
+  empresas — mas o corte virou determinístico (as mais recentes) em vez do
+  limite default silencioso do PostgREST, onde *qual* atividade caía fora era
+  imprevisível.
+
+Achado no caminho, corrigido junto: o efeito de `checkDueActivities` dependia
+só de `state.deals`, então o `setInterval` fechava sobre a lista do render em
+que nasceu. Hoje as duas listas mudam no mesmo `setState` do `load()`, mas
+depender disso é frágil — `state.orphanActivities` entrou nas dependências.
 
 # P5 — Verificação e integração
 
@@ -380,6 +400,10 @@ pessoa em Insights, Metas, Forecast e Ligações; Placar do time aparece.
   seguem só com a data.
 - Em Perfil, tentar salvar o nome vazio — o servidor recusa mesmo se o `trim`
   do cliente for contornado.
+- **Atividade órfã** (como Ana, numa atividade atribuída a ela dentro de um
+  negócio do João): anexar arquivo e ver o anexo aparecer **sem recarregar**;
+  remover e ver sumir na hora; e, com a data no passado, receber a notificação
+  de vencida.
 
 **Acrescentado pelo P2, ainda não clicado.** Como Ana, em Configurações:
 - Campos de dados, Motivos de Perda, Motivos de Exclusão, Tipos de Atividade,

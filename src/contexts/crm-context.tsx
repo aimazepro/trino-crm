@@ -95,15 +95,28 @@ export function CrmProvider({ children }: { children: ReactNode }) {
         notifiedSet = new Set();
       }
 
-      for (const deal of state.deals) {
-        for (const activity of deal.activities || []) {
+      // Atividade órfã (atribuída a este usuário num negócio de OUTRO dono)
+      // não mora em nenhum deal de state.deals -- ela fica na lista à parte
+      // orphanActivities. O laço antigo varria só state.deals, então a pessoa
+      // nunca era avisada de uma tarefa dela vencer. O dealId sai da própria
+      // atividade para a chave de deduplicação abaixo continuar idêntica à
+      // que já está no localStorage; mudá-la re-notificaria todo o histórico.
+      const aVarrer = [
+        ...state.deals.flatMap((deal) =>
+          (deal.activities || []).map((activity) => ({ dealId: deal.id, activity })),
+        ),
+        ...state.orphanActivities.map((activity) => ({ dealId: activity.dealId, activity })),
+      ];
+
+      {
+        for (const { dealId, activity } of aVarrer) {
           if (activity.completed) continue;
           const actDate = new Date(activity.date);
           if (actDate.getTime() <= now.getTime()) {
             // Keyed by stable fields (not activity.id — it starts as a temp client id
             // like `act_${Date.now()}` and gets swapped for the real DB id after insert
             // resolves, which produced a second, different key and a duplicate notification).
-            const notifKey = `act_notif_${deal.id}_${activity.title}_${activity.type}_${activity.date}`;
+            const notifKey = `act_notif_${dealId}_${activity.title}_${activity.type}_${activity.date}`;
             if (!notifiedSet.has(notifKey)) {
               notifiedSet.add(notifKey);
               // Persist immediately (not batched at the end of the loop) so an overlapping
@@ -192,7 +205,11 @@ export function CrmProvider({ children }: { children: ReactNode }) {
     checkDueActivities();
     const interval = setInterval(checkDueActivities, 5000); // Check every 5s for real-time delivery
     return () => clearInterval(interval);
-  }, [userId, workspaceId, loading, state.deals, supabase]);
+    // state.orphanActivities entra aqui junto com state.deals: sem ela o
+    // setInterval fecharia sobre a lista do render em que o efeito nasceu, e
+    // uma órfã que chegasse depois nunca seria varrida. Hoje as duas mudam no
+    // mesmo setState do load(), mas depender disso é frágil.
+  }, [userId, workspaceId, loading, state.deals, state.orphanActivities, supabase]);
 
   const ctxValue = useMemo(() => ({
     state, loading, ...mutations,

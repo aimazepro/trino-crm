@@ -790,24 +790,32 @@ export function useCrmMutations({ state, setState, userId, workspaceId, supabase
       activity_id: activityId, actor_user_id: userId, file_name: file.name, file_path: path, size_bytes: file.size,
     }).select().single();
     if (error || !data) { console.error("[CRM] attachment insert failed:", error); return; }
+    const novo = { id: data.id, fileName: data.file_name, filePath: data.file_path, sizeBytes: data.size_bytes };
+    const comAnexo = (a: Activity) => a.id === activityId
+      ? { ...a, attachments: [...a.attachments, novo] }
+      : a;
     setState((prev) => ({
       ...prev,
-      deals: prev.deals.map((d) => ({
-        ...d,
-        activities: d.activities.map((a) => a.id === activityId
-          ? { ...a, attachments: [...a.attachments, { id: data.id, fileName: data.file_name, filePath: data.file_path, sizeBytes: data.size_bytes }] }
-          : a),
-      })),
+      deals: prev.deals.map((d) => ({ ...d, activities: d.activities.map(comAnexo) })),
+      // Atividade órfã (atribuída a este usuário num negócio de outro dono, ver
+      // CrmState.orphanActivities) não mora em nenhum d.activities acima --
+      // igual a updateActivity e deleteActivity, que já tratam a lista à parte.
+      // Sem esta linha o anexo ia pro banco e a tela só mostrava depois de um
+      // reload.
+      orphanActivities: prev.orphanActivities.map(comAnexo),
     }));
   };
 
   const deleteActivityAttachment = (attachmentId: string) => {
+    const semAnexo = (a: Activity) => ({
+      ...a,
+      attachments: a.attachments.filter((att) => att.id !== attachmentId),
+    });
     setState((prev) => ({
       ...prev,
-      deals: prev.deals.map((d) => ({
-        ...d,
-        activities: d.activities.map((a) => ({ ...a, attachments: a.attachments.filter((att) => att.id !== attachmentId) })),
-      })),
+      deals: prev.deals.map((d) => ({ ...d, activities: d.activities.map(semAnexo) })),
+      // Mesma razão de addActivityAttachment: a órfã está fora de deals.
+      orphanActivities: prev.orphanActivities.map(semAnexo),
     }));
     supabase.from("activity_attachments").delete().eq("id", attachmentId)
       .then(({ error }) => { if (error) console.error("[CRM] deleteActivityAttachment failed:", error); });
