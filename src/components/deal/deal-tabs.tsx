@@ -39,7 +39,7 @@ const TAB_ACTIVE_COLOR: Record<string, string> = {
 
 export function DealTabs({ dealId }: DealTabsProps) {
   const { state, addDealNote, deleteDealNote, updateDealNote } = useCrm();
-  const { selfName } = useOwnerNameMap();
+  const { selfName, map: ownerNameMap } = useOwnerNameMap();
   const deal = state.deals.find(d => d.id === dealId);
   const contact = deal && deal.contactId ? state.contacts.find(c => c.id === deal.contactId) : null;
   const company = deal && deal.companyId ? state.companies.find(c => c.id === deal.companyId) : null;
@@ -257,16 +257,20 @@ export function DealTabs({ dealId }: DealTabsProps) {
                        {log.subtext && <p className="text-sm text-zinc-500 mt-0.5">{log.subtext}</p>}
                        <p className="text-xs text-zinc-400 mt-1">
                          {(() => {
-                           // deal_history não grava quem fez a ação (sem coluna de autor
-                           // no banco) -- carimbar com selfName mostrava o histórico da
-                           // Ana assinado com o nome de quem abriu o negócio dela. Sem
-                           // dado real, mostra só a data; nunca inventa autoria.
+                           // O autor sai de deal_history.actor_user_id, coluna criada no
+                           // P4. Continua nulo em dois casos -- histórico anterior a ela
+                           // e entradas do motor de automações -- e aí mostra só a data.
+                           // Carimbar com selfName, como já se tentou, assinava o
+                           // histórico da Ana com o nome de quem abriu o negócio dela.
+                           // Sem dado real, nunca inventa autoria. Comparação por id.
+                           let quando = log.createdAt;
                            try {
-                             const d = new Date(log.createdAt);
-                             return format(d, "dd/MM/yyyy HH:mm");
+                             quando = format(new Date(log.createdAt), "dd/MM/yyyy HH:mm");
                            } catch {
-                             return log.createdAt;
+                             // data ilegível: mostra o valor cru
                            }
+                           const autor = log.actorUserId ? ownerNameMap[log.actorUserId] : null;
+                           return autor ? `${quando} · ${autor}` : quando;
                          })()}
                        </p>
                      </div>

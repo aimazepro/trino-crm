@@ -85,6 +85,7 @@ export function transformDeal(row: any): Deal {
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     history: ((row.deal_history ?? []) as any[]).sort(byDate).map((h): HistoryLog => ({
       id: h.id, description: h.description, subtext: h.subtext ?? "", createdAt: h.created_at,
+      actorUserId: h.actor_user_id ?? null,
     })),
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     products: ((row.deal_products ?? []) as any[]).map((p) => ({

@@ -217,6 +217,9 @@ export async function POST(req: NextRequest) {
       deal_id: dealId,
       description: "Email enviado",
       subtext: subject,
+      // Quem enviou é o autor da entrada -- esta rota roda com service role,
+      // mas tem um usuário autenticado por trás.
+      actor_user_id: user.id,
     });
     if (historyErr) console.error("[gmail/send] deal_history insert failed:", historyErr);
   }

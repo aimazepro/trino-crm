@@ -36,7 +36,7 @@ export function useCrmMutations({ state, setState, userId, workspaceId, supabase
     });
     supabase.from("deals").update({ stage_id: newStageId, days_in_stage: 0, stage_entered_at: now }).eq("id", dealId)
       .then(({ error }) => { if (error) console.error("[CRM] moveDeal failed:", error); });
-    supabase.from("deal_history").insert({ deal_id: dealId, description, subtext })
+    supabase.from("deal_history").insert({ deal_id: dealId, description, subtext, actor_user_id: userId })
       .then(({ error }) => { if (error) console.error("[CRM] moveDeal history insert failed:", error); });
   };
 
@@ -64,7 +64,7 @@ export function useCrmMutations({ state, setState, userId, workspaceId, supabase
       .eq("id", dealId)
       .then(({ error }) => { if (error) console.error("[CRM] moveDealToPipeline failed:", error); });
 
-    supabase.from("deal_history").insert({ deal_id: dealId, description, subtext })
+    supabase.from("deal_history").insert({ deal_id: dealId, description, subtext, actor_user_id: userId })
       .then(({ error }) => { if (error) console.error("[CRM] moveDealToPipeline history insert failed:", error); });
   };
 
@@ -88,7 +88,7 @@ export function useCrmMutations({ state, setState, userId, workspaceId, supabase
       loss_reason_note: status === "Perdido" ? (reasonNote ?? null) : null,
     }).eq("id", dealId)
       .then(({ error }) => { if (error) console.error("[CRM] markDealStatus failed:", error); });
-    supabase.from("deal_history").insert({ deal_id: dealId, description, subtext })
+    supabase.from("deal_history").insert({ deal_id: dealId, description, subtext, actor_user_id: userId })
       .then(({ error }) => { if (error) console.error("[CRM] markDealStatus history insert failed:", error); });
 
     if (deal && userId && workspaceId && (status === "Ganho" || status === "Perdido")) {
@@ -210,7 +210,7 @@ export function useCrmMutations({ state, setState, userId, workspaceId, supabase
       ...prev,
       deals: prev.deals.map((d) => d.id === dealId ? { ...d, history: [log, ...d.history] } : d),
     }));
-    supabase.from("deal_history").insert({ deal_id: dealId, description, subtext })
+    supabase.from("deal_history").insert({ deal_id: dealId, description, subtext, actor_user_id: userId })
       .then(({ error }) => { if (error) console.error("[CRM] addDealHistory failed:", error); });
   };
 
@@ -231,6 +231,7 @@ export function useCrmMutations({ state, setState, userId, workspaceId, supabase
       await supabase.from("deal_labels").insert(deal.labels.map((lid) => ({ deal_id: data.id, label_id: lid })));
     }
     const { data: histRow } = await supabase.from("deal_history").insert({
+      actor_user_id: userId,
       deal_id: data.id, description: "Negócio criado", subtext: "Criado manualmente",
     }).select().single();
     const firstLog: HistoryLog = {
@@ -305,6 +306,7 @@ export function useCrmMutations({ state, setState, userId, workspaceId, supabase
     }
     const subtext = `Duplicado de "${source.title}"`;
     const { data: histRow } = await supabase.from("deal_history").insert({
+      actor_user_id: userId,
       deal_id: data.id, description: "Negócio criado", subtext,
     }).select().single();
     const firstLog: HistoryLog = {

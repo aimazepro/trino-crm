@@ -1036,6 +1036,7 @@ export type Database = {
       }
       deal_history: {
         Row: {
+          actor_user_id: string | null
           created_at: string
           deal_id: string
           description: string
@@ -1043,6 +1044,7 @@ export type Database = {
           subtext: string
         }
         Insert: {
+          actor_user_id?: string | null
           created_at?: string
           deal_id: string
           description: string
@@ -1050,6 +1052,7 @@ export type Database = {
           subtext?: string
         }
         Update: {
+          actor_user_id?: string | null
           created_at?: string
           deal_id?: string
           description?: string

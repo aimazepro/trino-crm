@@ -42,6 +42,12 @@ export interface HistoryLog {
   description: string; 
   subtext: string; 
   createdAt: string; 
+  /**
+   * Quem fez a ação. Nulo em duas situações que a tela precisa tratar igual:
+   * histórico anterior ao P4 (a coluna não existia) e entradas escritas pelo
+   * motor de automações, que não tem pessoa por trás.
+   */
+  actorUserId?: string | null;
 }
 
 export interface DealProduct {

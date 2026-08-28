@@ -251,6 +251,9 @@ export async function POST(req: NextRequest) {
           deal_id: data.id,
           description: "Negócio importado via CSV",
           subtext: "Importação em lote",
+          // Quem rodou a importação, não o dono atribuído aos registros:
+          // ownerId é escolha do formulário, autoria é quem apertou o botão.
+          actor_user_id: user.id,
         });
 
         // Activity

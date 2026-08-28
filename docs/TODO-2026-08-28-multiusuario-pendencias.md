@@ -6,11 +6,17 @@ multiusuário que o banco já tinha. Está **deployada em produção** e **não
 mergeada na `main`** — produção roda a branch de propósito, para que um rollback
 no Vercel não exija desfazer nada no git.
 
-**Estado em 2026-08-28:** P0, P1, P2 e P3 estão **fechados, provados e
+**Estado em 2026-08-28:** P0, P1, P2, P3 e P4 estão **fechados, provados e
 commitados**, mas **não deployados** — produção ainda roda o código anterior a
-eles. As migrations do P0 e do P1 **já estão aplicadas em produção** (são
-aditivas e de permissão; o código antigo funciona com o banco novo); o **P2 e o
-P3 não precisaram de migration nenhuma**. Falta P4 e P5.
+eles. As migrations do P0, do P1 e do P4 **já estão aplicadas em produção**; o
+**P2 e o P3 não precisaram de migration nenhuma**. Falta só o P5.
+
+⚠️ **Uma migration do P4 muda comportamento antes do deploy.** A RLS de
+`sequences` passou a respeitar o compartilhamento, e a única sequência de
+produção (`teste`, tag `sharing:ONLY_ME`) virou "Só eu" do João — a Ana deixou
+de vê-la na aba de atividades **já**, com o código antigo no ar. É o
+comportamento pedido, e a sequência é de teste, mas está aqui para não
+surpreender.
 
 Leia antes de mexer:
 - [docs/HANDOFF-2026-08-28-multiusuario.md](HANDOFF-2026-08-28-multiusuario.md) — o que foi feito, migrations aplicadas, backlog gerado
@@ -203,33 +209,130 @@ aqui — é o caso "atividade órfã" do P4, e não foi resolvido no P3.
   Perdido em produção** — o que também explica por que o card "Ganhos no Mês"
   mentia sem ninguém notar: ele somava um histórico vazio.
 
-# P4 — Backlog técnico herdado
+# ~~P4 — Backlog técnico herdado~~ FEITO (commit `686e5cc` + este)
 
-- **`src/lib/goals-helpers.ts:62`** seleciona `activities.user_id`, coluna que **não existe** (é `assignee_id`). Metas do tipo "Atividades" estão quebradas em produção agora. Resquício do rename `user_id → workspace_id`. Confirmado ao vivo. **É o último caso conhecido desse rename** — os outros dois (`find_contact_by_phone` e `/api/import/csv`) caíram no P1. Uma varredura de `pg_proc` por corpo citando `user_id` não achou mais nada no banco; o que sobra é código TypeScript.
-- **`deal_history` não tem coluna de autor** (`contact_history` e `company_history` têm `actor_user_id`). Por isso o histórico do negócio mostra só a data. Precisa migration + passar o autor em quem escreve na tabela. O histórico velho fica sem autor para sempre. (O backfill de dono do P1 usou justamente `contact_history.actor_user_id`; sem o equivalente em `deal_history`, negócio órfão não teria como ser resolvido do mesmo jeito.)
-- **`/api/v1/activities`** (POST e PATCH) aceita `assigneeId: ""` e grava string vazia em coluna `uuid`. `if (body.assigneeId)` é falso para `""`, então pula a checagem de membership. Mesmo buraco já fechado no fluxo interno e, no P1, no `recordOwner` de `/api/import/csv`.
-- **Compartilhamento de sequência é decoração** (achado no P2). O modal grava
-  `sharing:ONLY_ME|SPECIFIC_USERS|WORKSPACE` como string no array `tags` de
-  `sequences` e nenhum leitor filtra por isso — toda sequência é visível para
-  todo o workspace independentemente da escolha, e "Usuários específicos" não
-  guarda *quais* usuários em lugar nenhum. Fechado para vendedor no P2; para
-  admin e gerente o controle continua prometendo o que não entrega. Consertar é
-  feature, não gate: precisa de coluna de dono em `sequences`, uma tabela de
-  compartilhamento para o caso "específicos", e a RLS de select passar a
-  respeitar as duas. Enquanto isso não existir, o honesto é tirar o modal.
-- **`sequence_enrollments` nunca grava** (achado no P2; a tabela tem 0 linhas em
-  produção). Duas causas somadas: a RLS tem policy de `select` e **nenhuma** de
-  insert/update/delete, e `src/lib/sequence-helpers.ts:215` insere sem
-  `workspace_id`. O `try/catch` em volta não pega nada — o supabase-js devolve
-  `{ error }` em vez de lançar, então é mais um erro descartado da mesma família
-  do P1. Só a fila do motor (`/api/automations/sequences`, com service role)
-  escreve ali, e ela só drena o que nunca foi inserido.
-- **Drift de migration:** a policy viva de `whatsapp_conversations` vem de `phase1_multitenancy`, que **não tem `.sql` no repositório**. Já fez um revisor tirar conclusão errada sobre a RLS. Vale uma migration puramente documental com o `CREATE POLICY` vivo. (Vale notar que os nomes de arquivo em `supabase/migrations/` **não batem** com as versões em `supabase_migrations.schema_migrations` — o MCP gera o próprio timestamp ao aplicar. O drift é antigo e cosmético, mas confunde quem procura.)
-- **Atividade órfã** (atribuída a alguém num negócio de outro dono) tem cantos ásperos: anexo fica stale até reload; não dispara notificação de vencida; a leitura direta em `crm-loader.ts` não pagina.
-- **`sync_my_member_identity`** não valida `p_name` vazio no servidor (hoje o cliente faz `trim` antes).
-- **Empresas sem dono:** 2 sobraram após o backfill do P1, por não terem histórico nem negócio. Se aparecerem na tela como órfãs e incomodar, a decisão é de produto (atribuir ao admin? deixar?), não técnica.
+Quatro migrations aplicadas em produção, todas com dry-run em transação com
+`rollback` antes. Item a item:
 
----
+## Metas do tipo "Atividades" — eram 4 pontos, não 1
+
+O item dizia `goals-helpers.ts:62`. Eram **quatro** referências à coluna
+`user_id`, e a varredura mostrou que **nem `activities` nem `deals`** têm essa
+coluna: `42703 column "user_id" does not exist` nas duas, com `assignee_id` e
+`owner_id` existindo no mesmo lote de prova. As metas de negócio estavam tão
+quebradas quanto as de atividade — o item só tinha visto metade.
+
+O agravante é o de sempre: `const { data: rows } = await q` descartava o erro,
+então a meta ficava zerada. **Meta zerada parece meta não batida, não parece
+defeito** — por isso ninguém reportou em meses. `fetchGoalProgress` agora
+devolve `error` e os três chamadores registram.
+
+## `/api/v1/activities` — o doc descrevia o sintoma errado
+
+Dizia "grava string vazia em coluna uuid". Não grava: o Postgres recusa com
+`22P02 invalid input syntax for type uuid: ""` (provado, com `null` e um uuid
+real aceitos no mesmo lote). O efeito real era **500 numa entrada que merecia
+400**.
+
+`readOptionalUuid` em `src/lib/api-auth.ts` distingue os três estados que
+importam, e o PATCH tirou `assigneeId` do laço genérico porque lá eles não são
+equivalentes: **chave ausente** não mexe no responsável, **null** desatribui, e
+**qualquer outra coisa fora do formato uuid** vira erro de validação — nunca um
+silencioso "sem responsável".
+
+## Compartilhamento de sequência — implementado de verdade
+
+Decisão do usuário: implementar os três modos, não tirar o modal.
+
+`sequences` ganhou `owner_id` e `sharing` como colunas, existe
+`sequence_shares`, e a RLS de select passou a respeitar as duas. A tag
+`sharing:` saiu da gravação e do backfill — manter as duas fontes seria repetir
+o defeito com a chance extra de discordarem.
+
+**Sem bypass de gerente, de propósito.** "Apenas você vê e usa este template"
+tem que ser literal; um admin que enxergasse tudo faria a opção voltar a
+mentir, que é o defeito de origem.
+
+**A recursão que quase passou batido:** a policy de `sequences` consulta
+`sequence_shares`. Se as policies de `sequence_shares` consultassem `sequences`
+de volta, o Postgres recusaria a query inteira com *"infinite recursion
+detected in policy for relation"*. `is_sequence_owner()` (`security definer`)
+quebra o ciclo — criada já com o `revoke` de `anon` que o P0 ensinou, e
+conferida depois: ACL `{postgres=X, authenticated=X, service_role=X}`.
+
+**Backfill:** dono = admin mais antigo do workspace (`workspace_members` não
+tem `created_at`; usa `invited_at`). Modo = a tag quando existe, `WORKSPACE`
+quando não — assumir `ONLY_ME` faria sumir sequência que a equipe já usa. Em
+produção havia **1** sequência, `teste`, tag `ONLY_ME`, e o dono inferido é o
+próprio João, então respeitar a tag não teve risco.
+
+Provado ao vivo, cada linha com contraste:
+
+| cenário | Ana enxerga |
+|---|---|
+| `ONLY_ME` | **0** (e o João, dono, **1**) |
+| `WORKSPACE` | **1** |
+| `SPECIFIC_USERS` sem share | **0** |
+| `SPECIFIC_USERS` com share | **1** |
+
+Os `sequence_steps` acompanham (**1**), porque a policy deles é um `EXISTS` na
+sequência dona e passa pela RLS dela.
+
+## `sequence_enrollments` — as duas causas confirmadas
+
+A varredura confirmou: RLS ligada, **só** policy de `select`, nenhuma de
+escrita. Ganhou as três, com o mesmo predicado de `deal_history`. Provado como
+a Ana: inscrever negócio **dela** passa, negócio **do João** volta
+`42501 new row violates row-level security policy`.
+
+Do lado TS, `sequence-helpers.ts` inseria sem `workspace_id` dentro de um
+`try/catch` que não pegava nada — o supabase-js devolve `{ error }` em vez de
+lançar. Corrigidos os dois.
+
+## `deal_history` ganhou autor
+
+Coluna `actor_user_id`, **sem backfill**: o histórico velho não tem de onde
+tirar o autor, e preencher com o admin inventaria justamente a informação que a
+coluna existe para registrar. Nulo também nas entradas do motor de automações,
+que não têm pessoa por trás.
+
+Os 9 escritores com usuário passaram a carimbar: 6 em `use-crm-mutations.ts`,
+`gmail/send`, `gmail/sync` e `import/csv` (autoria é quem apertou o botão, não
+o `ownerId` escolhido no formulário). A tela mostra `data · autor` quando existe
+e **só a data** quando não — nunca inventa autoria, que é o defeito que já
+tinha aparecido quando se carimbava com `selfName`.
+
+## `sync_my_member_identity` — nome vazio
+
+`coalesce(p_name, name)` não protege de `''`: gravava nome em branco e devolvia
+1, como se tivesse sincronizado. A regra ficou igual à do avatar, que a própria
+função já aplicava: valor fornecido e reprovado devolve **0**. Provado: `""` e
+`"   "` devolvem 0 com o nome intacto, `"Ana X"` devolve 1 e grava.
+
+`create or replace`, nunca `drop` + `create` — **todo `drop function` desfaz o
+revoke de `anon` do P0**. Conferido depois de aplicar: ACL sem `anon`.
+
+## Drift de migration — resolvido por transcrição
+
+`20260828100800` transcreve as policies vivas de `whatsapp_conversations` (as
+de `phase1_multitenancy`, que não tem `.sql` aqui). **Provado no-op antes de
+aplicar**: as quatro policies saem `IDENTICA` na comparação de `pg_get_expr`
+antes/depois.
+
+## Empresas sem dono — decisão tomada
+
+Ficam sem dono. `owner_id` nulo é estado válido, o filtro já tem o caso "Sem
+dono" e a RLS de `companies` não usa dono para escrita.
+
+## O que do P4 NÃO foi feito
+
+**Atividade órfã, 2 dos 3 cantos ásperos.** A leitura em `crm-loader.ts` ganhou
+`.order` + `.range(0, 499)` explícitos — continua sem paginar de verdade, mas o
+corte virou determinístico (as mais recentes) em vez do limite default
+silencioso do PostgREST, onde *qual* atividade caía fora era imprevisível.
+Continuam abertos: **anexo fica stale até reload** e **não dispara notificação
+de vencida**. São mudanças de comportamento maiores que fechar dívida, e ficam
+registradas aqui em vez de entrarem de carona.
 
 # P5 — Verificação e integração
 
@@ -263,6 +366,20 @@ pessoa em Insights, Metas, Forecast e Ligações; Placar do time aparece.
   aparece** com as duas pessoas.
 - O placar não muda ao trocar o vendedor no filtro (é agregado do time), mas
   **muda** ao trocar o período.
+
+**Acrescentado pelo P4, ainda não clicado:**
+- Uma meta do tipo "Atividades" com dono definido mostra progresso > 0 quando a
+  pessoa tem atividade concluída no período (estava sempre em 0).
+- Em Sequências, como João: marcar "Só eu" e conferir que a Ana não vê a
+  sequência na aba de atividades de um negócio; marcar "Usuários específicos" +
+  Ana e conferir que volta a aparecer; marcar "Todo o workspace" e conferir que
+  aparece sem share nenhum.
+- Aplicar uma sequência num negócio e conferir que `sequence_enrollments` passa
+  a ter linha (antes era sempre zero).
+- Histórico do negócio: uma ação nova mostra `data · nome`; as linhas antigas
+  seguem só com a data.
+- Em Perfil, tentar salvar o nome vazio — o servidor recusa mesmo se o `trim`
+  do cliente for contornado.
 
 **Acrescentado pelo P2, ainda não clicado.** Como Ana, em Configurações:
 - Campos de dados, Motivos de Perda, Motivos de Exclusão, Tipos de Atividade,

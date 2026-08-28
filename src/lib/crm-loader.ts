@@ -30,7 +30,13 @@ export async function loadCrmData(supabase: SupabaseClient<Database>, userId: st
       deal_labels(label_id), activities(*, activity_attachments(*)), appointments(*)
     `).is("deleted_at", null).order("created_at"),
     supabase.from("notifications").select("*").order("created_at", { ascending: false }),
-    supabase.from("activities").select("*, activity_attachments(*)").eq("assignee_id", userId),
+    // `.order` + `.range` explícitos: sem eles a leitura ficava no limite
+    // default do PostgREST e, passando dele, *qual* atividade caía fora era
+    // imprevisível. Continua sem paginar de verdade -- é o mesmo teto de 500
+    // de contatos e empresas acima, agora com um corte determinístico (as mais
+    // recentes primeiro) em vez de silencioso.
+    supabase.from("activities").select("*, activity_attachments(*)")
+      .eq("assignee_id", userId).order("date", { ascending: false }).range(0, 499),
   ]);
 
   if (pErr) console.error("[CRM] load pipelines failed:", pErr);

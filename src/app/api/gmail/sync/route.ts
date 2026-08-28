@@ -221,6 +221,8 @@ export async function POST(req: NextRequest) {
           deal_id: dealId,
           description: "Email recebido",
           subtext: subject,
+          // Dono da caixa que sincronizou -- é quem recebeu a resposta.
+          actor_user_id: user.id,
         });
         if (historyErr) console.error("[gmail/sync] deal_history insert failed:", historyErr);
       }
