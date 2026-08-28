@@ -10,7 +10,8 @@ no Vercel não exija desfazer nada no git.
 mas **não deployados** — produção ainda roda o código anterior a eles. As
 migrations do P0 e do P1 **já estão aplicadas em produção** (são aditivas e de
 permissão; o código antigo funciona com o banco novo) e o **P2 não precisou de
-migration nenhuma**. Falta P3, P4 e P5.
+migration nenhuma**. Falta P3, P4 e P5 — o P3 tem um levantamento pronto na própria seção, feito
+sem escrever código; leia antes de começar.
 
 Leia antes de mexer:
 - [docs/HANDOFF-2026-08-28-multiusuario.md](HANDOFF-2026-08-28-multiusuario.md) — o que foi feito, migrations aplicadas, backlog gerado
@@ -148,6 +149,45 @@ Use `<OwnerFilterSelect>` gateado por `isManager`, no padrão que
 o P1 corrigiu em Negócios: **todos** os KPIs do painel precisam respeitar o
 filtro, não só alguns. Se der para reusar `src/lib/deal-scope.ts`, reuse — o
 ponto daquele arquivo é não haver dois predicados.
+
+---
+
+## Levantamento já feito (leia antes de escrever código)
+
+Uma sessão anterior leu as telas e parou antes de escrever. O que ela achou
+muda o tamanho do P3 — **não é só reuso**:
+
+- **"Meu Painel" não tem conceito de período.** `stats` em
+  [src/app/page.tsx:68](../src/app/page.tsx) agrega **todos** os negócios de
+  todo o tempo. O card "Ganhos no Mês" e o bloco "Este Mês" somam o histórico
+  inteiro: **o rótulo já mente hoje**, antes de qualquer mudança. Como o placar
+  exige `periodStart`/`periodEnd`, o P3 é obrigado a introduzir período nesta
+  tela. Decisão de produto antes de codar: mês corrente fixo, ou um seletor
+  igual ao de Insights? Se for mês corrente, aproveite e corrija os agregados
+  que dizem "no Mês" — senão a tela vai ter um placar do mês ao lado de cards
+  do sempre.
+- **Como Insights monta o período** (copie daqui):
+  [src/app/insights/panel-view.tsx:72](../src/app/insights/panel-view.tsx) —
+  `periodToRange(period)` devolve limite superior **aberto**, e `team_scoreboard`
+  pede datas **fechadas**; fecha subtraindo um dia do `to`, e usa hoje quando
+  `to` é nulo.
+- **Assinatura do placar:** `<TeamScoreboard periodStart={string} periodEnd={string} />`,
+  `"YYYY-MM-DD"` nos dois. Exportado de `src/app/insights/team-scoreboard.tsx`,
+  já montado em `panel-view.tsx:232`. Busca a RPC `team_scoreboard` sozinho,
+  tem estado próprio de loading e erro — só passar as duas datas.
+- **O filtro por vendedor tem 6 pontos de agregação, não 1.** Todos em
+  `src/app/page.tsx`, todos com o seu próprio `deals.filter(...)` inline:
+  `deals` (:62), `stats` (:68, que sozinho deriva activeDeals/wonDeals/
+  lostDeals/todayPending/todayAll), `pipelineStageData` (:96),
+  `PipelineDrawerContent` (:153), `StageDrawerContent` (:217) e os drawers de
+  ganhos/perdidos, que consomem `stats`. É a mesma armadilha que o P1 corrigiu
+  em Negócios, com mais pontos: se um ficar para trás, a tela mostra a lista de
+  uma pessoa com o total do time. Fazer **todos** passarem por
+  `scopedDeals`/`matchesDealScope` de [src/lib/deal-scope.ts](../src/lib/deal-scope.ts).
+- Atenção: `stats.todayPending`/`todayAll` saem de `deals.flatMap(d => d.activities)`,
+  ou seja, atividade herda o escopo do negócio dono. Atividade atribuída a um
+  vendedor num negócio de outro (o caso "atividade órfã" do P4) não vai aparecer
+  para ele. Decidir se importa aqui ou se fica registrado e segue.
 
 ---
 
