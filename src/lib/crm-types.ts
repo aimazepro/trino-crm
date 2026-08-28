@@ -9,6 +9,7 @@ export interface Company {
   city?: string;
   state?: string;
   cnpj?: string;
+  ownerId?: string | null;
 }
 
 export type ContactEmail = { value: string; type: string }; 

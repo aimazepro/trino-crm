@@ -3,7 +3,10 @@
 import { useState, useMemo, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import { useCrm } from "@/contexts/crm-context";
-import { createClient } from "@/lib/supabase/client";
+import { useTeam } from "@/hooks/use-team";
+import { OwnerBadge } from "@/components/team/owner-badge";
+import { OwnerSelect } from "@/components/team/owner-select";
+import { OwnerFilterSelect, UNASSIGNED_OWNER_FILTER } from "@/components/team/owner-filter-select";
 import { BulkFieldSelect } from "@/components/ui/BulkFieldSelect";
 import { CustomizeColumnsModal, ALL_COLUMNS, DEFAULT_COLUMNS } from "@/components/company/customize-columns-modal";
 import {
@@ -102,13 +105,12 @@ function NewCompanyModal({ onClose, onSave }: {
 export default function EmpresasPage() {
   const router = useRouter();
   const { state, addCompany, updateCompany, deleteCompany } = useCrm();
-  const [currentUserName, setCurrentUserName] = useState("");
-  useEffect(() => {
-    createClient().auth.getUser().then(({ data: { user } }) => {
-      if (user) setCurrentUserName(user.user_metadata?.full_name || user.user_metadata?.name || user.email || "");
-    });
-  }, []);
+  const { map: ownerNameMap } = useTeam();
   const [search, setSearch] = useState("");
+  // Comparado por id (c.ownerId), nunca por nome -- igual Contatos, aparece
+  // pra todo papel: a base de empresas é compartilhada, o filtro é
+  // conveniência, não controle de acesso.
+  const [ownerFilter, setOwnerFilter] = useState<string | null>(null);
   const [showModal, setShowModal] = useState(false);
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
   const [bulkEditOpen, setBulkEditOpen] = useState(false);
@@ -165,7 +167,7 @@ export default function EmpresasPage() {
   const [estValue, setEstValue] = useState("");
 
   const [propMode, setPropMode] = useState<"Manter valor atual" | "Substituir por..." | "Limpar">("Manter valor atual");
-  const [propValue, setPropValue] = useState("");
+  const [propValue, setPropValue] = useState<string | null>(null);
 
   const [acaoValue, setAcaoValue] = useState<"Manter valor atual" | "Excluir registros">("Manter valor atual");
 
@@ -181,15 +183,19 @@ export default function EmpresasPage() {
     setEstMode("Manter valor atual");
     setEstValue("");
     setPropMode("Manter valor atual");
-    setPropValue("");
+    setPropValue(null);
     setAcaoValue("Manter valor atual");
     setShowDeleteConfirm(false);
   };
 
   const filtered = useMemo(() => {
     const q = search.toLowerCase();
-    return state.companies.filter(c => c.name.toLowerCase().includes(q));
-  }, [state.companies, search]);
+    return state.companies.filter(c => {
+      if (ownerFilter === UNASSIGNED_OWNER_FILTER && c.ownerId) return false;
+      if (ownerFilter && ownerFilter !== UNASSIGNED_OWNER_FILTER && c.ownerId !== ownerFilter) return false;
+      return c.name.toLowerCase().includes(q);
+    });
+  }, [state.companies, search, ownerFilter]);
 
   const getContactsCount = (c: Company) => state.contacts.filter(ct => ct.companyId === c.id).length;
   const getDealsCount = (c: Company) => state.deals.filter(d => d.companyId === c.id).length;
@@ -233,6 +239,9 @@ export default function EmpresasPage() {
       if (estMode === "Substituir por...") patch.state = estValue.trim();
       else if (estMode === "Limpar") patch.state = "";
 
+      if (propMode === "Substituir por...") patch.ownerId = propValue;
+      else if (propMode === "Limpar") patch.ownerId = null;
+
       updateCompany(id, patch);
     });
     setBulkEditOpen(false);
@@ -267,7 +276,7 @@ export default function EmpresasPage() {
       case "cnpj": return c.cnpj || "";
       case "contacts": return String(getContactsCount(c));
       case "deals": return String(getDealsCount(c));
-      case "owner": return currentUserName || "";
+      case "owner": return c.ownerId ? (ownerNameMap[c.ownerId] ?? "Usuário removido") : "";
       case "createdAt": return "";
       default: return "";
     }
@@ -303,6 +312,7 @@ export default function EmpresasPage() {
             <input value={search} onChange={e => setSearch(e.target.value)} placeholder="Buscar empresa..."
               className="outline-none text-zinc-700 placeholder-zinc-400 w-48" />
           </div>
+          <OwnerFilterSelect value={ownerFilter} onChange={setOwnerFilter} className="w-40" />
           <button
             title="Personalizar colunas"
             onClick={() => setShowCustomizeColumnsModal(true)}
@@ -439,7 +449,7 @@ export default function EmpresasPage() {
                           )}
                           {colId === "contacts" && <span className="text-zinc-500">{contacts}</span>}
                           {colId === "deals" && <span className="text-zinc-500">{deals}</span>}
-                          {colId === "owner" && <span className="text-sm text-zinc-600">{currentUserName || "—"}</span>}
+                          {colId === "owner" && <OwnerBadge ownerId={c.ownerId ?? null} />}
                           {colId === "createdAt" && <span className="text-zinc-300">-</span>}
                         </td>
                       ))}
@@ -585,11 +595,9 @@ export default function EmpresasPage() {
                   onChange={setPropMode}
                 />
                 {propMode === "Substituir por..." && (
-                  <BulkFieldSelect
-                    label="Selecione Proprietário"
-                    value={propValue || "Selecione..."}
-                    options={["Selecione...", ...(currentUserName ? [currentUserName] : [])]}
-                    onChange={v => setPropValue(v === "Selecione..." ? "" : v)}
+                  <OwnerSelect
+                    value={propValue}
+                    onChange={setPropValue}
                   />
                 )}
               </div>
