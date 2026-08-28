@@ -63,6 +63,13 @@ export default function PerfilPage() {
       setBanner({ kind: "err", text: "Não foi possível salvar o nome. Tente novamente." });
       return;
     }
+    // Os colegas leem workspace_members.name, não o metadata -- sem este
+    // espelho, mudar o nome aqui não muda nada para o resto do time.
+    // RPC porque a RLS de update em workspace_members exige admin -- nem o
+    // dono da própria linha teria permissão via update direto na tabela.
+    if (userId) {
+      await supabase.rpc("sync_my_member_identity", { p_name: next });
+    }
     setName(next);
     setEditingName(false);
     setBanner({ kind: "ok", text: "Nome atualizado." });
@@ -120,6 +127,7 @@ export default function PerfilPage() {
       setBanner({ kind: "err", text: "Imagem enviada, mas não foi possível salvar no perfil." });
       return;
     }
+    await supabase.rpc("sync_my_member_identity", { p_avatar_url: publicUrl });
     setAvatarUrl(publicUrl);
     setBanner({ kind: "ok", text: "Foto de perfil atualizada." });
   };

@@ -61,7 +61,9 @@ export async function POST(req: NextRequest) {
       email: member.email,
       password,
       email_confirm: true,
-      user_metadata: name ? { name } : undefined,
+      // full_name, não name: é a chave que o app inteiro lê. Gravar `name`
+      // fazia todo convidado aparecer pelo email até alguém notar.
+      user_metadata: name ? { full_name: name, name } : undefined,
     });
     if (createErr || !created?.user) {
       return NextResponse.json({ error: createErr?.message ?? "Falha ao criar usuário" }, { status: 500 });

@@ -3182,6 +3182,10 @@ export type Database = {
         Args: { p_deal_id: string; p_products: Json }
         Returns: undefined
       }
+      sync_my_member_identity: {
+        Args: { p_avatar_url?: string; p_name?: string }
+        Returns: undefined
+      }
       team_scoreboard: {
         Args: { period_end: string; period_start: string }
         Returns: {
