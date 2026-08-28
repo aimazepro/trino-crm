@@ -20,10 +20,13 @@ import {
   enrollDealInSequence,
 } from "@/lib/sequence-helpers";
 import { RequireCapability } from "@/components/auth/require-capability";
+import { useTeam } from "@/hooks/use-team";
+import { OwnerBadge } from "@/components/team/owner-badge";
 
 function SequenciasPageContent() {
   const supabase = createClient();
   const { workspaceId } = useWorkspace();
+  const { members, self } = useTeam();
   const { state: crmState, addActivity } = useCrm();
 
   const [sequences, setSequences] = useState<SequenceItem[]>([]);
@@ -54,6 +57,7 @@ function SequenciasPageContent() {
   // Modal 3: Compartilhar Template
   const [shareModalSequence, setShareModalSequence] = useState<SequenceItem | null>(null);
   const [selectedSharing, setSelectedSharing] = useState<SequenceSharing>("ONLY_ME");
+  const [selectedShareUsers, setSelectedShareUsers] = useState<string[]>([]);
   const [savingShare, setSavingShare] = useState(false);
 
   // Toast State
@@ -78,9 +82,11 @@ function SequenciasPageContent() {
       return;
     }
 
+    // `sharing` e `owner_id` são colunas desde o P4; a RLS de select já aplica
+    // a visibilidade, então o que não é para esta pessoa nem chega aqui.
     const { data, error } = await supabase
       .from("sequences")
-      .select("*, sequence_steps(*)")
+      .select("*, sequence_steps(*), sequence_shares(shared_with_user_id)")
       .order("created_at");
 
     if (error) {
@@ -91,7 +97,8 @@ function SequenciasPageContent() {
 
     const sortedData: SequenceItem[] = (data ?? []).map(seq => ({
       ...seq,
-      sharing: (seq.tags?.find((t: string) => t.startsWith("sharing:"))?.replace("sharing:", "") as SequenceSharing) || "ONLY_ME",
+      sharing: (seq.sharing as SequenceSharing) || "ONLY_ME",
+      shared_with: (seq.sequence_shares ?? []).map((sh: { shared_with_user_id: string }) => sh.shared_with_user_id),
       sequence_steps: seq.sequence_steps
         ? [...seq.sequence_steps].sort((a, b) => a.sort_order - b.sort_order)
         : []
@@ -184,9 +191,10 @@ function SequenciasPageContent() {
         return;
       }
 
-      // Build tags array preserving step type tags + sharing tag
-      const typeTags = Array.from(new Set(steps.map(s => s.type))).slice(0, 3);
-      const tags = [...typeTags, `sharing:${form.sharing}`];
+      // As tags voltaram a ser só os tipos de passo. O compartilhamento saiu
+      // daqui e virou coluna no P4 -- guardar nos dois lugares seria repetir o
+      // defeito, agora com a chance de discordarem.
+      const tags = Array.from(new Set(steps.map(s => s.type))).slice(0, 3);
 
       let seqId = editingSequenceId;
 
@@ -197,6 +205,7 @@ function SequenciasPageContent() {
             name: form.name.trim(),
             description: form.description.trim(),
             skip_weekends: form.skipWeekends,
+            sharing: form.sharing,
             tags,
           })
           .eq("id", editingSequenceId);
@@ -214,9 +223,13 @@ function SequenciasPageContent() {
           .from("sequences")
           .insert({
             workspace_id: workspaceId,
+            // A policy de insert exige owner_id = auth.uid(): o dono não é
+            // forjável pelo cliente, e sem ele o insert é recusado.
+            owner_id: user.id,
             name: form.name.trim(),
             description: form.description.trim(),
             skip_weekends: form.skipWeekends,
+            sharing: form.sharing,
             tags,
           })
           .select()
@@ -328,6 +341,7 @@ function SequenciasPageContent() {
   const openShareModal = (seq: SequenceItem) => {
     setShareModalSequence(seq);
     setSelectedSharing(seq.sharing || "ONLY_ME");
+    setSelectedShareUsers(seq.shared_with ?? []);
   };
 
   const handleSaveShare = async () => {
@@ -335,16 +349,38 @@ function SequenciasPageContent() {
     setSavingShare(true);
 
     try {
-      // Update tags array with new sharing tag
-      const existingTags = (shareModalSequence.tags || []).filter(t => !t.startsWith("sharing:"));
-      const newTags = [...existingTags, `sharing:${selectedSharing}`];
-
       const { error } = await supabase
         .from("sequences")
-        .update({ tags: newTags })
+        .update({ sharing: selectedSharing })
         .eq("id", shareModalSequence.id);
 
       if (error) throw error;
+
+      // Os destinatários só valem para SPECIFIC_USERS. Nos outros dois modos a
+      // lista é apagada de propósito: deixá-la para trás faria uma sequência
+      // voltar a ser compartilhada com gente esquecida ao alternar o modo.
+      const desejados = selectedSharing === "SPECIFIC_USERS" ? selectedShareUsers : [];
+      const atuais = shareModalSequence.shared_with ?? [];
+      const paraRemover = atuais.filter((id) => !desejados.includes(id));
+      const paraAdicionar = desejados.filter((id) => !atuais.includes(id));
+
+      if (paraRemover.length > 0) {
+        const { error: delError } = await supabase
+          .from("sequence_shares")
+          .delete()
+          .eq("sequence_id", shareModalSequence.id)
+          .in("shared_with_user_id", paraRemover);
+        if (delError) throw delError;
+      }
+      if (paraAdicionar.length > 0) {
+        const { error: insError } = await supabase
+          .from("sequence_shares")
+          .insert(paraAdicionar.map((id) => ({
+            sequence_id: shareModalSequence.id,
+            shared_with_user_id: id,
+          })));
+        if (insError) throw insError;
+      }
 
       showToast("Permissões de compartilhamento salvas.");
       setShareModalSequence(null);
@@ -959,6 +995,43 @@ function SequenciasPageContent() {
                   <p className="text-xs text-zinc-500">Escolha quem da equipe pode usar.</p>
                 </div>
               </button>
+
+              {/* A lista só aparece no modo que a usa. Antes do P4 não existia
+                  lugar nenhum guardando *quais* usuários -- a opção existia no
+                  modal e não guardava nada. */}
+              {selectedSharing === "SPECIFIC_USERS" && (
+                <div className="ml-8 space-y-1 rounded-lg border border-zinc-200 p-2">
+                  {members.filter((m) => m.id !== self?.id).length === 0 ? (
+                    <p className="px-2 py-1.5 text-xs text-zinc-400">
+                      Nenhum outro membro ativo no workspace.
+                    </p>
+                  ) : (
+                    members
+                      .filter((m) => m.id !== self?.id)
+                      .map((m) => {
+                        const marcado = selectedShareUsers.includes(m.id);
+                        return (
+                          <button
+                            key={m.id}
+                            type="button"
+                            onClick={() =>
+                              setSelectedShareUsers((prev) =>
+                                marcado ? prev.filter((id) => id !== m.id) : [...prev, m.id]
+                              )
+                            }
+                            className={cn(
+                              "flex w-full items-center justify-between gap-2 rounded-md px-2 py-1.5 text-left hover:bg-zinc-50 cursor-pointer border-0 bg-transparent",
+                              marcado && "bg-amber-50/60"
+                            )}
+                          >
+                            <OwnerBadge ownerId={m.id} />
+                            {marcado && <CircleCheck className="h-4 w-4 shrink-0 text-amber-500" />}
+                          </button>
+                        );
+                      })
+                  )}
+                </div>
+              )}
 
               {/* Option 3: Todo o workspace */}
               <button

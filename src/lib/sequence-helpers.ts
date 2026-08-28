@@ -27,12 +27,16 @@ export type SequenceSharing = "ONLY_ME" | "SPECIFIC_USERS" | "WORKSPACE";
 
 export type SequenceItem = {
   id: string;
+  workspace_id: string;
   name: string;
   description: string;
   skip_weekends: boolean;
-  sharing?: SequenceSharing;
+  /** Coluna de verdade desde o P4. Antes era uma tag `sharing:X` que ninguém lia. */
+  sharing: SequenceSharing;
   tags: string[];
-  user_id?: string;
+  owner_id: string;
+  /** Ids de quem recebeu a sequência quando `sharing` é SPECIFIC_USERS. */
+  shared_with?: string[];
   sequence_steps?: {
     id: string;
     step_type: string;
@@ -211,13 +215,17 @@ export async function enrollDealInSequence({
   }
 
   if (supabase) {
-    try {
-      await supabase.from("sequence_enrollments").insert({
-        deal_id: dealId,
-        sequence_id: sequence.id,
-      });
-    } catch (e) {
-      console.warn("[Sequences] Could not record sequence enrollment:", e);
+    // Duas coisas erradas moravam aqui, e juntas deixaram a tabela com zero
+    // linhas em produção: faltava `workspace_id` (coluna obrigatória, e a RLS
+    // filtra por ela), e o `try/catch` não pegava nada -- o supabase-js
+    // devolve `{ error }` em vez de lançar, então a falha ia para o vazio.
+    const { error } = await supabase.from("sequence_enrollments").insert({
+      workspace_id: sequence.workspace_id,
+      deal_id: dealId,
+      sequence_id: sequence.id,
+    });
+    if (error) {
+      console.error("[Sequences] Não foi possível registrar a inscrição:", error.message);
     }
   }
 

@@ -102,7 +102,10 @@ export default function MetasPage() {
     // Calculate real progress for each goal from Supabase
     const goalsWithProgress = await Promise.all(
       loadedGoals.map(async (goal) => {
-        const { currentValue } = await fetchGoalProgress(supabase, goal);
+        const { currentValue, error } = await fetchGoalProgress(supabase, goal);
+        // Progresso que falha vira zero, e zero parece meta não batida em vez
+        // de defeito -- foi assim que a consulta quebrada passou despercebida.
+        if (error) console.error(`Progresso da meta ${goal.id} falhou:`, error);
         return { ...goal, current_value: currentValue };
       })
     );
@@ -186,7 +189,8 @@ export default function MetasPage() {
 
     setSaving(false);
     if (!error && data) {
-      const { currentValue } = await fetchGoalProgress(supabase, data);
+      const { currentValue, error: progressError } = await fetchGoalProgress(supabase, data);
+      if (progressError) console.error(`Progresso da meta ${data.id} falhou:`, progressError);
       setGoals((prev) => [{ ...data, current_value: currentValue }, ...prev]);
       setShowModal(false);
     }

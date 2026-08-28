@@ -34,7 +34,8 @@ export default function MetaDetailsPage() {
     }
     setGoal(data);
 
-    const { currentValue: val, items: itemRows } = await fetchGoalProgress(supabase, data);
+    const { currentValue: val, items: itemRows, error: progressError } = await fetchGoalProgress(supabase, data);
+    if (progressError) console.error(`Progresso da meta ${id} falhou:`, progressError);
     setCurrentValue(val);
     setItems(itemRows);
     setLoading(false);

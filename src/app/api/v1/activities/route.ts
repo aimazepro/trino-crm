@@ -1,5 +1,5 @@
 import { createAdmin } from "@/lib/whatsapp/connection";
-import { authenticateApiRequest, withIdempotency, apiError } from "@/lib/api-auth";
+import { authenticateApiRequest, withIdempotency, apiError, readOptionalUuid } from "@/lib/api-auth";
 
 export const dynamic = "force-dynamic";
 
@@ -16,8 +16,14 @@ export async function POST(request: Request) {
   const { data: deal } = await admin.from("deals").select("id").eq("id", body.dealId).eq("workspace_id", ctx.workspaceId).maybeSingle();
   if (!deal) return apiError("VALIDATION_ERROR", "dealId não encontrado neste workspace", 400);
 
-  if (body.assigneeId) {
-    const { data: assignee } = await admin.from("workspace_members").select("member_user_id").eq("workspace_id", ctx.workspaceId).eq("member_user_id", body.assigneeId).eq("status", "accepted").maybeSingle();
+  // `if (body.assigneeId)` era falso para "", que então escapava desta
+  // checagem e ia parar na coluna uuid como 22P02. Ver readOptionalUuid.
+  const assigneeIdRead = readOptionalUuid(body, "assigneeId");
+  if (!assigneeIdRead.ok) return apiError("VALIDATION_ERROR", assigneeIdRead.message, 400);
+  const assigneeId = assigneeIdRead.value ?? null;
+
+  if (assigneeId) {
+    const { data: assignee } = await admin.from("workspace_members").select("member_user_id").eq("workspace_id", ctx.workspaceId).eq("member_user_id", assigneeId).eq("status", "accepted").maybeSingle();
     if (!assignee) return apiError("VALIDATION_ERROR", "assigneeId não encontrado neste workspace", 400);
   }
 
@@ -26,7 +32,7 @@ export async function POST(request: Request) {
       .from("activities")
       .insert({
         workspace_id: ctx.workspaceId, deal_id: body.dealId, title: body.title, type: body.type,
-        date: body.date, description: body.description ?? null, assignee_id: body.assigneeId ?? null,
+        date: body.date, description: body.description ?? null, assignee_id: assigneeId,
       })
       .select("*")
       .single();

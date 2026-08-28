@@ -1,5 +1,5 @@
 import { createAdmin } from "@/lib/whatsapp/connection";
-import { authenticateApiRequest, apiError, apiSuccess } from "@/lib/api-auth";
+import { authenticateApiRequest, apiError, apiSuccess, readOptionalUuid } from "@/lib/api-auth";
 import type { Database } from "@/lib/supabase/database.types";
 
 export const dynamic = "force-dynamic";
@@ -15,12 +15,20 @@ export async function PATCH(request: Request, { params }: { params: Promise<{ id
 
   const body = await request.json();
   const patch: Record<string, unknown> = {};
-  for (const [apiKey, dbKey] of [["title", "title"], ["description", "description"], ["date", "date"], ["assigneeId", "assignee_id"], ["type", "type"]] as const) {
+  for (const [apiKey, dbKey] of [["title", "title"], ["description", "description"], ["date", "date"], ["type", "type"]] as const) {
     if (apiKey in body) patch[dbKey] = body[apiKey];
   }
 
-  if (patch.assignee_id) {
-    const { data: assignee } = await admin.from("workspace_members").select("member_user_id").eq("workspace_id", auth.ctx.workspaceId).eq("member_user_id", patch.assignee_id as string).eq("status", "accepted").maybeSingle();
+  // assigneeId sai do laço acima porque os três estados dele não são
+  // equivalentes: ausente não mexe no responsável, null desatribui, e ""
+  // -- que `if (patch.assignee_id)` deixava passar -- vira 400 em vez de um
+  // 22P02 na coluna uuid. Ver readOptionalUuid.
+  const assigneeIdRead = readOptionalUuid(body, "assigneeId");
+  if (!assigneeIdRead.ok) return apiError("VALIDATION_ERROR", assigneeIdRead.message, 400);
+  if (assigneeIdRead.value !== undefined) patch.assignee_id = assigneeIdRead.value;
+
+  if (assigneeIdRead.value) {
+    const { data: assignee } = await admin.from("workspace_members").select("member_user_id").eq("workspace_id", auth.ctx.workspaceId).eq("member_user_id", assigneeIdRead.value).eq("status", "accepted").maybeSingle();
     if (!assignee) return apiError("VALIDATION_ERROR", "assigneeId não encontrado neste workspace", 400);
   }
 

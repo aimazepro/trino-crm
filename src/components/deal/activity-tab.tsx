@@ -66,8 +66,13 @@ export function ActivityTab({ deal, userName }: { deal: Deal; userName?: string 
         return;
       }
 
+      // Esta lista é o que a pessoa pode *aplicar* num negócio, e a RLS de
+      // select de sequences já resolve isso desde o P4: "Só eu" e "Usuários
+      // específicos" simplesmente não chegam aqui para quem não é o dono nem
+      // foi escolhido. Não há filtro a fazer no cliente.
       const sorted: SequenceItem[] = (data ?? []).map((seq) => ({
         ...seq,
+        sharing: seq.sharing as SequenceItem["sharing"],
         sequence_steps: seq.sequence_steps
           ? [...seq.sequence_steps].sort((a, b) => a.sort_order - b.sort_order)
           : [],

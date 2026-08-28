@@ -2024,6 +2024,35 @@ export type Database = {
           },
         ]
       }
+      sequence_shares: {
+        Row: {
+          created_at: string
+          id: string
+          sequence_id: string
+          shared_with_user_id: string
+        }
+        Insert: {
+          created_at?: string
+          id?: string
+          sequence_id: string
+          shared_with_user_id: string
+        }
+        Update: {
+          created_at?: string
+          id?: string
+          sequence_id?: string
+          shared_with_user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "sequence_shares_sequence_id_fkey"
+            columns: ["sequence_id"]
+            isOneToOne: false
+            referencedRelation: "sequences"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       sequence_steps: {
         Row: {
           day_offset: number
@@ -2065,6 +2094,8 @@ export type Database = {
           description: string
           id: string
           name: string
+          owner_id: string
+          sharing: string
           skip_weekends: boolean
           tags: string[]
           workspace_id: string
@@ -2074,6 +2105,8 @@ export type Database = {
           description?: string
           id?: string
           name: string
+          owner_id: string
+          sharing?: string
           skip_weekends?: boolean
           tags?: string[]
           workspace_id: string
@@ -2083,6 +2116,8 @@ export type Database = {
           description?: string
           id?: string
           name?: string
+          owner_id?: string
+          sharing?: string
           skip_weekends?: boolean
           tags?: string[]
           workspace_id?: string

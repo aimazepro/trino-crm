@@ -15,6 +15,38 @@ export function apiError(code: string, message: string, status: number) {
   return NextResponse.json({ error: { code, message } }, { status });
 }
 
+const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+
+/**
+ * Lê um campo de uuid opcional do corpo de uma requisição.
+ *
+ * Existe por causa de um buraco que já apareceu três vezes: `if (body.campo)`
+ * é **falso para a string vazia**, então `""` escapava da checagem de
+ * membership e ia parar numa coluna `uuid`, onde o Postgres devolvia
+ * `22P02 invalid input syntax for type uuid` -- um 500 numa entrada que
+ * deveria ser 400. O mesmo defeito foi fechado no fluxo interno e, no P1, no
+ * `recordOwner` de `/api/import/csv`.
+ *
+ * Os três estados são distintos de propósito:
+ * - chave ausente  -> `undefined` ("não mexa neste campo", que é o que um
+ *   PATCH parcial precisa);
+ * - `null`         -> `null` (desatribuir, uma intenção legítima);
+ * - string vazia ou fora do formato uuid -> erro de validação, nunca um
+ *   silencioso "sem responsável".
+ */
+export function readOptionalUuid(
+  body: Record<string, unknown>,
+  key: string
+): { ok: true; value: string | null | undefined } | { ok: false; message: string } {
+  if (!(key in body)) return { ok: true, value: undefined };
+  const raw = body[key];
+  if (raw === null) return { ok: true, value: null };
+  if (typeof raw !== "string" || !UUID_RE.test(raw.trim())) {
+    return { ok: false, message: `${key} precisa ser um uuid válido ou null` };
+  }
+  return { ok: true, value: raw.trim() };
+}
+
 export function apiSuccess(data: unknown, warnings?: { field: string; message: string }[], status = 200) {
   const body: Record<string, unknown> = { data };
   if (warnings && warnings.length > 0) body.warnings = warnings;

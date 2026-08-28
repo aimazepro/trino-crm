@@ -54,31 +54,51 @@ export function getPeriodLabel(
   return `${months[now.getMonth()]} ${now.getFullYear()}`;
 }
 
-export async function fetchGoalProgress(supabase: SupabaseClient<Database>, goal: any) {
+/**
+ * Progresso de uma meta.
+ *
+ * `error` existe porque este arquivo passou meses devolvendo zero em silêncio:
+ * as consultas pediam uma coluna `user_id` que o rename `user_id ->
+ * workspace_id` tinha eliminado, o Postgres respondia `42703 column "user_id"
+ * does not exist`, e o `const { data: rows } = await q` descartava o erro e
+ * seguia com `[]`. Meta zerada parece meta não batida, não parece defeito --
+ * por isso ninguém reportou. Quem chamar tem que registrar este campo.
+ */
+export interface GoalProgress {
+  currentValue: number;
+  items: any[];
+  error: string | null;
+}
+
+export async function fetchGoalProgress(
+  supabase: SupabaseClient<Database>,
+  goal: any
+): Promise<GoalProgress> {
   const { from, to } = getGoalPeriodRange(goal.period, goal.start_date, goal.end_date);
-  
+
   if (goal.goal_type === "Atividades") {
+    // `assignee_id` é a única coluna de pessoa que activities tem.
     let q = supabase
       .from("activities")
-      .select("id, title, type, date, completed, created_at, user_id, assignee_id")
+      .select("id, title, type, date, completed, created_at, assignee_id")
       .eq("completed", true)
       .gte("created_at", from)
       .lte("created_at", to);
 
     if (goal.owner_user_id) {
-      q = q.or(`user_id.eq.${goal.owner_user_id},assignee_id.eq.${goal.owner_user_id}`);
+      q = q.eq("assignee_id", goal.owner_user_id);
     }
 
-    const { data: rows } = await q;
+    const { data: rows, error } = await q;
     const items = rows ?? [];
-    const currentValue = items.length;
-    return { currentValue, items };
+    return { currentValue: items.length, items, error: error?.message ?? null };
   }
 
-  // Deal goals
+  // Deal goals -- `owner_id` é a coluna de dono; `deals.user_id` também não
+  // existe mais desde o rename.
   let q = supabase
     .from("deals")
-    .select("id, title, value, status, pipeline_id, owner_id, user_id, created_at, updated_at")
+    .select("id, title, value, status, pipeline_id, owner_id, created_at, updated_at")
     .is("deleted_at", null);
 
   if (goal.pipeline_id) {
@@ -86,7 +106,7 @@ export async function fetchGoalProgress(supabase: SupabaseClient<Database>, goal
   }
 
   if (goal.owner_user_id) {
-    q = q.or(`owner_id.eq.${goal.owner_user_id},user_id.eq.${goal.owner_user_id}`);
+    q = q.eq("owner_id", goal.owner_user_id);
   }
 
   if (goal.goal_type === "Negócios Adicionados") {
@@ -100,7 +120,7 @@ export async function fetchGoalProgress(supabase: SupabaseClient<Database>, goal
     q = q.eq("status", "Ganho").gte("updated_at", from).lte("updated_at", to);
   }
 
-  const { data: rows } = await q;
+  const { data: rows, error } = await q;
   const items = rows ?? [];
 
   let currentValue = 0;
@@ -110,7 +130,7 @@ export async function fetchGoalProgress(supabase: SupabaseClient<Database>, goal
     currentValue = items.length;
   }
 
-  return { currentValue, items };
+  return { currentValue, items, error: error?.message ?? null };
 }
 
 export function exportGoalItemsToCSV(items: any[], goalTitle: string) {
