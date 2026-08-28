@@ -19,8 +19,9 @@ import {
   getStepPreviewSubtext,
   enrollDealInSequence,
 } from "@/lib/sequence-helpers";
+import { RequireCapability } from "@/components/auth/require-capability";
 
-export default function SequenciasPage() {
+function SequenciasPageContent() {
   const supabase = createClient();
   const { workspaceId } = useWorkspace();
   const { state: crmState, addActivity } = useCrm();
@@ -1004,5 +1005,17 @@ export default function SequenciasPage() {
         </div>
       )}
     </main>
+  );
+}
+
+// Sequência é modelo do workspace: só admin/gerente cria, edita e compartilha.
+// A RLS de `sequences` e `sequence_steps` já exige is_ws_manager para escrever.
+// Vendedor continua *aplicando* uma sequência num negócio pela aba de
+// atividades -- aquilo só cria atividades, não toca na sequência.
+export default function SequenciasPage() {
+  return (
+    <RequireCapability capability="gerenciar_sequencias">
+      <SequenciasPageContent />
+    </RequireCapability>
   );
 }

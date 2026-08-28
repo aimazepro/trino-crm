@@ -3,7 +3,8 @@
 import { useState, useEffect, useCallback } from "react";
 import { Plus, Search, Edit2, Trash2, Package } from "lucide-react";
 import { createClient } from "@/lib/supabase/client";
-import { useWorkspace } from "@/lib/workspace";
+import { useWorkspace, useWorkspaceInfo } from "@/lib/workspace";
+import { can } from "@/lib/permissions";
 import { cn } from "@/lib/utils";
 
 type Product = {
@@ -29,6 +30,13 @@ const UNITS = [
 export default function ProdutosConfigPage() {
   const supabase = createClient();
   const { workspaceId } = useWorkspace();
+  // Produtos é o único "só leitura" da matriz: o vendedor precisa ver o
+  // catálogo para montar um negócio, então <RequireCapability> na tela inteira
+  // não serve -- o gate é nos botões de escrita. O banco já recusa
+  // (insert/update/delete de `products` exigem is_ws_manager, volta 42501);
+  // isto aqui é para a tela parar de oferecer o que o banco nega.
+  const info = useWorkspaceInfo();
+  const podeEditar = can(info?.role, "gerenciar_produtos");
   const [products, setProducts] = useState<Product[]>([]);
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState("");
@@ -89,6 +97,7 @@ export default function ProdutosConfigPage() {
   // Handle Create or Update Save
   const handleSave = async (e: React.FormEvent) => {
     e.preventDefault();
+    if (!podeEditar) return;
     if (!form.name.trim() || !form.price) return;
     setSaving(true);
 
@@ -136,8 +145,17 @@ export default function ProdutosConfigPage() {
 
   // Handle Delete
   const handleDelete = async (id: string) => {
+    if (!podeEditar) return;
     if (confirm("Tem certeza que deseja excluir este produto?")) {
-      await supabase.from("products").delete().eq("id", id);
+      const { error } = await supabase.from("products").delete().eq("id", id);
+      // Sumir com a linha antes de saber se o banco aceitou é o defeito que o
+      // P1 achou em automações: a RLS recusa, a tela finge que deu certo e o
+      // produto volta no reload.
+      if (error) {
+        console.error("Erro ao excluir produto:", error);
+        alert("Não foi possível excluir este produto.");
+        return;
+      }
       setProducts(prev => prev.filter(p => p.id !== id));
     }
   };
@@ -156,17 +174,19 @@ export default function ProdutosConfigPage() {
             <h1 className="text-xl font-semibold text-zinc-900">Catálogo de Produtos</h1>
             <p className="text-sm text-zinc-500 mt-0.5">Gerencie os produtos e serviços do seu workspace.</p>
           </div>
-          <button 
-            onClick={() => {
-              setEditingProduct(null);
-              setForm({ name: "", description: "", price: "", code: "", unit: "", active: true });
-              setShowModal(true);
-            }}
-            className="flex items-center gap-2 rounded-lg bg-gradient-to-r from-amber-500 to-amber-400 px-4 py-2 text-sm font-semibold text-white hover:from-amber-600 hover:to-amber-500 shadow-sm hover:shadow-md transition-colors cursor-pointer"
-          >
-            <Plus className="h-4 w-4" />
-            Novo Produto
-          </button>
+          {podeEditar && (
+            <button 
+              onClick={() => {
+                setEditingProduct(null);
+                setForm({ name: "", description: "", price: "", code: "", unit: "", active: true });
+                setShowModal(true);
+              }}
+              className="flex items-center gap-2 rounded-lg bg-gradient-to-r from-amber-500 to-amber-400 px-4 py-2 text-sm font-semibold text-white hover:from-amber-600 hover:to-amber-500 shadow-sm hover:shadow-md transition-colors cursor-pointer"
+            >
+              <Plus className="h-4 w-4" />
+              Novo Produto
+            </button>
+          )}
         </div>
 
         {/* Search */}
@@ -190,16 +210,18 @@ export default function ProdutosConfigPage() {
           <div className="flex flex-col items-center justify-center py-20 gap-3 text-zinc-400 border border-zinc-200 bg-white rounded-2xl">
             <Package className="h-10 w-10 text-zinc-300" />
             <p className="text-sm font-medium">Nenhum produto cadastrado</p>
-            <button 
-              onClick={() => {
-                setEditingProduct(null);
-                setForm({ name: "", description: "", price: "", code: "", unit: "", active: true });
-                setShowModal(true);
-              }}
-              className="text-sm text-amber-500 hover:underline font-medium cursor-pointer"
-            >
-              Criar primeiro produto
-            </button>
+            {podeEditar && (
+              <button 
+                onClick={() => {
+                  setEditingProduct(null);
+                  setForm({ name: "", description: "", price: "", code: "", unit: "", active: true });
+                  setShowModal(true);
+                }}
+                className="text-sm text-amber-500 hover:underline font-medium cursor-pointer"
+              >
+                Criar primeiro produto
+              </button>
+            )}
           </div>
         ) : (
           <div className="rounded-2xl bg-white overflow-hidden border border-zinc-100 shadow-xs">
@@ -247,20 +269,22 @@ export default function ProdutosConfigPage() {
                       </td>
                       <td className="px-4 py-3">
                         <div className="flex items-center gap-1 justify-end opacity-0 group-hover:opacity-100 transition-opacity">
-                          <button 
-                            onClick={() => handleStartEdit(p)}
-                            className="rounded-md p-1.5 text-zinc-400 hover:bg-amber-50 hover:text-amber-600 transition-colors"
-                            title="Editar"
-                          >
-                            <Edit2 className="h-3.5 w-3.5" />
-                          </button>
-                          <button 
-                            onClick={() => handleDelete(p.id)} 
-                            className="rounded-md p-1.5 text-zinc-400 hover:bg-red-50 hover:text-red-500 transition-colors"
-                            title="Excluir"
-                          >
-                            <Trash2 className="h-3.5 w-3.5" />
-                          </button>
+                          {podeEditar && (<>
+                            <button 
+                              onClick={() => handleStartEdit(p)}
+                              className="rounded-md p-1.5 text-zinc-400 hover:bg-amber-50 hover:text-amber-600 transition-colors"
+                              title="Editar"
+                            >
+                              <Edit2 className="h-3.5 w-3.5" />
+                            </button>
+                            <button 
+                              onClick={() => handleDelete(p.id)} 
+                              className="rounded-md p-1.5 text-zinc-400 hover:bg-red-50 hover:text-red-500 transition-colors"
+                              title="Excluir"
+                            >
+                              <Trash2 className="h-3.5 w-3.5" />
+                            </button>
+                          </>)}
                         </div>
                       </td>
                     </tr>

@@ -4,12 +4,13 @@ import { useState, useEffect } from "react";
 import { Plus, Pencil, Trash2, Lock, Check, X } from "lucide-react";
 import { createClient } from "@/lib/supabase/client";
 import { useWorkspace } from "@/lib/workspace";
+import { RequireCapability } from "@/components/auth/require-capability";
 
 type Reason = { id: string; name: string; sort_order: number; active: boolean };
 
 const DEFAULTS = ["Preço", "Concorrência", "Timing ruim", "Sem budget", "Produto não atende", "Sem resposta", "Não qualificado"];
 
-export default function MotivosPerdaPage() {
+function MotivosPerdaPageContent() {
   const [items, setItems] = useState<Reason[]>([]);
   const [input, setInput] = useState("");
   const [editingId, setEditingId] = useState<string | null>(null);
@@ -210,5 +211,16 @@ export default function MotivosPerdaPage() {
         "Outros" é fixo e não pode ser editado nem desativado. Apenas administradores do workspace podem gerenciar a lista.
       </p>
     </div>
+  );
+}
+
+// Vendedor não edita a lista de motivos de perda -- continua escolhendo um ao
+// perder um negócio, que lê a mesma tabela (o select é liberado). A RLS de
+// `loss_reasons` já exige is_ws_manager para escrever; aqui é o gate de cliente.
+export default function MotivosPerdaPage() {
+  return (
+    <RequireCapability capability="gerenciar_motivos_perda">
+      <MotivosPerdaPageContent />
+    </RequireCapability>
   );
 }

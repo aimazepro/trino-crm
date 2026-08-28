@@ -25,6 +25,7 @@ import {
 import { cn } from "@/lib/utils";
 import { createClient } from "@/lib/supabase/client";
 import { useWorkspace } from "@/lib/workspace";
+import { RequireCapability } from "@/components/auth/require-capability";
 
 type FieldType = 
   | "Texto" 
@@ -207,7 +208,7 @@ function buildOptionsPayload(fieldForm: any) {
   };
 }
 
-export default function CamposPage() {
+function CamposPageContent() {
   const supabase = useMemo(() => createClient(), []);
   const { workspaceId } = useWorkspace();
   const [activeTab, setActiveTab] = useState("negocios");
@@ -1113,5 +1114,17 @@ export default function CamposPage() {
         </div>
       )}
     </div>
+  );
+}
+
+// Vendedor não mexe em campos de dados. O banco já recusa (insert/update/delete
+// de `custom_fields` e `custom_field_groups` exigem is_ws_manager -- como
+// vendedor volta 42501), mas a tela abria inteira e a recusa chegava como nada
+// acontecendo. Este é o gate de cliente; a RLS continua sendo o que vale.
+export default function CamposPage() {
+  return (
+    <RequireCapability capability="gerenciar_campos">
+      <CamposPageContent />
+    </RequireCapability>
   );
 }

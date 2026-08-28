@@ -5,6 +5,7 @@ import { Search, Users2, Building2, Merge, Loader2 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useCrm } from "@/contexts/crm-context";
 import type { Contact, Company } from "@/lib/crm-types";
+import { RequireCapability } from "@/components/auth/require-capability";
 
 type Tab = "contatos" | "empresas";
 
@@ -122,7 +123,7 @@ function buildGroups<T extends { id: string }>(
     }));
 }
 
-export default function DuplicatasPage() {
+function DuplicatasPageContent() {
   const {
     state,
     updateContact,
@@ -397,5 +398,17 @@ export default function DuplicatasPage() {
         </div>
       </div>
     </div>
+  );
+}
+
+// Vendedor não mescla duplicatas. Não é só estética: a mescla atualiza o
+// registro que fica e apaga os outros, e o delete de `contacts`/`companies`
+// exige is_ws_manager (o update não). Sem este gate o vendedor mesclava pela
+// metade -- os dados se juntavam, a duplicata continuava lá.
+export default function DuplicatasPage() {
+  return (
+    <RequireCapability capability="mesclar_duplicatas">
+      <DuplicatasPageContent />
+    </RequireCapability>
   );
 }

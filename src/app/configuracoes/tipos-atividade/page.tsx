@@ -30,6 +30,7 @@ import {
   Plus,
   X
 } from "lucide-react";
+import { RequireCapability } from "@/components/auth/require-capability";
 
 // Custom SVG components to resolve missing icons in standard lucide-react library
 const Instagram = (props: React.SVGProps<SVGSVGElement>) => (
@@ -136,7 +137,7 @@ const toRows = (rows: ActivityTypeRow[] | null): ActivityType[] =>
     active: r.active,
   }));
 
-export default function TiposAtividadePage() {
+function TiposAtividadePageContent() {
   const supabase = useMemo(() => createClient(), []);
   const { workspaceId } = useWorkspace();
   const [items, setItems] = useState<ActivityType[]>([]);
@@ -514,5 +515,16 @@ export default function TiposAtividadePage() {
         </div>
       )}
     </div>
+  );
+}
+
+// Vendedor não mexe nos tipos de atividade do workspace. A RLS de
+// `activity_types` já exige is_ws_manager para insert/update/delete; aqui é o
+// gate de cliente.
+export default function TiposAtividadePage() {
+  return (
+    <RequireCapability capability="gerenciar_tipos_atividade">
+      <TiposAtividadePageContent />
+    </RequireCapability>
   );
 }

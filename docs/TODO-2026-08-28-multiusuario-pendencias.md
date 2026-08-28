@@ -6,11 +6,11 @@ multiusuário que o banco já tinha. Está **deployada em produção** e **não
 mergeada na `main`** — produção roda a branch de propósito, para que um rollback
 no Vercel não exija desfazer nada no git.
 
-**Estado em 2026-08-28:** P0 e P1 estão **fechados, provados e commitados**
-(`f5f00f7` e `74117bd`), mas **não deployados** — produção ainda roda o código
-anterior a esses dois commits. As migrations desses commits **já estão
-aplicadas em produção** (são aditivas e de permissão; o código antigo funciona
-com o banco novo). Falta P2, P3, P4 e P5.
+**Estado em 2026-08-28:** P0, P1 e P2 estão **fechados, provados e commitados**,
+mas **não deployados** — produção ainda roda o código anterior a eles. As
+migrations do P0 e do P1 **já estão aplicadas em produção** (são aditivas e de
+permissão; o código antigo funciona com o banco novo) e o **P2 não precisou de
+migration nenhuma**. Falta P3, P4 e P5.
 
 Leia antes de mexer:
 - [docs/HANDOFF-2026-08-28-multiusuario.md](HANDOFF-2026-08-28-multiusuario.md) — o que foi feito, migrations aplicadas, backlog gerado
@@ -75,52 +75,58 @@ gravava `user_id` nas três inserções (import de CSV falhava linha a linha);
 
 ---
 
-# P2 — Matriz de permissões por papel  ← COMECE POR AQUI
+# ~~P2 — Matriz de permissões por papel~~ FEITO (sem migration)
 
-A base já existe, criada no P1. **Estenda, não invente um segundo mecanismo:**
+A matriz está em `src/lib/permissions.ts`, aplicada com `<RequireCapability>`
+nas telas e com filtro por capacidade nos dois menus. **Nenhuma migration foi
+necessária** — e é esse o registro que vale para o P3 em diante.
 
-- `src/lib/permissions.ts` — mapa `Capability → Role[]` e `can(role, cap)`.
-  Sem `"use client"` de propósito, igual a `src/lib/workspace-context.ts`: serve
-  cliente e servidor. Hoje tem uma capacidade só (`gerenciar_automacoes`).
-- `src/components/auth/require-capability.tsx` — `<RequireCapability>`, o gate
-  de cliente. Usa `useWorkspaceInfo()` (não estoura durante o carregamento) e
-  não pisca "sem acesso" para quem tem acesso.
-- Exemplo aplicado de ponta a ponta em `/automacoes`: lista, construtor
-  (`/automacoes/nova` seguia aberta por URL direta sem isso) e item do menu em
-  `src/components/layout/sidebar.tsx`.
+**A varredura primeiro, do jeito que o P1 mandou.** Uma query só em
+`pg_class`/`pg_policy` com `relrowsecurity` e o `pg_get_expr` de
+insert/update/delete das 13 tabelas por trás dessas telas. Resultado: **todas**
+já exigiam `is_ws_manager()` para escrever — `custom_fields`,
+`custom_field_groups`, `products`, `loss_reasons`, `delete_reasons`,
+`activity_types`, `sequences` e `sequence_steps` (esta via `EXISTS` na sequência
+dona). Não havia meio caminho: era o caso de `automations` repetido oito vezes.
 
-A coluna `workspace_members.permissions` **existe e continua ignorada**. Quando
-for usada, este mapa vira o padrão por papel e ela vira a exceção por pessoa —
-não o contrário.
+Provado ao vivo como a Ana (`set local role authenticated` +
+`request.jwt.claims`, tudo em transação com `rollback`): os oito inserts voltam
+`sqlstate=42501 new row violates row-level security policy`, e o mesmo insert
+como admin passa — o contraste é o que garante que não era payload inválido.
 
-O usuário quer que **vendedor não tenha acesso** a:
+Capacidades criadas, todas `["admin", "gerente"]`: `gerenciar_campos`,
+`gerenciar_produtos`, `gerenciar_motivos_perda`, `gerenciar_motivos_exclusao`,
+`gerenciar_tipos_atividade`, `mesclar_duplicatas`, `gerenciar_sequencias`.
 
-| Tela | Regra pedida |
-|---|---|
-| Campos de dados (`/configuracoes/campos`) | sem acesso |
-| Produtos (`/configuracoes/produtos`) | **só leitura** — vê, não adiciona |
-| Motivos de perda (`/configuracoes/motivos-perda`) | sem acesso |
-| Motivos de exclusão (`/configuracoes/motivos-exclusao`) | sem acesso |
-| Tipos de atividade (`/configuracoes/tipos-atividade`) | sem acesso |
-| Duplicatas (`/configuracoes/duplicatas`) | sem acesso |
-| ~~Automações (`/automacoes`)~~ | feito no P1 |
-| Sequências (`/configuracoes/sequencias`) | admin/gerente cria e **compartilha**; **verificar se o compartilhamento funciona de fato** |
+Duas coisas que a tabela original não previa:
 
-**Ordem que economiza trabalho:** primeiro rode uma query só, para todas as
-tabelas de uma vez, vendo `relrowsecurity` e as policies de insert/update/delete
-(`pg_policy`, `pg_get_expr(polqual/polwithcheck)`). O que já exigir
-`is_ws_manager()` não precisa de migration — precisa só do gate de cliente.
-`automations`, `automation_labels` e `sequences` já exigiam. `custom_fields`,
-`products`, `loss_reasons` e `activity_types` têm 4 policies cada, mas o
-conteúdo delas não foi conferido.
+- **Duplicatas não tem tabela própria.** A tela lê contatos/empresas e a mescla
+  termina em `deleteContact`/`deleteCompany`. O `delete` de `contacts` e
+  `companies` exige `is_ws_manager()`, mas o `update` **não** (de propósito —
+  vendedor edita contato em outras telas). Sem gate o vendedor mesclava pela
+  metade: os dados se juntavam e a duplicata continuava lá.
+- **Recusa de `update`/`delete` não levanta erro.** A RLS filtra as linhas pelo
+  `USING`, então volta "0 linhas afetadas", não `42501` — só o `insert` estoura.
+  Vale para quem for provar gate novo: com a tabela vazia, "0 linhas" não
+  distingue recusa de nada-para-recusar. A prova de produtos teve que semear uma
+  linha como admin dentro da própria transação (o catálogo está vazio em
+  produção): a Ana **vê 1**, atualiza **0**, apaga **0**, e o admin atualiza
+  **1**.
 
-Note que "só leitura" (produtos) não é o mesmo gate de "sem acesso": ali o
-`<RequireCapability>` não serve na tela inteira, tem que gatear os botões de
-escrita.
+**Compartilhamento de sequência não funciona** — era o que o item pedia para
+verificar. A tabela `sequences` não tem coluna `sharing` nem `user_id`: a opção
+é gravada como uma string `sharing:WORKSPACE` dentro do array `tags`, e **nada
+lê isso para decidir visibilidade**. A RLS de select é do workspace inteiro e
+nenhum leitor filtra pela tag (nem `src/components/deal/activity-tab.tsx`, que é
+quem aplica sequência num negócio). Ou seja: toda sequência é visível para todo
+mundo do workspace, escolha o que escolher no modal. "Usuários específicos" é
+pior ainda — não existe lugar nenhum guardando *quais* usuários. O modal está
+fechado para vendedor agora, mas continua mentindo para admin e gerente; a
+correção está no P4.
 
 ---
 
-# P3 — Features pedidas
+# P3 — Features pedidas  ← COMECE POR AQUI
 
 ## Placar do time em "Meu Painel"
 
@@ -150,6 +156,22 @@ ponto daquele arquivo é não haver dois predicados.
 - **`src/lib/goals-helpers.ts:62`** seleciona `activities.user_id`, coluna que **não existe** (é `assignee_id`). Metas do tipo "Atividades" estão quebradas em produção agora. Resquício do rename `user_id → workspace_id`. Confirmado ao vivo. **É o último caso conhecido desse rename** — os outros dois (`find_contact_by_phone` e `/api/import/csv`) caíram no P1. Uma varredura de `pg_proc` por corpo citando `user_id` não achou mais nada no banco; o que sobra é código TypeScript.
 - **`deal_history` não tem coluna de autor** (`contact_history` e `company_history` têm `actor_user_id`). Por isso o histórico do negócio mostra só a data. Precisa migration + passar o autor em quem escreve na tabela. O histórico velho fica sem autor para sempre. (O backfill de dono do P1 usou justamente `contact_history.actor_user_id`; sem o equivalente em `deal_history`, negócio órfão não teria como ser resolvido do mesmo jeito.)
 - **`/api/v1/activities`** (POST e PATCH) aceita `assigneeId: ""` e grava string vazia em coluna `uuid`. `if (body.assigneeId)` é falso para `""`, então pula a checagem de membership. Mesmo buraco já fechado no fluxo interno e, no P1, no `recordOwner` de `/api/import/csv`.
+- **Compartilhamento de sequência é decoração** (achado no P2). O modal grava
+  `sharing:ONLY_ME|SPECIFIC_USERS|WORKSPACE` como string no array `tags` de
+  `sequences` e nenhum leitor filtra por isso — toda sequência é visível para
+  todo o workspace independentemente da escolha, e "Usuários específicos" não
+  guarda *quais* usuários em lugar nenhum. Fechado para vendedor no P2; para
+  admin e gerente o controle continua prometendo o que não entrega. Consertar é
+  feature, não gate: precisa de coluna de dono em `sequences`, uma tabela de
+  compartilhamento para o caso "específicos", e a RLS de select passar a
+  respeitar as duas. Enquanto isso não existir, o honesto é tirar o modal.
+- **`sequence_enrollments` nunca grava** (achado no P2; a tabela tem 0 linhas em
+  produção). Duas causas somadas: a RLS tem policy de `select` e **nenhuma** de
+  insert/update/delete, e `src/lib/sequence-helpers.ts:215` insere sem
+  `workspace_id`. O `try/catch` em volta não pega nada — o supabase-js devolve
+  `{ error }` em vez de lançar, então é mais um erro descartado da mesma família
+  do P1. Só a fila do motor (`/api/automations/sequences`, com service role)
+  escreve ali, e ela só drena o que nunca foi inserido.
 - **Drift de migration:** a policy viva de `whatsapp_conversations` vem de `phase1_multitenancy`, que **não tem `.sql` no repositório**. Já fez um revisor tirar conclusão errada sobre a RLS. Vale uma migration puramente documental com o `CREATE POLICY` vivo. (Vale notar que os nomes de arquivo em `supabase/migrations/` **não batem** com as versões em `supabase_migrations.schema_migrations` — o MCP gera o próprio timestamp ao aplicar. O drift é antigo e cosmético, mas confunde quem procura.)
 - **Atividade órfã** (atribuída a alguém num negócio de outro dono) tem cantos ásperos: anexo fica stale até reload; não dispara notificação de vencida; a leitura direta em `crm-loader.ts` não pagina.
 - **`sync_my_member_identity`** não valida `p_name` vazio no servidor (hoje o cliente faz `trim` antes).
@@ -178,6 +200,18 @@ pessoa em Insights, Metas, Forecast e Ligações; Placar do time aparece.
 - Contato criado agora nasce com dono — conferir na tela, com as duas contas.
 - Como Ana: `/automacoes` mostra "Sem acesso", o item some do menu, e `/automacoes/nova` digitada na barra também recusa.
 - Editar um script em `/configuracoes/scripts-ligacao` e recarregar a página.
+
+**Acrescentado pelo P2, ainda não clicado.** Como Ana, em Configurações:
+- Campos de dados, Motivos de Perda, Motivos de Exclusão, Tipos de Atividade,
+  Duplicatas e Sequências **somem do menu da esquerda**, e cada uma dessas URLs
+  digitada na barra mostra "Sem acesso".
+- **Produtos continua no menu e abre** — a lista aparece, mas sem "Novo
+  Produto", sem "Criar primeiro produto" e sem os ícones de editar/excluir na
+  linha.
+- O que a Ana ainda tem que conseguir fazer, porque só lê essas tabelas: marcar
+  motivo ao perder um negócio, escolher motivo ao excluir, criar atividade
+  escolhendo o tipo, ver os campos personalizados no negócio e **aplicar** uma
+  sequência pela aba de atividades.
 - Importar um CSV de ponta a ponta (estava quebrado em produção, nunca foi testado depois da correção).
 
 ## Deploy e merge na `main`

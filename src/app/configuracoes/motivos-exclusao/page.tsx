@@ -4,12 +4,13 @@ import { useState, useEffect } from "react";
 import { Plus, Pencil, Trash2, Lock, Check, X } from "lucide-react";
 import { createClient } from "@/lib/supabase/client";
 import { useWorkspace } from "@/lib/workspace";
+import { RequireCapability } from "@/components/auth/require-capability";
 
 type Reason = { id: string; name: string; sort_order: number; active: boolean };
 
 const DEFAULTS = ["Duplicado", "Criado por engano", "Teste", "Lead inválido", "Fora do perfil"];
 
-export default function MotivosExclusaoPage() {
+function MotivosExclusaoPageContent() {
   const [items, setItems] = useState<Reason[]>([]);
   const [input, setInput] = useState("");
   const [editingId, setEditingId] = useState<string | null>(null);
@@ -211,5 +212,16 @@ export default function MotivosExclusaoPage() {
         Excluir um negócio não apaga nada: ele sai das listas, continua acessível para consulta e pode ser restaurado.
       </p>
     </div>
+  );
+}
+
+// Vendedor não edita a lista de motivos de exclusão -- continua escolhendo um ao
+// excluir um negócio. A RLS de `delete_reasons` já exige is_ws_manager para
+// escrever; aqui é o gate de cliente.
+export default function MotivosExclusaoPage() {
+  return (
+    <RequireCapability capability="gerenciar_motivos_exclusao">
+      <MotivosExclusaoPageContent />
+    </RequireCapability>
   );
 }
