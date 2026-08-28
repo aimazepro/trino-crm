@@ -212,7 +212,14 @@ export default function WhatsAppConfigPage() {
   // e /disconnect exigem ownerId === user.id (o dono real, não qualquer papel
   // admin -- um convite pode criar mais de um admin). Um admin que não seja o
   // dono cairia em 403 a cada clique se este gate fosse por papel.
-  const canManage = info?.isOwner !== false;
+  //
+  // Fecha a janela pelo lado restritivo: enquanto `loading` (info ainda pode
+  // ser null com isOwner indefinido), canManage é false. `info?.isOwner !==
+  // false` falhava aberto no primeiro paint (undefined !== false é true) e
+  // um vendedor via a superfície inteira de admin piscar antes do fetch
+  // resolver -- mesmo sem vazar o QR (a rota omite no servidor), incoerente
+  // com o resto da branch, que sempre fecha a janela pro lado restritivo.
+  const canManage = !loading && info?.isOwner === true;
 
   return (
     <main className="flex-1 overflow-y-auto bg-zinc-50/30">
@@ -268,8 +275,12 @@ export default function WhatsAppConfigPage() {
         )}
 
         {/* Main Connection Card — QR, status detalhado e desconectar são coisa
-            de quem administra a conexão. */}
-        {canManage && (
+            de quem administra a conexão. Durante o loading (info ainda pode
+            não ter chegado), mostra o card com o spinner neutro de dentro
+            para qualquer papel -- só depois de resolver é que o card
+            desaparece pra quem não é dono (cai no resumo somente leitura
+            abaixo). */}
+        {(loading || canManage) && (
         <div className="rounded-xl border border-zinc-200 bg-white p-6">
 
           {loading && (
@@ -372,8 +383,10 @@ export default function WhatsAppConfigPage() {
         </div>
         )}
 
-        {/* Resumo somente leitura para quem não administra a conexão. */}
-        {!canManage && (
+        {/* Resumo somente leitura para quem não administra a conexão. Espera
+            o loading terminar -- do contrário apareceria pro dono também
+            no primeiro paint, antes de canManage virar true. */}
+        {!loading && !canManage && (
           <div className="rounded-xl border border-zinc-200 bg-white p-5">
             <h2 className="text-sm font-bold text-zinc-900">WhatsApp da empresa</h2>
             <div className="mt-2 flex items-center gap-2">
