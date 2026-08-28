@@ -24,13 +24,27 @@ const ACTIVE_DEAL_STATUS = "Ativo";
 
 export async function resolveConversationLinks(
   admin: SupabaseClient<Database>,
-  userId: string,
+  // `connection.userId` já carrega um workspace_id (ver createConnection em
+  // src/lib/whatsapp/connection.ts, que devolve `userId: row.workspace_id`).
+  // O nome antigo aqui é o que fazia a leitura deste arquivo parecer certa
+  // enquanto a RPC estava filtrando por uma coluna que não existe mais.
+  workspaceId: string,
   phone: string,
 ): Promise<ConversationLinks> {
-  const { data: contactId } = await admin.rpc("find_contact_by_phone", {
-    p_user_id: userId,
+  const { data: contactId, error } = await admin.rpc("find_contact_by_phone", {
+    p_workspace_id: workspaceId,
     p_phone: phone,
   });
+
+  // Este erro era descartado. A RPC vinha falhando com
+  // `42703 column c.user_id does not exist` desde o rename, e o sintoma que
+  // chegava ao usuário era "a conversa não acha o contato" -- nada apontava
+  // para a função. Não relança de propósito: uma conversa sem vínculo ainda é
+  // útil, e derrubar o ingest faria a Evolution reenviar a mensagem em loop.
+  if (error) {
+    console.error("[whatsapp] find_contact_by_phone falhou:", error.message);
+    return { contactId: null, dealId: null, ownerId: null };
+  }
 
   if (!contactId) return { contactId: null, dealId: null, ownerId: null };
 
@@ -38,7 +52,7 @@ export async function resolveConversationLinks(
     admin
       .from("deals")
       .select("id, owner_id, status, updated_at")
-      .eq("workspace_id", userId)
+      .eq("workspace_id", workspaceId)
       .eq("contact_id", contactId as string)
       .is("deleted_at", null)
       .order("updated_at", { ascending: false })

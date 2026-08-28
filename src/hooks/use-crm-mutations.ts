@@ -485,17 +485,23 @@ export function useCrmMutations({ state, setState, userId, workspaceId, supabase
   };
 
   const addContact = async (contact: Contact): Promise<string | null> => {
-    if (!workspaceId) { alert("Sessão ainda carregando."); return null; }
+    if (!userId || !workspaceId) { console.error("[CRM] addContact: no userId/workspaceId"); alert("Sessão ainda carregando."); return null; }
+    // Sem isto o contato nascia órfão -- para qualquer pessoa, não só para
+    // vendedor. Mesma regra do addDeal: quem cria é o dono, a menos que o
+    // formulário tenha escolhido outro.
+    const ownerId = contact.ownerId || userId;
     const { data, error } = await supabase.from("contacts").insert({
       workspace_id: workspaceId, name: contact.name, role: contact.role, company_id: contact.companyId ?? null,
-      emails: contact.emails, phones: contact.phones,
+      emails: contact.emails, phones: contact.phones, owner_id: ownerId,
     }).select().single();
     if (error || !data) {
       console.error("[CRM] addContact failed:", error);
       alert(`Erro ao criar contato: ${error?.message ?? "desconhecido"}`);
       return null;
     }
-    setState((prev) => ({ ...prev, contacts: [...prev.contacts, { ...contact, id: data.id }] }));
+    // ownerId também no estado local: sem isto o contato aparecia sem dono até
+    // o próximo reload, mesmo já tendo dono no banco.
+    setState((prev) => ({ ...prev, contacts: [...prev.contacts, { ...contact, id: data.id, ownerId }] }));
     return data.id;
   };
 
@@ -539,18 +545,20 @@ export function useCrmMutations({ state, setState, userId, workspaceId, supabase
   };
 
   const addCompany = async (company: Company): Promise<string | null> => {
-    if (!workspaceId) { alert("Sessão ainda carregando."); return null; }
+    if (!userId || !workspaceId) { console.error("[CRM] addCompany: no userId/workspaceId"); alert("Sessão ainda carregando."); return null; }
+    const ownerId = company.ownerId || userId;
     const { data, error } = await supabase.from("companies").insert({
       workspace_id: workspaceId, name: company.name, website: company.website ?? null,
       segment: company.segment ?? null, size: company.size ?? null,
       city: company.city ?? null, state: company.state ?? null, cnpj: company.cnpj ?? null,
+      owner_id: ownerId,
     }).select().single();
     if (error || !data) {
       console.error("[CRM] addCompany failed:", error);
       alert(`Erro ao criar empresa: ${error?.message ?? "desconhecido"}`);
       return null;
     }
-    setState((prev) => ({ ...prev, companies: [...prev.companies, { ...company, id: data.id }] }));
+    setState((prev) => ({ ...prev, companies: [...prev.companies, { ...company, id: data.id, ownerId }] }));
     return data.id;
   };
 

@@ -80,7 +80,14 @@ export function AutomacoesProvider({ children }: { children: ReactNode }) {
       execution_count: automation.executionCount,
     }).select().single();
 
-    if (!error && data) setAutomations((prev) => [rowToAutomation(data), ...prev]);
+    // O erro era descartado. Quando a RLS recusava (vendedor tentando criar),
+    // o botão salvava, nada aparecia e nada era dito -- parecia bug da tela.
+    if (error || !data) {
+      console.error("[automacoes] addAutomation falhou:", error);
+      alert(`Erro ao criar automação: ${error?.message ?? "desconhecido"}`);
+      return;
+    }
+    setAutomations((prev) => [rowToAutomation(data), ...prev]);
   }, [supabase, workspace]);
 
   const updateAutomation = useCallback(async (id: string, fields: Partial<Automation>) => {
@@ -94,11 +101,23 @@ export function AutomacoesProvider({ children }: { children: ReactNode }) {
     if (fields.executionCount !== undefined) patch.execution_count = fields.executionCount;
 
     const { data, error } = await supabase.from("automations").update(patch).eq("id", id).select().single();
-    if (!error && data) setAutomations((prev) => prev.map((a) => a.id === id ? rowToAutomation(data) : a));
+    if (error || !data) {
+      console.error("[automacoes] updateAutomation falhou:", error);
+      alert(`Erro ao salvar automação: ${error?.message ?? "desconhecido"}`);
+      return;
+    }
+    setAutomations((prev) => prev.map((a) => a.id === id ? rowToAutomation(data) : a));
   }, [supabase]);
 
   const deleteAutomation = useCallback(async (id: string) => {
-    await supabase.from("automations").delete().eq("id", id);
+    // Tirava da tela mesmo quando o delete falhava: a automação sumia, a
+    // pessoa acreditava, e ela voltava no próximo reload.
+    const { error } = await supabase.from("automations").delete().eq("id", id);
+    if (error) {
+      console.error("[automacoes] deleteAutomation falhou:", error);
+      alert(`Erro ao excluir automação: ${error.message}`);
+      return;
+    }
     setAutomations((prev) => prev.filter((a) => a.id !== id));
   }, [supabase]);
 

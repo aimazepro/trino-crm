@@ -14,6 +14,7 @@ import { useTeam } from "@/hooks/use-team";
 import { OwnerSelect } from "@/components/team/owner-select";
 import { cn } from "@/lib/utils";
 import { LeadStatus } from "@/lib/crm-types";
+import { scopedDeals, sumDealValues } from "@/lib/deal-scope";
 
 const STATUS_OPTIONS: { value: LeadStatus; label: string; icon: typeof Eye }[] = [
   { value: "Ativo", label: "Ativos", icon: Eye },
@@ -134,16 +135,20 @@ export default function KanbanPage() {
               onChange={setActivePipelineId}
               onNew={() => setShowNewPipelineModal(true)}
               onEdit={(id) => setEditPipelineId(id)}
+              statusFilter={statusFilter}
+              ownerFilter={ownerFilter}
             />
 
             {(() => {
-              const activeDeals = state.deals.filter(d =>
-                !d.deletedAt &&
-                d.pipelineId === activePipelineId &&
-                d.status === statusFilter
-              );
+              // Mesmo escopo dos cards: sem o ownerId aqui, filtrar por um
+              // vendedor mostrava os negócios dele e o total do time inteiro.
+              const activeDeals = scopedDeals(state.deals, {
+                pipelineId: activePipelineId,
+                status: statusFilter,
+                ownerId: ownerFilter,
+              });
               const count = activeDeals.length;
-              const totalVal = activeDeals.reduce((sum, d) => sum + (Number(d.value) || 0), 0);
+              const totalVal = sumDealValues(activeDeals);
               const formattedVal = totalVal.toLocaleString("pt-BR", { style: "currency", currency: "BRL" }).replace(",00", "");
 
               return (

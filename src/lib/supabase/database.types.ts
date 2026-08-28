@@ -3162,7 +3162,7 @@ export type Database = {
         Returns: undefined
       }
       find_contact_by_phone: {
-        Args: { p_phone: string; p_user_id: string }
+        Args: { p_phone: string; p_workspace_id: string }
         Returns: string
       }
       increment_api_rate_limit: {

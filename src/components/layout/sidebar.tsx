@@ -18,12 +18,15 @@ import {
   MessageCircle,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { useWorkspaceInfo } from "@/lib/workspace";
+import { can } from "@/lib/permissions";
 import { createClient } from "@/lib/supabase/client";
 
 import { getInitials } from "@/hooks/use-owner-name-map";
 
 export function Sidebar() {
   const pathname = usePathname();
+  const workspaceInfo = useWorkspaceInfo();
   const router = useRouter();
   const [displayName, setDisplayName] = useState<string>("");
   const [avatarUrl, setAvatarUrl] = useState<string | null>(null);
@@ -184,7 +187,11 @@ export function Sidebar() {
               // feature. Rotas continuam fora do código; se um dia forem
               // construídas de verdade, voltam pra cá.
               { href: "/automacoes", label: "Automações", icon: Zap },
-            ].map((item) => {
+            ].filter((item) =>
+              // Item some para vendedor. Some do menu e a rota também recusa --
+              // esconder link sozinho só faz o vendedor descobrir a URL.
+              item.href === "/automacoes" ? can(workspaceInfo?.role, "gerenciar_automacoes") : true
+            ).map((item) => {
               const active = isActive(item.href);
               return (
                 <li key={item.href}>

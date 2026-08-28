@@ -71,9 +71,36 @@ export async function POST(req: NextRequest) {
 
   const body: ImportRequest = await req.json();
   const { rows, duplicateStrategy, recordOwner, stageMappings, pipelineId } = body;
-  const ownerId = recordOwner || user.id;
 
   if (!rows?.length) return NextResponse.json({ error: "Nenhuma linha" }, { status: 400 });
+
+  // As três inserções abaixo gravavam `user_id`, coluna que deixou de existir no
+  // rename user_id -> workspace_id. Toda importação de CSV falhava linha a
+  // linha, e o único sinal era a mensagem de erro acumulada no relatório.
+  const { data: membership } = await supabase
+    .from("workspace_members")
+    .select("workspace_id")
+    .eq("member_user_id", user.id)
+    .eq("status", "accepted")
+    .limit(1)
+    .maybeSingle();
+  const workspaceId = membership?.workspace_id;
+  if (!workspaceId) return NextResponse.json({ error: "Usuário sem workspace" }, { status: 403 });
+
+  // recordOwner vem do corpo da requisição, ou seja, é forjável. Sem esta
+  // checagem dava para atribuir os registros importados a um uuid qualquer.
+  let ownerId = user.id;
+  if (recordOwner && recordOwner !== user.id) {
+    const { data: owner } = await supabase
+      .from("workspace_members")
+      .select("member_user_id")
+      .eq("workspace_id", workspaceId)
+      .eq("member_user_id", recordOwner)
+      .eq("status", "accepted")
+      .maybeSingle();
+    if (!owner) return NextResponse.json({ error: "recordOwner não é membro deste workspace" }, { status: 400 });
+    ownerId = recordOwner;
+  }
 
   const counts = { contacts: 0, companies: 0, deals: 0 };
   const errors: string[] = [];
@@ -118,7 +145,8 @@ export async function POST(req: NextRequest) {
 
         if (!companyId) {
           const { data, error } = await supabase.from("companies").insert({
-            user_id: user.id,
+            workspace_id: workspaceId,
+            owner_id: ownerId,
             name: orgName,
             website: row.organizationWebsite?.trim() || null,
             cnpj: row.organizationCnpj?.trim() || null,
@@ -161,7 +189,8 @@ export async function POST(req: NextRequest) {
             ? [{ value: row.personPhone.trim(), type: "Trabalho" }]
             : [];
           const { data, error } = await supabase.from("contacts").insert({
-            user_id: user.id,
+            workspace_id: workspaceId,
+            owner_id: ownerId,
             name: personName,
             role: row.personPosition?.trim() || "",
             company_id: companyId,
@@ -198,7 +227,7 @@ export async function POST(req: NextRequest) {
         const expectedCloseDate = parseDate(row.dealExpectedCloseDate);
 
         const { data, error } = await supabase.from("deals").insert({
-          user_id: user.id,
+          workspace_id: workspaceId,
           title: row.dealTitle.trim(),
           value,
           contact_id: contactId,

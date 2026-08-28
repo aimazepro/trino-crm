@@ -16,6 +16,7 @@ import {
   Activity,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { RequireCapability } from "@/components/auth/require-capability";
 import {
   useAutomacoes,
   TRIGGER_LABELS,
@@ -37,7 +38,7 @@ function isHighlightTemplate(id: string) {
   ].includes(id);
 }
 
-export default function AutomacoesPage() {
+function AutomacoesPageContent() {
   const router = useRouter();
   const {
     automations,
@@ -445,5 +446,17 @@ function HistoricoTab() {
         As execuções das suas automações em tempo real serão listadas aqui conforme novos eventos forem processados pelo motor.
       </p>
     </div>
+  );
+}
+
+// Vendedor não gerencia automações. O banco já recusa (a RLS de `automations`
+// exige is_ws_manager para insert/update/delete -- um insert como vendedor
+// volta 42501), mas até agora a tela abria inteira e a recusa chegava como
+// nada acontecendo. Este é o gate de cliente; a RLS continua sendo o que vale.
+export default function AutomacoesPage() {
+  return (
+    <RequireCapability capability="gerenciar_automacoes">
+      <AutomacoesPageContent />
+    </RequireCapability>
   );
 }

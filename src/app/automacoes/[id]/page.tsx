@@ -32,6 +32,7 @@ import {
 import { useCrm } from "@/contexts/crm-context";
 import { createClient } from "@/lib/supabase/client";
 import { useWorkspace } from "@/lib/workspace";
+import { RequireCapability } from "@/components/auth/require-capability";
 import type {
   Automation,
   AutomationStep,
@@ -363,7 +364,7 @@ type SelectionState =
   | { kind: "step"; stepId: string }
   | null;
 
-export default function AutomationBuilderPage() {
+function AutomationBuilderPageContent() {
   const params = useParams();
   const searchParams = useSearchParams();
   const router = useRouter();
@@ -2257,5 +2258,15 @@ function NextStepPanel({
         </button>
       </div>
     </div>
+  );
+}
+
+// Mesmo gate da lista: sem isto, /automacoes/nova continuava aberta por URL
+// direta mesmo com a lista bloqueada.
+export default function AutomationBuilderPage() {
+  return (
+    <RequireCapability capability="gerenciar_automacoes">
+      <AutomationBuilderPageContent />
+    </RequireCapability>
   );
 }

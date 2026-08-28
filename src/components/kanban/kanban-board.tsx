@@ -9,6 +9,7 @@ import { LossReasonModal } from "@/components/deal/loss-reason-modal";
 import { ActivityModal } from "@/components/deal/activity-modal";
 import { NextActivityModal } from "@/components/deal/next-activity-modal";
 import { getDaysInStage, getStageTimeColor } from "@/lib/stage-time";
+import { scopedDeals } from "@/lib/deal-scope";
 import { cn } from "@/lib/utils";
 
 import { useOwnerNameMap, getInitials } from "@/hooks/use-owner-name-map";
@@ -33,13 +34,12 @@ export function KanbanBoard({ pipelineId, onNewDeal, statusFilter = "Ativo", own
   if (!pipeline) return null;
 
   const dealsByStage = pipeline.stages.reduce((acc, stage) => {
-    acc[stage.id] = state.deals.filter(d =>
-      !d.deletedAt &&
-      d.pipelineId === pipelineId &&
-      d.stageId === stage.id &&
-      d.status === statusFilter &&
-      (ownerFilter ? d.ownerId === ownerFilter : true)
-    );
+    acc[stage.id] = scopedDeals(state.deals, {
+      pipelineId,
+      stageId: stage.id,
+      status: statusFilter,
+      ownerId: ownerFilter,
+    });
     return acc;
   }, {} as Record<string, typeof state.deals>);
 

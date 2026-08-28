@@ -5,15 +5,21 @@ import { Funnel, Check, Trash2, Plus, ChevronDown, GripVertical } from "lucide-r
 import { DragDropContext, Droppable, Draggable, DropResult } from "@hello-pangea/dnd";
 import { useCrm } from "@/contexts/crm-context";
 import { cn } from "@/lib/utils";
+import { scopedDeals, sumDealValues } from "@/lib/deal-scope";
+import type { LeadStatus } from "@/lib/crm-types";
 
 interface PipelineSelectorProps {
   activeId: string;
   onChange: (id: string) => void;
   onNew: () => void;
   onEdit: (id: string) => void;
+  /** Mesmos filtros da tela: as contagens do dropdown têm que concordar com o
+      cabeçalho e com os cards, senão a tela mostra três números diferentes. */
+  statusFilter?: LeadStatus;
+  ownerFilter?: string | null;
 }
 
-export function PipelineSelector({ activeId, onChange, onNew, onEdit }: PipelineSelectorProps) {
+export function PipelineSelector({ activeId, onChange, onNew, onEdit, statusFilter = "Ativo", ownerFilter }: PipelineSelectorProps) {
   const { state, deletePipeline, reorderPipelines } = useCrm();
   const [open, setOpen] = useState(false);
   const dropdownRef = useRef<HTMLDivElement>(null);
@@ -64,8 +70,8 @@ export function PipelineSelector({ activeId, onChange, onNew, onEdit }: Pipeline
                      {...dropProvided.droppableProps}
                    >
                      {state.pipelines.map((pipe, index) => {
-                       const pipeDeals = state.deals.filter(d => !d.deletedAt && d.pipelineId === pipe.id && d.status === "Ativo");
-                       const pipeVal = pipeDeals.reduce((sum, d) => sum + (Number(d.value) || 0), 0);
+                       const pipeDeals = scopedDeals(state.deals, { pipelineId: pipe.id, status: statusFilter, ownerId: ownerFilter });
+                       const pipeVal = sumDealValues(pipeDeals);
                        const formattedPipeVal = pipeVal.toLocaleString("pt-BR", { style: "currency", currency: "BRL" }).replace(",00", "");
 
                        return (
