@@ -1,4 +1,5 @@
 import type { Deal } from "@/lib/crm-types";
+import { dealClosedAt } from "@/lib/deal-scope";
 import type { ReportConfig, ReportFilter } from "./types";
 
 export const FILTER_FIELDS_BY_ENTITY: Record<"deal" | "activity", { value: string; label: string; type: "select" | "date" | "number" }[]> = {
@@ -16,16 +17,6 @@ export const FILTER_FIELDS_BY_ENTITY: Record<"deal" | "activity", { value: strin
     { value: "Concluida", label: "Concluída", type: "select" },
   ],
 };
-
-function isDealClosed(d: Deal): boolean {
-  return d.status === "Ganho" || d.status === "Perdido";
-}
-
-function dealClosedAt(d: Deal): string | undefined {
-  if (!isDealClosed(d)) return undefined;
-  // última entrada do histórico marca o fechamento (moveu pra Ganho/Perdido)
-  return d.history[0]?.createdAt ?? d.updatedAt;
-}
 
 export function periodToRange(period: string): { from: Date | null; to: Date | null } {
   const now = new Date();

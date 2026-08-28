@@ -6,12 +6,11 @@ multiusuário que o banco já tinha. Está **deployada em produção** e **não
 mergeada na `main`** — produção roda a branch de propósito, para que um rollback
 no Vercel não exija desfazer nada no git.
 
-**Estado em 2026-08-28:** P0, P1 e P2 estão **fechados, provados e commitados**,
-mas **não deployados** — produção ainda roda o código anterior a eles. As
-migrations do P0 e do P1 **já estão aplicadas em produção** (são aditivas e de
-permissão; o código antigo funciona com o banco novo) e o **P2 não precisou de
-migration nenhuma**. Falta P3, P4 e P5 — o P3 tem um levantamento pronto na própria seção, feito
-sem escrever código; leia antes de começar.
+**Estado em 2026-08-28:** P0, P1, P2 e P3 estão **fechados, provados e
+commitados**, mas **não deployados** — produção ainda roda o código anterior a
+eles. As migrations do P0 e do P1 **já estão aplicadas em produção** (são
+aditivas e de permissão; o código antigo funciona com o banco novo); o **P2 e o
+P3 não precisaram de migration nenhuma**. Falta P4 e P5.
 
 Leia antes de mexer:
 - [docs/HANDOFF-2026-08-28-multiusuario.md](HANDOFF-2026-08-28-multiusuario.md) — o que foi feito, migrations aplicadas, backlog gerado
@@ -127,69 +126,82 @@ correção está no P4.
 
 ---
 
-# P3 — Features pedidas  ← COMECE POR AQUI
+# ~~P3 — Features pedidas~~ FEITO (sem migration)
 
-## Placar do time em "Meu Painel"
+Placar do time e filtro por vendedor montados em "Meu Painel"
+([src/app/page.tsx](../src/app/page.tsx)). O levantamento estava certo: **não
+era só reuso**. A tela ganhou período, e os agregados que diziam "no Mês"
+pararam de somar o histórico inteiro.
 
-O componente já existe e está montado em Insights:
-`src/app/insights/team-scoreboard.tsx`, alimentado pela RPC `team_scoreboard`
-(agregada, visível para todos os papéis).
+**Decisões de produto tomadas antes de codar:**
 
-Montar em `src/app/page.tsx`, **logo abaixo de "Ações rápidas"**. É reuso, não
-código novo — cuidar só de passar `periodStart`/`periodEnd` coerentes com o
-período da tela.
+- **Seletor de período igual ao de Insights**, não mês corrente fixo. As mesmas
+  seis opções, e a *chave* passada a `periodToRange` continua sem acento
+  (`"Este mes"`) — o `PERIODS` do painel guarda chave e rótulo separados
+  justamente porque a chave é contrato da função e o rótulo é tela.
+- **Todos os agregados de fechamento passaram a respeitar o período.** Ganhos,
+  Perdidos e o bloco que dizia "Este Mês" agora contam por *data de
+  fechamento*. "Total em Pipeline" ficou de fora de propósito: negócio aberto
+  não fechou, e filtrá-lo por data de fechamento zeraria o card.
 
-## Filtro por vendedor em "Meu Painel"
+**Uma definição mudou, e é a que mais surpreende:** a **taxa de conversão** era
+`ganhos / todos os negócios de todo o tempo`. Com período, isso viraria
+numerador recortado sobre denominador do sempre — uma taxa que só cai conforme
+a base cresce. Agora é `ganhos / (ganhos + perdidos) no período`, e o rótulo
+diz "dos fechados no período".
 
-Para **admin e gerente**: poder ver "todos" ou cada vendedor individualmente.
-Vendedor não vê o seletor (já enxerga só a própria carteira pela RLS).
+**Onde mora "quando o negócio fechou".** `dealClosedAt` era privado de
+`src/app/insights/report-types/filters.ts`. Passou para
+[src/lib/deal-scope.ts](../src/lib/deal-scope.ts) e o `filters.ts` importa de
+lá — duas telas perguntando a mesma coisa com duas definições é exatamente o
+defeito que aquele arquivo existe para evitar. O `DealScope` ganhou
+`closedFrom`/`closedTo`, com limite superior **aberto** (`t < closedTo`), igual
+ao que `periodToRange` devolve.
 
-Use `<OwnerFilterSelect>` gateado por `isManager`, no padrão que
-`src/app/negocios/page.tsx` já usa. Comparar por id. E cuidado com o defeito que
-o P1 corrigiu em Negócios: **todos** os KPIs do painel precisam respeitar o
-filtro, não só alguns. Se der para reusar `src/lib/deal-scope.ts`, reuse — o
-ponto daquele arquivo é não haver dois predicados.
+**Os 6 pontos de agregação, todos migrados** para `scopedDeals`/
+`matchesDealScope`/`sumDealValues`: a base `deals`, `stats`,
+`pipelineStageData`, `PipelineDrawerContent` (inclusive o sub-filtro por
+etapa), `StageDrawerContent`, e os drawers de ganhos/perdidos que consomem
+`stats`. Não sobrou nenhum `deals.filter(...)` inline na tela.
 
----
+**Correção ao que estava escrito aqui:** o item mandava usar
+`<OwnerFilterSelect>` "no padrão que `/negocios` já usa". `/negocios` usa
+`<OwnerSelect allowUnassigned unassignedLabel="Todos os vendedores">` —
+`<OwnerFilterSelect>` é o de Contatos/Empresas, com "Sem dono" e outro visual.
+O painel seguiu o que `/negocios` faz de verdade.
 
-## Levantamento já feito (leia antes de escrever código)
+**O placar não responde ao filtro por vendedor**, e é de propósito: a RPC
+`team_scoreboard` é agregada e tem escopo próprio (mostra o time inteiro para
+todo papel). Só o período é compartilhado com o resto da tela.
 
-Uma sessão anterior leu as telas e parou antes de escrever. O que ela achou
-muda o tamanho do P3 — **não é só reuso**:
+**Atividades ficaram fora do período** — "Atividades Hoje" é hoje; trocar para
+"Mês passado" não deveria mexer nelas. Fica registrado o que o levantamento
+apontou e continua valendo: `todayPending`/`todayAll` saem de
+`deals.flatMap(d => d.activities)`, então atividade herda o escopo do negócio
+dono. Atividade atribuída a alguém num negócio de outro não aparece para ela
+aqui — é o caso "atividade órfã" do P4, e não foi resolvido no P3.
 
-- **"Meu Painel" não tem conceito de período.** `stats` em
-  [src/app/page.tsx:68](../src/app/page.tsx) agrega **todos** os negócios de
-  todo o tempo. O card "Ganhos no Mês" e o bloco "Este Mês" somam o histórico
-  inteiro: **o rótulo já mente hoje**, antes de qualquer mudança. Como o placar
-  exige `periodStart`/`periodEnd`, o P3 é obrigado a introduzir período nesta
-  tela. Decisão de produto antes de codar: mês corrente fixo, ou um seletor
-  igual ao de Insights? Se for mês corrente, aproveite e corrija os agregados
-  que dizem "no Mês" — senão a tela vai ter um placar do mês ao lado de cards
-  do sempre.
-- **Como Insights monta o período** (copie daqui):
-  [src/app/insights/panel-view.tsx:72](../src/app/insights/panel-view.tsx) —
-  `periodToRange(period)` devolve limite superior **aberto**, e `team_scoreboard`
-  pede datas **fechadas**; fecha subtraindo um dia do `to`, e usa hoje quando
-  `to` é nulo.
-- **Assinatura do placar:** `<TeamScoreboard periodStart={string} periodEnd={string} />`,
-  `"YYYY-MM-DD"` nos dois. Exportado de `src/app/insights/team-scoreboard.tsx`,
-  já montado em `panel-view.tsx:232`. Busca a RPC `team_scoreboard` sozinho,
-  tem estado próprio de loading e erro — só passar as duas datas.
-- **O filtro por vendedor tem 6 pontos de agregação, não 1.** Todos em
-  `src/app/page.tsx`, todos com o seu próprio `deals.filter(...)` inline:
-  `deals` (:62), `stats` (:68, que sozinho deriva activeDeals/wonDeals/
-  lostDeals/todayPending/todayAll), `pipelineStageData` (:96),
-  `PipelineDrawerContent` (:153), `StageDrawerContent` (:217) e os drawers de
-  ganhos/perdidos, que consomem `stats`. É a mesma armadilha que o P1 corrigiu
-  em Negócios, com mais pontos: se um ficar para trás, a tela mostra a lista de
-  uma pessoa com o total do time. Fazer **todos** passarem por
-  `scopedDeals`/`matchesDealScope` de [src/lib/deal-scope.ts](../src/lib/deal-scope.ts).
-- Atenção: `stats.todayPending`/`todayAll` saem de `deals.flatMap(d => d.activities)`,
-  ou seja, atividade herda o escopo do negócio dono. Atividade atribuída a um
-  vendedor num negócio de outro (o caso "atividade órfã" do P4) não vai aparecer
-  para ele. Decidir se importa aqui ou se fica registrado e segue.
+**Provas** (`npx tsc --noEmit` limpo; `npm run build` compila — o único warning
+é o do `next.config.ts`/NFT, que já existia antes da mudança, conferido com
+`git stash`):
 
----
+- `team_scoreboard` é `security definer` com ACL
+  `{postgres=X,authenticated=X,service_role=X}` — **sem `anon`**, coerente com
+  o P0. Assinatura `(period_start date, period_end date)`, igual ao que o
+  componente passa.
+- Como a Ana (`set local role authenticated` + `request.jwt.claims`, em
+  transação com `rollback`): enxerga **2** negócios de **1** dono, e o placar
+  responde **2 linhas** — ou seja, o vendedor vê o comparativo do time inteiro
+  mesmo com a carteira estreita. É esse contraste que prova que montar o placar
+  para todo papel funciona.
+- Como o admin, na mesma prova: **4** negócios de **2** donos, dos quais **2**
+  são da Ana. O 2 da Ana não era "tabela vazia".
+- Números esperados na tela hoje (produção, 2026-08-28): admin com "Todos os
+  vendedores" → Pipeline **R$ 10.650**, 4 abertos; admin filtrando a Ana →
+  **R$ 5.500**, 2 abertos, **o mesmo que a Ana vê logada**. Ganhos **R$ 0** e
+  conversão **0%** em qualquer período, porque **não existe negócio Ganho nem
+  Perdido em produção** — o que também explica por que o card "Ganhos no Mês"
+  mentia sem ninguém notar: ele somava um histórico vazio.
 
 # P4 — Backlog técnico herdado
 
@@ -240,6 +252,17 @@ pessoa em Insights, Metas, Forecast e Ligações; Placar do time aparece.
 - Contato criado agora nasce com dono — conferir na tela, com as duas contas.
 - Como Ana: `/automacoes` mostra "Sem acesso", o item some do menu, e `/automacoes/nova` digitada na barra também recusa.
 - Editar um script em `/configuracoes/scripts-ligacao` e recarregar a página.
+
+**Acrescentado pelo P3, ainda não clicado.** Em "Meu Painel":
+- Como admin: trocar o período muda Ganhos, Perdidos e a taxa de conversão, e
+  **não** muda "Total em Pipeline" nem "Atividades Hoje".
+- Como admin, filtrando pela Ana: Pipeline **R$ 5.500 / 2 abertos**, e os
+  mesmos 2 aparecem em "Negócios por Etapa" e nos drawers. Logar como Ana tem
+  que dar **o mesmo número** — é o cruzamento que pega o defeito do P1.
+- Como Ana: **não** existe seletor de vendedor, mas o **placar do time
+  aparece** com as duas pessoas.
+- O placar não muda ao trocar o vendedor no filtro (é agregado do time), mas
+  **muda** ao trocar o período.
 
 **Acrescentado pelo P2, ainda não clicado.** Como Ana, em Configurações:
 - Campos de dados, Motivos de Perda, Motivos de Exclusão, Tipos de Atividade,

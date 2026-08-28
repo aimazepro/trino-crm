@@ -1,16 +1,34 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { useCrm } from "@/contexts/crm-context";
 import { useRouter } from "next/navigation";
 import {
   DollarSign, CheckCircle, TrendingUp, Clock,
   CirclePlus, ArrowRight, X, Calendar, Briefcase,
-  ChartColumn
+  ChartColumn, ChevronDown
 } from "lucide-react";
 import { NewDealModal } from "@/components/pipeline/new-deal-modal";
+import { useTeam } from "@/hooks/use-team";
+import { OwnerSelect } from "@/components/team/owner-select";
+import { TeamScoreboard } from "@/app/insights/team-scoreboard";
+import { periodToRange } from "@/app/insights/report-types/filters";
+import { matchesDealScope, scopedDeals, sumDealValues } from "@/lib/deal-scope";
 import { cn } from "@/lib/utils";
 import { isToday } from "date-fns";
+
+/**
+ * Mesmos períodos de Insights. A *chave* é o que `periodToRange` entende e
+ * tem que continuar sem acento; o rótulo é só o que aparece na tela.
+ */
+const PERIODS: { key: string; label: string }[] = [
+  { key: "Este mes", label: "Este mês" },
+  { key: "Mes passado", label: "Mês passado" },
+  { key: "Este ano", label: "Este ano" },
+  { key: "Ultimos 7 dias", label: "Últimos 7 dias" },
+  { key: "Ultimos 30 dias", label: "Últimos 30 dias" },
+  { key: "Todo o periodo", label: "Todo o período" },
+];
 
 // ── Right Drawer ──────────────────────────────────────────────────────────────
 function RightDrawer({
@@ -51,30 +69,72 @@ type DrawerState =
 export default function DashboardPage() {
   const { state } = useCrm();
   const router = useRouter();
+  const { isManager } = useTeam();
   const [showNewDeal, setShowNewDeal] = useState(false);
   const [drawer, setDrawer] = useState<DrawerState>(null);
 
+  // Esta tela não tinha período nenhum: os cards diziam "no Mês" e somavam o
+  // histórico inteiro. O placar do time exige um intervalo, então o período
+  // entrou de vez -- e os agregados que mentiam passaram a respeitá-lo.
+  const [period, setPeriod] = useState("Este mes");
+  const [showPeriod, setShowPeriod] = useState(false);
+  const periodRef = useRef<HTMLDivElement>(null);
+
+  // Vendedor já enxerga só a própria carteira pela RLS; o filtro só faz
+  // sentido para quem vê mais de uma (gerente e admin), igual a /negocios.
+  const [ownerFilter, setOwnerFilter] = useState<string | null>(null);
+
+  useEffect(() => {
+    function onClickOutside(e: MouseEvent) {
+      if (periodRef.current && !periodRef.current.contains(e.target as Node)) setShowPeriod(false);
+    }
+    document.addEventListener("mousedown", onClickOutside);
+    return () => document.removeEventListener("mousedown", onClickOutside);
+  }, []);
+
+  const periodLabel = PERIODS.find((p) => p.key === period)?.label ?? period;
   const activePipeline = state.pipelines[0];
 
-  // Soft-deleted deals can still be in local state right after a same-session
-  // delete (the mutation updates in place instead of removing) — filter them
-  // out here so dashboard aggregates don't double-count until next reload.
+  // Limites do período aplicados à data de fechamento (ver DealScope).
+  const { from: closedFrom, to: closedTo } = useMemo(() => periodToRange(period), [period]);
+
+  // team_scoreboard pede datas fechadas; periodToRange devolve um limite
+  // superior aberto (ou nulo, pra período "corrente"). Fecha subtraindo um dia
+  // do "to" quando existe, e usa hoje quando não existe. Mesma conversão de
+  // src/app/insights/panel-view.tsx -- se um dia mudar lá, muda aqui também.
+  const { periodStart, periodEnd } = useMemo(() => {
+    const iso = (d: Date) => d.toISOString().slice(0, 10);
+    const start = closedFrom ?? new Date(2000, 0, 1);
+    const end = closedTo ? new Date(closedTo.getTime() - 86400000) : new Date();
+    return { periodStart: iso(start), periodEnd: iso(end) };
+  }, [closedFrom, closedTo]);
+
+  // Base de todos os agregados desta tela. `matchesDealScope` também descarta
+  // os soft-deleted, que continuam no estado local logo depois de uma exclusão
+  // na mesma sessão (a mutação atualiza no lugar em vez de remover).
   const deals = useMemo(
-    () => state.deals.filter((d) => !d.deletedAt),
-    [state.deals]
+    () => scopedDeals(state.deals, { ownerId: ownerFilter }),
+    [state.deals, ownerFilter]
   );
 
   // ── Metrics ──────────────────────────────────────────────────────────────────
   const stats = useMemo(() => {
-    const activeDeals = deals.filter((d) => d.status === "Ativo");
-    const wonDeals = deals.filter((d) => d.status === "Ganho");
-    const lostDeals = deals.filter((d) => d.status === "Perdido");
-    const totalPipeline = activeDeals.reduce((s, d) => s + d.value, 0);
-    const wonValue = wonDeals.reduce((s, d) => s + d.value, 0);
-    const convRate =
-      deals.length > 0
-        ? Math.round((wonDeals.length / deals.length) * 100)
-        : 0;
+    // Pipeline é estado *atual*, não recorte de período: negócio aberto não
+    // fechou, então filtrá-lo por data de fechamento esvaziaria o card.
+    const activeDeals = scopedDeals(deals, { status: "Ativo" });
+    const wonDeals = scopedDeals(deals, { status: "Ganho", closedFrom, closedTo });
+    const lostDeals = scopedDeals(deals, { status: "Perdido", closedFrom, closedTo });
+    const totalPipeline = sumDealValues(activeDeals);
+    const wonValue = sumDealValues(wonDeals);
+    // Ganhos sobre *fechados no período*. Antes era ganhos sobre todos os
+    // negócios de todo o tempo, o que com período viraria numerador recortado
+    // sobre denominador do sempre -- uma taxa que só cai com o tempo.
+    const closedCount = wonDeals.length + lostDeals.length;
+    const convRate = closedCount > 0 ? Math.round((wonDeals.length / closedCount) * 100) : 0;
+    // "Hoje" não é o período da tela: trocar pra "Mês passado" não deveria
+    // mudar a lista de atividades de hoje. A atividade herda o escopo do
+    // negócio dono -- atividade atribuída a alguém num negócio de outro não
+    // aparece pra ele aqui (o caso "atividade órfã" do P4).
     const allActivities = deals.flatMap((d) => d.activities);
     const todayPending = allActivities.filter(
       (a) => !a.completed && isToday(new Date(a.date))
@@ -90,7 +150,7 @@ export default function DashboardPage() {
       todayPending,
       todayAll,
     };
-  }, [deals]);
+  }, [deals, closedFrom, closedTo]);
 
   // ── Stage data grouped by pipeline ───────────────────────────────────────────
   const pipelineStageData = useMemo(() => {
@@ -99,16 +159,15 @@ export default function DashboardPage() {
         pipeline,
         stages: pipeline.stages
           .map((stage) => {
-            const stageDeals = deals.filter(
-              (d) =>
-                d.pipelineId === pipeline.id &&
-                d.stageId === stage.id &&
-                d.status === "Ativo"
-            );
+            const stageDeals = scopedDeals(deals, {
+              pipelineId: pipeline.id,
+              stageId: stage.id,
+              status: "Ativo",
+            });
             return {
               ...stage,
               count: stageDeals.length,
-              value: stageDeals.reduce((s, d) => s + d.value, 0),
+              value: sumDealValues(stageDeals),
               deals: stageDeals,
             };
           })
@@ -154,9 +213,10 @@ export default function DashboardPage() {
     return (
       <div className="divide-y divide-zinc-100">
         {state.pipelines.map((pipeline) => {
-          const pipelineDeals = deals.filter(
-            (d) => d.pipelineId === pipeline.id && d.status === "Ativo"
-          );
+          const pipelineDeals = scopedDeals(deals, {
+            pipelineId: pipeline.id,
+            status: "Ativo",
+          });
           if (pipelineDeals.length === 0) return null;
           return (
             <div key={pipeline.id}>
@@ -166,7 +226,9 @@ export default function DashboardPage() {
                 </p>
               </div>
               {pipeline.stages.map((stage) => {
-                const stageDeals = pipelineDeals.filter((d) => d.stageId === stage.id);
+                const stageDeals = pipelineDeals.filter((d) =>
+                  matchesDealScope(d, { stageId: stage.id })
+                );
                 if (stageDeals.length === 0) return null;
                 return (
                   <div key={stage.id}>
@@ -215,9 +277,7 @@ export default function DashboardPage() {
   }
 
   function StageDrawerContent({ stageId }: { stageId: string }) {
-    const stageDeals = deals.filter(
-      (d) => d.stageId === stageId && d.status === "Ativo"
-    );
+    const stageDeals = scopedDeals(deals, { stageId, status: "Ativo" });
     return <DealsDrawerContent deals={stageDeals} />;
   }
 
@@ -226,16 +286,58 @@ export default function DashboardPage() {
     <div className="p-6 lg:p-8 max-w-6xl mx-auto space-y-6">
 
       {/* Header */}
-      <div>
-        <h1 className="text-xl font-semibold text-zinc-900">Meu Painel</h1>
-        <p className="mt-0.5 text-sm text-zinc-400">
-          {new Date().toLocaleDateString("pt-BR", {
-            weekday: "long",
-            day: "numeric",
-            month: "long",
-            year: "numeric",
-          })}
-        </p>
+      <div className="flex flex-wrap items-start justify-between gap-3">
+        <div>
+          <h1 className="text-xl font-semibold text-zinc-900">Meu Painel</h1>
+          <p className="mt-0.5 text-sm text-zinc-400">
+            {new Date().toLocaleDateString("pt-BR", {
+              weekday: "long",
+              day: "numeric",
+              month: "long",
+              year: "numeric",
+            })}
+          </p>
+        </div>
+
+        <div className="flex items-center gap-2">
+          {/* Período: vale para os agregados de fechamento e para o placar. */}
+          <div className="relative" ref={periodRef}>
+            <button
+              onClick={() => setShowPeriod((v) => !v)}
+              className="flex items-center gap-1.5 rounded-lg border border-zinc-200 bg-white px-2.5 py-1.5 text-xs font-medium text-zinc-700 hover:bg-zinc-50 transition-colors cursor-pointer"
+            >
+              <span>{periodLabel}</span>
+              <ChevronDown className="h-3.5 w-3.5 shrink-0 text-zinc-400" aria-hidden="true" />
+            </button>
+            {showPeriod && (
+              <div className="absolute right-0 z-50 mt-1 w-44 rounded-lg border border-zinc-200 bg-white py-1 shadow-lg">
+                {PERIODS.map((p) => (
+                  <button
+                    key={p.key}
+                    onClick={() => { setPeriod(p.key); setShowPeriod(false); }}
+                    className={cn(
+                      "w-full px-3 py-1.5 text-left text-xs text-zinc-700 hover:bg-zinc-50 cursor-pointer",
+                      period === p.key && "bg-zinc-50 font-semibold",
+                    )}
+                  >
+                    {p.label}
+                  </button>
+                ))}
+              </div>
+            )}
+          </div>
+
+          {/* Filtro por vendedor -- só para quem vê mais de uma carteira. */}
+          {isManager && (
+            <OwnerSelect
+              value={ownerFilter}
+              onChange={setOwnerFilter}
+              allowUnassigned
+              unassignedLabel="Todos os vendedores"
+              className="w-44"
+            />
+          )}
+        </div>
       </div>
 
       {/* ── Stat Cards ── */}
@@ -266,10 +368,10 @@ export default function DashboardPage() {
         >
           <div className="flex items-start justify-between">
             <div>
-              <p className="text-xs font-medium text-zinc-400 tracking-wide">Ganhos no Mês</p>
+              <p className="text-xs font-medium text-zinc-400 tracking-wide">Ganhos</p>
               <p className="mt-2 text-2xl font-semibold text-zinc-900 tracking-tight">{fmt(stats.wonValue)}</p>
               <p className="mt-1 text-xs text-zinc-400">
-                {stats.wonDeals.length} negócio{stats.wonDeals.length !== 1 ? "s" : ""} fechado{stats.wonDeals.length !== 1 ? "s" : ""}
+                {stats.wonDeals.length} fechado{stats.wonDeals.length !== 1 ? "s" : ""} · {periodLabel.toLowerCase()}
               </p>
             </div>
             <div className="flex h-9 w-9 items-center justify-center rounded-xl bg-green-50 text-green-600 transition-transform group-hover:scale-105">
@@ -284,7 +386,7 @@ export default function DashboardPage() {
             <div>
               <p className="text-xs font-medium text-zinc-400 tracking-wide">Taxa de Conversão</p>
               <p className="mt-2 text-2xl font-semibold text-zinc-900 tracking-tight">{stats.convRate}%</p>
-              <p className="mt-1 text-xs text-zinc-400">negócios fechados</p>
+              <p className="mt-1 text-xs text-zinc-400">dos fechados no período</p>
             </div>
             <div className="flex h-9 w-9 items-center justify-center rounded-xl bg-blue-50 text-blue-600 transition-transform group-hover:scale-105">
               <TrendingUp className="h-4 w-4" aria-hidden="true" />
@@ -397,7 +499,7 @@ export default function DashboardPage() {
 
           {/* Este Mês */}
           <div className="mt-5 pt-5 border-t border-zinc-100">
-            <p className="text-xs font-semibold text-zinc-400 uppercase tracking-wide mb-3">Este Mês</p>
+            <p className="text-xs font-semibold text-zinc-400 uppercase tracking-wide mb-3">{periodLabel}</p>
             <div className="flex gap-3">
               <button
                 onClick={() => setDrawer({ type: "ganhos" })}
@@ -472,6 +574,13 @@ export default function DashboardPage() {
         </div>
       </div>
 
+      {/* ── Placar do Time ── */}
+      {/* Agregado pela RPC team_scoreboard, que tem escopo próprio: mostra o
+          time inteiro para todo papel, e por isso não responde ao filtro por
+          vendedor acima -- é o comparativo que dá contexto ao número de cada
+          um. Só o período é compartilhado. */}
+      <TeamScoreboard periodStart={periodStart} periodEnd={periodEnd} />
+
       {/* ── Right Drawer ── */}
       {drawer && (
         <RightDrawer
@@ -479,9 +588,9 @@ export default function DashboardPage() {
             drawer.type === "pipeline"
               ? "Negócios em Pipeline"
               : drawer.type === "ganhos"
-              ? "Negócios Ganhos no Mês"
+              ? `Negócios ganhos · ${periodLabel}`
               : drawer.type === "perdidos"
-              ? "Negócios Perdidos no Mês"
+              ? `Negócios perdidos · ${periodLabel}`
               : `Etapa: ${drawer.stageName}`
           }
           onClose={() => setDrawer(null)}
