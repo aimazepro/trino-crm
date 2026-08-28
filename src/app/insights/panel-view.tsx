@@ -8,6 +8,8 @@ import { useOwnerNameMap } from "@/hooks/use-owner-name-map";
 import { useInsights } from "./insights-context";
 import { ReportCard } from "./report-card";
 import { ALL_USERS } from "./use-report-result";
+import { TeamScoreboard } from "./team-scoreboard";
+import { periodToRange } from "./report-types/filters";
 
 /** MIME do drag de relatório vindo da sidebar. */
 export const REPORT_DND_TYPE = "application/x-trino-report-id";
@@ -54,6 +56,17 @@ export function PanelView({ panelId }: { panelId: string }) {
   }, [panel, savedReports]);
 
   const overrides = useMemo(() => ({ period, ownerName: owner }), [period, owner]);
+
+  // team_scoreboard pede datas fechadas; periodToRange devolve um limite
+  // superior aberto (ou nulo, pra período "corrente"). Fecha subtraindo um
+  // dia do "to" quando existe, e usa hoje quando não existe.
+  const { periodStart, periodEnd } = useMemo(() => {
+    const { from, to } = periodToRange(period);
+    const iso = (d: Date) => d.toISOString().slice(0, 10);
+    const start = from ?? new Date(2000, 0, 1);
+    const end = to ? new Date(to.getTime() - 86400000) : new Date();
+    return { periodStart: iso(start), periodEnd: iso(end) };
+  }, [period]);
 
   if (!loaded || !panel) {
     return <div className="flex items-center justify-center py-20 text-sm text-zinc-400">Carregando painel...</div>;
@@ -199,6 +212,10 @@ export function PanelView({ panelId }: { panelId: string }) {
             Solte para adicionar ao painel
           </div>
         )}
+
+        <div className="mt-4">
+          <TeamScoreboard periodStart={periodStart} periodEnd={periodEnd} />
+        </div>
       </div>
     </div>
   );
