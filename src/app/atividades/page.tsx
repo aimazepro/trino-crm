@@ -77,6 +77,10 @@ export default function AtividadesPage() {
   const [editingActivity, setEditingActivity] = useState<Activity | null>(null);
   const [showNextModal, setShowNextModal] = useState(false);
   const [pendingDealId, setPendingDealId] = useState("");
+  // Aviso não-bloqueante quando uma atividade órfã é concluída -- ver
+  // handleComplete abaixo pro porquê de não abrir o modal de próxima
+  // atividade nesse caso.
+  const [orphanCompleteNotice, setOrphanCompleteNotice] = useState(false);
   const [rangeStart, setRangeStart] = useState("");
   const [rangeEnd, setRangeEnd] = useState("");
 
@@ -86,6 +90,12 @@ export default function AtividadesPage() {
     document.addEventListener("mousedown", h);
     return () => document.removeEventListener("mousedown", h);
   }, []);
+
+  useEffect(() => {
+    if (!orphanCompleteNotice) return;
+    const id = setTimeout(() => setOrphanCompleteNotice(false), 6000);
+    return () => clearTimeout(id);
+  }, [orphanCompleteNotice]);
 
   const allActivities: ActivityWithMeta[] = useMemo(() => [
     ...state.deals.flatMap(deal => deal.activities.map(a => ({ ...a, dealTitle: deal.title }))),
@@ -195,6 +205,20 @@ export default function AtividadesPage() {
   const handleComplete = (a: ActivityWithMeta) => {
     if (!a.completed) {
       updateActivity(a.id, { completed: true });
+      // Atividade órfã: concluir funciona (activities: update libera pelo
+      // assignee), mas a policy de INSERT em activities exige
+      // d.owner_id = auth.uid() (ou gerente) -- não existe brecha por
+      // assignee. Oferecer "próxima atividade" aqui abriria um fluxo que a
+      // RLS sempre recusa: o insert cai, o rollback otimista apaga a linha
+      // que apareceu, e o único rastro do que houve era um console.error.
+      // Em vez de deixar aparecer-e-sumir em silêncio, nem oferecemos --
+      // e avisamos o motivo, porque simplesmente engolir a ação também
+      // deixaria a pessoa sem entender por que não tem sugestão de próximo
+      // passo aqui, como tem em toda atividade não-órfã.
+      if (a.orphan) {
+        setOrphanCompleteNotice(true);
+        return;
+      }
       setPendingDealId(a.dealId);
       setShowNextModal(true);
     } else {
@@ -592,6 +616,25 @@ export default function AtividadesPage() {
           onClose={() => setShowNextModal(false)}
           onSave={(data) => { addActivity({ dealId: pendingDealId, ...data }); setShowNextModal(false); }}
         />
+      )}
+
+      {orphanCompleteNotice && (
+        <div className="fixed bottom-6 left-1/2 z-40 flex -translate-x-1/2 items-start gap-2.5 rounded-xl border border-zinc-200 bg-white px-4 py-3 shadow-xl animate-in fade-in slide-in-from-bottom-2 duration-200 max-w-sm">
+          <Circle className="mt-0.5 h-4 w-4 shrink-0 text-emerald-500" aria-hidden="true" />
+          <div className="min-w-0">
+            <p className="text-sm font-semibold text-zinc-800">Atividade concluída</p>
+            <p className="mt-0.5 text-xs text-zinc-500">
+              Este negócio é de outro responsável, então não é possível criar uma próxima atividade nele por aqui.
+            </p>
+          </div>
+          <button
+            onClick={() => setOrphanCompleteNotice(false)}
+            className="ml-1 shrink-0 rounded p-0.5 text-zinc-400 hover:bg-zinc-100 hover:text-zinc-600 transition-colors"
+            aria-label="Fechar aviso"
+          >
+            <X className="h-3.5 w-3.5" aria-hidden="true" />
+          </button>
+        </div>
       )}
     </div>
   );
