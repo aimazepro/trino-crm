@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createMiddlewareClient } from "@/lib/supabase/server";
+import { matchesAdminAllowlist } from "@/lib/platform-admin";
 
 export async function proxy(request: NextRequest) {
   const { supabase, response } = createMiddlewareClient(request);
@@ -8,6 +9,14 @@ export async function proxy(request: NextRequest) {
   const isAuthPage =
     request.nextUrl.pathname.startsWith("/login") ||
     request.nextUrl.pathname.startsWith("/convite");
+
+  // Um platform admin não é necessariamente membro de workspace nenhum (é o
+  // mesmo motivo que já tirou /admin do matcher abaixo) -- sem essa isenção,
+  // todo login de admin puro batia em "sem membership = revogado" na primeira
+  // request pra "/" (destino padrão do login), era deslogado na hora e voltava
+  // pro /login?revoked=1 num loop silencioso. Reproduzido ao vivo 2026-08-29:
+  // tools@trinocompany.com.br logava com sucesso e nunca saía do /login.
+  const isPlatformAdmin = matchesAdminAllowlist(user?.email, process.env.PLATFORM_ADMIN_EMAILS);
 
   // Cut access the instant a member is removed or suspended, even mid-session.
   // Deleting/suspending only ever touched workspace_members -- it never
@@ -20,7 +29,7 @@ export async function proxy(request: NextRequest) {
   // membro) está suspended/deleted -- painel admin muda workspaces.status,
   // e precisa valer imediatamente, não só na próxima vez que a RLS for
   // consultada por outra rota.
-  if (user) {
+  if (user && !isPlatformAdmin) {
     const { data: membership } = await supabase
       .from("workspace_members")
       .select("id, workspaces(status)")
@@ -59,7 +68,13 @@ export async function proxy(request: NextRequest) {
   }
 
   if (user && isAuthPage) {
-    return NextResponse.redirect(new URL("/", request.url));
+    return NextResponse.redirect(new URL(isPlatformAdmin ? "/admin" : "/", request.url));
+  }
+
+  // Home genérica ("/") pressupõe workspace -- um admin puro não tem um, então
+  // manda direto pro painel dele em vez de deixar "/" quebrar em silêncio.
+  if (user && isPlatformAdmin && request.nextUrl.pathname === "/") {
+    return NextResponse.redirect(new URL("/admin", request.url));
   }
 
   return response;
