@@ -16,14 +16,25 @@ export async function proxy(request: NextRequest) {
   // own. Every RLS helper (my_workspace_ids, is_ws_admin, ...) already scopes
   // to status = 'accepted', so this SELECT comes back empty via RLS alone for
   // both a suspended row and a deleted one -- no extra status filter needed.
+  // O mesmo corte agora também acontece quando o *workspace* (não só o
+  // membro) está suspended/deleted -- painel admin muda workspaces.status,
+  // e precisa valer imediatamente, não só na próxima vez que a RLS for
+  // consultada por outra rota.
   if (user) {
     const { data: membership } = await supabase
       .from("workspace_members")
-      .select("id")
+      .select("id, workspaces(status)")
       .eq("member_user_id", user.id)
       .limit(1);
 
-    if (!membership || membership.length === 0) {
+    // workspaces(status) volta como objeto num embed to-one, mas o gerador
+    // de tipos do Supabase às vezes tipa embeds como array -- normaliza os
+    // dois formatos em vez de assumir um.
+    const rawWorkspace = membership?.[0]?.workspaces as { status: string } | { status: string }[] | null | undefined;
+    const workspaceStatus = Array.isArray(rawWorkspace) ? rawWorkspace[0]?.status : rawWorkspace?.status;
+    const workspaceShutOff = workspaceStatus === "suspended" || workspaceStatus === "deleted";
+
+    if (!membership || membership.length === 0 || workspaceShutOff) {
       await supabase.auth.signOut();
       const revokedResponse = isAuthPage
         ? response
@@ -89,6 +100,11 @@ export async function proxy(request: NextRequest) {
 // agora" instead of the actual lookup result. POST /api/convites (create)
 // rides along in the exclusion but stays safe: it does its own auth via
 // getWorkspaceContext(supabase) and 401s/403s without the proxy's help.
+// api/admin is the platform-admin API (/api/admin/*): Bearer-token or
+// session auth inside the route (src/lib/platform-admin-server.ts). Same
+// reasoning as api/v1 above -- a script calling with
+// PLATFORM_ADMIN_API_TOKEN has no session cookie, so without this exclusion
+// it hits the blanket /login redirect and reads the 307 as success.
 export const config = {
-  matcher: ["/((?!_next/static|_next/image|favicon.ico|api/auth/gmail/callback|api/auth/google-calendar/callback|api/track|api/whatsapp/webhook|api/whatsapp/queue|api/telephony/webhook|api/convites|api/automations|api/v1|api/cron|.*\\.(?:svg|png|jpg|jpeg|gif|webp)$).*)"],
+  matcher: ["/((?!_next/static|_next/image|favicon.ico|api/auth/gmail/callback|api/auth/google-calendar/callback|api/track|api/whatsapp/webhook|api/whatsapp/queue|api/telephony/webhook|api/convites|api/automations|api/v1|api/admin|api/cron|.*\\.(?:svg|png|jpg|jpeg|gif|webp)$).*)"],
 };
