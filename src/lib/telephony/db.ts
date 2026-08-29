@@ -157,6 +157,10 @@ export type TelephonyDatabase = {
         name: string;
         slug: string | null;
         plan: string;
+        // unknown, não Json: esta fatia não importa o tipo Json de
+        // database.types.ts (é o que este arquivo evita fazer, ver comentário
+        // no topo) -- assertFeatureEnabled já reafirma o formato antes de usar.
+        feature_flags: unknown;
         trial_ends_at: string | null;
         owner_user_id: string;
         created_at: string;

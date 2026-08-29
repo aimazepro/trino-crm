@@ -12,6 +12,7 @@ import {
   UnreachableNumberError,
 } from "@/lib/whatsapp/send";
 import type { OutboundMedia } from "@/lib/whatsapp/types";
+import { assertFeatureEnabled } from "@/lib/feature-flags-server";
 
 export const dynamic = "force-dynamic";
 
@@ -33,6 +34,10 @@ export async function POST(req: NextRequest) {
 
   const admin = createAdmin();
   const ownerId = await resolveWorkspaceId(admin, user.id);
+
+  const featureCheck = await assertFeatureEnabled(admin, ownerId, "whatsapp");
+  if (!featureCheck.ok) return featureCheck.response;
+
   const connection = await loadConnection(admin, ownerId);
 
   if (!connection || connection.status !== "open") {

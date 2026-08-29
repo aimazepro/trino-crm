@@ -15,6 +15,7 @@ import {
   loadExtensionForUser,
   resolveWorkspaceId,
 } from "@/lib/telephony/server";
+import { assertFeatureEnabled } from "@/lib/feature-flags-server";
 
 export const dynamic = "force-dynamic";
 
@@ -26,6 +27,9 @@ export async function POST() {
 
   try {
     const workspaceId = await resolveWorkspaceId(admin, user.id);
+
+    const featureCheck = await assertFeatureEnabled(admin, workspaceId, "voip");
+    if (!featureCheck.ok) return featureCheck.response;
 
     const account = await loadAccount(admin, workspaceId);
     if (!account || account.status !== "active") {

@@ -15,6 +15,7 @@ import { createAdmin, loadConnection, loadConnectionById } from "@/lib/whatsapp/
 import { sendWhatsAppMessage, UnreachableNumberError } from "@/lib/whatsapp/send";
 import { getDriver } from "@/lib/whatsapp";
 import type { WhatsAppConnection } from "@/lib/whatsapp/types";
+import { assertFeatureEnabled } from "@/lib/feature-flags-server";
 
 export const dynamic = "force-dynamic";
 export const maxDuration = 300;
@@ -92,6 +93,23 @@ async function connectionFor(
   const connection = await loadConnection(admin, workspaceId);
   cache.set(workspaceId, connection);
   return connection;
+}
+
+/**
+ * A workspace with `whatsapp` disabled must not have its already-queued
+ * automations keep sending -- cached per batch since the same workspace
+ * shows up across many queue rows and the check is a DB round trip.
+ */
+async function whatsappEnabledFor(
+  admin: SupabaseClient<Database>,
+  workspaceId: string,
+  cache: Map<string, boolean>,
+): Promise<boolean> {
+  if (cache.has(workspaceId)) return cache.get(workspaceId)!;
+
+  const check = await assertFeatureEnabled(admin, workspaceId, "whatsapp");
+  cache.set(workspaceId, check.ok);
+  return check.ok;
 }
 
 /** Same idea as connectionFor, keyed by connection id for group-broadcast rows. */
@@ -256,9 +274,19 @@ export async function POST(req: NextRequest) {
   let failed = 0;
 
   const connectionsById = new Map<string, WhatsAppConnection | null>();
+  const featureCache = new Map<string, boolean>();
 
   for (const item of items as any[]) {
     try {
+      if (!(await whatsappEnabledFor(admin, item.workspace_id, featureCache))) {
+        await finish(admin, item.id, {
+          status: "failed",
+          error: "Recurso 'whatsapp' não está habilitado neste workspace.",
+        });
+        failed++;
+        continue;
+      }
+
       if (item.group_jid) {
         // Group broadcast: no contact, no thread, no JID resolution — the
         // group JID is already the send target, straight from fetchGroups().

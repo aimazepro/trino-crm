@@ -27,6 +27,7 @@ import {
   useTelephony,
   type TelephonyTeamMember,
 } from "@/hooks/use-telephony";
+import { RequireFeature } from "@/components/auth/require-feature";
 
 const CREDIT_PACKS = [2500, 5000, 10000, 25000];
 
@@ -121,6 +122,7 @@ export default function TelefonePage() {
   const rateMobile = status?.rates?.mobile ?? 0;
 
   return (
+    <RequireFeature feature="voip">
     <div className="mx-auto max-w-3xl px-6 py-10">
       <div className="mb-8 flex items-center gap-3">
         <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-purple-100">
@@ -534,5 +536,6 @@ export default function TelefonePage() {
         </div>
       )}
     </div>
+    </RequireFeature>
   );
 }

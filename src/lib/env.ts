@@ -37,6 +37,13 @@ const OPTIONAL_SERVER_VARS = [
   "CRON_SECRET", // api/cron/calendar-pull -- rota existe, ainda não ligada no pg_cron (item 4 da Fase 0)
   "WHATSAPP_WEBHOOK_BASE_URL", // cai para NEXT_PUBLIC_APP_URL
   "NEXT_PUBLIC_APP_URL", // tem fallback hardcoded para localhost:3000 em alguns call sites
+  // Painel admin da plataforma (super-admin): allowlist de e-mail e o bearer
+  // token que scripts/curl usam pra chamar /api/admin/* sem sessão de
+  // navegador. matchesAdminAllowlist/tokenMatches já falham fechado (retornam
+  // false) com a var ausente -- sem elas o painel /admin fica inacessível,
+  // mas o resto do app não pode cair no boot por causa disso.
+  "PLATFORM_ADMIN_EMAILS",
+  "PLATFORM_ADMIN_API_TOKEN",
 ] as const;
 
 export function validateEnv(): void {

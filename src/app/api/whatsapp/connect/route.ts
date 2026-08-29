@@ -9,6 +9,7 @@ import {
   webhookUrlFor,
 } from "@/lib/whatsapp/connection";
 import { getDriver } from "@/lib/whatsapp";
+import { assertFeatureEnabled } from "@/lib/feature-flags-server";
 
 export const dynamic = "force-dynamic";
 
@@ -29,6 +30,9 @@ export async function POST() {
       { status: 403 },
     );
   }
+
+  const featureCheck = await assertFeatureEnabled(admin, ownerId, "whatsapp");
+  if (!featureCheck.ok) return featureCheck.response;
 
   try {
     const connection = await ensureConnection(admin, ownerId, user.email);

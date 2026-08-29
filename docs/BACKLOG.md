@@ -67,6 +67,25 @@ sem passar pelo git. A linha antiga dizia que `git push` não deploya — era fa
 - [x] **Bug do `CHECK` das filas (2026-08-19)** — `claim_pending_*_queue` gravava `processing`, constraint não aceitava. Nenhuma automação de email ou WhatsApp jamais saiu deste CRM. Migração `20260819220000`. `HAND`
 - [x] **Fase 1 — Multi-tenancy (2026-08-19)** — `workspace_id` real, RLS por papel, convite
   por link, fecha S-6 e S-3 de brinde. Ver seção própria abaixo. `DES1`
+- [x] **Painel admin de workspaces (2026-08-29)** — `/admin` + `/api/admin/*`:
+  criar workspace+dono, suspender/ativar/apagar (soft), feature flags por
+  workspace, uso/gasto sem Stripe (telefonia é o único gasto em R$ real
+  hoje). Enforcement real em WhatsApp (envio + fila + conexão) e VoIP
+  (chamadas + token); Automações só tem o gate de UI ainda, sem checagem
+  nas mutações de `automacoes-context.tsx` — ver item abaixo. Migração
+  `20260829130000_revoke_workspace_admin_columns.sql` (fecha um buraco de
+  grant de coluna que deixava qualquer admin de workspace reverter sua
+  própria suspensão/feature flag direto do navegador) **ainda não foi
+  aplicada em produção — aplicar antes de considerar o painel seguro pra
+  valer**. Ver `docs/superpowers/specs/2026-08-29-admin-workspaces-design.md`.
+- [ ] **Painel admin — fechar 2 gaps de enforcement conhecidos**: (1)
+  `automacoes-context.tsx` faz insert/update/delete direto no Supabase do
+  client, sem checar `feature_flags.automacoes` — só a tela esconde, a
+  mutação não é bloqueada; (2) `/api/v1/*` (chave de API) não checa
+  `workspaces.status`, então um workspace suspenso mantém acesso total via
+  API mesmo depois de suspenso pelo painel (só a sessão de navegador é
+  cortada, via `proxy.ts`). Achados na revisão final de 2026-08-29, não
+  corrigidos por serem maiores que um fix de última hora.
 
 ---
 

@@ -17,6 +17,7 @@ import {
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { RequireCapability } from "@/components/auth/require-capability";
+import { RequireFeature } from "@/components/auth/require-feature";
 import {
   useAutomacoes,
   TRIGGER_LABELS,
@@ -455,8 +456,10 @@ function HistoricoTab() {
 // nada acontecendo. Este é o gate de cliente; a RLS continua sendo o que vale.
 export default function AutomacoesPage() {
   return (
-    <RequireCapability capability="gerenciar_automacoes">
-      <AutomacoesPageContent />
-    </RequireCapability>
+    <RequireFeature feature="automacoes">
+      <RequireCapability capability="gerenciar_automacoes">
+        <AutomacoesPageContent />
+      </RequireCapability>
+    </RequireFeature>
   );
 }
