@@ -1,7 +1,7 @@
 // src/app/api/admin/workspaces/[id]/route.ts
 import { requirePlatformAdmin, adminClient } from "@/lib/platform-admin-server";
 import { apiError, apiSuccess } from "@/lib/api-auth";
-import { effectiveFeatures, type FeatureKey } from "@/lib/feature-flags";
+import { effectiveFeatures, FEATURE_KEYS, type FeatureKey } from "@/lib/feature-flags";
 import type { SupabaseClient } from "@supabase/supabase-js";
 import type { Database } from "@/lib/supabase/database.types";
 
@@ -168,9 +168,21 @@ export async function PATCH(request: Request, { params }: { params: Promise<{ id
     update.status = body.status;
   }
   if (body.featureFlags !== undefined) {
+    const flags = body.featureFlags;
+    if (typeof flags !== "object" || flags === null || Array.isArray(flags)) {
+      return apiError("VALIDATION_ERROR", "featureFlags precisa ser um objeto", 400);
+    }
+    for (const [key, value] of Object.entries(flags)) {
+      if (!FEATURE_KEYS.includes(key as FeatureKey)) {
+        return apiError("VALIDATION_ERROR", `featureFlags: chave desconhecida '${key}'`, 400);
+      }
+      if (typeof value !== "boolean") {
+        return apiError("VALIDATION_ERROR", `featureFlags.${key} precisa ser um boolean`, 400);
+      }
+    }
     // Merge raso: manda só o que muda, o resto do objeto guardado continua.
     const currentFlags = (current.feature_flags ?? {}) as Partial<Record<FeatureKey, boolean>>;
-    update.feature_flags = { ...currentFlags, ...body.featureFlags };
+    update.feature_flags = { ...currentFlags, ...flags };
   }
 
   if (Object.keys(update).length === 0) {

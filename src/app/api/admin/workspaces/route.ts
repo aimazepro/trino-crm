@@ -117,6 +117,16 @@ export async function POST(request: Request) {
     email_confirm: true,
   });
   if (createErr || !created?.user) {
+    // Backstop pro pre-check de listUsers() acima, que só olha os primeiros
+    // 50 usuários (perPage default) -- além disso um e-mail existente escapa
+    // do pre-check e só aparece aqui, no retorno do createUser.
+    if (createErr?.code === "email_exists") {
+      return apiError(
+        "EMAIL_EXISTS",
+        "Já existe uma conta com esse e-mail — adicionar um usuário existente a um workspace novo não é suportado aqui",
+        409
+      );
+    }
     return apiError("INTERNAL_ERROR", createErr?.message ?? "Falha ao criar usuário", 500);
   }
   const ownerUserId = created.user.id;
