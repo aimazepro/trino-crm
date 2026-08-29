@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, useRef } from "react";
+import { useState, useEffect, useRef, useMemo } from "react";
 import { X, Phone, Users, Video, Mail, MessageCircle, Camera, Briefcase, ClipboardList, Search, UserPlus, Plus, Paperclip } from "lucide-react";
 import { Activity } from "@/lib/crm-types";
 import { useCrm } from "@/contexts/crm-context";
@@ -95,9 +95,29 @@ function toTimeInput(iso: string) {
 }
 
 export function ActivityModal({ activity, onClose, onSave, deals = [], defaultDealId = "" }: ActivityModalProps) {
-  const { addActivityAttachment, deleteActivityAttachment } = useCrm();
+  const { state, addActivityAttachment, deleteActivityAttachment } = useCrm();
   const { map, self, loading: teamLoading } = useTeam();
   const fileInputRef = useRef<HTMLInputElement>(null);
+
+  /**
+   * A atividade viva, buscada por id no estado do CRM, porque as seis telas que
+   * abrem este modal guardam a atividade num useState próprio e passam essa
+   * cópia como prop -- um retrato do momento do clique. Anexar ou remover anexo
+   * troca o objeto que vive no estado, não o retrato, então a lista abaixo não
+   * mudava até fechar e reabrir. Corrigir aqui conserta os seis de uma vez.
+   *
+   * A órfã (atribuída a esta pessoa num negócio de outro dono) mora fora de
+   * `deals`, em `orphanActivities`; sem o segundo `find` ela seria justamente a
+   * que continuaria parada.
+   */
+  const activityViva = useMemo(() => {
+    if (!activity) return null;
+    return (
+      state.deals.flatMap((d) => d.activities).find((a) => a.id === activity.id) ??
+      state.orphanActivities.find((a) => a.id === activity.id) ??
+      activity
+    );
+  }, [activity, state.deals, state.orphanActivities]);
 
   const [type, setType] = useState(activity?.type || "Ligação");
   const [title, setTitle] = useState(activity?.title || "Ligação");
@@ -310,9 +330,9 @@ export function ActivityModal({ activity, onClose, onSave, deals = [], defaultDe
                   onChange={e => { handleFiles(e.target.files); e.target.value = ""; }}
                 />
               </div>
-              {activity.attachments.length > 0 && (
+              {(activityViva?.attachments.length ?? 0) > 0 && (
                 <ul className="mt-2 space-y-1">
-                  {activity.attachments.map(att => (
+                  {activityViva!.attachments.map(att => (
                     <li key={att.id} className="flex items-center justify-between text-xs text-gray-600 bg-gray-50 rounded-lg px-3 py-1.5">
                       <span className="truncate">{att.fileName}</span>
                       <button onClick={() => deleteActivityAttachment(att.id)} className="text-gray-400 hover:text-red-500 shrink-0 ml-2"><X size={12} /></button>
