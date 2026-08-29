@@ -26,6 +26,10 @@ const REQUIRED_SERVER_VARS = [
   // automação ficam paradas em silêncio -- fail closed, mas só se percebe
   // olhando log de cron. Ver [[trino-crm-fase0-hardening-started]].
   "AUTOMATION_DISPATCH_SECRET",
+  // Painel admin da plataforma (super-admin): allowlist de e-mail e o bearer
+  // token que scripts/curl usam pra chamar /api/admin/* sem sessão de navegador.
+  "PLATFORM_ADMIN_EMAILS",
+  "PLATFORM_ADMIN_API_TOKEN",
 ] as const;
 
 // Têm fallback ou uso condicional no código hoje -- documentadas para quem
