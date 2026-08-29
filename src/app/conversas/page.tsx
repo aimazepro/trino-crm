@@ -45,7 +45,7 @@ export default function ConversasPage() {
   const selfName = self?.name ?? "";
   const {
     conversations, selectedId, connection, loading,
-    selectConversation, togglePinned, toggleUnread,
+    selectConversation, togglePinned, toggleUnread, applyOwner,
   } = useWhatsAppInbox();
 
   const [scope, setScope] = useState<Scope>("minhas");
@@ -153,6 +153,10 @@ export default function ConversasPage() {
         // estado que este UPDATE esperava (ex.: outro vendedor assumiu da
         // fila um instante antes). Sem o .select(), isso passava batido.
         alert("Essa conversa já foi assumida por outra pessoa.");
+      } else {
+        // Só depois de o banco confirmar. A lista sai do estado do inbox, então
+        // sem esta linha a conversa continuava na Fila até um reload.
+        applyOwner(conversationId, ownerId);
       }
     } finally {
       setAssigning(false);

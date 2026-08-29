@@ -27,7 +27,8 @@ export type Capability =
   | "gerenciar_motivos_exclusao"
   | "gerenciar_tipos_atividade"
   | "mesclar_duplicatas"
-  | "gerenciar_sequencias";
+  | "gerenciar_sequencias"
+  | "gerenciar_metas";
 
 const CAPABILITIES: Record<Capability, readonly Role[]> = {
   // A RLS de `automations`, `automation_labels` e `sequences` já exige
@@ -67,6 +68,14 @@ const CAPABILITIES: Record<Capability, readonly Role[]> = {
   // `sequences` e `sequence_steps`: insert/update/delete exigem
   // is_ws_manager() (em sequence_steps via EXISTS na sequência dona).
   gerenciar_sequencias: ["admin", "gerente"],
+
+  // `goals`: select é do workspace inteiro, insert/update/delete exigem
+  // is_ws_manager() -- a mesma forma de `products`, e por isso o gate também é
+  // nos botões e não na tela: o vendedor precisa *ver* a meta que mede o
+  // trabalho dele. Esta capacidade nasceu do P5: a varredura do P2 cobriu oito
+  // tabelas e passou por Metas, então a tela oferecia o assistente inteiro para
+  // o vendedor e o insert voltava 403 sem dizer nada.
+  gerenciar_metas: ["admin", "gerente"],
 };
 
 export function can(role: Role | null | undefined, capability: Capability): boolean {

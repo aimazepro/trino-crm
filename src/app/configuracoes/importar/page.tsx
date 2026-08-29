@@ -172,7 +172,13 @@ export default function ImportacaoPage() {
   const isEtapaMapped = Object.values(mappings).includes("dealStageName");
   const linkedStagesCount = Object.keys(stageMappings).filter(k => stageMappings[k]).length;
   const isStageWarningVisible = isEtapaMapped && (linkedStagesCount < fileStages.length);
-  const isNextDisabled = isStageWarningVisible || !mappings["Nome do contato"] || mappings["Nome do contato"] === "__ignore__";
+  // `mappings` é indexado pelo cabeçalho do arquivo, não pelo campo de destino:
+  // procurar a chave "Nome do contato" só funcionava com o modelo baixado, e
+  // travava o botão para sempre em qualquer CSV com cabeçalho próprio (com um
+  // tooltip que ainda falava de etapas). O que importa é que *alguma* coluna
+  // esteja mapeada para personName, seja qual for o nome dela no arquivo.
+  const isPersonNameMapped = Object.values(mappings).includes("personName");
+  const isNextDisabled = isStageWarningVisible || !isPersonNameMapped;
 
   // Trigger download of the sample template CSV
   const handleDownloadTemplate = () => {
@@ -922,7 +928,13 @@ export default function ImportacaoPage() {
                   <button 
                     data-testid="mapping-next-button" 
                     disabled={isNextDisabled}
-                    title={isNextDisabled ? "Vincule todas as etapas do seu arquivo antes de continuar" : "Avançar"}
+                    title={
+                      !isPersonNameMapped
+                        ? "Escolha qual coluna do arquivo é o Nome do Contato"
+                        : isStageWarningVisible
+                          ? "Vincule todas as etapas do seu arquivo antes de continuar"
+                          : "Avançar"
+                    }
                     onClick={() => setCurrentStep(3)}
                     className="flex items-center gap-2 rounded-lg bg-gradient-to-r from-amber-500 to-amber-400 px-5 py-2.5 text-sm font-semibold text-white hover:from-amber-600 hover:to-amber-500 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
                   >

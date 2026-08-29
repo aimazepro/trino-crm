@@ -29,7 +29,7 @@ export function useCrmMutations({ state, setState, userId, workspaceId, supabase
     setState((prev) => {
       const deals = prev.deals.map((d) => {
         if (d.id !== dealId) return d;
-        const log: HistoryLog = { id: `log_${Date.now()}`, description, subtext, createdAt: now };
+        const log: HistoryLog = { id: `log_${Date.now()}`, description, subtext, createdAt: now, actorUserId: userId };
         return { ...d, stageId: newStageId, daysInStage: 0, stageEnteredAt: now, history: [log, ...d.history] };
       });
       return { ...prev, deals };
@@ -54,7 +54,7 @@ export function useCrmMutations({ state, setState, userId, workspaceId, supabase
       ...prev,
       deals: prev.deals.map((d) => {
         if (d.id !== dealId) return d;
-        const log: HistoryLog = { id: `log_${Date.now()}`, description, subtext, createdAt: now };
+        const log: HistoryLog = { id: `log_${Date.now()}`, description, subtext, createdAt: now, actorUserId: userId };
         return { ...d, pipelineId: newPipelineId, stageId: newStageId, daysInStage: 0, stageEnteredAt: now, history: [log, ...d.history] };
       }),
     }));
@@ -77,7 +77,7 @@ export function useCrmMutations({ state, setState, userId, workspaceId, supabase
       ...prev,
       deals: prev.deals.map((d) => {
         if (d.id !== dealId) return d;
-        const log: HistoryLog = { id: `log_${Date.now()}`, description, subtext, createdAt: new Date().toISOString() };
+        const log: HistoryLog = { id: `log_${Date.now()}`, description, subtext, createdAt: new Date().toISOString(), actorUserId: userId };
         return { ...d, status, lossReason: reason, lossReasonId: reasonId ?? undefined, lossReasonNote: reasonNote, history: [log, ...d.history] };
       }),
     }));
@@ -205,7 +205,7 @@ export function useCrmMutations({ state, setState, userId, workspaceId, supabase
   };
 
   const addDealHistory = (dealId: string, description: string, subtext: string) => {
-    const log: HistoryLog = { id: `hist_${Date.now()}`, description, subtext, createdAt: new Date().toISOString() };
+    const log: HistoryLog = { id: `hist_${Date.now()}`, description, subtext, createdAt: new Date().toISOString(), actorUserId: userId };
     setState((prev) => ({
       ...prev,
       deals: prev.deals.map((d) => d.id === dealId ? { ...d, history: [log, ...d.history] } : d),
@@ -238,6 +238,7 @@ export function useCrmMutations({ state, setState, userId, workspaceId, supabase
       id: histRow?.id ?? `h_${Date.now()}`,
       description: "Negócio criado", subtext: "Criado manualmente",
       createdAt: histRow?.created_at ?? new Date().toISOString(),
+      actorUserId: userId,
     };
     const newDeal: Deal = { ...deal, id: data.id, history: [firstLog], notes: [], products: [], activities: [], appointments: [] };
     setState((prev) => ({ ...prev, deals: [...prev.deals, newDeal] }));
@@ -312,6 +313,7 @@ export function useCrmMutations({ state, setState, userId, workspaceId, supabase
     const firstLog: HistoryLog = {
       id: histRow?.id ?? `h_${Date.now()}`, description: "Negócio criado", subtext,
       createdAt: histRow?.created_at ?? new Date().toISOString(),
+      actorUserId: userId,
     };
     const newDeal: Deal = {
       ...source, id: data.id, title: `${source.title} (cópia)`, status: "Ativo", labels: [...source.labels],

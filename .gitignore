@@ -48,3 +48,6 @@ next-env.d.ts
 
 # graphify generated output (large, regenerable)
 graphify-out/
+
+# Artefatos do MCP do Playwright (snapshots e logs de sessão de navegador)
+.playwright-mcp/

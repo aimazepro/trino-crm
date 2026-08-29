@@ -427,3 +427,85 @@ pessoa em Insights, Metas, Forecast e Ligações; Placar do time aparece.
 algo estiver quebrado, o rollback é promover o deploy anterior no Vercel — as
 migrations não voltam, mas são aditivas, então o código antigo funciona com o
 banco novo.
+
+---
+
+# P5 — executado no navegador em 2026-08-28
+
+Primeira vez que estas telas foram clicadas. Duas passadas: **João (admin)** e
+**Ana (vendedor)**, no Chrome real do usuário via extensão do Playwright MCP.
+O gabarito do banco (4 negócios abertos, R$ 10.650 — Ana 2 / R$ 5.500, João 2 /
+R$ 5.150, zero Ganho, zero Perdido) foi conferido antes e restaurado depois.
+
+## O que passou
+
+**João, leitura pura (14 itens):** todos os números da tela bateram com o
+gabarito, incluindo os quatro pontos de `/negocios` que o P1 corrigiu.
+
+**Ana, leitura pura (7 itens):** Painel R$ 5.500 / 2 abertos — **o mesmo número
+que o admin vê filtrando por ela**, que é o cruzamento que o P1 pedia —, sem
+seletor de vendedor e com o placar do time listando as 2 pessoas; `/automacoes`
+e `/automacoes/nova` fora do menu e com "Sem acesso"; as seis URLs do P2 fora do
+menu e com "Sem acesso" uma a uma; Produtos abre sem nenhum botão de escrita;
+Configurações › WhatsApp sem QR e sem desconectar, dizendo "A conexão é
+gerenciada pelo administrador"; e o menu Sequências da aba de atividades
+mostrando **"Nenhuma sequência encontrada"** — o outro lado do `ONLY_ME`, que
+o João vê.
+
+Extras do roteiro do vendedor, também limpos: `/insights` com placar e **sem** o
+seletor de usuário que o admin tem; `/forecast` só com seletor de pipeline;
+`/ligacoes` com "Ana Clara" fixo e zero das 35 ligações do João; `/metas` com o
+Responsável travado num `<span>`; `/conversas` sem aba Time e sem dropdown de
+vendedores.
+
+**Escrita, provada em produção:** nome vazio no Perfil recusado pelo servidor
+com o `trim` do cliente contornado por `fetch` (`""` e `"   "` devolvem **0**,
+nome intacto); contato criado nasce com `owner_id`; assumir conversa da fila
+grava (Fila 2 → 0); import de CSV cria **2 contatos** com dono e e-mail — a rota
+que o P1 consertou funciona; meta de Atividades mostra **34 de 40 · 85%**, o
+mesmo 34 do placar, onde antes do P4 era 0 em silêncio;
+`sequence_enrollments` sai de zero (1 inscrição + 1 atividade gerada);
+`deal_history` mostra `data · Joao Reis` nas três linhas novas; reatribuição
+persiste; perda com motivo grava `loss_reason="Preço"`; e o modal de
+compartilhamento grava `SPECIFIC_USERS` + share da Ana, com ela passando a
+enxergar **1** sequência (os outros dois modos conferidos por SQL: `WORKSPACE`
+sem share → 1, `SPECIFIC_USERS` sem share → 0).
+
+## Cinco defeitos achados, todos **anteriores a esta branch**, todos corrigidos
+
+1. **Metas não tinha gate de UI.** A RLS de `goals` já exigia `is_ws_manager()`
+   para insert/update/delete — a varredura do P2 cobriu oito tabelas e passou
+   por esta. O vendedor preenchia o assistente inteiro e o insert voltava
+   **403**, com `if (!error && data)` sem `else`: modal aberto, nenhuma
+   mensagem. É o `automations` do P1 repetido. Agora existe a capacidade
+   `gerenciar_metas` (gate nos botões, como `products`, porque o vendedor
+   precisa **ver** a meta dele), e tanto criar quanto excluir dizem o que houve.
+   O excluir ganhou `.select()`: a RLS recusa devolvendo "0 linhas", e sem isso
+   a meta sumia da tela e continuava no banco.
+2. **Seletor de responsável da meta sempre vazio.** A consulta filtrava
+   `status = "active"`, valor que `workspace_members` nunca teve — o real é
+   `accepted`, usado em outros 12 lugares. Gerente nenhum conseguia criar meta
+   para outra pessoa. A consulta manual saiu; a lista vem de `useTeam()`.
+3. **Criar contato levava a "Contato não encontrado".** `handleCreate` navegava
+   com um id local `cont_<timestamp>` e descartava o uuid que `addContact`
+   devolve. Os outros quatro chamadores já usavam o retorno.
+4. **Import travava com CSV que não fosse o modelo.** A guarda procurava a
+   chave literal `"Nome do contato"` num mapa indexado pelo *cabeçalho do
+   arquivo*. Agora pergunta o que importa (`algum destino é personName`), e o
+   tooltip parou de falar de etapas quando o problema é outro.
+5. **Três telas "stale até reload"**, mesma família do anexo da atividade órfã
+   do P4: assumir conversa não mexia no estado do inbox (a conversa ficava na
+   Fila com o botão ainda oferecido) e o log otimista do histórico nascia sem
+   `actorUserId` (a linha só ganhava autor depois de recarregar). Os dois
+   corrigidos; o do anexo já tinha sido no P4.
+
+Cosméticos, deixados de fora de propósito: o prefetch de `/dashboard` que volta
+404 (rewrite não serve o payload RSC) e os rótulos sem acento em `/insights`.
+
+## O que ficou pendente
+
+- **Excluir negócio com motivo** — o menu ⋯ do negócio fecha entre uma chamada
+  e outra do MCP; é um clique manual.
+- **Enviar WhatsApp de verdade** — depende de um número seguro combinado.
+- **Anexo e notificação em atividade órfã** — exige criar a atividade como João
+  e depois **logar como Ana** para ver o anexo aparecer sem recarregar.

@@ -173,6 +173,18 @@ export function useWhatsAppInbox() {
     [conversations, supabase],
   );
 
+  /**
+   * Reflete na lista um dono que o banco já aceitou. Diferente dos vizinhos
+   * daqui, este não escreve: quem escreve é a tela, que precisa distinguir erro
+   * de "0 linhas" antes de mexer no estado. Sem isto a conversa assumida ficava
+   * na aba Fila com o botão "Assumir conversa" ainda oferecido, até recarregar.
+   */
+  const applyOwner = useCallback((conversationId: string, ownerId: string | null) => {
+    setConversations((prev) =>
+      prev.map((c) => (c.id === conversationId ? { ...c, ownerId } : c)),
+    );
+  }, []);
+
   return {
     conversations,
     selectedId,
@@ -182,6 +194,7 @@ export function useWhatsAppInbox() {
     selectConversation,
     togglePinned,
     toggleUnread,
+    applyOwner,
     clearError: useCallback(() => setError(null), []),
   };
 }

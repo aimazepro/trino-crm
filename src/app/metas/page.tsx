@@ -6,8 +6,9 @@ import { cn } from "@/lib/utils";
 import { useRouter } from "next/navigation";
 import { createClient } from "@/lib/supabase/client";
 import { fetchGoalProgress } from "@/lib/goals-helpers";
-import { useWorkspace } from "@/lib/workspace";
+import { useWorkspace, useWorkspaceInfo } from "@/lib/workspace";
 import { useTeam } from "@/hooks/use-team";
+import { can } from "@/lib/permissions";
 
 type GoalType = "Negócios Adicionados" | "Negócios em Andamento" | "Negócios Ganhos" | "Receita" | "Atividades";
 
@@ -29,11 +30,15 @@ export default function MetasPage() {
   const router = useRouter();
   const supabase = createClient();
   const { workspaceId } = useWorkspace();
-  const { self, isManager } = useTeam();
+  const { self, isManager, members } = useTeam();
+  // Mesmo gate de `products`: a tela continua aberta para o vendedor ler, os
+  // botões de escrita é que somem. Sem isto ele preenchia o assistente inteiro
+  // e o insert voltava 403 sem mensagem nenhuma.
+  const info = useWorkspaceInfo();
+  const podeGerenciar = can(info?.role, "gerenciar_metas");
 
   const [goals, setGoals] = useState<any[]>([]);
   const [pipelines, setPipelines] = useState<any[]>([]);
-  const [users, setUsers] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
 
   const [showModal, setShowModal] = useState(false);
@@ -54,32 +59,18 @@ export default function MetasPage() {
     endDate: "",
   });
 
-  // Load pipelines and team members/users for selects
-  const loadOptionsData = useCallback(async (userId: string) => {
+  // Só pipelines: a lista de pessoas vem de useTeam(). A consulta que morava
+  // aqui filtrava `status = "active"`, valor que `workspace_members` nunca teve
+  // -- o real é "accepted" --, então voltava vazia e o seletor de responsável
+  // ficava só com quem estava logado: gerente nenhum conseguia criar meta para
+  // outra pessoa. Duas listas de time na mesma casa é como o defeito nasceu.
+  const loadOptionsData = useCallback(async () => {
     const { data: pData } = await supabase
       .from("pipelines")
       .select("id, name")
       .order("sort_order");
     setPipelines(pData ?? []);
-
-    const { data: { user } } = await supabase.auth.getUser();
-    const selfName = user?.user_metadata?.full_name || user?.email || "joao paulo";
-    const userList = [{ id: userId, name: selfName }];
-
-    const { data: members } = await supabase
-      .from("workspace_members")
-      .select("member_user_id, name, email")
-      .eq("workspace_id", workspaceId)
-      .eq("status", "active");
-
-    (members ?? []).forEach((m) => {
-      if (m.member_user_id && m.member_user_id !== userId) {
-        userList.push({ id: m.member_user_id, name: m.name || m.email });
-      }
-    });
-
-    setUsers(userList);
-  }, [supabase, workspaceId]);
+  }, [supabase]);
 
   const loadGoals = useCallback(async () => {
     setLoading(true);
@@ -89,7 +80,7 @@ export default function MetasPage() {
       return;
     }
 
-    await loadOptionsData(user.id);
+    await loadOptionsData();
 
     const { data: goalsData } = await supabase
       .from("goals")
@@ -188,17 +179,37 @@ export default function MetasPage() {
       .single();
 
     setSaving(false);
-    if (!error && data) {
-      const { currentValue, error: progressError } = await fetchGoalProgress(supabase, data);
-      if (progressError) console.error(`Progresso da meta ${data.id} falhou:`, progressError);
-      setGoals((prev) => [{ ...data, current_value: currentValue }, ...prev]);
-      setShowModal(false);
+    // Sem este `else` o insert recusado pela RLS (403 para vendedor) deixava o
+    // modal aberto e nada acontecia: a pessoa clicava de novo achando que tinha
+    // errado o formulário.
+    if (error || !data) {
+      console.error("[Metas] criar meta falhou:", error);
+      alert(
+        error?.code === "42501" || error?.message?.includes("row-level security")
+          ? "Só administradores e gerentes podem criar metas."
+          : `Erro ao criar meta: ${error?.message ?? "desconhecido"}`
+      );
+      return;
     }
+    const { currentValue, error: progressError } = await fetchGoalProgress(supabase, data);
+    if (progressError) console.error(`Progresso da meta ${data.id} falhou:`, progressError);
+    setGoals((prev) => [{ ...data, current_value: currentValue }, ...prev]);
+    setShowModal(false);
   };
 
   const handleDeleteGoal = async () => {
     if (!goalToDelete) return;
-    await supabase.from("goals").delete().eq("id", goalToDelete);
+    // `.select()` porque a RLS recusa delete filtrando a linha, não levantando
+    // erro: sem isto voltava "0 linhas" em silêncio e o filtro local abaixo
+    // sumia com a meta na tela enquanto ela continuava no banco.
+    const { data, error } = await supabase.from("goals").delete().eq("id", goalToDelete).select("id");
+    if (error || !data || data.length === 0) {
+      console.error("[Metas] excluir meta falhou:", error);
+      alert("Não foi possível excluir a meta. Só administradores e gerentes podem.");
+      setShowDeleteModal(false);
+      setGoalToDelete(null);
+      return;
+    }
     setGoals((prev) => prev.filter((g) => g.id !== goalToDelete));
     setShowDeleteModal(false);
     setGoalToDelete(null);
@@ -223,12 +234,14 @@ export default function MetasPage() {
             <h1 className="text-xl font-semibold text-zinc-900">Metas</h1>
             <p className="text-sm text-zinc-400 mt-0.5">Acompanhe o progresso das suas metas de vendas</p>
           </div>
-          <button
-            onClick={openModal}
-            className="flex items-center gap-2 px-4 py-2 text-sm font-medium text-white bg-gradient-to-r from-amber-500 to-amber-400 rounded-lg hover:from-amber-600 hover:to-amber-500 shadow-sm hover:shadow-md transition-colors"
-          >
-            <Plus className="h-4 w-4" /> Nova Meta
-          </button>
+          {podeGerenciar && (
+            <button
+              onClick={openModal}
+              className="flex items-center gap-2 px-4 py-2 text-sm font-medium text-white bg-gradient-to-r from-amber-500 to-amber-400 rounded-lg hover:from-amber-600 hover:to-amber-500 shadow-sm hover:shadow-md transition-colors"
+            >
+              <Plus className="h-4 w-4" /> Nova Meta
+            </button>
+          )}
         </div>
 
         {loading ? (
@@ -242,14 +255,18 @@ export default function MetasPage() {
             </div>
             <h2 className="text-[15px] font-bold text-zinc-900 mb-2">Nenhuma meta criada</h2>
             <p className="text-sm text-zinc-400 mb-8 leading-relaxed max-w-sm">
-              Defina metas para acompanhar o desempenho da sua equipe em negócios, receita e atividades.
+              {podeGerenciar
+                ? "Defina metas para acompanhar o desempenho da sua equipe em negócios, receita e atividades."
+                : "Quando alguém da administração criar metas, o seu progresso aparece aqui."}
             </p>
-            <button
-              onClick={openModal}
-              className="flex items-center gap-2 px-4 py-2 text-sm font-medium text-white bg-gradient-to-r from-amber-500 to-amber-400 rounded-lg hover:from-amber-600 hover:to-amber-500 shadow-sm hover:shadow-md transition-colors"
-            >
-              <Plus className="h-4 w-4" /> Criar primeira meta
-            </button>
+            {podeGerenciar && (
+              <button
+                onClick={openModal}
+                className="flex items-center gap-2 px-4 py-2 text-sm font-medium text-white bg-gradient-to-r from-amber-500 to-amber-400 rounded-lg hover:from-amber-600 hover:to-amber-500 shadow-sm hover:shadow-md transition-colors"
+              >
+                <Plus className="h-4 w-4" /> Criar primeira meta
+              </button>
+            )}
           </div>
         ) : (
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
@@ -278,18 +295,20 @@ export default function MetasPage() {
                         </p>
                       </div>
                     </div>
-                    <button
-                      onClick={(e) => {
-                        e.preventDefault();
-                        e.stopPropagation();
-                        setGoalToDelete(goal.id);
-                        setShowDeleteModal(true);
-                      }}
-                      className="p-1.5 rounded-md text-zinc-400 hover:bg-red-50 hover:text-red-600 transition-colors"
-                      aria-label="Excluir meta"
-                    >
-                      <Trash2 className="h-3.5 w-3.5" />
-                    </button>
+                    {podeGerenciar && (
+                      <button
+                        onClick={(e) => {
+                          e.preventDefault();
+                          e.stopPropagation();
+                          setGoalToDelete(goal.id);
+                          setShowDeleteModal(true);
+                        }}
+                        className="p-1.5 rounded-md text-zinc-400 hover:bg-red-50 hover:text-red-600 transition-colors"
+                        aria-label="Excluir meta"
+                      >
+                        <Trash2 className="h-3.5 w-3.5" />
+                      </button>
+                    )}
                   </div>
                   <div>
                     <div className="flex items-end justify-between mb-2">
@@ -490,7 +509,7 @@ export default function MetasPage() {
                         className="w-full rounded-lg border border-zinc-200 px-3 py-2 text-sm text-zinc-900 focus:outline-none focus:ring-2 focus:ring-amber-400"
                       >
                         <option value="">Todos os usuarios</option>
-                        {users.map((u) => (
+                        {members.map((u) => (
                           <option key={u.id} value={u.id}>
                             {u.name}
                           </option>

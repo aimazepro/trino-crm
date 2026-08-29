@@ -327,10 +327,14 @@ export default function ContatosPage() {
     resetBulkStates();
   };
 
-  const handleCreate = (data: NewContactData) => {
-    const id = `cont_${Date.now()}`;
-    addContact({
-      id,
+  const handleCreate = async (data: NewContactData) => {
+    // O id local existe só para satisfazer o tipo Contact: quem manda é o uuid
+    // que o banco devolve. Navegar com o id local levava a "Contato não
+    // encontrado", porque `addContact` guarda a linha com `data.id` do insert e
+    // descarta este. Os outros chamadores (conversas, empresas, novo negócio,
+    // sidebar do negócio) já esperavam o retorno.
+    const realId = await addContact({
+      id: "",
       name: data.name,
       emails: data.email ? [{ value: data.email, type: data.emailType }] : [],
       phones: data.phone ? [{ value: data.phone, type: data.phoneType }] : [],
@@ -338,7 +342,7 @@ export default function ContatosPage() {
       companyId: data.companyId || undefined,
     });
     setShowModal(false);
-    router.push(`/contatos/${id}`);
+    if (realId) router.push(`/contatos/${realId}`);
   };
 
   // Text value for a column id, used by both CSV export and any plain-text needs.

@@ -2,41 +2,65 @@
 
 Copie o bloco abaixo inteiro como primeira mensagem da sessão nova.
 
-> Atualizado em 2026-08-28, **depois** do push, do merge na `main` e do deploy
-> em produção. A versão anterior deste arquivo dizia que produção não tinha os
-> commits — não é mais verdade.
+> Atualizado em 2026-08-28 à noite, **depois** da passada do João no navegador.
+> As versões anteriores deste bloco diziam que nenhuma tela tinha sido clicada
+> — não é mais verdade. O que falta está no "Adendo 2", no fim do arquivo.
 
 ---
 
 P5 do docs/TODO-2026-08-28-multiusuario-pendencias.md. Leia o documento
-inteiro antes de mexer em qualquer coisa — P0 a P4 estão fechados e cada
-seção registra premissas que se mostraram erradas. Três delas mudam como
-você trabalha: a do P2 muda como se prova um gate, a do P3 registra que
-o painel não tinha período nenhum, e a do P4 corrige duas descrições de
-sintoma que estavam erradas no próprio documento.
+inteiro e depois os dois adendos no fim de
+docs/PROMPT-PROXIMA-SESSAO-P5.md. **Não é para codar.**
 
-**O P5 encolheu.** Ele tinha duas partes: verificar as telas, e depois
-deployar e mergear. **A segunda parte já foi feita** — merge na `main` e
-deploy em produção, nesta ordem invertida, por decisão minha e com o
-risco declarado. Sobra só a verificação, que é o que nunca aconteceu:
-nada foi clicado em navegador nesta branch inteira. Tudo foi provado por
-leitura de código e asserção SQL.
+**A passada do João já foi feita no navegador e passou inteira** — os 14
+itens estão na tabela do Adendo 2, com os números vistos. Não repita.
+Falta: (a) a passada da Ana, que é leitura pura, e (b) os doze itens de
+escrita, que exigem autorização item a item.
 
-**Não é para codar.** Comece me perguntando como quero conduzir: eu
-percorro as telas e te reporto, ou você tenta dirigir o navegador. Se for
-eu, sua saída é um checklist enxuto, na ordem das telas, com o número
-esperado ao lado de cada item — não um passo a passo prolixo. O roteiro
-completo está no P5 do documento, já com os itens do P3 e do P4
-acrescentados.
+Comece pedindo a senha da Ana (`claraferrodrigui@gmail.com`) e uma aba
+aberta em `https://trino-crm.vercel.app/login`. As contas entram por
+`signInWithPassword`; o Google OAuth do mesmo formulário não é dirigível.
 
-Números provados no banco, que servem de gabarito (produção,
-2026-08-28):
-- Admin, "Todos os vendedores": Pipeline R$ 10.650, 4 abertos.
-- Admin filtrando a Ana: R$ 5.500, 2 abertos — tem que bater com o que a
-  Ana vê logada. É esse cruzamento que pega o bug que o P1 corrigiu.
-- Ganhos R$ 0 e conversão 0% em qualquer período: não existe negócio
-  Ganho nem Perdido em produção.
-- Placar do time: 2 linhas para os dois papéis.
+Ordem: **leitura pura primeiro, com o banco intacto.** Como Ana —
+
+1. Painel: **R$ 5.500 / 2 abertos** (é o cruzamento que pega o bug do P1
+   — o admin filtrando ela viu o mesmo número), **sem** seletor de
+   vendedor, e o **placar do time aparece com as 2 pessoas**.
+2. `/automacoes`: some do menu, e a URL digitada mostra "Sem acesso".
+   `/automacoes/nova` também.
+3. As seis telas de Configurações do P2 — Campos de dados, Motivos de
+   Perda, Motivos de Exclusão, Tipos de Atividade, Duplicatas,
+   Sequências — somem do menu e cada URL mostra "Sem acesso".
+4. **Produtos continua no menu e abre**, mas sem "Novo Produto", sem
+   "Criar primeiro produto" e sem os ícones de editar/excluir.
+5. Configurações › WhatsApp: **sem QR e sem botão de desconectar**.
+6. **Metade da prova de sharing sai de graça aqui**: na aba de atividades
+   de um negócio, o menu Sequências **não** pode listar a sequência
+   `teste` — ela é "Só eu" do João, e ele a vê (conferido).
+
+Só então os itens que escrevem, **perguntando item a item**. Duas com
+cuidado explícito: enviar mensagem em `/conversas` manda WhatsApp de
+verdade para alguém; e perder/excluir negócio destrói o gabarito (é a
+ausência de Ganho/Perdido que faz Ganhos R$ 0) — deixe por último ou use
+um negócio descartável criado na hora.
+
+No fim, **devolva a sessão logada como João** — a extensão usa o perfil
+real do usuário.
+
+Gabarito no banco (produção, 2026-08-28): 4 negócios abertos, R$ 10.650
+no total — Ana 2 / R$ 5.500, João 2 / R$ 5.150. Zero Ganho, zero
+Perdido. Placar: 2 linhas para os dois papéis.
+
+**Duas armadilhas que já custaram tempo.** (1) O token da extensão
+Playwright muda quando ela reinicia, e o sintoma não é erro claro: toda
+chamada volta para a página `Welcome` com uma porta de relay nova, e
+`browser_tabs list` mostra só essa aba. Parece aba fechada; é token
+vencido. Peça o token novo, grave em `~/.claude.json` (em
+`mcpServers.playwright-ext.env.PLAYWRIGHT_MCP_EXTENSION_TOKEN`, **fora do
+repo**) e reinicie a sessão. (2) Dirigir o navegador é **caro** — a
+passada do João custou ~US$ 60 em snapshots de acessibilidade. Se eu
+disser que quero baratear, me entregue o checklist enxuto com o número
+esperado ao lado de cada item e eu percorro.
 
 ## Estado (confira antes de confiar)
 
@@ -193,3 +217,74 @@ item a item antes da primeira.** Duas merecem cuidado explícito:
 "As duas estão pushadas" vale para `f490abe`. O commit de doc `7056d18` está
 **só local** — a branch está `ahead 1` de `origin/feat/multiusuario-individualizacao`.
 Este adendo é mais um commit local em cima dele.
+
+---
+
+# Adendo 2 — 2026-08-28, noite: passada do João executada no navegador
+
+Primeira vez que alguma tela desta branch foi clicada de verdade. Conduzido
+pelo agente via MCP `playwright-ext` no Chrome do usuário.
+
+## Verificado como João (admin), tudo leitura pura, banco intacto
+
+Todos os itens abaixo passaram, com o número visto batendo com o gabarito SQL:
+
+| Item | Esperado | Visto |
+|---|---|---|
+| Painel: seletor de período | 6 opções iguais às de Insights | Este mês / Mês passado / Este ano / Últimos 7 dias / Últimos 30 dias / Todo o período |
+| Painel, "Todos os vendedores" | R$ 10.650 / 4 abertos | R$ 10.650,00 / 4 |
+| Ganhos e conversão | R$ 0 e 0% | R$ 0,00 · "dos fechados no período" · 0% |
+| Painel filtrando a Ana | R$ 5.500 / 2 | R$ 5.500,00 / 2 |
+| Troca de período | Pipeline e "Atividades Hoje" não mudam | 10.650/4 e 1 pendente, idênticos |
+| Placar × período | muda | João 34 ativ./35 lig. → 0/0 em "Mês passado" |
+| Placar × filtro de vendedor | não muda | idêntico |
+| `/negocios` filtrado (o bug do P1) | 4 pontos com o mesmo número | cabeçalho "2 negócios · R$ 5.500", etapa Reunião Realizada R$ 5.500, dropdown de pipeline "Negociação 2 · R$ 5.500", "Prospeccao 0 · R$ 0" |
+| `/conversas`, aba Time | dropdown com os dois nomes | Todos os vendedores / Ana Clara / Joao Reis |
+| Balão da conversa | autor certo | "Ana Clara" + corpo `*Ana Clara*: Oi bruna tudo bem?` |
+| Filtro de `/atividades` | encolhe a lista | 1 atividade → 0 filtrando João |
+| Insights | placar aparece | 2 linhas + seletor "Todos os usuarios" |
+| Sequência `teste` para o dono | visível | aparece no menu Sequências da aba de atividades |
+| Histórico do negócio | linha antiga só com data | "28/08/2026 10:28", sem autor — como previsto |
+
+O total geral fecha: os R$ 10.650 se dividem em R$ 7.150 no pipeline
+"Negociação" (3 negócios) e R$ 3.500 no "Prospeccao" (1), e `/negocios` mostra
+um pipeline por vez.
+
+## Achados novos, nenhum bloqueia o P5
+
+1. **Prefetch de `/dashboard` volta 404.** `/dashboard` é rewrite para `/`
+   (`next.config.ts:81`), e o payload RSC (`/dashboard?_rsc=…`) não é servido
+   pelo rewrite. Aparece no console de **toda** página que renderiza o menu,
+   porque o link "Meu Painel" aponta para `/dashboard`. Navegação funciona
+   (conferido por clique e por load direto); perde-se só o prefetch.
+2. **Rótulos sem acento em `/insights`**: "Este mes", "Todos os usuarios",
+   "0 relatorios", "Criar relatorios padrao". Em `/` os mesmos rótulos têm
+   acento. Cosmético e anterior ao P3 — o P3 exigia a *chave* sem acento
+   (contrato de `periodToRange`), não o rótulo.
+3. **Não existe nenhuma meta criada em produção** ("Nenhuma meta criada").
+   O item do P4 — meta de "Atividades" com progresso > 0 — só é verificável
+   criando uma meta, ou seja, virou item de escrita.
+
+## Falta
+
+- **Toda a passada da Ana** (item 3 da ordem): Painel R$ 5.500 / 2 sem seletor
+  de vendedor mas com placar; `/automacoes` e as seis URLs do P2 fora do menu e
+  com "Sem acesso"; Produtos abre sem botões de escrita; WhatsApp sem QR.
+  **Metade da prova de sharing é leitura pura**: a Ana **não** pode ver a
+  sequência `teste`.
+- Os doze itens de escrita, ainda sem autorização.
+
+## Armadilha da infraestrutura, para não perder tempo de novo
+
+**O token da extensão Playwright muda quando a extensão reinicia.** Com o token
+velho no servidor MCP, o sintoma não é um erro claro: toda chamada volta para a
+página `Welcome` da extensão, com uma porta de relay nova a cada vez
+(59285 → 59293 → 59300), e `browser_tabs list` mostra só essa aba. Parece aba
+fechada; é token vencido. O token fica em `~/.claude.json`, em
+`mcpServers.playwright-ext.env.PLAYWRIGHT_MCP_EXTENSION_TOKEN` — **fora do
+repo, e não deve ser copiado para cá.** Trocar o token exige **reiniciar a
+sessão** para o servidor MCP relê-lo.
+
+Outras duas, menores: o menu suspenso intercepta o clique seguinte (feche-o
+clicando no próprio botão — `Escape` não fecha), e o logout pela UI derruba a
+aba conectada à extensão.
