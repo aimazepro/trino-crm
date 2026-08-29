@@ -70,22 +70,19 @@ sem passar pelo git. A linha antiga dizia que `git push` não deploya — era fa
 - [x] **Painel admin de workspaces (2026-08-29)** — `/admin` + `/api/admin/*`:
   criar workspace+dono, suspender/ativar/apagar (soft), feature flags por
   workspace, uso/gasto sem Stripe (telefonia é o único gasto em R$ real
-  hoje). Enforcement real em WhatsApp (envio + fila + conexão) e VoIP
-  (chamadas + token); Automações só tem o gate de UI ainda, sem checagem
-  nas mutações de `automacoes-context.tsx` — ver item abaixo. Migração
-  `20260829130000_revoke_workspace_admin_columns.sql` (fecha um buraco de
+  hoje). Enforcement real em WhatsApp (envio + fila + conexão), VoIP
+  (chamadas + token) e Automações (RLS em `automations`, ver migração
+  `20260829150000_automacoes_feature_enforcement.sql`). `/api/v1/*` agora
+  também corta acesso de workspace suspenso/apagado (checagem em
+  `authenticateApiRequest`, `src/lib/api-auth.ts`). Migração
+  `20260829140000_revoke_workspace_admin_columns.sql` (fecha um buraco de
   grant de coluna que deixava qualquer admin de workspace reverter sua
-  própria suspensão/feature flag direto do navegador) **ainda não foi
-  aplicada em produção — aplicar antes de considerar o painel seguro pra
-  valer**. Ver `docs/superpowers/specs/2026-08-29-admin-workspaces-design.md`.
-- [ ] **Painel admin — fechar 2 gaps de enforcement conhecidos**: (1)
-  `automacoes-context.tsx` faz insert/update/delete direto no Supabase do
-  client, sem checar `feature_flags.automacoes` — só a tela esconde, a
-  mutação não é bloqueada; (2) `/api/v1/*` (chave de API) não checa
-  `workspaces.status`, então um workspace suspenso mantém acesso total via
-  API mesmo depois de suspenso pelo painel (só a sessão de navegador é
-  cortada, via `proxy.ts`). Achados na revisão final de 2026-08-29, não
-  corrigidos por serem maiores que um fix de última hora.
+  própria suspensão/feature flag direto do navegador) aplicada e verificada
+  em produção. `/admin` (a tela, não só a API) precisou ser excluída do
+  matcher de `proxy.ts` -- um admin de plataforma sem workspace próprio
+  batia na checagem de "sem membership = revogado" antes de chegar no
+  próprio gate do painel (bug real, reproduzido e corrigido em produção
+  2026-08-29). Ver `docs/superpowers/specs/2026-08-29-admin-workspaces-design.md`.
 
 ---
 

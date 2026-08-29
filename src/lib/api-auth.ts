@@ -89,6 +89,21 @@ export async function authenticateApiRequest(
     return { ok: false, response: apiError("INVALID_API_KEY", "API key inválida ou revogada", 401) };
   }
 
+  // Suspender/apagar workspace no painel admin cortava sessão de navegador
+  // (proxy.ts) mas não chave de API -- uma chave de workspace suspenso
+  // continuava com acesso total via /api/v1. Mesma checagem, outro lugar.
+  const { data: workspace } = await admin
+    .from("workspaces")
+    .select("status")
+    .eq("id", key.workspace_id)
+    .maybeSingle();
+  if (!workspace || workspace.status !== "active") {
+    return {
+      ok: false,
+      response: apiError("WORKSPACE_SUSPENDED", "Este workspace está suspenso ou foi apagado", 403),
+    };
+  }
+
   const permissions = (key.permissions as string[] | null) ?? ["all"];
   const ctx: ApiKeyContext = {
     workspaceId: key.workspace_id,
