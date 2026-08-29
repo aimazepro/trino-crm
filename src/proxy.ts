@@ -105,6 +105,15 @@ export async function proxy(request: NextRequest) {
 // reasoning as api/v1 above -- a script calling with
 // PLATFORM_ADMIN_API_TOKEN has no session cookie, so without this exclusion
 // it hits the blanket /login redirect and reads the 307 as success.
+// admin (the UI, /admin/*) is excluded for a different reason: a platform
+// admin is not necessarily a member of any workspace, so the block below
+// (kick out any session with zero workspace_members rows) was firing for
+// them before they ever reached src/app/admin/layout.tsx's own
+// getPlatformAdminFromSession() gate -- reproduced live 2026-08-29, a fresh
+// platform-admin account with no workspace membership got bounced to
+// /login?revoked=1 on every /admin visit. The layout's own gate is the real
+// protection here (session + email allowlist), same as api/admin's route
+// gate is the real protection for the API side.
 export const config = {
-  matcher: ["/((?!_next/static|_next/image|favicon.ico|api/auth/gmail/callback|api/auth/google-calendar/callback|api/track|api/whatsapp/webhook|api/whatsapp/queue|api/telephony/webhook|api/convites|api/automations|api/v1|api/admin|api/cron|.*\\.(?:svg|png|jpg|jpeg|gif|webp)$).*)"],
+  matcher: ["/((?!_next/static|_next/image|favicon.ico|api/auth/gmail/callback|api/auth/google-calendar/callback|api/track|api/whatsapp/webhook|api/whatsapp/queue|api/telephony/webhook|api/convites|api/automations|api/v1|api/admin|admin|api/cron|.*\\.(?:svg|png|jpg|jpeg|gif|webp)$).*)"],
 };
