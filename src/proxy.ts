@@ -9,6 +9,40 @@ export async function proxy(request: NextRequest) {
     request.nextUrl.pathname.startsWith("/login") ||
     request.nextUrl.pathname.startsWith("/convite");
 
+  // Cut access the instant a member is removed or suspended, even mid-session.
+  // Deleting/suspending only ever touched workspace_members -- it never
+  // touched auth.users or the session cookie, so without this check the
+  // person keeps a working login until their JWT happens to expire on its
+  // own. Every RLS helper (my_workspace_ids, is_ws_admin, ...) already scopes
+  // to status = 'accepted', so this SELECT comes back empty via RLS alone for
+  // both a suspended row and a deleted one -- no extra status filter needed.
+  if (user) {
+    const { data: membership } = await supabase
+      .from("workspace_members")
+      .select("id")
+      .eq("member_user_id", user.id)
+      .limit(1);
+
+    if (!membership || membership.length === 0) {
+      await supabase.auth.signOut();
+      const revokedResponse = isAuthPage
+        ? response
+        : NextResponse.redirect(new URL("/login?revoked=1", request.url));
+      // Belt-and-suspenders: clear the session cookie directly on the
+      // response we actually return. createMiddlewareClient's `response`
+      // closure (see src/lib/supabase/server.ts) only reflects whichever
+      // setAll() ran last *before* this function's `response` was
+      // destructured -- signOut()'s own cookie clearing can land on a later,
+      // discarded copy of that variable, so don't rely on it alone.
+      for (const cookie of request.cookies.getAll()) {
+        if (cookie.name.startsWith("sb-")) {
+          revokedResponse.cookies.set(cookie.name, "", { maxAge: 0, path: "/" });
+        }
+      }
+      return revokedResponse;
+    }
+  }
+
   if (!user && !isAuthPage) {
     return NextResponse.redirect(new URL("/login", request.url));
   }

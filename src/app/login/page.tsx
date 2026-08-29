@@ -1,9 +1,9 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { createClient } from "@/lib/supabase/client";
 import { useRouter } from "next/navigation";
-import { Eye, EyeOff, Loader2, CheckCircle2 } from "lucide-react";
+import { Eye, EyeOff, Loader2, CheckCircle2, ShieldAlert } from "lucide-react";
 import Image from "next/image";
 
 export default function LoginPage() {
@@ -17,6 +17,17 @@ export default function LoginPage() {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [success, setSuccess] = useState(false);
+  const [revoked, setRevoked] = useState(false);
+
+  // Read straight off window.location instead of useSearchParams(): this
+  // page has no server data, so it'd otherwise need a Suspense boundary
+  // purely for one query flag (proxy.ts redirects here with ?revoked=1
+  // after signing out a suspended/removed member mid-session).
+  useEffect(() => {
+    if (new URLSearchParams(window.location.search).get("revoked") === "1") {
+      setRevoked(true);
+    }
+  }, []);
 
   const supabase = createClient();
 
@@ -24,6 +35,7 @@ export default function LoginPage() {
     e.preventDefault();
     setLoading(true);
     setError(null);
+    setRevoked(false);
     const { error } = await supabase.auth.signInWithPassword({ email, password });
     if (error) {
       setError(
@@ -167,6 +179,13 @@ export default function LoginPage() {
               para continuar em TrinoDeal
             </p>
           </div>
+
+          {revoked && !success && (
+            <div className="mb-5 flex items-start gap-2.5 text-left text-xs font-semibold text-red-600 bg-red-50 rounded-xl px-3.5 py-3 border border-red-100">
+              <ShieldAlert size={16} className="shrink-0 mt-0.5" />
+              <span>Acesso revogado ou nenhum convite aceito ainda. Fale com o administrador da sua empresa.</span>
+            </div>
+          )}
 
           {success ? (
             <div className="flex flex-col items-center gap-4 py-4 text-center">

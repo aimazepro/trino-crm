@@ -470,6 +470,29 @@ Nada disso foi exercitado. `HAND`
 
 ---
 
+## ✅ Suspender acesso de membro (2026-08-28)
+
+Achado real do dono: apagar o vendedor Ana Clara não cortava o login dela —
+`workspace_members` era apagado mas a sessão (JWT) e a conta em `auth.users`
+continuavam válidas até expirar sozinhas.
+
+- [x] **`src/proxy.ts` confere `workspace_members` em toda request** — se o
+  usuário logado não tem mais linha lá (apagado *ou* suspenso), desloga na
+  hora e redireciona pra `/login?revoked=1`. Resolve o bug de delete e
+  habilita revogação quase imediata pro toggle, com o mesmo mecanismo — sem
+  precisar de rota service-role.
+- [x] **Terceiro status `suspended`** (migração
+  `20260828100900_workspace_members_suspend_toggle.sql`) — reversível, sem
+  apagar o membro. RLS não precisou mudar em lugar nenhum: todo helper
+  (`my_role`, `is_ws_admin`, `my_workspace_ids`...) já exige
+  `status = 'accepted'`. Policy de update ganhou trava pra ninguém suspender o
+  dono do workspace sem querer (mesmo padrão que já bloqueava rebaixar o
+  cargo dele).
+- [x] Botão "Suspender/Reativar" em `/configuracoes/usuarios`, banner
+  "Acesso revogado" em `/login`.
+
+---
+
 ## 🧹 Limpezas rápidas
 
 - [ ] Apagar a Edge Function órfã: `supabase functions delete process-whatsapp-queue`

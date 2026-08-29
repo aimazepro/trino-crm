@@ -1,7 +1,7 @@
 "use client";
 
 import React, { useState, useEffect, useCallback } from "react";
-import { Plus, Check, X, ChevronDown, Shield, Trash2, Users, Copy, CheckCheck, Lock } from "lucide-react";
+import { Plus, Check, X, ChevronDown, Shield, Trash2, Users, Copy, CheckCheck, Lock, Power } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { createClient } from "@/lib/supabase/client";
 import { useCrm } from "@/contexts/crm-context";
@@ -169,6 +169,28 @@ export default function UsuariosPage() {
     }
   };
 
+  // Reversible alternative to delete: flips status between "accepted" and
+  // "suspended" instead of removing the row. Every RLS helper (my_role,
+  // is_ws_admin, my_workspace_ids...) already requires status = 'accepted',
+  // so a suspended member loses all data access immediately — and
+  // src/proxy.ts signs them out of any live session on their next request,
+  // showing "Acesso revogado" on /login. The RLS "workspace_members: update"
+  // policy refuses to suspend the workspace owner, same shape as the delete
+  // guard above.
+  const handleToggleStatus = async (member: Member) => {
+    const nextStatus = member.status === "suspended" ? "accepted" : "suspended";
+    const { error } = await supabase
+      .from("workspace_members")
+      .update({ status: nextStatus })
+      .eq("id", member.id);
+    if (error) {
+      console.error("Error toggling member status:", error);
+      alert("Erro ao alterar acesso (o dono do workspace não pode ser suspenso).");
+    } else {
+      setMembers(prev => prev.map(m => m.id === member.id ? { ...m, status: nextStatus } : m));
+    }
+  };
+
   const getMemberDealsCount = (m: Member) => {
     const ownerId = m.member_user_id ?? m.id;
     return crmState.deals.filter(d => d.ownerId === ownerId).length;
@@ -184,8 +206,15 @@ export default function UsuariosPage() {
   };
 
   const activeMembers = members.filter(m => m.status === "accepted");
+  const suspendedMembers = members.filter(m => m.status === "suspended");
   const pendingMembers = members.filter(m => m.status === "pending");
   const groups = Array.from(new Set(PERMISSIONS.map(p => p.group)));
+
+  // The workspace's id IS the owner's auth.users id (Fase 1 design decision:
+  // workspaces was seeded from the dono's own uuid) — so this is the owner
+  // check without a second query. Mirrors the RLS guard that blocks
+  // deleting/suspending this row from the database side.
+  const isOwner = (m: Member) => m.member_user_id === workspaceId;
 
   if (!isAdmin) {
     return (
@@ -289,9 +318,9 @@ export default function UsuariosPage() {
               </tr>
             </thead>
             <tbody className="divide-y divide-zinc-100">
-              {[...activeMembers, ...pendingMembers].length > 0 ? (
-                [...activeMembers, ...pendingMembers].map(m => (
-                  <tr key={m.id} className="hover:bg-zinc-50/30 transition-colors">
+              {[...activeMembers, ...suspendedMembers, ...pendingMembers].length > 0 ? (
+                [...activeMembers, ...suspendedMembers, ...pendingMembers].map(m => (
+                  <tr key={m.id} className={cn("hover:bg-zinc-50/30 transition-colors", m.status === "suspended" && "bg-zinc-50/60")}>
                     <td className="px-6 py-4">
                       <div className="flex items-center gap-3">
                         <div className="w-9 h-9 rounded-full bg-gradient-to-tr from-purple-600 to-indigo-500 text-white font-extrabold text-xs flex items-center justify-center shrink-0 ring-1 ring-zinc-200 uppercase tracking-tighter shadow-xs">
@@ -307,6 +336,9 @@ export default function UsuariosPage() {
                           <p className="text-xs text-zinc-400">{m.email}</p>
                           {m.status === "pending" && (
                             <p className="text-[10px] text-amber-500 font-semibold">Convite pendente</p>
+                          )}
+                          {m.status === "suspended" && (
+                            <p className="text-[10px] text-red-500 font-semibold">Acesso suspenso</p>
                           )}
                         </div>
                       </div>
@@ -346,6 +378,29 @@ export default function UsuariosPage() {
                               <option key={opt.value} value={opt.value}>{ROLE_LABEL[opt.value]}</option>
                             ))}
                           </select>
+
+                          {m.status !== "pending" && !isOwner(m) && (
+                            <button
+                              onClick={() => {
+                                const question = m.status === "suspended"
+                                  ? "Reativar o acesso deste membro?"
+                                  : "Suspender o acesso deste membro? A pessoa é deslogada e não consegue mais entrar até você reativar.";
+                                if (confirm(question)) {
+                                  handleToggleStatus(m);
+                                }
+                              }}
+                              className={cn(
+                                "flex items-center gap-1.5 text-xs font-semibold px-2.5 py-1.5 rounded-xl border transition-all",
+                                m.status === "suspended"
+                                  ? "text-emerald-600 border-emerald-200 bg-emerald-50 hover:bg-emerald-100"
+                                  : "text-zinc-500 border-zinc-200 hover:border-red-200 hover:bg-red-50 hover:text-red-600"
+                              )}
+                              title={m.status === "suspended" ? "Reativar acesso" : "Suspender acesso"}
+                            >
+                              <Power className="h-3.5 w-3.5" />
+                              {m.status === "suspended" ? "Reativar" : "Suspender"}
+                            </button>
+                          )}
 
                           <button
                             onClick={() => {
