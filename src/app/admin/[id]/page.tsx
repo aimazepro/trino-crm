@@ -84,9 +84,9 @@ export default function AdminWorkspaceDetailPage() {
   const setStatus = (status: string) => {
     const question =
       status === "suspended"
-        ? "Suspender este workspace? Todos os membros perdem acesso imediatamente."
+        ? "Suspender este workspace? Membros perdem acesso ao app imediatamente (chaves de API v1, se houver, continuam ativas — ver backlog)."
         : status === "deleted"
-          ? "Apagar este workspace? Corta acesso na hora (reversível reativando o status)."
+          ? "Apagar este workspace? Corta acesso ao app na hora (reversível reativando o status; chaves de API v1, se houver, continuam ativas — ver backlog)."
           : "Reativar este workspace?";
     if (!confirm(question)) return;
     patch({ status });
