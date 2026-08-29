@@ -67,6 +67,11 @@ sem passar pelo git. A linha antiga dizia que `git push` não deploya — era fa
 - [x] **Bug do `CHECK` das filas (2026-08-19)** — `claim_pending_*_queue` gravava `processing`, constraint não aceitava. Nenhuma automação de email ou WhatsApp jamais saiu deste CRM. Migração `20260819220000`. `HAND`
 - [x] **Fase 1 — Multi-tenancy (2026-08-19)** — `workspace_id` real, RLS por papel, convite
   por link, fecha S-6 e S-3 de brinde. Ver seção própria abaixo. `DES1`
+- [x] **Painel admin de workspaces (2026-08-29)** — `/admin` + `/api/admin/*`:
+  criar workspace+dono, suspender/ativar/apagar (soft), feature flags por
+  workspace (WhatsApp/VoIP/Automações com enforcement real), uso/gasto sem
+  Stripe (telefonia é o único gasto em R$ real hoje). Ver
+  `docs/superpowers/specs/2026-08-29-admin-workspaces-design.md`.
 
 ---
 

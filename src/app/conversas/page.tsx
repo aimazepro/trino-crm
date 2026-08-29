@@ -16,6 +16,7 @@ import { OwnerBadge } from "@/components/team/owner-badge";
 import { useWhatsAppInbox } from "@/hooks/use-whatsapp-inbox";
 import { WhatsAppThread } from "@/components/whatsapp/whatsapp-thread";
 import { NewDealModal } from "@/components/pipeline/new-deal-modal";
+import { RequireFeature } from "@/components/auth/require-feature";
 
 type Filter = "Todas" | "Não lidas" | "Fixadas";
 type Scope = "minhas" | "fila" | "time";
@@ -195,6 +196,7 @@ export default function ConversasPage() {
   const selected = enriched.find(c => c.id === selectedId) ?? null;
 
   return (
+    <RequireFeature feature="whatsapp">
     <div className="h-full flex bg-background">
       {/* Lista de conversas */}
       <div className="w-full md:w-[360px] md:min-w-[360px] md:border-r border-border flex-col flex">
@@ -512,5 +514,6 @@ export default function ConversasPage() {
         )}
       </div>
     </div>
+    </RequireFeature>
   );
 }
