@@ -26,7 +26,10 @@ entre sessões.
 | Produção | deployada e verificada (Fase 1 + Fase 2 + Fase 0 itens 1-5,7 no ar) |
 | `origin/main` | não recebeu push desta sessão — deploy prod é direto via `vercel deploy --prod`, independe de merge/push |
 
-Deploy é manual: `vercel deploy --prod`. `git push` não deploya.
+Deploy: o projeto **está** ligado ao GitHub. Push na `main` dispara build de
+produção e alias automático (provado em 2026-08-28: `ad4b6bf` subiu sozinho,
+`source: git`). `vercel deploy --prod` continua funcionando para subir o disco
+sem passar pelo git. A linha antiga dizia que `git push` não deploya — era falsa.
 
 ---
 
@@ -496,7 +499,7 @@ Ler antes de mexer nas áreas correspondentes.
   `outputFileTracingIncludes` no `next.config.ts`.
 - **Cron não-diário na Vercel Hobby quebra o deploy do projeto inteiro**, não só
   a feature. Por isso o agendamento vive no `pg_cron`.
-- **Deploy é manual.** `git push` não deploya.
+- **Deploy sai do GitHub.** Push na `main` builda e aliasa produção sozinho; `vercel deploy --prod` é a via alternativa, não a única.
 
 ---
 

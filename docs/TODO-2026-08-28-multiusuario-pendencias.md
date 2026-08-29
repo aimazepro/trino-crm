@@ -509,3 +509,22 @@ Cosméticos, deixados de fora de propósito: o prefetch de `/dashboard` que volt
 - **Enviar WhatsApp de verdade** — depende de um número seguro combinado.
 - **Anexo e notificação em atividade órfã** — exige criar a atividade como João
   e depois **logar como Ana** para ver o anexo aparecer sem recarregar.
+
+## Correção ao que este documento dizia sobre deploy
+
+**"Deploy é manual, `git push` não deploya" é falso.** O projeto **está** ligado
+ao GitHub. Em 2026-08-28, o push da `main` em `ad4b6bf` gerou sozinho o
+deployment `dpl_HBMdsTWd…` (`source: git`, target production) e recebeu os
+aliases `trino-crm.vercel.app` e `api-crm.aimaze.com.br`. `vercel deploy --prod`
+continua valendo para subir o disco sem passar pelo git — é uma alternativa, não
+a única via.
+
+**Por que os deploys de branch sempre falhavam:** as três variáveis do Supabase
+existiam no escopo Preview, mas **presas às branches `dev` e
+`feat/deal-soft-delete-gaps`**. Qualquer outra branch buildava sem elas e morria
+em `Error: @supabase/ssr: Your project's URL and API key are required`.
+`NEXT_PUBLIC_SUPABASE_URL` e `NEXT_PUBLIC_SUPABASE_ANON_KEY` passaram a valer
+para **todas** as branches de Preview, e o build que tinha falhado passou a
+compilar. Falta `SUPABASE_SERVICE_ROLE_KEY` (segredo, precisa ser copiado à mão
+pelo painel): sem ela o preview compila, mas as rotas de servidor falham em
+runtime.
