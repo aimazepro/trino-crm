@@ -26,6 +26,28 @@ entre sessões.
 | Produção | deployada e verificada (Fase 1 + Fase 2 + Fase 0 itens 1-5,7 no ar) |
 | `origin/main` | não recebeu push desta sessão — deploy prod é direto via `vercel deploy --prod`, independe de merge/push |
 
+## Fluxo de branches (definido em 2026-08-28)
+
+- **`main` = produção.** Push nela builda e aliasa `trino-crm.vercel.app` e
+  `api-crm.aimaze.com.br` sozinho. Push na `main` é publicação, não versionamento.
+- **`dev` = preview/staging**, com alias fixo `trino-crm-git-dev-aimaze.vercel.app`.
+  Ressuscitada em 2026-08-28 (estava 98 commits atrás, sem nada exclusivo).
+- Branch de trabalho qualquer também gera preview, com URL própria.
+
+Ciclo: `feat/x` → push (preview) → merge em `dev` (testar no alias fixo) → merge
+em `main` (produção). Alternativa sem recompilar: `vercel promote <url-preview>`
+— mas o build promovido carrega as variáveis do escopo **Preview**, então o que
+existir só em Production não vai junto.
+
+⚠️ **Preview isola o código, não os dados.** Só existe um projeto Supabase, e as
+variáveis de Preview apontam para ele: testar em `dev` escreve nos negócios
+reais. Teste isolado de verdade exige um segundo projeto Supabase com as
+migrations replicadas.
+
+⚠️ **Não copie os segredos de WhatsApp/telefonia para o escopo Preview.** Como o
+banco é o mesmo, um teste em `dev` com `EVOLUTION_API_KEY` presente mandaria
+mensagem de verdade para contato de verdade.
+
 Deploy: o projeto **está** ligado ao GitHub. Push na `main` dispara build de
 produção e alias automático (provado em 2026-08-28: `ad4b6bf` subiu sozinho,
 `source: git`). `vercel deploy --prod` continua funcionando para subir o disco
