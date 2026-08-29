@@ -10,32 +10,7 @@ export type Database = {
   // Allows to automatically instantiate createClient with right options
   // instead of createClient<Database, { PostgrestVersion: 'XX' }>(URL, KEY)
   __InternalSupabase: {
-    PostgrestVersion: "14.17"
-  }
-  graphql_public: {
-    Tables: {
-      [_ in never]: never
-    }
-    Views: {
-      [_ in never]: never
-    }
-    Functions: {
-      graphql: {
-        Args: {
-          extensions?: Json
-          operationName?: string
-          query?: string
-          variables?: Json
-        }
-        Returns: Json
-      }
-    }
-    Enums: {
-      [_ in never]: never
-    }
-    CompositeTypes: {
-      [_ in never]: never
-    }
+    PostgrestVersion: "14.5"
   }
   public: {
     Tables: {
@@ -3062,31 +3037,37 @@ export type Database = {
       workspaces: {
         Row: {
           created_at: string
+          feature_flags: Json
           id: string
           name: string
           owner_user_id: string
           plan: string
           slug: string | null
+          status: string
           trial_ends_at: string | null
           updated_at: string
         }
         Insert: {
           created_at?: string
+          feature_flags?: Json
           id: string
           name?: string
           owner_user_id: string
           plan?: string
           slug?: string | null
+          status?: string
           trial_ends_at?: string | null
           updated_at?: string
         }
         Update: {
           created_at?: string
+          feature_flags?: Json
           id?: string
           name?: string
           owner_user_id?: string
           plan?: string
           slug?: string | null
+          status?: string
           trial_ends_at?: string | null
           updated_at?: string
         }
@@ -3207,6 +3188,7 @@ export type Database = {
         Args: { p_api_key_id: string; p_window_start: string }
         Returns: number
       }
+      is_sequence_owner: { Args: { p_sequence_id: string }; Returns: boolean }
       is_workspace_member: { Args: { owner_id: string }; Returns: boolean }
       is_ws_admin: { Args: { ws: string }; Returns: boolean }
       is_ws_manager: { Args: { ws: string }; Returns: boolean }
@@ -3420,10 +3402,8 @@ export type CompositeTypes<
     : never
 
 export const Constants = {
-  graphql_public: {
-    Enums: {},
-  },
   public: {
     Enums: {},
   },
 } as const
+
