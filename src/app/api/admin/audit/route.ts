@@ -9,7 +9,9 @@ export async function GET(request: Request) {
   if (!auth.ok) return auth.response;
 
   const url = new URL(request.url);
-  const limit = Math.min(Number(url.searchParams.get("limit") ?? 100) || 100, 500);
+  // Math.max(1, ...) além do Math.min: sem ele, ?limit=-5 chegava ao
+  // PostgREST como .limit(-5) e ?limit=1.5 passava fracionário adiante.
+  const limit = Math.min(Math.max(1, Math.floor(Number(url.searchParams.get("limit") ?? 100) || 100)), 500);
   const action = url.searchParams.get("action");
   const targetId = url.searchParams.get("targetId");
 

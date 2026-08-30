@@ -178,7 +178,17 @@ export async function POST(request: Request) {
     targetLabel: name,
     metadata: { slug, plan, ownerEmail },
   });
-  if (!logged.ok) return apiError("INTERNAL_ERROR", logged.message, 500);
+  if (!logged.ok) {
+    // Aqui a ação já aconteceu quando o log é escrito (workspace, membro e
+    // auth.users já estão commitados) -- diferente das rotas "log antes da
+    // ação", onde falhar o log barra a ação antes dela existir. Aqui a única
+    // forma de manter "ação sem rastro não acontece" verdadeiro é desfazer o
+    // que já foi feito: mesmo rollback dos branches wsErr/memberErr acima.
+    await admin.from("workspace_members").delete().eq("workspace_id", workspace.id);
+    await admin.from("workspaces").delete().eq("id", workspace.id);
+    await admin.auth.admin.deleteUser(ownerUserId);
+    return apiError("INTERNAL_ERROR", logged.message, 500);
+  }
 
   return apiSuccess({ workspaceId: workspace.id, ownerUserId }, undefined, 201);
 }
