@@ -10,11 +10,21 @@ import { createServerClient } from "@supabase/ssr";
 import { cookies } from "next/headers";
 import { NextResponse } from "next/server";
 import type { Database } from "@/lib/supabase/database.types";
-import { matchesAdminAllowlist, tokenMatches } from "@/lib/platform-admin";
+import {
+  matchesAdminAllowlist,
+  tokenMatches,
+  can,
+  isPlatformRole,
+  type PlatformRole,
+  type PlatformAbility,
+} from "@/lib/platform-admin";
 
 export interface PlatformAdminContext {
   via: "session" | "token";
   email: string | null;
+  /** null quando via = "token" (chamada de máquina não tem usuário). */
+  userId: string | null;
+  role: PlatformRole;
 }
 
 /** Service-role client. Factory local, mesmo padrão já usado por módulo em
@@ -28,6 +38,16 @@ export function adminClient(): SupabaseClient<Database> {
   );
 }
 
+/**
+ * Duas fontes de verdade, nesta ordem:
+ *
+ * 1. PLATFORM_ADMIN_EMAILS (env) -- chave-mestra, papel `owner` implícito.
+ *    Existe pra que apagar ou suspender a última linha da tabela por engano
+ *    não tranque o dono de fora do próprio painel. Por isso vem primeiro:
+ *    uma linha `suspended` na tabela não pode derrubar o e-mail da env.
+ * 2. platform_admins -- operadores de verdade, com papel próprio. Só linha
+ *    com status 'active' entra.
+ */
 export async function getPlatformAdminFromSession(): Promise<PlatformAdminContext | null> {
   const cookieStore = await cookies();
   const supabase = createServerClient<Database>(
@@ -44,8 +64,21 @@ export async function getPlatformAdminFromSession(): Promise<PlatformAdminContex
   );
   const { data } = await supabase.auth.getUser();
   const email = data.user?.email ?? null;
-  if (!matchesAdminAllowlist(email, process.env.PLATFORM_ADMIN_EMAILS)) return null;
-  return { via: "session", email };
+  const userId = data.user?.id ?? null;
+  if (!email || !userId) return null;
+
+  if (matchesAdminAllowlist(email, process.env.PLATFORM_ADMIN_EMAILS)) {
+    return { via: "session", email, userId, role: "owner" };
+  }
+
+  const { data: row } = await adminClient()
+    .from("platform_admins")
+    .select("role, status")
+    .eq("user_id", userId)
+    .maybeSingle();
+
+  if (!row || row.status !== "active" || !isPlatformRole(row.role)) return null;
+  return { via: "session", email, userId, role: row.role };
 }
 
 /** Bearer token primeiro (sem round-trip de cookie/DB), sessão depois. Uso
@@ -54,7 +87,9 @@ export async function getPlatformAdmin(request: Request): Promise<PlatformAdminC
   const authHeader = request.headers.get("authorization") ?? "";
   const match = authHeader.match(/^Bearer\s+(.+)$/i);
   if (match && tokenMatches(match[1].trim(), process.env.PLATFORM_ADMIN_API_TOKEN)) {
-    return { via: "token", email: null };
+    // O token é a chave da máquina: mesmo alcance do owner, sem usuário
+    // associado. Quem tiver o token já pode tudo por outros caminhos.
+    return { via: "token", email: null, userId: null, role: "owner" };
   }
   return getPlatformAdminFromSession();
 }
@@ -75,4 +110,31 @@ export async function requirePlatformAdmin(
     };
   }
   return { ok: true, ctx };
+}
+
+/** Gate por habilidade (ver ROLE_ABILITIES em src/lib/platform-admin.ts).
+ * 401 = não é operador; 403 = é operador, mas o papel não alcança a ação.
+ * Distinguir os dois importa: 403 é o que prova, em teste, que o papel está
+ * sendo checado no servidor e não só escondido na UI. */
+export async function requirePlatformAbility(
+  request: Request,
+  ability: PlatformAbility
+): Promise<{ ok: true; ctx: PlatformAdminContext } | { ok: false; response: NextResponse }> {
+  const auth = await requirePlatformAdmin(request);
+  if (!auth.ok) return auth;
+  if (!can(auth.ctx.role, ability)) {
+    return {
+      ok: false,
+      response: NextResponse.json(
+        {
+          error: {
+            code: "FORBIDDEN",
+            message: `Papel '${auth.ctx.role}' não pode executar esta ação`,
+          },
+        },
+        { status: 403 }
+      ),
+    };
+  }
+  return auth;
 }
