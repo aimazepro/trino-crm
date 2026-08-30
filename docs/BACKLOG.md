@@ -83,6 +83,22 @@ sem passar pelo git. A linha antiga dizia que `git push` não deploya — era fa
   batia na checagem de "sem membership = revogado" antes de chegar no
   próprio gate do painel (bug real, reproduzido e corrigido em produção
   2026-08-29). Ver `docs/superpowers/specs/2026-08-29-admin-workspaces-design.md`.
+- [x] **Ricochete de login do platform admin + aba Contas (2026-08-30)** — a
+  exclusão de `/admin` do matcher (item acima) não bastava: `handleLogin` do
+  `/login` sempre manda pra `"/"` depois de autenticar, e `"/"` não estava
+  excluído — um admin puro (sem `workspace_members`, desenho intencional)
+  batia no bloco de revoke ali e voltava pro `/login?revoked=1` num loop
+  silencioso. `src/proxy.ts` agora isenta quem está em `PLATFORM_ADMIN_EMAILS`
+  desse bloco e manda ele pra `/admin` (pós-login e em qualquer acesso a
+  `"/"`). Também fechada lacuna do design original: o spec é workspace-only,
+  não cobria conta cadastrada que nunca criou/aceitou workspace (`auth.users`
+  com 0 linha em `workspace_members` — "conta órfã", reproduzido ao vivo com
+  `agenciapixeo@gmail.com`, confirmada, já logou, invisível no painel).
+  `/admin/contas` (nova aba) lista toda conta com e-mail, confirmação, criado
+  em, último login, workspace(s) vinculado(s) (ou "sem workspace"), e permite
+  bloquear/desbloquear via `banned_until` do GoTrue (`/api/admin/accounts`,
+  `/api/admin/accounts/:id`) — corte imediato, mesmo mecanismo de
+  `getUser()` que já sustenta o corte por workspace suspenso.
 
 ---
 
