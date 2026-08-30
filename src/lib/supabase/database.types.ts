@@ -1823,6 +1823,78 @@ export type Database = {
           },
         ]
       }
+      platform_admins: {
+        Row: {
+          created_at: string
+          created_by: string | null
+          email: string
+          id: string
+          last_seen_at: string | null
+          role: string
+          status: string
+          user_id: string | null
+        }
+        Insert: {
+          created_at?: string
+          created_by?: string | null
+          email: string
+          id?: string
+          last_seen_at?: string | null
+          role: string
+          status?: string
+          user_id?: string | null
+        }
+        Update: {
+          created_at?: string
+          created_by?: string | null
+          email?: string
+          id?: string
+          last_seen_at?: string | null
+          role?: string
+          status?: string
+          user_id?: string | null
+        }
+        Relationships: []
+      }
+      platform_audit_log: {
+        Row: {
+          action: string
+          actor_email: string | null
+          actor_role: string | null
+          actor_via: string | null
+          created_at: string
+          id: number
+          metadata: Json | null
+          target_id: string | null
+          target_label: string | null
+          target_type: string | null
+        }
+        Insert: {
+          action: string
+          actor_email?: string | null
+          actor_role?: string | null
+          actor_via?: string | null
+          created_at?: string
+          id?: number
+          metadata?: Json | null
+          target_id?: string | null
+          target_label?: string | null
+          target_type?: string | null
+        }
+        Update: {
+          action?: string
+          actor_email?: string | null
+          actor_role?: string | null
+          actor_via?: string | null
+          created_at?: string
+          id?: number
+          metadata?: Json | null
+          target_id?: string | null
+          target_label?: string | null
+          target_type?: string | null
+        }
+        Relationships: []
+      }
       products: {
         Row: {
           active: boolean
@@ -3037,6 +3109,7 @@ export type Database = {
       workspaces: {
         Row: {
           created_at: string
+          current_period_end: string | null
           feature_flags: Json
           id: string
           name: string
@@ -3044,11 +3117,15 @@ export type Database = {
           plan: string
           slug: string | null
           status: string
+          stripe_customer_id: string | null
+          stripe_subscription_id: string | null
+          subscription_status: string
           trial_ends_at: string | null
           updated_at: string
         }
         Insert: {
           created_at?: string
+          current_period_end?: string | null
           feature_flags?: Json
           id: string
           name?: string
@@ -3056,11 +3133,15 @@ export type Database = {
           plan?: string
           slug?: string | null
           status?: string
+          stripe_customer_id?: string | null
+          stripe_subscription_id?: string | null
+          subscription_status?: string
           trial_ends_at?: string | null
           updated_at?: string
         }
         Update: {
           created_at?: string
+          current_period_end?: string | null
           feature_flags?: Json
           id?: string
           name?: string
@@ -3068,6 +3149,9 @@ export type Database = {
           plan?: string
           slug?: string | null
           status?: string
+          stripe_customer_id?: string | null
+          stripe_subscription_id?: string | null
+          subscription_status?: string
           trial_ends_at?: string | null
           updated_at?: string
         }
@@ -3078,6 +3162,7 @@ export type Database = {
       [_ in never]: never
     }
     Functions: {
+      automacoes_enabled: { Args: { p_workspace_id: string }; Returns: boolean }
       build_activity_webhook_payload: {
         Args: { p_activity: Database["public"]["Tables"]["activities"]["Row"] }
         Returns: Json
@@ -3406,4 +3491,3 @@ export const Constants = {
     Enums: {},
   },
 } as const
-
