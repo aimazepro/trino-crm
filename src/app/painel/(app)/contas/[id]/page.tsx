@@ -135,7 +135,18 @@ export default function PainelContaDetalhePage({ params }: { params: Promise<{ i
           <select
             value={workspace.status}
             disabled={busy}
-            onChange={(e) => patch({ status: e.target.value })}
+            onChange={(e) => {
+              const newStatus = e.target.value;
+              // Confirmação apenas quando marcar como apagado, porque é a ação mais pesada.
+              // Suspender/reativar são reversíveis e corriqueiros.
+              if (newStatus === "deleted") {
+                if (!confirm(`Marcar ${workspace.name} como apagado? O acesso de todos os membros é cortado. Os dados não são apagados e a ação é reversível voltando o status para ativo.`)) {
+                  e.target.value = workspace.status;
+                  return;
+                }
+              }
+              patch({ status: newStatus });
+            }}
             className="px-3 py-1.5 text-sm border border-zinc-200 rounded-lg outline-none"
           >
             {STATUSES.map((s) => (
@@ -174,7 +185,7 @@ export default function PainelContaDetalhePage({ params }: { params: Promise<{ i
       </section>
 
       <section className="bg-white border border-zinc-200 rounded-xl p-4">
-        <h3 className="text-xs font-black uppercase tracking-wider text-zinc-400 mb-3">Features</h3>
+        <h3 className="text-xs font-black uppercase tracking-wider text-zinc-400 mb-3">Recursos</h3>
         <div className="flex flex-wrap gap-2">
           {Object.entries(features).map(([key, enabled]) => (
             <button
@@ -188,7 +199,7 @@ export default function PainelContaDetalhePage({ params }: { params: Promise<{ i
                   : "bg-zinc-50 text-zinc-500 border-zinc-200"
               )}
             >
-              {key}: {enabled ? "on" : "off"}
+              {key}: {enabled ? "ligado" : "desligado"}
             </button>
           ))}
         </div>

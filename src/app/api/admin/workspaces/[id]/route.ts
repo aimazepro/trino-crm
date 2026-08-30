@@ -193,7 +193,7 @@ export async function PATCH(request: Request, { params }: { params: Promise<{ id
     return apiError("FORBIDDEN", `Papel '${auth.ctx.role}' não pode mudar plano`, 403);
   }
   if (touchesControls && !can(auth.ctx.role, "block")) {
-    return apiError("FORBIDDEN", `Papel '${auth.ctx.role}' não pode mudar status ou features`, 403);
+    return apiError("FORBIDDEN", `Papel '${auth.ctx.role}' não pode modificar esse workspace`, 403);
   }
 
   const admin = adminClient();
