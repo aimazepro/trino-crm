@@ -67,3 +67,70 @@ export async function PATCH(request: Request, { params }: { params: Promise<{ id
 
   return apiSuccess({ id, blocked: body.blocked });
 }
+
+export async function DELETE(request: Request, { params }: { params: Promise<{ id: string }> }) {
+  const auth = await requirePlatformAbility(request, "hard_delete");
+  if (!auth.ok) return auth.response;
+
+  const { id } = await params;
+  const admin = adminClient();
+
+  const { data: target } = await admin.auth.admin.getUserById(id);
+  const email = target?.user?.email;
+  if (!email) return apiError("NOT_FOUND", "Conta não encontrada", 404);
+
+  // Trava 2: digitação (o e-mail, aqui).
+  const confirm = new URL(request.url).searchParams.get("confirm");
+  if (!confirm || confirm.toLowerCase() !== email.toLowerCase()) {
+    return apiError("CONFIRMATION_REQUIRED", "confirm precisa ser exatamente o e-mail da conta", 400);
+  }
+
+  // Trava 4: dono de workspace ativo não sai como "conta". Apagar essa
+  // linha cascatearia o workspace inteiro sem que ninguém tivesse decidido
+  // apagar o workspace -- que é exatamente o acidente de §8.1.
+  const { data: owned } = await admin
+    .from("workspaces")
+    .select("id, name, slug, status")
+    .eq("owner_user_id", id)
+    .neq("status", "deleted");
+
+  if (owned && owned.length > 0) {
+    return apiError(
+      "OWNS_ACTIVE_WORKSPACE",
+      `Esta conta é dona de ${owned.length} workspace(s) ativo(s) (${owned
+        .map((w) => w.slug ?? w.name)
+        .join(", ")}). Apague o workspace conscientemente ou transfira a posse antes.`,
+      409
+    );
+  }
+
+  // Trava 1 + 3: o que a conta assina, contado agora, e auditado antes.
+  const [{ count: deals }, { count: contacts }, { count: companies }, { data: memberships }] =
+    await Promise.all([
+      admin.from("deals").select("id", { count: "exact", head: true }).eq("owner_id", id),
+      admin.from("contacts").select("id", { count: "exact", head: true }).eq("owner_id", id),
+      admin.from("companies").select("id", { count: "exact", head: true }).eq("owner_id", id),
+      admin.from("workspace_members").select("workspace_id, role").eq("member_user_id", id),
+    ]);
+
+  const preview = {
+    dealsPerdemAutoria: deals ?? 0,
+    contactsPerdemAutoria: contacts ?? 0,
+    companiesPerdemAutoria: companies ?? 0,
+    memberships: memberships?.length ?? 0,
+  };
+
+  const logged = await logPlatformAction(auth.ctx, {
+    action: "account.delete_hard",
+    targetType: "account",
+    targetId: id,
+    targetLabel: email,
+    metadata: { preview },
+  });
+  if (!logged.ok) return apiError("INTERNAL_ERROR", logged.message, 500);
+
+  const { error } = await admin.auth.admin.deleteUser(id);
+  if (error) return apiError("INTERNAL_ERROR", error.message, 500);
+
+  return apiSuccess({ id, deleted: "hard", preview });
+}

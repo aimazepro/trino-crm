@@ -51,6 +51,8 @@ export default function PainelContaDetalhePage({ params }: { params: Promise<{ i
   const [loading, setLoading] = useState(true);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [preview, setPreview] = useState<Record<string, number> | null>(null);
+  const [confirmText, setConfirmText] = useState("");
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -257,6 +259,95 @@ export default function PainelContaDetalhePage({ params }: { params: Promise<{ i
               : `Período atual até ${fmt(billing.currentPeriodEnd)}`}
           </p>
         </div>
+      </section>
+
+      <section className="bg-white border border-red-200 rounded-xl p-4">
+        <h3 className="text-xs font-black uppercase tracking-wider text-red-500 mb-2">
+          Zona de risco
+        </h3>
+        <p className="text-xs text-zinc-500 mb-3">
+          Desativar (status <code>suspended</code>) corta o acesso e preserva tudo — é o caminho
+          normal. A remoção definitiva abaixo é irreversível e apaga o CRM inteiro deste cliente.
+        </p>
+
+        {!preview && (
+          <button
+            disabled={busy}
+            onClick={async () => {
+              setBusy(true);
+              setError(null);
+              const res = await fetch(`/api/admin/workspaces/${id}?preview=delete`);
+              setBusy(false);
+              const json = await res.json().catch(() => null);
+              if (!res.ok) {
+                setError(json?.error?.message ?? "Falha ao contar o que seria apagado");
+                return;
+              }
+              setPreview(json.data.preview);
+            }}
+            className="px-3 py-1.5 text-xs font-bold rounded-lg border border-red-200 text-red-600 hover:bg-red-50 disabled:opacity-40"
+          >
+            Apagar em definitivo…
+          </button>
+        )}
+
+        {preview && (
+          <div className="space-y-3">
+            <div className="text-sm text-red-700 bg-red-50 border border-red-100 rounded-xl p-3">
+              <p className="font-bold mb-1">Isso apaga permanentemente:</p>
+              <ul className="text-xs space-y-0.5">
+                <li>{preview.deals} negócios</li>
+                <li>{preview.contacts} contatos</li>
+                <li>{preview.companies} empresas</li>
+                <li>{preview.activities} atividades</li>
+                <li>{preview.whatsappMessages} mensagens de WhatsApp</li>
+                <li>{preview.telephonyCalls} chamadas</li>
+                <li>{money(preview.telephonyBalanceCents)} de saldo de telefonia</li>
+                <li>{preview.members} vínculo(s) de membro</li>
+              </ul>
+            </div>
+            <p className="text-xs text-zinc-600">
+              Digite <code className="font-bold">{workspace.slug}</code> para liberar o botão:
+            </p>
+            <input
+              value={confirmText}
+              onChange={(e) => setConfirmText(e.target.value)}
+              className="w-64 px-3 py-2 text-sm border border-zinc-200 rounded-lg outline-none focus:border-red-400"
+            />
+            <div className="flex items-center gap-2">
+              <button
+                disabled={busy || confirmText !== workspace.slug}
+                onClick={async () => {
+                  setBusy(true);
+                  setError(null);
+                  const res = await fetch(
+                    `/api/admin/workspaces/${id}?hard=1&confirm=${encodeURIComponent(confirmText)}`,
+                    { method: "DELETE" }
+                  );
+                  setBusy(false);
+                  if (!res.ok) {
+                    const json = await res.json().catch(() => null);
+                    setError(json?.error?.message ?? "Falha ao apagar");
+                    return;
+                  }
+                  window.location.href = "/contas";
+                }}
+                className="px-3 py-1.5 text-xs font-bold rounded-lg bg-red-600 text-white disabled:opacity-30"
+              >
+                Apagar em definitivo
+              </button>
+              <button
+                onClick={() => {
+                  setPreview(null);
+                  setConfirmText("");
+                }}
+                className="px-3 py-1.5 text-xs font-bold rounded-lg border border-zinc-200 text-zinc-600"
+              >
+                Cancelar
+              </button>
+            </div>
+          </div>
+        )}
       </section>
 
       <section className="bg-white border border-zinc-200 rounded-xl p-4">

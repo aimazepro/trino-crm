@@ -61,6 +61,20 @@ export async function GET(request: Request, { params }: { params: Promise<{ id: 
   const workspace = await loadWorkspace(admin, id);
   if (!workspace) return apiError("NOT_FOUND", "Workspace não encontrado", 404);
 
+  // ?preview=delete: contagem real do que a remoção definitiva destrói.
+  // Mesma habilidade da remoção -- ninguém que não pode apagar precisa ver
+  // o inventário do que seria apagado.
+  if (new URL(request.url).searchParams.get("preview") === "delete") {
+    if (!can(auth.ctx.role, "hard_delete")) {
+      return apiError("FORBIDDEN", `Papel '${auth.ctx.role}' não pode apagar em definitivo`, 403);
+    }
+    const { data: preview, error: previewErr } = await admin.rpc("platform_deletion_preview", {
+      p_workspace_id: id,
+    });
+    if (previewErr) return apiError("INTERNAL_ERROR", previewErr.message, 500);
+    return apiSuccess({ preview, slug: workspace.slug });
+  }
+
   const thirtyDaysAgo = new Date(Date.now() - 30 * 24 * 60 * 60 * 1000).toISOString();
 
   const [{ data: members }, { data: balance }, { data: ledger }, { count: waCount }, { data: dealsRows, count: dealsCount }] =
@@ -281,13 +295,62 @@ export async function PATCH(request: Request, { params }: { params: Promise<{ id
 }
 
 export async function DELETE(request: Request, { params }: { params: Promise<{ id: string }> }) {
-  const auth = await requirePlatformAbility(request, "block");
-  if (!auth.ok) return auth.response;
   const { id } = await params;
+  const url = new URL(request.url);
+  const hard = url.searchParams.get("hard") === "1";
+
+  const auth = hard
+    ? await requirePlatformAbility(request, "hard_delete")
+    : await requirePlatformAbility(request, "block");
+  if (!auth.ok) return auth.response;
 
   const admin = adminClient();
   const current = await loadWorkspace(admin, id);
   if (!current) return apiError("NOT_FOUND", "Workspace não encontrado", 404);
+
+  if (hard) {
+    // Trava 2: digitação. Sem "tem certeza? [OK]".
+    const confirm = url.searchParams.get("confirm");
+    if (!confirm || confirm !== current.slug) {
+      return apiError(
+        "CONFIRMATION_REQUIRED",
+        "confirm precisa ser exatamente o slug do workspace",
+        400
+      );
+    }
+
+    // Trava 1: contagem real, medida agora.
+    const { data: preview, error: previewErr } = await admin.rpc("platform_deletion_preview", {
+      p_workspace_id: id,
+    });
+    if (previewErr) return apiError("INTERNAL_ERROR", previewErr.message, 500);
+
+    // Trava 3: auditoria com a contagem junto, ANTES de executar -- é o
+    // único jeito de o log dizer o que foi perdido depois que não existe mais.
+    const logged = await logPlatformAction(auth.ctx, {
+      action: "workspace.delete_hard",
+      targetType: "workspace",
+      targetId: id,
+      targetLabel: `${current.name} (${current.slug})`,
+      metadata: { preview },
+    });
+    if (!logged.ok) return apiError("INTERNAL_ERROR", logged.message, 500);
+
+    // Apagar o dono em auth.users cascateia para workspaces e para as 43
+    // tabelas abaixo dele (§8.1). É intencional aqui, e só aqui.
+    const { data: ws } = await admin
+      .from("workspaces")
+      .select("owner_user_id")
+      .eq("id", id)
+      .maybeSingle();
+    if (!ws?.owner_user_id) {
+      return apiError("INTERNAL_ERROR", "Workspace sem dono — remoção manual necessária", 500);
+    }
+    const { error: delErr } = await admin.auth.admin.deleteUser(ws.owner_user_id);
+    if (delErr) return apiError("INTERNAL_ERROR", delErr.message, 500);
+
+    return apiSuccess({ id, deleted: "hard", preview });
+  }
 
   const logged = await logPlatformAction(auth.ctx, {
     action: "workspace.delete_soft",
