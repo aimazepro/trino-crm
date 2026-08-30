@@ -1,5 +1,6 @@
 // src/app/api/admin/workspaces/[id]/route.ts
-import { requirePlatformAdmin, adminClient } from "@/lib/platform-admin-server";
+import { requirePlatformAdmin, requirePlatformAbility, adminClient } from "@/lib/platform-admin-server";
+import { can } from "@/lib/platform-admin";
 import { apiError, apiSuccess } from "@/lib/api-auth";
 import { effectiveFeatures, FEATURE_KEYS, type FeatureKey } from "@/lib/feature-flags";
 import type { SupabaseClient } from "@supabase/supabase-js";
@@ -20,6 +21,10 @@ type WorkspaceRow = {
   feature_flags: unknown;
   created_at: string;
   trial_ends_at: string | null;
+  stripe_customer_id: string | null;
+  stripe_subscription_id: string | null;
+  subscription_status: string;
+  current_period_end: string | null;
 };
 
 function serializeWorkspace(w: WorkspaceRow) {
@@ -38,14 +43,16 @@ function serializeWorkspace(w: WorkspaceRow) {
 async function loadWorkspace(admin: SupabaseClient<Database>, id: string): Promise<WorkspaceRow | null> {
   const { data } = await admin
     .from("workspaces")
-    .select("id, name, slug, plan, status, feature_flags, created_at, trial_ends_at")
+    .select(
+      "id, name, slug, plan, status, feature_flags, created_at, trial_ends_at, stripe_customer_id, stripe_subscription_id, subscription_status, current_period_end"
+    )
     .eq("id", id)
     .maybeSingle();
   return data as WorkspaceRow | null;
 }
 
 export async function GET(request: Request, { params }: { params: Promise<{ id: string }> }) {
-  const auth = await requirePlatformAdmin(request);
+  const auth = await requirePlatformAbility(request, "read_customer_data");
   if (!auth.ok) return auth.response;
   const { id } = await params;
 
@@ -57,7 +64,7 @@ export async function GET(request: Request, { params }: { params: Promise<{ id: 
 
   const [{ data: members }, { data: balance }, { data: ledger }, { count: waCount }, { data: dealsRows, count: dealsCount }] =
     await Promise.all([
-      admin.from("workspace_members").select("status").eq("workspace_id", id),
+      admin.from("workspace_members").select("member_user_id, email, role, status").eq("workspace_id", id),
       admin.from("telephony_balances").select("balance_cents, reserved_cents").eq("workspace_id", id).maybeSingle(),
       admin
         .from("telephony_ledger")
@@ -85,6 +92,34 @@ export async function GET(request: Request, { params }: { params: Promise<{ id: 
     else if (m.status === "suspended") memberCounts.suspended++;
   }
 
+  // banned_until mora em auth.users, não em workspace_members -- sem isto a
+  // tela mostraria "ativo" para quem já está bloqueado na conta.
+  const memberList = await Promise.all(
+    (members ?? []).map(async (m) => {
+      let blocked = false;
+      if (m.member_user_id) {
+        const { data: target } = await admin.auth.admin.getUserById(m.member_user_id);
+        const bannedUntil = target?.user?.banned_until;
+        blocked = !!bannedUntil && new Date(bannedUntil).getTime() > Date.now();
+      }
+      return {
+        userId: m.member_user_id,
+        email: m.email,
+        role: m.role,
+        memberStatus: m.status,
+        blocked,
+      };
+    })
+  );
+
+  const { data: auditRows } = await admin
+    .from("platform_audit_log")
+    .select("id, actor_email, action, target_label, created_at")
+    .eq("target_type", "workspace")
+    .eq("target_id", id)
+    .order("created_at", { ascending: false })
+    .limit(10);
+
   return apiSuccess({
     workspace: serializeWorkspace(workspace),
     usage: {
@@ -110,6 +145,21 @@ export async function GET(request: Request, { params }: { params: Promise<{ id: 
       },
     },
     features: effectiveFeatures(workspace.plan, workspace.feature_flags as Partial<Record<FeatureKey, boolean>>),
+    members: memberList,
+    billing: {
+      plan: workspace.plan,
+      subscriptionStatus: workspace.subscription_status,
+      stripeCustomerId: workspace.stripe_customer_id,
+      stripeSubscriptionId: workspace.stripe_subscription_id,
+      currentPeriodEnd: workspace.current_period_end,
+    },
+    audit: (auditRows ?? []).map((a) => ({
+      id: a.id,
+      actorEmail: a.actor_email,
+      action: a.action,
+      targetLabel: a.target_label,
+      createdAt: a.created_at,
+    })),
   });
 }
 
@@ -122,6 +172,8 @@ interface PatchWorkspaceBody {
 }
 
 export async function PATCH(request: Request, { params }: { params: Promise<{ id: string }> }) {
+  // Gate mínimo aqui; cada campo tem a sua própria exigência logo abaixo,
+  // porque plano e suspensão não são a mesma permissão (§5 do spec).
   const auth = await requirePlatformAdmin(request);
   if (!auth.ok) return auth.response;
   const { id } = await params;
@@ -131,6 +183,17 @@ export async function PATCH(request: Request, { params }: { params: Promise<{ id
     body = await request.json();
   } catch {
     return apiError("VALIDATION_ERROR", "Corpo da requisição não é JSON válido", 400);
+  }
+
+  const touchesBilling = body.plan !== undefined;
+  const touchesControls =
+    body.status !== undefined || body.featureFlags !== undefined || body.name !== undefined || body.slug !== undefined;
+
+  if (touchesBilling && !can(auth.ctx.role, "billing")) {
+    return apiError("FORBIDDEN", `Papel '${auth.ctx.role}' não pode mudar plano`, 403);
+  }
+  if (touchesControls && !can(auth.ctx.role, "block")) {
+    return apiError("FORBIDDEN", `Papel '${auth.ctx.role}' não pode mudar status ou features`, 403);
   }
 
   const admin = adminClient();
@@ -193,7 +256,9 @@ export async function PATCH(request: Request, { params }: { params: Promise<{ id
     .from("workspaces")
     .update(update)
     .eq("id", id)
-    .select("id, name, slug, plan, status, feature_flags, created_at, trial_ends_at")
+    .select(
+      "id, name, slug, plan, status, feature_flags, created_at, trial_ends_at, stripe_customer_id, stripe_subscription_id, subscription_status, current_period_end"
+    )
     .single();
 
   if (error || !updated) return apiError("INTERNAL_ERROR", error?.message ?? "Falha ao atualizar workspace", 500);
@@ -206,7 +271,7 @@ export async function PATCH(request: Request, { params }: { params: Promise<{ id
 }
 
 export async function DELETE(request: Request, { params }: { params: Promise<{ id: string }> }) {
-  const auth = await requirePlatformAdmin(request);
+  const auth = await requirePlatformAbility(request, "block");
   if (!auth.ok) return auth.response;
   const { id } = await params;
 
