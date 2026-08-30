@@ -166,18 +166,42 @@ export default function PainelContaDetalhePage({ params }: { params: Promise<{ i
                 <p className="text-xs text-zinc-400">{m.role} · {m.memberStatus}</p>
               </div>
               {m.userId && (
-                <button
-                  disabled={busy}
-                  onClick={() => toggleMemberBlock(m.userId!, m.email, m.blocked)}
-                  className={cn(
-                    "px-3 py-1.5 text-xs font-bold rounded-lg border disabled:opacity-40",
-                    m.blocked
-                      ? "text-emerald-700 border-emerald-200 bg-emerald-50"
-                      : "text-red-600 border-zinc-200 hover:border-red-200 hover:bg-red-50"
-                  )}
-                >
-                  {m.blocked ? "Desbloquear" : "Bloquear"}
-                </button>
+                <div className="flex items-center gap-2">
+                  <button
+                    disabled={busy}
+                    onClick={async () => {
+                      setBusy(true);
+                      setError(null);
+                      const res = await fetch("/api/admin/impersonate", {
+                        method: "POST",
+                        headers: { "Content-Type": "application/json" },
+                        body: JSON.stringify({ userId: m.userId }),
+                      });
+                      setBusy(false);
+                      const json = await res.json().catch(() => null);
+                      if (!res.ok) {
+                        setError(json?.error?.message ?? "Falha ao entrar como cliente");
+                        return;
+                      }
+                      window.open(json.data.url, "_blank", "noopener");
+                    }}
+                    className="px-3 py-1.5 text-xs font-bold rounded-lg border border-zinc-200 text-zinc-700 hover:bg-zinc-50 disabled:opacity-40"
+                  >
+                    Entrar como
+                  </button>
+                  <button
+                    disabled={busy}
+                    onClick={() => toggleMemberBlock(m.userId!, m.email, m.blocked)}
+                    className={cn(
+                      "px-3 py-1.5 text-xs font-bold rounded-lg border disabled:opacity-40",
+                      m.blocked
+                        ? "text-emerald-700 border-emerald-200 bg-emerald-50"
+                        : "text-red-600 border-zinc-200 hover:border-red-200 hover:bg-red-50"
+                    )}
+                  >
+                    {m.blocked ? "Desbloquear" : "Bloquear"}
+                  </button>
+                </div>
               )}
             </div>
           ))}
