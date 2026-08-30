@@ -7,8 +7,9 @@
 // src/proxy.ts) parar de devolver o usuário, cortando acesso na próxima
 // request -- mesmo efeito prático do corte por workspace suspenso, sem
 // precisar duplicar lógica no proxy.
-import { requirePlatformAdmin, adminClient } from "@/lib/platform-admin-server";
+import { requirePlatformAbility, adminClient } from "@/lib/platform-admin-server";
 import { apiError, apiSuccess } from "@/lib/api-auth";
+import { logPlatformAction } from "@/lib/platform-audit";
 
 export const dynamic = "force-dynamic";
 
@@ -17,7 +18,9 @@ export const dynamic = "force-dynamic";
 const BAN_FOREVER = "876000h";
 
 export async function PATCH(request: Request, { params }: { params: Promise<{ id: string }> }) {
-  const auth = await requirePlatformAdmin(request);
+  // "block", não requirePlatformAdmin puro: bloquear/desbloquear conta é a
+  // mesma habilidade de suspender workspace, e o papel 'billing' não a tem.
+  const auth = await requirePlatformAbility(request, "block");
   if (!auth.ok) return auth.response;
 
   const { id } = await params;
@@ -43,6 +46,15 @@ export async function PATCH(request: Request, { params }: { params: Promise<{ id
       return apiError("SELF_BLOCK", "Não é possível bloquear a própria conta", 400);
     }
   }
+
+  const { data: targetUser } = await admin.auth.admin.getUserById(id);
+  const logged = await logPlatformAction(auth.ctx, {
+    action: body.blocked ? "account.block" : "account.unblock",
+    targetType: "account",
+    targetId: id,
+    targetLabel: targetUser?.user?.email ?? null,
+  });
+  if (!logged.ok) return apiError("INTERNAL_ERROR", logged.message, 500);
 
   const { error } = await admin.auth.admin.updateUserById(id, {
     ban_duration: body.blocked ? BAN_FOREVER : "none",

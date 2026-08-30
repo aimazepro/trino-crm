@@ -1,6 +1,7 @@
 // src/app/api/admin/workspaces/route.ts
 import { requirePlatformAdmin, adminClient } from "@/lib/platform-admin-server";
 import { apiError, apiSuccess } from "@/lib/api-auth";
+import { logPlatformAction } from "@/lib/platform-audit";
 
 export const dynamic = "force-dynamic";
 
@@ -166,6 +167,18 @@ export async function POST(request: Request) {
   console.log(
     `[admin] workspace criado: ${workspace.id} (${slug}) por ${auth.ctx.via === "session" ? auth.ctx.email : "token"}`
   );
+
+  // Log depois, não antes: a criação não é destrutiva (rollback acima apaga
+  // workspace e usuário se algo falhar), então logar antes deixaria linha de
+  // auditoria de um workspace que nunca chegou a existir de fato.
+  const logged = await logPlatformAction(auth.ctx, {
+    action: "workspace.create",
+    targetType: "workspace",
+    targetId: workspace.id,
+    targetLabel: name,
+    metadata: { slug, plan, ownerEmail },
+  });
+  if (!logged.ok) return apiError("INTERNAL_ERROR", logged.message, 500);
 
   return apiSuccess({ workspaceId: workspace.id, ownerUserId }, undefined, 201);
 }

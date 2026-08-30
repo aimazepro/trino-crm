@@ -2,6 +2,7 @@
 import { requirePlatformAdmin, requirePlatformAbility, adminClient } from "@/lib/platform-admin-server";
 import { can } from "@/lib/platform-admin";
 import { apiError, apiSuccess } from "@/lib/api-auth";
+import { logPlatformAction } from "@/lib/platform-audit";
 import { effectiveFeatures, FEATURE_KEYS, type FeatureKey } from "@/lib/feature-flags";
 import type { SupabaseClient } from "@supabase/supabase-js";
 import type { Database } from "@/lib/supabase/database.types";
@@ -252,6 +253,15 @@ export async function PATCH(request: Request, { params }: { params: Promise<{ id
     return apiSuccess({ workspace: serializeWorkspace(current) });
   }
 
+  const logged = await logPlatformAction(auth.ctx, {
+    action: body.status !== undefined ? "workspace.suspend" : "workspace.update",
+    targetType: "workspace",
+    targetId: id,
+    targetLabel: current.name,
+    metadata: { fields: Object.keys(update), from: { plan: current.plan, status: current.status }, to: update },
+  });
+  if (!logged.ok) return apiError("INTERNAL_ERROR", logged.message, 500);
+
   const { data: updated, error } = await admin
     .from("workspaces")
     .update(update)
@@ -278,6 +288,14 @@ export async function DELETE(request: Request, { params }: { params: Promise<{ i
   const admin = adminClient();
   const current = await loadWorkspace(admin, id);
   if (!current) return apiError("NOT_FOUND", "Workspace não encontrado", 404);
+
+  const logged = await logPlatformAction(auth.ctx, {
+    action: "workspace.delete_soft",
+    targetType: "workspace",
+    targetId: id,
+    targetLabel: current.name,
+  });
+  if (!logged.ok) return apiError("INTERNAL_ERROR", logged.message, 500);
 
   const { data: updated, error } = await admin
     .from("workspaces")
