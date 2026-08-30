@@ -30,7 +30,10 @@ export default function PainelEntrarPage() {
     // explicação nenhuma -- o loop silencioso de 79a19dd, de novo.
     const res = await fetch("/api/admin/whoami");
     if (!res.ok) {
-      await supabase.auth.signOut();
+      // signOut é higiene de cliente — o gate do servidor já barra essa conta
+      // de qualquer jeito. Por isso ele nunca pode impedir que a pessoa veja
+      // o erro e tente de novo, mesmo se tiver um hiccup de rede.
+      await supabase.auth.signOut().catch(() => {});
       setError("Esta conta não tem acesso ao painel da plataforma.");
       setLoading(false);
       return;
