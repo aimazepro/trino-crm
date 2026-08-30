@@ -18,10 +18,26 @@ export function ImpersonationBanner() {
   if (!email) return null;
 
   async function sair() {
-    document.cookie = "impersonated_by=; path=/; max-age=0";
-    const { createClient } = await import("@/lib/supabase/client");
-    await createClient().auth.signOut();
-    window.location.href = "/login";
+    // A pista visual não pode sumir antes da sessão que ela descreve. Se o
+    // cookie fosse limpo primeiro e signOut() falhasse depois (um blip de
+    // rede já basta), a sessão do Supabase -- httpOnly, é ela a fronteira
+    // de verdade -- continuaria totalmente viva sem NENHUM aviso na tela:
+    // o pior estado possível, operando como o cliente sem saber disso. Por
+    // isso a ordem é sempre: encerra a sessão primeiro (com a falha contida
+    // num try/catch, porque não existe "sessão meio encerrada" melhor que
+    // isso), só depois apaga o marcador, e o redirect roda incondicional
+    // num finally -- nenhum caminho deixa a pessoa parada na página.
+    try {
+      try {
+        const { createClient } = await import("@/lib/supabase/client");
+        await createClient().auth.signOut();
+      } catch {
+        // Rede caiu ou algo assim -- segue mesmo assim pro cleanup abaixo.
+      }
+      document.cookie = "impersonated_by=; path=/; max-age=0";
+    } finally {
+      window.location.href = "/login";
+    }
   }
 
   return (

@@ -46,6 +46,10 @@ export default function LoginPage() {
       setLoading(false);
       return;
     }
+    // Login normal não pode herdar uma faixa de "sessão de suporte" deixada
+    // por um impersonate anterior no mesmo navegador -- limpa o marcador
+    // antes de seguir.
+    document.cookie = "impersonated_by=; path=/; max-age=0";
     router.push("/");
     router.refresh();
   }

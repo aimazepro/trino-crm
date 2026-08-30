@@ -45,7 +45,15 @@ export async function GET(request: Request) {
   response.cookies.set("impersonated_by", email, {
     path: "/",
     sameSite: "lax",
-    maxAge: 60 * 60 * 8,
+    // O marcador tem que viver PELO MENOS o tempo da sessão que ele
+    // descreve, senão a faixa some antes do acesso emprestado acabar --
+    // 8h deixava a sessão do Supabase (criada pelo verifyOtp() logo acima,
+    // com o Max-Age default da lib) viva bem depois do aviso visual ter
+    // expirado sozinho, sem nenhuma falha envolvida. 34560000s (~400 dias)
+    // é o mesmo Max-Age que esse cookie de sessão usa neste projeto; se um
+    // dia a validade do cookie de sessão do Supabase mudar, este número
+    // muda junto.
+    maxAge: 34560000,
   });
   return response;
 }
