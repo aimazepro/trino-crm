@@ -27,18 +27,30 @@ export async function proxy(request: NextRequest) {
   const { supabase, response } = createMiddlewareClient(request);
   const { data: { user } } = await supabase.auth.getUser();
 
-  // Regras 1 e 2 (§4): host do painel serve src/app/painel/*, e /api/* passa
-  // direto. Sem a exceção do /api, uma chamada do painel pra
-  // /api/admin/workspaces viraria /painel/api/admin/workspaces e o painel
-  // inteiro quebraria. O getUser() acima roda antes de propósito: é ele que
-  // renova o cookie de sessão, e sem renovação a sessão do painel morreria na
-  // primeira expiração de token.
+  // Regra 1 (§4): host do painel serve src/app/painel/*. O getUser() acima
+  // roda antes de propósito: é ele que renova o cookie de sessão, e sem
+  // renovação a sessão do painel morreria na primeira expiração de token.
   //
   // Nada da lógica de membership do CRM (abaixo) roda no host do painel: um
   // operador não é membro de workspace nenhum, e o gate de verdade é
   // src/app/painel/(app)/layout.tsx.
+  //
+  // /api/* no host do painel NÃO tem tratamento especial (nem rewrite, nem
+  // passagem direta): toda API que o painel chama vive em /api/admin/*
+  // (whoami, dashboard, audit, accounts, workspaces) ou em
+  // api/auth/impersonate, e as duas já estão inteiramente fora do matcher
+  // (ver o bloco de comentários acima de `config`) -- ou seja, essas
+  // requisições nunca chegam a entrar em `proxy()`, muito menos neste `if`.
+  // Então nenhum /api/* legítimo do painel passa por aqui: o que sobra são
+  // APIs do CRM, que o painel nunca chama. Devolver 404 em vez de `response`
+  // (que deixaria a requisição seguir intocada) é o que impede um
+  // `Host`/`x-forwarded-host` forjado pra bater com ADMIN_HOST de usar esse
+  // ramo pra pular o corte por membership/workspace suspenso feito mais
+  // abaixo -- corte que só roda fora deste bloco.
   if (isPanelHost) {
-    if (path.startsWith("/api")) return response;
+    if (path === "/api" || path.startsWith("/api/")) {
+      return new NextResponse(null, { status: 404 });
+    }
     const url = request.nextUrl.clone();
     url.pathname = path === "/" ? "/painel" : `/painel${path}`;
     const rewritten = NextResponse.rewrite(url);
