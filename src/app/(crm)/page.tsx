@@ -11,8 +11,8 @@ import {
 import { NewDealModal } from "@/components/pipeline/new-deal-modal";
 import { useTeam } from "@/hooks/use-team";
 import { OwnerSelect } from "@/components/team/owner-select";
-import { TeamScoreboard } from "@/app/insights/team-scoreboard";
-import { periodToRange } from "@/app/insights/report-types/filters";
+import { TeamScoreboard } from "./insights/team-scoreboard";
+import { periodToRange } from "./insights/report-types/filters";
 import { matchesDealScope, scopedDeals, sumDealValues } from "@/lib/deal-scope";
 import { cn } from "@/lib/utils";
 import { isToday } from "date-fns";

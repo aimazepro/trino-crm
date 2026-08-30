@@ -3,7 +3,7 @@
 import { useState, useEffect, useCallback } from "react";
 import { createClient } from "@/lib/supabase/client";
 import { useWorkspace } from "@/lib/workspace";
-import type { SavedReport } from "@/app/insights/insights-constants";
+import type { SavedReport } from "@/app/(crm)/insights/insights-constants";
 import type { Json } from "@/lib/supabase/database.types";
 
 function toConfig(r: SavedReport): Json {
