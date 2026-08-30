@@ -2,13 +2,53 @@ import { NextRequest, NextResponse } from "next/server";
 import { createMiddlewareClient } from "@/lib/supabase/server";
 import { matchesAdminAllowlist } from "@/lib/platform-admin";
 
+// Host do painel da plataforma. NEXT_PUBLIC_ é inlined no build, então dá
+// pra ler no escopo do módulo -- e o mesmo valor vale para dev
+// (painel.localhost:3000) e produção (admin.aimaze.com.br). O rewrite NÃO é
+// desligado em dev de propósito: se fosse, todo link do painel ("/contas")
+// resolveria contra o CRM localmente e o painel só seria testável em prod.
+const ADMIN_HOST = (process.env.NEXT_PUBLIC_ADMIN_HOST ?? "").toLowerCase();
+
 export async function proxy(request: NextRequest) {
+  const path = request.nextUrl.pathname;
+  // x-forwarded-host primeiro: atrás do proxy da Vercel é ele que carrega o
+  // host que o navegador realmente pediu.
+  const host = (request.headers.get("x-forwarded-host") ?? request.headers.get("host") ?? "").toLowerCase();
+  const isPanelHost = !!ADMIN_HOST && host === ADMIN_HOST;
+
+  // Regra 3 (§4 do spec): o painel não é alcançável pelo domínio do cliente.
+  // notFound() é API de Server Component e não existe aqui -- 404 na mão.
+  // Também 404 no host do painel: lá a URL canônica é limpa ("/contas"), e
+  // deixar /painel/contas passar reescreveria pra /painel/painel/contas.
+  if (path.startsWith("/painel")) {
+    return new NextResponse(null, { status: 404 });
+  }
+
   const { supabase, response } = createMiddlewareClient(request);
   const { data: { user } } = await supabase.auth.getUser();
 
+  // Regras 1 e 2 (§4): host do painel serve src/app/painel/*, e /api/* passa
+  // direto. Sem a exceção do /api, uma chamada do painel pra
+  // /api/admin/workspaces viraria /painel/api/admin/workspaces e o painel
+  // inteiro quebraria. O getUser() acima roda antes de propósito: é ele que
+  // renova o cookie de sessão, e sem renovação a sessão do painel morreria na
+  // primeira expiração de token.
+  //
+  // Nada da lógica de membership do CRM (abaixo) roda no host do painel: um
+  // operador não é membro de workspace nenhum, e o gate de verdade é
+  // src/app/painel/(app)/layout.tsx.
+  if (isPanelHost) {
+    if (path.startsWith("/api")) return response;
+    const url = request.nextUrl.clone();
+    url.pathname = path === "/" ? "/painel" : `/painel${path}`;
+    const rewritten = NextResponse.rewrite(url);
+    for (const cookie of response.cookies.getAll()) rewritten.cookies.set(cookie);
+    return rewritten;
+  }
+
   const isAuthPage =
-    request.nextUrl.pathname.startsWith("/login") ||
-    request.nextUrl.pathname.startsWith("/convite");
+    path.startsWith("/login") ||
+    path.startsWith("/convite");
 
   // Um platform admin não é necessariamente membro de workspace nenhum (é o
   // mesmo motivo que já tirou /admin do matcher abaixo) -- sem essa isenção,
@@ -73,7 +113,7 @@ export async function proxy(request: NextRequest) {
 
   // Home genérica ("/") pressupõe workspace -- um admin puro não tem um, então
   // manda direto pro painel dele em vez de deixar "/" quebrar em silêncio.
-  if (user && isPlatformAdmin && request.nextUrl.pathname === "/") {
+  if (user && isPlatformAdmin && path === "/") {
     return NextResponse.redirect(new URL("/admin", request.url));
   }
 
@@ -129,6 +169,11 @@ export async function proxy(request: NextRequest) {
 // /login?revoked=1 on every /admin visit. The layout's own gate is the real
 // protection here (session + email allowlist), same as api/admin's route
 // gate is the real protection for the API side.
+// api/auth/impersonate é o callback de "entrar como cliente": chega SEM
+// cookie de sessão (é exatamente ele que vai criar a sessão, trocando um
+// token de uso único). Sem esta exclusão levava 307 pro /login e o
+// impersonate nunca funcionava -- mesma armadilha de api/cron e
+// api/telephony/webhook, que já custou 3 incidentes neste projeto.
 export const config = {
-  matcher: ["/((?!_next/static|_next/image|favicon.ico|api/auth/gmail/callback|api/auth/google-calendar/callback|api/track|api/whatsapp/webhook|api/whatsapp/queue|api/telephony/webhook|api/convites|api/automations|api/v1|api/admin|admin|api/cron|.*\\.(?:svg|png|jpg|jpeg|gif|webp)$).*)"],
+  matcher: ["/((?!_next/static|_next/image|favicon.ico|api/auth/gmail/callback|api/auth/google-calendar/callback|api/auth/impersonate|api/track|api/whatsapp/webhook|api/whatsapp/queue|api/telephony/webhook|api/convites|api/automations|api/v1|api/admin|admin|api/cron|.*\\.(?:svg|png|jpg|jpeg|gif|webp)$).*)"],
 };
