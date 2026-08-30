@@ -3279,6 +3279,7 @@ export type Database = {
       is_ws_manager: { Args: { ws: string }; Returns: boolean }
       my_role: { Args: { ws: string }; Returns: string }
       my_workspace_ids: { Args: never; Returns: string[] }
+      platform_dashboard_stats: { Args: never; Returns: Json }
       replace_deal_labels: {
         Args: { p_deal_id: string; p_label_ids: string[] }
         Returns: undefined
@@ -3491,3 +3492,4 @@ export const Constants = {
     Enums: {},
   },
 } as const
+
