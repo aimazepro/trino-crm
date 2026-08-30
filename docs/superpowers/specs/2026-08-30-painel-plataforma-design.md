@@ -418,3 +418,52 @@ Papéis `owner` e `support`.
 | Stripe | Só colunas | nada; modelo de assinatura completo |
 | Apagar conta | Padrão é desativar. Definitivo existe, mas só `owner`, com contagem real + digitação + auditoria; cliente nunca apaga a própria | apagar como ação comum; procedimento só manual fora do painel |
 | Cadastro público | Fechado (UI + servidor) | manter aberto |
+
+## 16. Pendências operacionais (fora do código)
+
+Duas coisas que só o dono da conta pode fazer. A #1 bloqueia o passo 3 da §13;
+a #2 bloqueia o passo 10 e **tem uma ordem obrigatória**.
+
+### 16.1 DNS + domínio na Vercel — bloqueia o roteamento
+
+1. Apontar `admin.aimaze.com.br` (CNAME para `cname.vercel-dns.com`, ou o alvo
+   que a Vercel indicar na hora).
+2. Adicionar o domínio ao projeto `trino-crm` (`prj_kaWE035waorvnxOy9dqEl2chkuaa`,
+   team `team_ZnMiXkS7qzZ8SOrEQHagyUR6`) — `vercel domains add` ou pelo painel.
+3. Definir `NEXT_PUBLIC_ADMIN_HOST=admin.aimaze.com.br` nas env vars de
+   Production (§4 — o host não é hardcoded).
+
+Enquanto isso não existir, dá para desenvolver: em `localhost` o rewrite é
+desligado por desenho e `/painel/*` responde direto.
+
+### 16.2 Desligar sign-ups no Supabase — **verificar o convite ANTES**
+
+Supabase → Auth → Providers → Email → desmarcar "Enable sign-ups". Isso fecha
+`POST /auth/v1/signup` no servidor; tirar o botão da UI sozinho não fecha nada.
+
+**A ordem importa.** Se o fluxo de `/convite/[token]` criar o membro chamando
+`supabase.auth.signUp`, desligar o toggle **quebra todo convite novo, em
+silêncio** — o convidado recebe o link e não consegue entrar. Então:
+
+1. Primeiro conferir como `/convite/[token]` cria o usuário.
+2. Se usar `signUp`, migrar a rota para `admin.createUser` (service-role) antes
+   de mexer no toggle.
+3. Só então desligar, e testar um convite de ponta a ponta.
+
+Essa verificação é o primeiro item do passo 10 da §13 — não um pré-requisito do
+dono, e sim trabalho de implementação. O toggle é o único passo manual.
+
+## 17. Como retomar
+
+```
+Retomar o painel da plataforma v2 do trino-crm.
+
+Leia docs/superpowers/specs/2026-08-30-painel-plataforma-design.md — o
+design está aprovado, com todas as decisões já fechadas (não relitigar).
+
+Quero revisar o spec e, se estiver tudo certo, partir para o plano de
+implementação com a skill writing-plans.
+
+Já feito e em produção: 79a19dd e 79f7114 (§12). Ordem: §13.
+Pendências operacionais: §16.
+```
