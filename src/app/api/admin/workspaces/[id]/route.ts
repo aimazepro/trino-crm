@@ -319,6 +319,18 @@ export async function DELETE(request: Request, { params }: { params: Promise<{ i
       );
     }
 
+    // Pré-condição antes de qualquer auditoria: existe um dono? O log tem que
+    // descrever o que aconteceu, então nada que possa impedir a destruição pode
+    // ficar depois dele. Se falhar aqui, a auditoria nunca é gravada.
+    const { data: ws } = await admin
+      .from("workspaces")
+      .select("owner_user_id")
+      .eq("id", id)
+      .maybeSingle();
+    if (!ws?.owner_user_id) {
+      return apiError("INTERNAL_ERROR", "Workspace sem dono — remoção manual necessária", 500);
+    }
+
     // Trava 1: contagem real, medida agora.
     const { data: preview, error: previewErr } = await admin.rpc("platform_deletion_preview", {
       p_workspace_id: id,
@@ -338,14 +350,6 @@ export async function DELETE(request: Request, { params }: { params: Promise<{ i
 
     // Apagar o dono em auth.users cascateia para workspaces e para as 43
     // tabelas abaixo dele (§8.1). É intencional aqui, e só aqui.
-    const { data: ws } = await admin
-      .from("workspaces")
-      .select("owner_user_id")
-      .eq("id", id)
-      .maybeSingle();
-    if (!ws?.owner_user_id) {
-      return apiError("INTERNAL_ERROR", "Workspace sem dono — remoção manual necessária", 500);
-    }
     const { error: delErr } = await admin.auth.admin.deleteUser(ws.owner_user_id);
     if (delErr) return apiError("INTERNAL_ERROR", delErr.message, 500);
 

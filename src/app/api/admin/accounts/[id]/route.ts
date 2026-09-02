@@ -88,11 +88,21 @@ export async function DELETE(request: Request, { params }: { params: Promise<{ i
   // Trava 4: dono de workspace ativo não sai como "conta". Apagar essa
   // linha cascatearia o workspace inteiro sem que ninguém tivesse decidido
   // apagar o workspace -- que é exatamente o acidente de §8.1.
-  const { data: owned } = await admin
+  // Fail-closed: uma checagem de segurança que não conseguiu rodar não é uma
+  // checagem que passou.
+  const { data: owned, error: ownedErr } = await admin
     .from("workspaces")
     .select("id, name, slug, status")
     .eq("owner_user_id", id)
     .neq("status", "deleted");
+
+  if (ownedErr) {
+    return apiError(
+      "INTERNAL_ERROR",
+      "A verificação de propriedade de workspace não pôde ser concluída e a conta não será apagada para sua proteção",
+      500
+    );
+  }
 
   if (owned && owned.length > 0) {
     return apiError(
@@ -104,21 +114,16 @@ export async function DELETE(request: Request, { params }: { params: Promise<{ i
     );
   }
 
-  // Trava 1 + 3: o que a conta assina, contado agora, e auditado antes.
-  const [{ count: deals }, { count: contacts }, { count: companies }, { data: memberships }] =
-    await Promise.all([
-      admin.from("deals").select("id", { count: "exact", head: true }).eq("owner_id", id),
-      admin.from("contacts").select("id", { count: "exact", head: true }).eq("owner_id", id),
-      admin.from("companies").select("id", { count: "exact", head: true }).eq("owner_id", id),
-      admin.from("workspace_members").select("workspace_id, role").eq("member_user_id", id),
-    ]);
-
-  const preview = {
-    dealsPerdemAutoria: deals ?? 0,
-    contactsPerdemAutoria: contacts ?? 0,
-    companiesPerdemAutoria: companies ?? 0,
-    memberships: memberships?.length ?? 0,
-  };
+  // Trava 1 + 3: contagem real do que a conta destrói/orfana, medida agora,
+  // e auditada antes de executar. O log tem que dizer o que foi perdido depois
+  // que não existe mais. Usa a RPC que separa destruído (cascata) e orphaned.
+  const { data: preview, error: previewErr } = await admin.rpc(
+    "platform_account_deletion_preview",
+    { p_user_id: id }
+  );
+  if (previewErr) {
+    return apiError("INTERNAL_ERROR", previewErr.message, 500);
+  }
 
   const logged = await logPlatformAction(auth.ctx, {
     action: "account.delete_hard",

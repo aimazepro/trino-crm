@@ -3280,6 +3280,7 @@ export type Database = {
       my_role: { Args: { ws: string }; Returns: string }
       my_workspace_ids: { Args: never; Returns: string[] }
       platform_dashboard_stats: { Args: never; Returns: Json }
+      platform_account_deletion_preview: { Args: { p_user_id: string }; Returns: Json }
       platform_deletion_preview: { Args: { p_workspace_id: string }; Returns: Json }
       replace_deal_labels: {
         Args: { p_deal_id: string; p_label_ids: string[] }
