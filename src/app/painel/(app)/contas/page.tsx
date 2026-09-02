@@ -53,7 +53,7 @@ export default function PainelContasPage() {
 
   const load = useCallback(async () => {
     setLoading(true);
-    const res = await fetch("/api/admin/accounts?group=workspace");
+    const res = await fetch("/api/admin/accounts");
     const json = await res.json();
     setWorkspaces(res.ok ? json.data.workspaces : []);
     setOrphans(res.ok ? json.data.orphans : []);
