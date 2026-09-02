@@ -2166,7 +2166,7 @@ git commit -m "feat(painel): dashboard com trials, contas paradas, órfãs e tel
 - Produces: `logPlatformAction(ctx: PlatformAdminContext, entry: AuditEntry): Promise<{ ok: true } | { ok: false; message: string }>` com
   `AuditEntry = { action: string; targetType?: "workspace" | "account" | "operator" | null; targetId?: string | null; targetLabel?: string | null; metadata?: Record<string, unknown> | null }`;
   `GET /api/admin/audit?limit=&action=&targetId=` → `{ data: { entries: [{ id, actorEmail, actorRole, actorVia, action, targetType, targetId, targetLabel, metadata, createdAt }] } }`.
-  Ações usadas por este plano: `workspace.create`, `workspace.update`, `workspace.suspend`, `workspace.delete_soft`, `workspace.delete_hard`, `account.block`, `account.unblock`, `account.delete_hard`, `impersonate.start`.
+  Ações usadas por este plano: `workspace.create`, `workspace.update`, `workspace.suspend`, `workspace.reactivate`, `workspace.delete_soft`, `workspace.delete_hard`, `account.block`, `account.unblock`, `account.delete_hard`, `impersonate.start`.
 
 - [ ] **Step 1: O escritor**
 

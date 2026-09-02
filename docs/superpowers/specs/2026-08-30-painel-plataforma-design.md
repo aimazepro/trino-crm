@@ -141,11 +141,18 @@ engano, o e-mail da env ainda entra.
 
 **Papéis:**
 
-| Papel | Vê dados | Bloqueia conta/workspace | Plano, trial, features | Impersonate | Gerencia operadores | Apaga em definitivo (§8.3) |
+| Papel | Vê dados | Bloqueia conta/workspace, features | Plano e trial | Impersonate | Gerencia operadores | Apaga em definitivo (§8.3) |
 |---|---|---|---|---|---|---|
 | `owner` | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ |
 | `support` | ✅ | ✅ | ❌ | ✅ | ❌ | ❌ |
 | `billing` | ❌ (só agregados) | ❌ | ✅ | ❌ | ❌ | ❌ |
+
+> **Divergência do desenho original, registrada em 2026-09-01:** a tabela antes
+> juntava "Plano, trial, features" numa coluna só (`support` ❌, `billing` ✅);
+> a implementação pôs `feature_flags` junto dos controles operacionais, sob a
+> habilidade `block` (`support` ✅, `billing` ❌), porque quem já pode suspender
+> o workspace inteiro desligar um recurso é menos poder, não mais — e porque
+> desligar uma funcionalidade é operação, não cobrança.
 
 O cliente (qualquer papel dentro do CRM, inclusive dono do workspace) não tem
 acesso a nenhuma dessas colunas — não existe autoatendimento de exclusão.
@@ -318,7 +325,7 @@ create table public.platform_audit_log (
   actor_email text,
   actor_role  text,
   actor_via   text check (actor_via in ('session','token')),
-  action      text not null,   -- 'workspace.suspend', 'account.block', 'impersonate.start', ...
+  action      text not null,   -- 'workspace.suspend', 'workspace.reactivate', 'account.block', 'impersonate.start', ...
   target_type text,            -- 'workspace' | 'account'
   target_id   text,
   target_label text,           -- nome/e-mail no momento da ação, para o log sobreviver a renomeações

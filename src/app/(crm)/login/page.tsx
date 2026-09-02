@@ -50,7 +50,7 @@ export default function LoginPage() {
     router.refresh();
   }
 
-async function handleGoogleLogin() {
+  async function handleGoogleLogin() {
     setLoading(true);
     setError(null);
     const { error } = await supabase.auth.signInWithOAuth({

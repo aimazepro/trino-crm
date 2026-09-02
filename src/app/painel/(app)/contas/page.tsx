@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useState } from "react";
 import Link from "next/link";
-import { ChevronDown, ChevronRight, Search } from "lucide-react";
+import { ChevronDown, ChevronRight, Plus, Search, X } from "lucide-react";
 import { cn } from "@/lib/utils";
 
 type Member = {
@@ -50,6 +50,9 @@ export default function PainelContasPage() {
   const [plan, setPlan] = useState("");
   const [onlyOrphans, setOnlyOrphans] = useState(false);
   const [collapsed, setCollapsed] = useState<Record<string, boolean>>({});
+  const [showCreate, setShowCreate] = useState(false);
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState<string | null>(null);
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -63,6 +66,36 @@ export default function PainelContasPage() {
   useEffect(() => {
     load();
   }, [load]);
+
+  // Mesma chamada que o detalhe do workspace já faz pros membros
+  // (src/app/painel/(app)/contas/[id]/page.tsx) -- a conta órfã não tem
+  // detalhe pra onde ir, então o botão precisa viver aqui, na única tela que
+  // a mostra. Era o que o /admin/contas antigo fazia e o v2 tinha perdido.
+  async function toggleOrphanBlock(userId: string, email: string | null, blocked: boolean) {
+    const quem = email ?? "esta conta";
+    if (
+      !confirm(
+        blocked
+          ? `Desbloquear ${quem}?`
+          : `Bloquear ${quem}? O acesso é cortado na próxima ação dela — o histórico dela continua assinado.`
+      )
+    )
+      return;
+    setBusy(true);
+    setError(null);
+    const res = await fetch(`/api/admin/accounts/${userId}`, {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ blocked: !blocked }),
+    });
+    setBusy(false);
+    if (!res.ok) {
+      const json = await res.json().catch(() => null);
+      setError(json?.error?.message ?? "Falha ao atualizar conta");
+      return;
+    }
+    load();
+  }
 
   const needle = q.trim().toLowerCase();
   // A busca cobre e-mail de membro além de nome e slug: procurar pela pessoa
@@ -86,12 +119,29 @@ export default function PainelContasPage() {
 
   return (
     <div className="max-w-5xl mx-auto">
-      <div className="mb-6">
-        <h2 className="text-xl font-black text-zinc-900">Contas</h2>
-        <p className="text-sm text-zinc-500 mt-1">
-          {workspaces.length} workspace(s) · {orphans.length} conta(s) sem workspace
-        </p>
+      <div className="mb-6 flex items-start justify-between gap-4">
+        <div>
+          <h2 className="text-xl font-black text-zinc-900">Contas</h2>
+          <p className="text-sm text-zinc-500 mt-1">
+            {workspaces.length} workspace(s) · {orphans.length} conta(s) sem workspace
+          </p>
+        </div>
+        {/* §9: com o cadastro público fechado, o painel é um dos dois únicos
+            lugares onde uma conta nasce (o outro é o convite). Sem este botão
+            o onboarding de cliente novo exigiria curl. */}
+        <button
+          onClick={() => setShowCreate(true)}
+          className="flex shrink-0 items-center gap-2 px-4 py-2 bg-zinc-900 text-white text-[13px] font-bold rounded-lg hover:bg-zinc-800 transition-colors"
+        >
+          <Plus size={16} /> Criar conta
+        </button>
       </div>
+
+      {error && (
+        <p className="mb-4 text-xs font-semibold text-red-600 bg-red-50 border border-red-100 rounded-xl px-3 py-2">
+          {error}
+        </p>
+      )}
 
       <div className="flex flex-wrap items-center gap-2 mb-4">
         <div className="relative">
@@ -229,6 +279,13 @@ export default function PainelContasPage() {
                       <span className={o.blocked ? "font-bold text-red-600" : "text-zinc-400"}>
                         {o.blocked ? "bloqueada" : "ativa"}
                       </span>
+                      <button
+                        onClick={() => toggleOrphanBlock(o.id, o.email, o.blocked)}
+                        disabled={busy}
+                        className="rounded-lg border border-zinc-200 px-2.5 py-1 font-bold text-zinc-700 hover:bg-zinc-50 disabled:opacity-40"
+                      >
+                        {o.blocked ? "Desbloquear" : "Bloquear"}
+                      </button>
                     </div>
                   </div>
                 ))}
@@ -241,6 +298,123 @@ export default function PainelContasPage() {
           )}
         </div>
       )}
+
+      {showCreate && (
+        <CriarContaModal
+          onClose={() => setShowCreate(false)}
+          onCreated={() => {
+            setShowCreate(false);
+            load();
+          }}
+        />
+      )}
+    </div>
+  );
+}
+
+/** Formulário mínimo de nascimento de conta: cria o usuário dono, o workspace
+ * e o vínculo de admin numa chamada só (POST /api/admin/workspaces, que já
+ * audita e já faz rollback se qualquer etapa falhar). */
+function CriarContaModal({ onClose, onCreated }: { onClose: () => void; onCreated: () => void }) {
+  const [name, setName] = useState("");
+  const [slug, setSlug] = useState("");
+  const [plan, setPlan] = useState("trial");
+  const [ownerEmail, setOwnerEmail] = useState("");
+  const [ownerPassword, setOwnerPassword] = useState("");
+  const [error, setError] = useState<string | null>(null);
+  const [saving, setSaving] = useState(false);
+
+  async function submit() {
+    setSaving(true);
+    setError(null);
+    const res = await fetch("/api/admin/workspaces", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ name, slug, plan, ownerEmail, ownerPassword }),
+    });
+    const json = await res.json().catch(() => null);
+    setSaving(false);
+    if (!res.ok) {
+      // SLUG_TAKEN e EMAIL_EXISTS são os dois 409 esperados desta rota e já
+      // vêm com a mensagem pronta em português; qualquer outro código cai no
+      // mesmo caminho -- mostrar o que a API disse é sempre melhor do que um
+      // "algo deu errado" genérico.
+      setError(json?.error?.message ?? "Falha ao criar conta");
+      return;
+    }
+    onCreated();
+  }
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40" onClick={onClose}>
+      <div className="bg-white rounded-2xl p-6 w-full max-w-md" onClick={(e) => e.stopPropagation()}>
+        <div className="flex items-center justify-between mb-4">
+          <h3 className="text-lg font-black text-zinc-900">Criar conta</h3>
+          <button
+            onClick={onClose}
+            aria-label="Fechar"
+            className="p-1 text-zinc-400 hover:text-zinc-700 rounded-lg hover:bg-zinc-100"
+          >
+            <X size={18} />
+          </button>
+        </div>
+
+        <div className="space-y-3">
+          <input
+            value={name}
+            onChange={(e) => setName(e.target.value)}
+            placeholder="Nome da empresa"
+            className="w-full px-3 py-2 text-sm border border-zinc-200 rounded-lg outline-none focus:border-zinc-900"
+          />
+          <input
+            value={slug}
+            onChange={(e) => setSlug(e.target.value)}
+            placeholder="slug-do-workspace"
+            className="w-full px-3 py-2 text-sm border border-zinc-200 rounded-lg outline-none focus:border-zinc-900"
+          />
+          <select
+            value={plan}
+            onChange={(e) => setPlan(e.target.value)}
+            className="w-full px-3 py-2 text-sm border border-zinc-200 rounded-lg outline-none"
+          >
+            <option value="trial">Trial</option>
+            <option value="pro">Pro</option>
+            <option value="business">Business</option>
+          </select>
+          <input
+            value={ownerEmail}
+            onChange={(e) => setOwnerEmail(e.target.value)}
+            placeholder="E-mail do dono"
+            type="email"
+            className="w-full px-3 py-2 text-sm border border-zinc-200 rounded-lg outline-none focus:border-zinc-900"
+          />
+          <input
+            value={ownerPassword}
+            onChange={(e) => setOwnerPassword(e.target.value)}
+            placeholder="Senha temporária (8+ caracteres)"
+            type="text"
+            className="w-full px-3 py-2 text-sm border border-zinc-200 rounded-lg outline-none focus:border-zinc-900"
+          />
+        </div>
+
+        {error && <p className="mt-3 text-xs font-semibold text-red-600">{error}</p>}
+
+        <div className="mt-5 flex justify-end gap-2">
+          <button
+            onClick={onClose}
+            className="px-4 py-2 text-[13px] font-bold text-zinc-600 bg-zinc-100 rounded-lg hover:bg-zinc-200"
+          >
+            Cancelar
+          </button>
+          <button
+            onClick={submit}
+            disabled={saving || !name || !slug || !ownerEmail || ownerPassword.length < 8}
+            className="px-4 py-2 bg-zinc-900 text-white text-[13px] font-bold rounded-lg hover:bg-zinc-800 disabled:opacity-40"
+          >
+            {saving ? "Criando…" : "Criar"}
+          </button>
+        </div>
+      </div>
     </div>
   );
 }

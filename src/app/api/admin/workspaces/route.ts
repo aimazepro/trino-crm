@@ -1,5 +1,5 @@
 // src/app/api/admin/workspaces/route.ts
-import { requirePlatformAdmin, adminClient } from "@/lib/platform-admin-server";
+import { requirePlatformAbility, adminClient } from "@/lib/platform-admin-server";
 import { apiError, apiSuccess } from "@/lib/api-auth";
 import { logPlatformAction } from "@/lib/platform-audit";
 
@@ -15,7 +15,11 @@ function escapeIlike(s: string): string {
 }
 
 export async function GET(request: Request) {
-  const auth = await requirePlatformAdmin(request);
+  // "read_customer_data", não requirePlatformAdmin puro: esta lista é a base
+  // de clientes inteira -- nome, slug, plano, status e nº de membros de cada
+  // workspace. O papel 'billing' é definido em §5 como "vê dados ❌ (só
+  // agregados)", e sob o gate genérico ele lia tudo isso.
+  const auth = await requirePlatformAbility(request, "read_customer_data");
   if (!auth.ok) return auth.response;
 
   const url = new URL(request.url);
@@ -69,7 +73,13 @@ interface CreateWorkspaceBody {
 }
 
 export async function POST(request: Request) {
-  const auth = await requirePlatformAdmin(request);
+  // Criar conta é controle operacional, não cobrança: quem cria escolhe o
+  // e-mail e a SENHA do dono, ou seja, sai daqui com credencial válida de um
+  // workspace novo. Isso é da mesma família de "suspender workspace" e
+  // "bloquear conta" -- a habilidade "block" (§5: 'owner' e 'support' têm,
+  // 'billing' não). Antes deste gate era só requirePlatformAdmin: uma escrita
+  // sem habilidade nenhuma, que 'billing' podia usar pra fabricar um acesso.
+  const auth = await requirePlatformAbility(request, "block");
   if (!auth.ok) return auth.response;
 
   let body: CreateWorkspaceBody;

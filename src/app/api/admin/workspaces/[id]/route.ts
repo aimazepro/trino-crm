@@ -267,8 +267,21 @@ export async function PATCH(request: Request, { params }: { params: Promise<{ id
     return apiSuccess({ workspace: serializeWorkspace(current) });
   }
 
+  // A ação sai do VALOR do status, não da presença do campo. Escolher por
+  // "body.status !== undefined" fazia REATIVAR um workspace ser gravado como
+  // 'workspace.suspend' -- e a tela de auditoria mostra o nome cru da ação,
+  // que é o único registro permanente do que aconteceu.
+  // Ações deste handler: 'workspace.suspend' (suspended/deleted),
+  // 'workspace.reactivate' (active), 'workspace.update' (sem status no corpo).
+  const action =
+    body.status === undefined
+      ? "workspace.update"
+      : body.status === "active"
+        ? "workspace.reactivate"
+        : "workspace.suspend";
+
   const logged = await logPlatformAction(auth.ctx, {
-    action: body.status !== undefined ? "workspace.suspend" : "workspace.update",
+    action,
     targetType: "workspace",
     targetId: id,
     targetLabel: current.name,
@@ -329,6 +342,42 @@ export async function DELETE(request: Request, { params }: { params: Promise<{ i
       .maybeSingle();
     if (!ws?.owner_user_id) {
       return apiError("INTERNAL_ERROR", "Workspace sem dono — remoção manual necessária", 500);
+    }
+
+    // Trava 5: a contagem tem escopo de WORKSPACE
+    // (platform_deletion_preview(p_workspace_id)), mas a execução tem escopo
+    // de USUÁRIO (deleteUser(owner_user_id)). Se esse dono também for membro
+    // de outro workspace, o delete leva calado a membership, os e-mails, as
+    // assinaturas, os dashboards e o ramal dele lá, e ainda anula
+    // deals.owner_id num cliente que ninguém decidiu tocar -- nada disso
+    // aparece no preview nem no log.
+    // Enquanto essas duas coisas não coincidirem, a única resposta honesta é
+    // recusar. Vem ANTES da auditoria: uma requisição recusada não é uma ação.
+    const { data: otherMemberships, error: otherErr } = await admin
+      .from("workspace_members")
+      .select("workspace_id")
+      .eq("member_user_id", ws.owner_user_id)
+      .neq("workspace_id", id);
+
+    // Fail-closed, mesmo espírito da trava de propriedade em
+    // /api/admin/accounts/[id]: checagem que não rodou não é checagem que passou.
+    if (otherErr) {
+      return apiError(
+        "INTERNAL_ERROR",
+        "A verificação de vínculos do dono em outros workspaces não pôde ser concluída e nada será apagado para sua proteção",
+        500
+      );
+    }
+
+    const otherWorkspaceIds = [...new Set((otherMemberships ?? []).map((m) => m.workspace_id))];
+    if (otherWorkspaceIds.length > 0) {
+      return apiError(
+        "OWNER_IN_OTHER_WORKSPACES",
+        `O dono deste workspace também é membro de ${otherWorkspaceIds.length} outro(s) workspace(s). ` +
+          `A remoção definitiva apaga a CONTA dele, o que destruiria os dados dele nesses outros workspaces sem que ninguém tivesse decidido isso. ` +
+          `Remova esses vínculos primeiro (ou transfira a posse deste workspace) e tente de novo.`,
+        409
+      );
     }
 
     // Trava 1: contagem real, medida agora.
