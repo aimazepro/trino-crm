@@ -12,17 +12,30 @@ proposital: sem `NEXT_PUBLIC_ADMIN_HOST`, `/painel/*` responde 404 em todo host 
 
 ## 1. Bloqueia produção — só o dono faz
 
-### 1.1 DNS + domínio na Vercel + env var (e redeploy)
+### 1.1 DNS + domínio na Vercel
+
+**Verificado em produção logo depois do deploy de 2026-09-02:**
+
+- ✅ `NEXT_PUBLIC_ADMIN_HOST` **já está definido** em Production — provado pelo comportamento real:
+  `https://api-crm.aimaze.com.br/admin` responde `307` para `https://admin.aimaze.com.br/`.
+  Não precisa mexer nisso.
+- ✅ O CRM não foi afetado: `https://api-crm.aimaze.com.br/login` responde `200`.
+- ✅ A regra de isolamento funciona em produção: `https://api-crm.aimaze.com.br/painel/contas`
+  responde `404`.
+- ❌ **`admin.aimaze.com.br` não existe no DNS** (`NXDOMAIN`). É o único bloqueio que resta.
+
+Falta, então:
 
 1. Apontar `admin.aimaze.com.br` no DNS (CNAME para o alvo que a Vercel indicar na hora).
 2. Adicionar o domínio ao projeto `trino-crm` (`prj_kaWE035waorvnxOy9dqEl2chkuaa`,
    team `team_ZnMiXkS7qzZ8SOrEQHagyUR6`).
-3. Definir `NEXT_PUBLIC_ADMIN_HOST=admin.aimaze.com.br` nas env vars de **Production**.
-4. **Fazer um redeploy.** `NEXT_PUBLIC_*` é inlined no build — definir a variável na Vercel não
-   vale nada até o próximo build. Isso já derrubou gente antes; está comentado em
-   `src/app/admin/[[...rest]]/page.tsx`.
 
-Enquanto isso não existir, o painel roda só em dev, em `painel.localhost:3000`.
+Feito isso, o painel está no ar — nenhum redeploy é necessário, porque a env var já entrou neste
+build. (Se um dia o VALOR dela mudar, aí sim precisa de redeploy: `NEXT_PUBLIC_*` é inlined no
+build, e está comentado em `src/app/admin/[[...rest]]/page.tsx`.)
+
+Enquanto o DNS não existir, o painel roda só em dev, em `painel.localhost:3000`, e
+`/admin` em produção redireciona para um host que ainda não responde.
 
 ### 1.2 Desligar sign-ups no Supabase
 
