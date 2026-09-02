@@ -83,6 +83,13 @@ sem passar pelo git. A linha antiga dizia que `git push` não deploya — era fa
   batia na checagem de "sem membership = revogado" antes de chegar no
   próprio gate do painel (bug real, reproduzido e corrigido em produção
   2026-08-29). Ver `docs/superpowers/specs/2026-08-29-admin-workspaces-design.md`.
+  **Em 2026-08-30, o painel migrou para subdomínio próprio como v2** — `/admin` agora
+  redireciona lá. Design em `docs/superpowers/specs/2026-08-30-painel-plataforma-design.md`;
+  plano executado em `docs/superpowers/plans/2026-08-30-painel-plataforma-v2.md`. v2 adicionou:
+  host próprio com sessão isolada, contas agrupadas por workspace com membros aninhados,
+  operadores com papéis reais (`owner`/`support`/`billing`), trilha de auditoria pré-escrita,
+  impersonate com faixa fixa no CRM, remoção definitiva travada por 4 gates, colunas de Stripe
+  sem nenhum código de Stripe.
 - [x] **Ricochete de login do platform admin + aba Contas (2026-08-30)** — a
   exclusão de `/admin` do matcher (item acima) não bastava: `handleLogin` do
   `/login` sempre manda pra `"/"` depois de autenticar, e `"/"` não estava
@@ -210,9 +217,13 @@ A fundação. Era o bloqueador declarado do "vender como produto". `AUD §6`
 > `resolveWorkspaceId()`, sem o fallback `?? userId` — o dono agora tem linha seedada em
 > `workspace_members`, então o fallback só escondia uma falha real de lookup.
 >
-> **Achado não resolvido, fora do escopo desta fase:** `/login` ainda permite auto-cadastro
-> (`supabase.auth.signUp` sem convite). Com múltiplos workspaces reais, isso deixa de ser
-> cosmético — qualquer um cria conta própria sem passar pelo convite. Avaliar se fecha ou não.
+> **Fechado em 2026-08-30 — cadastro público revogado.** `/login` já não permite auto-cadastro.
+> `supabase.auth.signUp` foi removido de todo o repositório — criar conta passa a existir em dois
+> lugares só: no painel da plataforma (v2, subdomínio isolado) e no convite (`/convite/[token]`,
+> que criava o usuário via service-role e não foi afetado). **⚠️ Pendência operacional do dono:** até
+> o toggle ser desmarcado no Supabase dashboard (Authentication → Providers → Email → "Enable
+> sign-ups"), `POST /auth/v1/signup` continua aberto para quem souber chamá-lo direto. Tirar o
+> botão da UI sozinho não fecha o buraco — é responsabilidade do dono desmarcar esse toggle.
 
 **O que o design descobriu, e que muda o plano original:**
 
