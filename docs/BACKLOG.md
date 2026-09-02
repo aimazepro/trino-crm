@@ -90,6 +90,11 @@ sem passar pelo git. A linha antiga dizia que `git push` não deploya — era fa
   operadores com papéis reais (`owner`/`support`/`billing`), trilha de auditoria pré-escrita,
   impersonate com faixa fixa no CRM, remoção definitiva travada por 4 gates, colunas de Stripe
   sem nenhum código de Stripe.
+  **O que ficou faltando está em [`docs/PENDENCIAS-PAINEL-V2.md`](PENDENCIAS-PAINEL-V2.md)** —
+  inclui os dois passos que bloqueiam produção (DNS + env var + redeploy; desligar sign-ups no
+  Supabase), um risco a corrigir antes de existir um segundo operador (`support` consegue banir a
+  conta do `owner` num clique), a faixa do impersonate que nunca foi vista renderizada, e a dívida
+  registrada. `PEND`
 - [x] **Ricochete de login do platform admin + aba Contas (2026-08-30)** — a
   exclusão de `/admin` do matcher (item acima) não bastava: `handleLogin` do
   `/login` sempre manda pra `"/"` depois de autenticar, e `"/"` não estava
