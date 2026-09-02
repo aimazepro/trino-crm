@@ -4,38 +4,49 @@
 **Design:** [`docs/superpowers/specs/2026-08-30-painel-plataforma-design.md`](superpowers/specs/2026-08-30-painel-plataforma-design.md)
 **Plano executado:** [`docs/superpowers/plans/2026-08-30-painel-plataforma-v2.md`](superpowers/plans/2026-08-30-painel-plataforma-v2.md)
 
-O painel **não existe em produção** até os dois primeiros itens abaixo serem feitos. Isso é
-proposital: sem `NEXT_PUBLIC_ADMIN_HOST`, `/painel/*` responde 404 em todo host e `/admin` responde
-404 — falha fechada, o CRM não é afetado.
+O painel está no ar em **https://admin.aimaze.com.br** desde 2026-09-02.
+
+O que resta não bloqueia o acesso: o toggle de sign-ups no Supabase (§1.2), um risco a fechar antes
+de existir um segundo operador (§2), uma verificação que precisa de navegador (§3) e dívida
+registrada (§4).
 
 ---
 
 ## 1. Bloqueia produção — só o dono faz
 
-### 1.1 DNS + domínio na Vercel
+### 1.1 DNS + domínio na Vercel — ✅ **RESOLVIDO em 2026-09-02**
 
-**Verificado em produção logo depois do deploy de 2026-09-02:**
+O painel está no ar em **https://admin.aimaze.com.br**.
 
-- ✅ `NEXT_PUBLIC_ADMIN_HOST` **já está definido** em Production — provado pelo comportamento real:
-  `https://api-crm.aimaze.com.br/admin` responde `307` para `https://admin.aimaze.com.br/`.
-  Não precisa mexer nisso.
-- ✅ O CRM não foi afetado: `https://api-crm.aimaze.com.br/login` responde `200`.
-- ✅ A regra de isolamento funciona em produção: `https://api-crm.aimaze.com.br/painel/contas`
-  responde `404`.
-- ❌ **`admin.aimaze.com.br` não existe no DNS** (`NXDOMAIN`). É o único bloqueio que resta.
+O que faltava era só o registro de DNS; o domínio já estava atribuído ao projeto na Vercel e
+`NEXT_PUBLIC_ADMIN_HOST` já estava definida em Production. Criado:
 
-Falta, então:
+```
+CNAME  admin.aimaze.com.br  ->  cname.vercel-dns.com   (proxy DESLIGADO, nuvem cinza)
+```
 
-1. Apontar `admin.aimaze.com.br` no DNS (CNAME para o alvo que a Vercel indicar na hora).
-2. Adicionar o domínio ao projeto `trino-crm` (`prj_kaWE035waorvnxOy9dqEl2chkuaa`,
-   team `team_ZnMiXkS7qzZ8SOrEQHagyUR6`).
+**O proxy da Cloudflare ficou desligado de propósito**, diferente de `api-crm` (que está proxied).
+O roteamento do painel depende de ler `x-forwarded-host` em `src/proxy.ts` para decidir qual host
+é qual — pôr a Cloudflare na frente mexe justamente nessa camada de cabeçalhos. Está funcionando
+sem proxy; se um dia quiser ligar a nuvem laranja para ganhar cache/DDoS, ligue e **reteste as três
+rotas abaixo antes de considerar feito**, porque é exatamente o mecanismo que pode quebrar em
+silêncio.
 
-Feito isso, o painel está no ar — nenhum redeploy é necessário, porque a env var já entrou neste
-build. (Se um dia o VALOR dela mudar, aí sim precisa de redeploy: `NEXT_PUBLIC_*` é inlined no
-build, e está comentado em `src/app/admin/[[...rest]]/page.tsx`.)
+Verificado em produção logo depois de criar o registro:
 
-Enquanto o DNS não existir, o painel roda só em dev, em `painel.localhost:3000`, e
-`/admin` em produção redireciona para um host que ainda não responde.
+| Host | Caminho | Resposta |
+|---|---|---|
+| painel | `/` | 307 → `/entrar` |
+| painel | `/entrar` | 200, renderiza "Painel da Plataforma / Acesso restrito a operadores" |
+| painel | `/contas`, `/auditoria` | 307 → `/entrar` (gate funcionando) |
+| CRM | `/login` | 200 (intacto) |
+| CRM | `/painel/contas` | 404 (isolamento vale em produção) |
+| CRM | `/admin` | 307 → `https://admin.aimaze.com.br/` |
+
+**Em dev**, o painel continua em `painel.localhost:3000` — depende de `NEXT_PUBLIC_ADMIN_HOST`
+estar no `.env.local`. Se um clone novo não tiver essa variável, o host do painel é tratado como
+CRM e `/entrar` cai no `/login` do cliente; foi exatamente o que aconteceu no repositório principal
+até 2026-09-02.
 
 ### 1.2 Desligar sign-ups no Supabase
 
