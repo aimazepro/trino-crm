@@ -119,6 +119,10 @@ export async function proxy(request: NextRequest) {
     return NextResponse.redirect(new URL("/login", request.url));
   }
 
+  // Platform admin que caiu no login do CRM é mandado pro /admin, que hoje
+  // só existe pra redirecionar pro host do painel (src/app/admin/[[...rest]]).
+  // Manter o pulo em dois passos, e não a URL absoluta aqui, deixa um lugar
+  // só sabendo montar o endereço do painel.
   if (user && isAuthPage) {
     return NextResponse.redirect(new URL(isPlatformAdmin ? "/admin" : "/", request.url));
   }
