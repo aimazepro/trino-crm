@@ -44,6 +44,10 @@ const OPTIONAL_SERVER_VARS = [
   // mas o resto do app não pode cair no boot por causa disso.
   "PLATFORM_ADMIN_EMAILS",
   "PLATFORM_ADMIN_API_TOKEN",
+  // Host do painel da plataforma (ex.: admin.aimaze.com.br). Sem ela o
+  // roteamento por host fica desligado e /painel/* responde 404 em todo
+  // lugar -- falha fechado, mas o CRM sobe normalmente.
+  "NEXT_PUBLIC_ADMIN_HOST",
 ] as const;
 
 export function validateEnv(): void {

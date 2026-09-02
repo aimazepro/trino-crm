@@ -15,9 +15,17 @@ import type { NextConfig } from "next";
 // que o header foi criado -- todo áudio do WhatsApp aponta pra uma signed URL do
 // Storage e o navegador bloqueava o load em silêncio (sem erro visível, só no
 // console), então nenhum áudio da conversa tocava, em nenhum formato.
+//
+// 'unsafe-eval' SÓ em desenvolvimento: o React em dev usa eval() para
+// reconstruir stack trace de outro ambiente e para o overlay de erro do Next.
+// Sem ele, todo carregamento em dev cospe "eval() is not supported in this
+// environment" no console e as ferramentas de debug ficam cegas. Em produção
+// o React nunca chama eval(), então o header continua estrito lá -- é por isso
+// que isto é condicional e não uma entrada fixa na lista.
+const isDev = process.env.NODE_ENV === "development";
 const cspHeader = `
   default-src 'self';
-  script-src 'self' 'unsafe-inline';
+  script-src 'self' 'unsafe-inline'${isDev ? " 'unsafe-eval'" : ""};
   style-src 'self' 'unsafe-inline';
   img-src 'self' data: blob: https:;
   font-src 'self' data:;

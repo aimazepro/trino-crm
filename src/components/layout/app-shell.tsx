@@ -6,6 +6,7 @@ import { Topbar } from "./topbar";
 import { CrmProvider, useCrm } from "@/contexts/crm-context";
 import { AutomacoesProvider } from "@/contexts/automacoes-context";
 import { WorkspaceProvider } from "@/lib/workspace";
+import { ImpersonationBanner } from "./impersonation-banner";
 
 function AppContent({ children }: { children: React.ReactNode }) {
   const { loading } = useCrm();
@@ -38,14 +39,24 @@ function AppContent({ children }: { children: React.ReactNode }) {
 
 export function AppShell({ children }: { children: React.ReactNode }) {
   const pathname = usePathname();
-  if (pathname.startsWith("/login") || pathname.startsWith("/convite")) return <>{children}</>;
+  if (pathname.startsWith("/login") || pathname.startsWith("/convite")) {
+    return (
+      <>
+        <ImpersonationBanner />
+        {children}
+      </>
+    );
+  }
   return (
-    <WorkspaceProvider>
-      <CrmProvider>
-        <AutomacoesProvider>
-          <AppContent>{children}</AppContent>
-        </AutomacoesProvider>
-      </CrmProvider>
-    </WorkspaceProvider>
+    <>
+      <ImpersonationBanner />
+      <WorkspaceProvider>
+        <CrmProvider>
+          <AutomacoesProvider>
+            <AppContent>{children}</AppContent>
+          </AutomacoesProvider>
+        </CrmProvider>
+      </WorkspaceProvider>
+    </>
   );
 }

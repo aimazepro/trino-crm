@@ -1,6 +1,7 @@
 // src/app/api/admin/workspaces/route.ts
-import { requirePlatformAdmin, adminClient } from "@/lib/platform-admin-server";
+import { requirePlatformAbility, adminClient } from "@/lib/platform-admin-server";
 import { apiError, apiSuccess } from "@/lib/api-auth";
+import { logPlatformAction } from "@/lib/platform-audit";
 
 export const dynamic = "force-dynamic";
 
@@ -14,7 +15,11 @@ function escapeIlike(s: string): string {
 }
 
 export async function GET(request: Request) {
-  const auth = await requirePlatformAdmin(request);
+  // "read_customer_data", não requirePlatformAdmin puro: esta lista é a base
+  // de clientes inteira -- nome, slug, plano, status e nº de membros de cada
+  // workspace. O papel 'billing' é definido em §5 como "vê dados ❌ (só
+  // agregados)", e sob o gate genérico ele lia tudo isso.
+  const auth = await requirePlatformAbility(request, "read_customer_data");
   if (!auth.ok) return auth.response;
 
   const url = new URL(request.url);
@@ -68,7 +73,13 @@ interface CreateWorkspaceBody {
 }
 
 export async function POST(request: Request) {
-  const auth = await requirePlatformAdmin(request);
+  // Criar conta é controle operacional, não cobrança: quem cria escolhe o
+  // e-mail e a SENHA do dono, ou seja, sai daqui com credencial válida de um
+  // workspace novo. Isso é da mesma família de "suspender workspace" e
+  // "bloquear conta" -- a habilidade "block" (§5: 'owner' e 'support' têm,
+  // 'billing' não). Antes deste gate era só requirePlatformAdmin: uma escrita
+  // sem habilidade nenhuma, que 'billing' podia usar pra fabricar um acesso.
+  const auth = await requirePlatformAbility(request, "block");
   if (!auth.ok) return auth.response;
 
   let body: CreateWorkspaceBody;
@@ -166,6 +177,28 @@ export async function POST(request: Request) {
   console.log(
     `[admin] workspace criado: ${workspace.id} (${slug}) por ${auth.ctx.via === "session" ? auth.ctx.email : "token"}`
   );
+
+  // Log depois, não antes: a criação não é destrutiva (rollback acima apaga
+  // workspace e usuário se algo falhar), então logar antes deixaria linha de
+  // auditoria de um workspace que nunca chegou a existir de fato.
+  const logged = await logPlatformAction(auth.ctx, {
+    action: "workspace.create",
+    targetType: "workspace",
+    targetId: workspace.id,
+    targetLabel: name,
+    metadata: { slug, plan, ownerEmail },
+  });
+  if (!logged.ok) {
+    // Aqui a ação já aconteceu quando o log é escrito (workspace, membro e
+    // auth.users já estão commitados) -- diferente das rotas "log antes da
+    // ação", onde falhar o log barra a ação antes dela existir. Aqui a única
+    // forma de manter "ação sem rastro não acontece" verdadeiro é desfazer o
+    // que já foi feito: mesmo rollback dos branches wsErr/memberErr acima.
+    await admin.from("workspace_members").delete().eq("workspace_id", workspace.id);
+    await admin.from("workspaces").delete().eq("id", workspace.id);
+    await admin.auth.admin.deleteUser(ownerUserId);
+    return apiError("INTERNAL_ERROR", logged.message, 500);
+  }
 
   return apiSuccess({ workspaceId: workspace.id, ownerUserId }, undefined, 201);
 }

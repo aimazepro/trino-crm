@@ -2,13 +2,65 @@ import { NextRequest, NextResponse } from "next/server";
 import { createMiddlewareClient } from "@/lib/supabase/server";
 import { matchesAdminAllowlist } from "@/lib/platform-admin";
 
+// Host do painel da plataforma. NEXT_PUBLIC_ é inlined no build, então dá
+// pra ler no escopo do módulo -- e o mesmo valor vale para dev
+// (painel.localhost:3000) e produção (admin.aimaze.com.br). O rewrite NÃO é
+// desligado em dev de propósito: se fosse, todo link do painel ("/contas")
+// resolveria contra o CRM localmente e o painel só seria testável em prod.
+const ADMIN_HOST = (process.env.NEXT_PUBLIC_ADMIN_HOST ?? "").toLowerCase();
+
 export async function proxy(request: NextRequest) {
+  const path = request.nextUrl.pathname;
+  // x-forwarded-host primeiro: atrás do proxy da Vercel é ele que carrega o
+  // host que o navegador realmente pediu.
+  const host = (request.headers.get("x-forwarded-host") ?? request.headers.get("host") ?? "").toLowerCase();
+  const isPanelHost = !!ADMIN_HOST && host === ADMIN_HOST;
+
+  // Regra 3 (§4 do spec): o painel não é alcançável pelo domínio do cliente.
+  // notFound() é API de Server Component e não existe aqui -- 404 na mão.
+  // Também 404 no host do painel: lá a URL canônica é limpa ("/contas"), e
+  // deixar /painel/contas passar reescreveria pra /painel/painel/contas.
+  if (path.startsWith("/painel")) {
+    return new NextResponse(null, { status: 404 });
+  }
+
   const { supabase, response } = createMiddlewareClient(request);
   const { data: { user } } = await supabase.auth.getUser();
 
+  // Regra 1 (§4): host do painel serve src/app/painel/*. O getUser() acima
+  // roda antes de propósito: é ele que renova o cookie de sessão, e sem
+  // renovação a sessão do painel morreria na primeira expiração de token.
+  //
+  // Nada da lógica de membership do CRM (abaixo) roda no host do painel: um
+  // operador não é membro de workspace nenhum, e o gate de verdade é
+  // src/app/painel/(app)/layout.tsx.
+  //
+  // /api/* no host do painel NÃO tem tratamento especial (nem rewrite, nem
+  // passagem direta): toda API que o painel chama vive em /api/admin/*
+  // (whoami, dashboard, audit, accounts, workspaces) ou em
+  // api/auth/impersonate, e as duas já estão inteiramente fora do matcher
+  // (ver o bloco de comentários acima de `config`) -- ou seja, essas
+  // requisições nunca chegam a entrar em `proxy()`, muito menos neste `if`.
+  // Então nenhum /api/* legítimo do painel passa por aqui: o que sobra são
+  // APIs do CRM, que o painel nunca chama. Devolver 404 em vez de `response`
+  // (que deixaria a requisição seguir intocada) é o que impede um
+  // `Host`/`x-forwarded-host` forjado pra bater com ADMIN_HOST de usar esse
+  // ramo pra pular o corte por membership/workspace suspenso feito mais
+  // abaixo -- corte que só roda fora deste bloco.
+  if (isPanelHost) {
+    if (path === "/api" || path.startsWith("/api/")) {
+      return new NextResponse(null, { status: 404 });
+    }
+    const url = request.nextUrl.clone();
+    url.pathname = path === "/" ? "/painel" : `/painel${path}`;
+    const rewritten = NextResponse.rewrite(url);
+    for (const cookie of response.cookies.getAll()) rewritten.cookies.set(cookie);
+    return rewritten;
+  }
+
   const isAuthPage =
-    request.nextUrl.pathname.startsWith("/login") ||
-    request.nextUrl.pathname.startsWith("/convite");
+    path.startsWith("/login") ||
+    path.startsWith("/convite");
 
   // Um platform admin não é necessariamente membro de workspace nenhum (é o
   // mesmo motivo que já tirou /admin do matcher abaixo) -- sem essa isenção,
@@ -67,13 +119,17 @@ export async function proxy(request: NextRequest) {
     return NextResponse.redirect(new URL("/login", request.url));
   }
 
+  // Platform admin que caiu no login do CRM é mandado pro /admin, que hoje
+  // só existe pra redirecionar pro host do painel (src/app/admin/[[...rest]]).
+  // Manter o pulo em dois passos, e não a URL absoluta aqui, deixa um lugar
+  // só sabendo montar o endereço do painel.
   if (user && isAuthPage) {
     return NextResponse.redirect(new URL(isPlatformAdmin ? "/admin" : "/", request.url));
   }
 
   // Home genérica ("/") pressupõe workspace -- um admin puro não tem um, então
   // manda direto pro painel dele em vez de deixar "/" quebrar em silêncio.
-  if (user && isPlatformAdmin && request.nextUrl.pathname === "/") {
+  if (user && isPlatformAdmin && path === "/") {
     return NextResponse.redirect(new URL("/admin", request.url));
   }
 
@@ -129,6 +185,11 @@ export async function proxy(request: NextRequest) {
 // /login?revoked=1 on every /admin visit. The layout's own gate is the real
 // protection here (session + email allowlist), same as api/admin's route
 // gate is the real protection for the API side.
+// api/auth/impersonate é o callback de "entrar como cliente": chega SEM
+// cookie de sessão (é exatamente ele que vai criar a sessão, trocando um
+// token de uso único). Sem esta exclusão levava 307 pro /login e o
+// impersonate nunca funcionava -- mesma armadilha de api/cron e
+// api/telephony/webhook, que já custou 3 incidentes neste projeto.
 export const config = {
-  matcher: ["/((?!_next/static|_next/image|favicon.ico|api/auth/gmail/callback|api/auth/google-calendar/callback|api/track|api/whatsapp/webhook|api/whatsapp/queue|api/telephony/webhook|api/convites|api/automations|api/v1|api/admin|admin|api/cron|.*\\.(?:svg|png|jpg|jpeg|gif|webp)$).*)"],
+  matcher: ["/((?!_next/static|_next/image|favicon.ico|api/auth/gmail/callback|api/auth/google-calendar/callback|api/auth/impersonate|api/track|api/whatsapp/webhook|api/whatsapp/queue|api/telephony/webhook|api/convites|api/automations|api/v1|api/admin|admin|api/cron|.*\\.(?:svg|png|jpg|jpeg|gif|webp)$).*)"],
 };

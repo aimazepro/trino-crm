@@ -1,7 +1,7 @@
 # Painel da Plataforma (v2) — Design
 
 **Data:** 2026-08-30
-**Status:** Aprovado no brainstorming; falta revisão final do usuário → plano de implementação
+**Status:** Implementado (plano: docs/superpowers/plans/2026-08-30-painel-plataforma-v2.md)
 **Substitui:** `2026-08-29-admin-workspaces-design.md` (v1, `/admin`, já em produção)
 
 ## 1. Por que existe
@@ -82,6 +82,8 @@ O host do painel vem de env var (`NEXT_PUBLIC_ADMIN_HOST`), não hardcoded — e
 `localhost` o rewrite é desligado e `/painel/*` responde direto, senão não há
 como desenvolver.
 
+Dev não desliga o rewrite (ver Task 5 do plano): usa NEXT_PUBLIC_ADMIN_HOST=painel.localhost:3000, mesma regra de host da produção.
+
 **Next 16.2.3:** o arquivo é `proxy.ts`, não `middleware.ts` (renomeado no Next
 16; ver `node_modules/next/dist/docs/01-app/01-getting-started/16-proxy.md`). A
 própria doc avisa que autorização não deve depender só do proxy — o gate real
@@ -139,11 +141,18 @@ engano, o e-mail da env ainda entra.
 
 **Papéis:**
 
-| Papel | Vê dados | Bloqueia conta/workspace | Plano, trial, features | Impersonate | Gerencia operadores | Apaga em definitivo (§8.3) |
+| Papel | Vê dados | Bloqueia conta/workspace, features | Plano e trial | Impersonate | Gerencia operadores | Apaga em definitivo (§8.3) |
 |---|---|---|---|---|---|---|
 | `owner` | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ |
 | `support` | ✅ | ✅ | ❌ | ✅ | ❌ | ❌ |
 | `billing` | ❌ (só agregados) | ❌ | ✅ | ❌ | ❌ | ❌ |
+
+> **Divergência do desenho original, registrada em 2026-09-01:** a tabela antes
+> juntava "Plano, trial, features" numa coluna só (`support` ❌, `billing` ✅);
+> a implementação pôs `feature_flags` junto dos controles operacionais, sob a
+> habilidade `block` (`support` ✅, `billing` ❌), porque quem já pode suspender
+> o workspace inteiro desligar um recurso é menos poder, não mais — e porque
+> desligar uma funcionalidade é operação, não cobrança.
 
 O cliente (qualquer papel dentro do CRM, inclusive dono do workspace) não tem
 acesso a nenhuma dessas colunas — não existe autoatendimento de exclusão.
@@ -170,7 +179,7 @@ Cartões, todos derivados de queries que já são possíveis hoje:
 
 - Contas por status: ativas / suspensas / em trial
 - Trials vencendo em ≤7 dias (lista clicável)
-- Contas paradas: sem linha em `deal_history`/`contact_history` há ≥14 dias
+- Contas paradas: sem linha em `deal_history`/`contact_history` há ≥14 dias (deal_history/contact_history não têm workspace_id — "contas paradas" sai de deals.updated_at + activities.created_at (RPC platform_dashboard_stats))
 - Contas órfãs: `auth.users` sem `workspace_members` — sinal de cadastro que não
   converteu (hoje: `agenciapixeo@gmail.com`)
 - Telefonia: soma de `telephony_balances` e gasto do mês em `telephony_ledger`
@@ -316,7 +325,7 @@ create table public.platform_audit_log (
   actor_email text,
   actor_role  text,
   actor_via   text check (actor_via in ('session','token')),
-  action      text not null,   -- 'workspace.suspend', 'account.block', 'impersonate.start', ...
+  action      text not null,   -- 'workspace.suspend', 'workspace.reactivate', 'account.block', 'impersonate.start', ...
   target_type text,            -- 'workspace' | 'account'
   target_id   text,
   target_label text,           -- nome/e-mail no momento da ação, para o log sobreviver a renomeações
@@ -436,22 +445,12 @@ a #2 bloqueia o passo 10 e **tem uma ordem obrigatória**.
 Enquanto isso não existir, dá para desenvolver: em `localhost` o rewrite é
 desligado por desenho e `/painel/*` responde direto.
 
-### 16.2 Desligar sign-ups no Supabase — **verificar o convite ANTES**
+### 16.2 Desligar sign-ups no Supabase
 
 Supabase → Auth → Providers → Email → desmarcar "Enable sign-ups". Isso fecha
 `POST /auth/v1/signup` no servidor; tirar o botão da UI sozinho não fecha nada.
 
-**A ordem importa.** Se o fluxo de `/convite/[token]` criar o membro chamando
-`supabase.auth.signUp`, desligar o toggle **quebra todo convite novo, em
-silêncio** — o convidado recebe o link e não consegue entrar. Então:
-
-1. Primeiro conferir como `/convite/[token]` cria o usuário.
-2. Se usar `signUp`, migrar a rota para `admin.createUser` (service-role) antes
-   de mexer no toggle.
-3. Só então desligar, e testar um convite de ponta a ponta.
-
-Essa verificação é o primeiro item do passo 10 da §13 — não um pré-requisito do
-dono, e sim trabalho de implementação. O toggle é o único passo manual.
+VERIFICADO 2026-08-30: /api/convites/aceitar já usa admin.createUser (service-role), não signUp. Desligar sign-ups não quebra convite. O único signUp do repo estava em src/app/login/page.tsx e foi removido.
 
 ## 17. Como retomar
 

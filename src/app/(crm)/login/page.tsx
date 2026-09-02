@@ -3,20 +3,16 @@
 import { useState, useEffect } from "react";
 import { createClient } from "@/lib/supabase/client";
 import { useRouter } from "next/navigation";
-import { Eye, EyeOff, Loader2, CheckCircle2, ShieldAlert } from "lucide-react";
+import { Eye, EyeOff, Loader2, ShieldAlert } from "lucide-react";
 import Image from "next/image";
 
 export default function LoginPage() {
   const router = useRouter();
-  const [mode, setMode] = useState<"login" | "signup">("login");
-  const [firstName, setFirstName] = useState("");
-  const [lastName, setLastName] = useState("");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [showPassword, setShowPassword] = useState(false);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [success, setSuccess] = useState(false);
   const [revoked, setRevoked] = useState(false);
 
   // Read straight off window.location instead of useSearchParams(): this
@@ -46,41 +42,12 @@ export default function LoginPage() {
       setLoading(false);
       return;
     }
+    // Login normal não pode herdar uma faixa de "sessão de suporte" deixada
+    // por um impersonate anterior no mesmo navegador -- limpa o marcador
+    // antes de seguir.
+    document.cookie = "impersonated_by=; path=/; max-age=0";
     router.push("/");
     router.refresh();
-  }
-
-  async function handleSignup(e: React.FormEvent) {
-    e.preventDefault();
-    setError(null);
-    if (!firstName.trim() || !lastName.trim()) {
-      setError("Por favor, preencha seu nome e sobrenome.");
-      return;
-    }
-    if (password.length < 6) {
-      setError("A senha deve ter pelo menos 6 caracteres.");
-      return;
-    }
-    setLoading(true);
-    const { error } = await supabase.auth.signUp({
-      email,
-      password,
-      options: {
-        data: {
-          full_name: `${firstName.trim()} ${lastName.trim()}`,
-        },
-      },
-    });
-    setLoading(false);
-    if (error) {
-      setError(
-        error.message === "User already registered"
-          ? "Este e-mail já está cadastrado."
-          : "Erro ao criar conta. Tente novamente."
-      );
-      return;
-    }
-    setSuccess(true);
   }
 
   async function handleGoogleLogin() {
@@ -123,7 +90,7 @@ export default function LoginPage() {
             em minutos.
           </h1>
           <p className="mt-4 text-zinc-400 text-base leading-relaxed">
-            Crie sua conta grátis e tenha acesso completo por 21 dias. Sem cartão de crédito.
+            Acesse sua conta para continuar.
           </p>
 
           <div className="mt-8 grid grid-cols-2 gap-3 text-left">
@@ -173,44 +140,21 @@ export default function LoginPage() {
               />
             </div>
             <h1 className="text-xl font-bold text-zinc-900">
-              {mode === "login" ? "Entrar na sua conta" : "Criar sua conta"}
+              Entrar na sua conta
             </h1>
             <p className="text-sm text-zinc-500 mt-1">
               para continuar em TrinoDeal
             </p>
           </div>
 
-          {revoked && !success && (
+          {revoked && (
             <div className="mb-5 flex items-start gap-2.5 text-left text-xs font-semibold text-red-600 bg-red-50 rounded-xl px-3.5 py-3 border border-red-100">
               <ShieldAlert size={16} className="shrink-0 mt-0.5" />
               <span>Acesso revogado ou nenhum convite aceito ainda. Fale com o administrador da sua empresa.</span>
             </div>
           )}
 
-          {success ? (
-            <div className="flex flex-col items-center gap-4 py-4 text-center">
-              <div className="w-12 h-12 rounded-full bg-green-50 flex items-center justify-center">
-                <CheckCircle2 size={24} className="text-green-500" />
-              </div>
-              <div>
-                <p className="text-sm font-bold text-zinc-900">Conta criada!</p>
-                <p className="text-xs font-medium text-zinc-400 mt-1">
-                  Confirme seu e-mail e faça login.
-                </p>
-              </div>
-              <button
-                onClick={() => {
-                  setMode("login");
-                  setSuccess(false);
-                }}
-                className="text-xs font-bold text-amber-500 hover:text-amber-600 underline"
-              >
-                Ir para o login
-              </button>
-            </div>
-          ) : (
-            <>
-              {/* Social login buttons */}
+          {/* Social login buttons */}
               <div className="mb-6">
                 <button
                   type="button"
@@ -248,43 +192,7 @@ export default function LoginPage() {
               </div>
 
               {/* Form fields */}
-              <form onSubmit={mode === "login" ? handleLogin : handleSignup} className="space-y-4">
-                {mode === "signup" && (
-                  <div className="grid grid-cols-2 gap-3">
-                    <div>
-                      <label className="block text-xs font-semibold text-zinc-600 mb-1" htmlFor="firstName-field">
-                        Nome
-                      </label>
-                      <input
-                        className="w-full px-3 py-2.5 rounded-xl border border-zinc-200 focus:border-amber-400 focus:ring-1 focus:ring-amber-400 text-sm placeholder:text-zinc-300 outline-none transition-all"
-                        id="firstName-field"
-                        name="firstName"
-                        placeholder="Digite seu nome"
-                        type="text"
-                        value={firstName}
-                        onChange={(e) => setFirstName(e.target.value)}
-                        required
-                        disabled={loading}
-                      />
-                    </div>
-                    <div>
-                      <label className="block text-xs font-semibold text-zinc-600 mb-1" htmlFor="lastName-field">
-                        Sobrenome
-                      </label>
-                      <input
-                        className="w-full px-3 py-2.5 rounded-xl border border-zinc-200 focus:border-amber-400 focus:ring-1 focus:ring-amber-400 text-sm placeholder:text-zinc-300 outline-none transition-all"
-                        id="lastName-field"
-                        name="lastName"
-                        placeholder="Digite seu sobrenome"
-                        type="text"
-                        value={lastName}
-                        onChange={(e) => setLastName(e.target.value)}
-                        required
-                        disabled={loading}
-                      />
-                    </div>
-                  </div>
-                )}
+              <form onSubmit={handleLogin} className="space-y-4">
 
                 <div>
                   <label className="block text-xs font-semibold text-zinc-600 mb-1" htmlFor="emailAddress-field">
@@ -312,7 +220,7 @@ export default function LoginPage() {
                       className="w-full px-3 py-2.5 rounded-xl border border-zinc-200 focus:border-amber-400 focus:ring-1 focus:ring-amber-400 text-sm placeholder:text-zinc-300 outline-none transition-all pr-10"
                       id="password-field"
                       name="password"
-                      placeholder={mode === "signup" ? "Crie uma senha" : "Digite sua senha"}
+                      placeholder="Digite sua senha"
                       type={showPassword ? "text" : "password"}
                       value={password}
                       onChange={(e) => setPassword(e.target.value)}
@@ -344,22 +252,15 @@ export default function LoginPage() {
                   {loading ? "Aguarde..." : "Continuar"}
                 </button>
               </form>
-            </>
-          )}
 
-          {/* Toggle login/signup mode and return link */}
+          {/* Cadastro público fechado (§9 do design v2): conta nova nasce no
+              painel da plataforma ou por convite. A trava de verdade é o
+              "Enable sign-ups" desligado no Supabase -- tirar o botão daqui
+              sozinho deixaria POST /auth/v1/signup aberto. */}
           <div className="mt-6 text-center text-xs text-zinc-400 space-y-2">
             <p>
-              {mode === "login" ? "Não tem uma conta?" : "Já tem conta?"}{" "}
-              <button
-                onClick={() => {
-                  setMode(mode === "login" ? "signup" : "login");
-                  setError(null);
-                }}
-                className="text-amber-600 hover:text-amber-700 font-semibold cursor-pointer"
-              >
-                {mode === "login" ? "Cadastre-se" : "Entrar"}
-              </button>
+              Não tem uma conta? Fale com quem administra o seu workspace para
+              receber um convite.
             </p>
             <p className="pt-2">
               <a href="/" className="hover:text-zinc-500 transition-colors">
